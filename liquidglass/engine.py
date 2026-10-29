@@ -1,0 +1,422 @@
+"""Apply and revert: runs target plans with a first-touch backup.
+
+Backup lives in ~/.local/state/liquid-glass/backup. For every file or
+gsettings key a target changes, the state from *before Liquid Glass ever
+touched it* is recorded once, tagged with the target id. Reverting a target
+puts exactly those things back; reverting everything restores the desktop
+as it was before the first Apply. Shared lists (enabled extensions, Flatpak
+overrides) are recorded item by item, so only our own items are undone.
+"""
+
+from __future__ import annotations
+
+import ast
+import configparser
+import contextlib
+import fcntl
+import hashlib
+import io
+import json
+import os
+import shutil
+import tempfile
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
+
+from . import palette
+from .env import Env
+from .settings import Settings, config_dir
+from .targets import all_targets
+from .targets.base import Action, Command, Context, FlatpakOverride, GSet, ListEdit, Target, WriteFile
+
+
+@dataclass
+class Result:
+    target: str
+    name: str
+    status: str        # "applied", "info" (nothing to change, see notes), "skipped", "reverted", "failed"
+    message: str = ""
+
+
+def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
+    """Write via a fresh temp file in the same folder (O_EXCL, so a planted link can't redirect it)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        path.unlink()       # never write through a link into someone else's file
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".lg-tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def parse_strv(text: str | None) -> list[str]:
+    """gsettings 'as' text ("['a', 'b']" or "@as []") to a list."""
+    if not text:
+        return []
+    text = text.strip().removeprefix("@as").strip()
+    try:
+        v = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        return []
+    return [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
+
+
+def format_strv(items: list[str]) -> str:
+    if not items:
+        return "@as []"
+    return "[" + ", ".join("'" + i.replace("\\", "\\\\").replace("'", "\\'") + "'" for i in items) + "]"
+
+
+class Backup:
+    SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak")
+
+    def __init__(self, env: Env):
+        self.env = env
+        self.root = env.state / "liquid-glass/backup"
+        self.manifest_path = self.root / "manifest.json"
+        self.data: dict[str, dict] = {k: {} for k in self.SECTIONS}
+        try:
+            loaded = json.loads(self.manifest_path.read_text())
+            if isinstance(loaded, dict):
+                for k in self.data:
+                    self.data[k] = dict(loaded.get(k, {}))
+        except (OSError, ValueError):
+            pass
+
+    def save(self) -> None:
+        if self.env.dry_run:
+            return
+        self.root.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.root, 0o700)
+        atomic_write(self.manifest_path, json.dumps(self.data, indent=1).encode(), 0o600)
+
+    # ---- recording ----------------------------------------------------------
+    def record_file(self, target: str, path: Path) -> None:
+        key = str(path)
+        if key in self.data["files"] or self.env.dry_run:
+            return
+        entry: dict = {"target": target}
+        if path.is_symlink():
+            entry.update(kind="symlink", link=os.readlink(path))
+        elif path.is_file():
+            store = self.root / "files"
+            store.mkdir(parents=True, exist_ok=True)
+            os.chmod(self.root, 0o700)
+            digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+            copy = store / f"{digest}-{path.name}"
+            shutil.copy2(path, copy)
+            entry.update(kind="file", copy=str(copy), mode=path.stat().st_mode & 0o777)
+        else:
+            entry.update(kind="missing")
+        self.data["files"][key] = entry
+
+    def record_gsetting(self, target: str, env: Env, g: GSet) -> bool:
+        key = f"{g.schema}|{g.path or ''}|{g.key}"
+        if key in self.data["gsettings"]:
+            return True
+        old = env.gsettings_get(g.schema, g.key, g.path)
+        if old is None:
+            return False
+        self.data["gsettings"][key] = {"target": target, "value": old}
+        return True
+
+    def record_command(self, target: str, c: Command) -> None:
+        if c.undo:
+            self.data["commands"][" ".join(c.argv)] = {"target": target, "undo": list(c.undo)}
+
+    # ---- restoring ------------------------------------------------------------
+    def restore(self, target: str | None = None) -> list[str]:
+        """Restore one target (or all). Returns problems, empty if clean."""
+        problems: list[str] = []
+        mine = lambda e: not target or e["target"] == target  # noqa: E731
+        for key, e in list(self.data["files"].items()):
+            if not mine(e):
+                continue
+            p = Path(key)
+            try:
+                if p.is_symlink() or p.exists():
+                    if p.is_dir() and not p.is_symlink():
+                        shutil.rmtree(p)
+                    else:
+                        p.unlink()
+                if e["kind"] == "symlink":
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.symlink_to(e["link"])
+                elif e["kind"] == "file":
+                    atomic_write(p, Path(e["copy"]).read_bytes(), e.get("mode", 0o644))
+                    with contextlib.suppress(OSError):
+                        os.unlink(e["copy"])
+                del self.data["files"][key]
+            except OSError as err:
+                problems.append(f"{p}: {err}")
+        for key, e in list(self.data["gsettings"].items()):
+            if not mine(e):
+                continue
+            schema, path, k = key.split("|", 2)
+            r = self.env.gsettings_set(schema, k, e["value"], path or None)
+            if r.ok:
+                del self.data["gsettings"][key]
+            else:
+                problems.append(f"{schema} {k}: {r.err.strip()}")
+        for key, e in list(self.data["lists"].items()):
+            if not mine(e):
+                continue
+            schema, path, k = key.split("|", 2)
+            items = parse_strv(self.env.gsettings_get(schema, k, path or None))
+            items = [i for i in items if i not in e["added"]]
+            items += [i for i in e["removed"] if i not in items]
+            r = self.env.gsettings_set(schema, k, format_strv(items), path or None)
+            if r.ok:
+                del self.data["lists"][key]
+            else:
+                problems.append(f"{schema} {k}: {r.err.strip()}")
+        for tid, e in list(self.data["flatpak"].items()):
+            if not mine(e):
+                continue
+            try:
+                _flatpak_undo(self.env, e)
+                del self.data["flatpak"][tid]
+            except (OSError, configparser.Error) as err:
+                problems.append(f"Flatpak overrides: {err}")
+        for key, e in list(self.data["commands"].items()):
+            if not mine(e):
+                continue
+            r = self.env.run(e["undo"])
+            if r.ok:
+                del self.data["commands"][key]
+            else:
+                problems.append(f"{' '.join(e['undo'])}: {r.err.strip()}")
+        self.save()
+        return problems
+
+    def targets_with_changes(self) -> set[str]:
+        return {e["target"] for section in self.data.values() for e in section.values()}
+
+
+# ---- Flatpak global override (a GLib keyfile flatpak itself reads) ---------------
+def _flatpak_file(env: Env) -> Path:
+    return env.data / "flatpak/overrides/global"
+
+
+def _flatpak_read(path: Path) -> configparser.RawConfigParser:
+    cp = configparser.RawConfigParser(delimiters=("=",), comment_prefixes=("#",), strict=False)
+    cp.optionxform = str  # keys are case-sensitive
+    if path.is_file():
+        cp.read_string(path.read_text(encoding="utf-8"))
+    return cp
+
+
+def _flatpak_write(path: Path, cp: configparser.RawConfigParser) -> None:
+    buf = io.StringIO()
+    cp.write(buf, space_around_delimiters=False)
+    atomic_write(path, buf.getvalue().encode(), 0o644)
+
+
+def _fs_list(cp: configparser.RawConfigParser) -> list[str]:
+    raw = cp.get("Context", "filesystems", fallback="")
+    return [x for x in raw.split(";") if x]
+
+
+def _set_fs(cp: configparser.RawConfigParser, items: list[str]) -> None:
+    if items:
+        if not cp.has_section("Context"):
+            cp.add_section("Context")
+        cp.set("Context", "filesystems", ";".join(items) + ";")
+    elif cp.has_option("Context", "filesystems"):
+        cp.remove_option("Context", "filesystems")
+
+
+def _flatpak_apply(env: Env, target: str, a: FlatpakOverride, backup: Backup) -> None:
+    path = _flatpak_file(env)
+    cp = _flatpak_read(path)
+    rec = backup.data["flatpak"].setdefault(target, {"target": target, "filesystems": [], "env": {}})
+    fs = _fs_list(cp)
+    for f in a.filesystems:
+        if f not in fs:
+            fs.append(f)
+            if f not in rec["filesystems"]:
+                rec["filesystems"].append(f)
+    _set_fs(cp, fs)
+    for k, v in a.env:
+        if not cp.has_section("Environment"):
+            cp.add_section("Environment")
+        if k not in rec["env"]:
+            rec["env"][k] = cp.get("Environment", k, fallback=None)  # None: wasn't set
+        cp.set("Environment", k, v)
+    if not env.dry_run:
+        _flatpak_write(path, cp)
+
+
+def _flatpak_undo(env: Env, rec: dict) -> None:
+    path = _flatpak_file(env)
+    if not path.is_file():
+        return
+    cp = _flatpak_read(path)
+    _set_fs(cp, [f for f in _fs_list(cp) if f not in rec.get("filesystems", [])])
+    for k, old in rec.get("env", {}).items():
+        if old is None:
+            if cp.has_option("Environment", k):
+                cp.remove_option("Environment", k)
+        else:
+            cp.set("Environment", k, old)
+    for sec in ("Context", "Environment"):
+        if cp.has_section(sec) and not cp.items(sec):
+            cp.remove_section(sec)
+    _flatpak_write(path, cp)
+
+
+class Engine:
+    def __init__(self, env: Env | None = None, targets: list[Target] | None = None):
+        self.env = env or Env()
+        self.targets = targets if targets is not None else all_targets()
+
+    @contextlib.contextmanager
+    def _locked(self) -> Iterator[None]:
+        """One Apply/Revert at a time (the app and the dark/light watcher may race)."""
+        d = self.env.state / "liquid-glass"
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "lock", "w") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
+    def context(self, settings: Settings) -> Context:
+        accent = self.env.system_accent()
+        dark = palette.build(settings, dark=True, system_accent=accent)
+        light = palette.build(settings, dark=False, system_accent=accent)
+        if settings.scheme == "auto":
+            use_dark = self.env.prefers_dark()
+        else:
+            use_dark = settings.scheme == "dark"
+        return Context(settings=settings, tokens=dark if use_dark else light,
+                       dark=dark, light=light, env=self.env)
+
+    def plan(self, settings: Settings) -> dict[str, list[Action]]:
+        ctx = self.context(settings)
+        out: dict[str, list[Action]] = {}
+        for t in self.targets:
+            if settings.target_enabled(t.id) and t.detect(self.env).available:
+                out[t.id] = t.plan(ctx)
+        return out
+
+    def is_applied(self) -> bool:
+        """True while anything Liquid Glass changed is still in place."""
+        return bool(Backup(self.env).targets_with_changes())
+
+    def apply(self, settings: Settings, only: set[str] | None = None) -> list[Result]:
+        with self._locked():
+            return self._apply(settings, only)
+
+    def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
+        ctx = self.context(settings)
+        backup = Backup(self.env)
+        results: list[Result] = []
+        for t in self.targets:
+            if only and t.id not in only:
+                continue
+            if not settings.target_enabled(t.id):
+                if t.id in backup.targets_with_changes():
+                    probs = backup.restore(t.id)
+                    results.append(Result(t.id, t.name, "failed" if probs else "reverted", "; ".join(probs)))
+                continue
+            det = t.detect(self.env)
+            if not det.available:
+                results.append(Result(t.id, t.name, "skipped", det.detail))
+                continue
+            actions: list[Action] = []
+            try:
+                actions = t.plan(ctx)
+                errs = self._run(t.id, actions, backup)
+            except Exception as e:  # a broken target must not stop the others
+                errs = [f"{type(e).__name__}: {e}"]
+            backup.save()
+            if errs:
+                results.append(Result(t.id, t.name, "failed", "; ".join(errs)))
+            elif not actions:
+                results.append(Result(t.id, t.name, "info", " ".join(t.live_notes(ctx)) or t.summary))
+            else:
+                results.append(Result(t.id, t.name, "applied"))
+        self._write_tokens(ctx)
+        return results
+
+    def revert(self, target: str | None = None) -> list[str]:
+        with self._locked():
+            problems = Backup(self.env).restore(target)
+            if target is None and not problems and not self.env.dry_run:
+                for name in ("tokens.json", "tokens-dark.json", "tokens-light.json"):
+                    with contextlib.suppress(OSError):
+                        (config_dir() / name).unlink()   # apps that read them go back to their own look
+            return problems
+
+    # ---- internals ------------------------------------------------------------
+    def _run(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+        errs: list[str] = []
+        for a in actions:
+            if isinstance(a, WriteFile):
+                backup.record_file(tid, a.path)
+                if not self.env.dry_run:
+                    atomic_write(a.path, a.content.encode() if isinstance(a.content, str) else a.content, a.mode)
+            elif isinstance(a, GSet):
+                if a.key not in self.env.gsettings_keys(a.schema, a.path):
+                    if not a.optional:
+                        errs.append(f"missing setting {a.schema} {a.key}")
+                    continue
+                if not backup.record_gsetting(tid, self.env, a):
+                    continue
+                r = self.env.gsettings_set(a.schema, a.key, a.value, a.path)
+                if not r.ok:
+                    errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
+            elif isinstance(a, ListEdit):
+                if a.key not in self.env.gsettings_keys(a.schema, a.path):
+                    continue
+                items = parse_strv(self.env.gsettings_get(a.schema, a.key, a.path))
+                key = f"{a.schema}|{a.path or ''}|{a.key}"
+                rec = backup.data["lists"].setdefault(key, {"target": tid, "added": [], "removed": []})
+                changed = False
+                for i in a.add:
+                    if i not in items:
+                        items.append(i)
+                        changed = True
+                        if i not in rec["added"]:
+                            rec["added"].append(i)
+                for i in a.remove:
+                    if i in items:
+                        items.remove(i)
+                        changed = True
+                        if i not in rec["removed"]:
+                            rec["removed"].append(i)
+                if changed:
+                    r = self.env.gsettings_set(a.schema, a.key, format_strv(items), a.path)
+                    if not r.ok:
+                        errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
+            elif isinstance(a, FlatpakOverride):
+                _flatpak_apply(self.env, tid, a, backup)
+            elif isinstance(a, Command):
+                if not self.env.which(a.argv[0]):
+                    continue
+                for p in a.touches:
+                    backup.record_file(tid, p)
+                backup.record_command(tid, a)
+                if self.env.dry_run:
+                    continue
+                r = self.env.run(list(a.argv), timeout=120)
+                if not r.ok:
+                    errs.append(f"{a.argv[0]}: {r.err.strip()[:200]}")
+        return errs
+
+    def _write_tokens(self, ctx: Context) -> None:
+        if self.env.dry_run:
+            return
+        d = config_dir()
+        atomic_write(d / "tokens-dark.json", ctx.dark.to_json().encode())
+        atomic_write(d / "tokens-light.json", ctx.light.to_json().encode())
+        atomic_write(d / "tokens.json", ctx.tokens.to_json().encode())

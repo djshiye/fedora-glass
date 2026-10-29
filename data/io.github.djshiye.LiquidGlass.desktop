@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Liquid Glass
+GenericName=Theme Customizer
+Comment=Make GNOME and your apps look like Liquid Glass, from clear to frosted
+Exec=python3 -m liquidglass gui
+Icon=io.github.djshiye.LiquidGlass
+Terminal=false
+Categories=GNOME;GTK;Settings;DesktopSettings;
+Keywords=theme;glass;blur;transparency;appearance;frosted;liquid;
+StartupNotify=true
+StartupWMClass=io.github.djshiye.LiquidGlass
+SingleMainWindow=true

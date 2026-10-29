@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#18224a"/>
+      <stop offset="0.55" stop-color="#34398a"/>
+      <stop offset="1" stop-color="#0c1230"/>
+    </linearGradient>
+    <radialGradient id="band" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e4ecff" stop-opacity="0.75"/>
+      <stop offset="0.5" stop-color="#9db8ff" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#9db8ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd6f0" stop-opacity="0.9"/>
+      <stop offset="0.45" stop-color="#b9c8ff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#b9c8ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glass" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.50"/>
+      <stop offset="0.5" stop-color="#a9c4ff" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#5a74e0" stop-opacity="0.28"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0.2" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.75"/>
+    </linearGradient>
+    <linearGradient id="tileRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="64" cy="117" rx="54" ry="8" fill="url(#shadow)"/>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#sky)"/>
+  <!-- the milky way behind the glass -->
+  <ellipse cx="64" cy="76" rx="54" ry="13" transform="rotate(-14 64 76)" fill="url(#band)"/>
+  <circle cx="27" cy="30" r="1.3" fill="#fff" opacity="0.85"/>
+  <circle cx="101" cy="25" r="1" fill="#fff" opacity="0.7"/>
+  <circle cx="106" cy="100" r="1.3" fill="#fff" opacity="0.6"/>
+  <circle cx="22" cy="100" r="1" fill="#fff" opacity="0.6"/>
+  <circle cx="90" cy="44" r="0.8" fill="#fff" opacity="0.6"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="url(#tileRim)"/>
+  <!-- the droplet lens: the band, magnified and bent, then glass and light -->
+  <ellipse cx="64" cy="86" rx="38" ry="30" fill="url(#shadow)"/>
+  <path d="M64 18 C64 18 99 55 99 79 A35 35 0 0 1 29 79 C29 55 64 18 64 18 Z" fill="#2a3172"/>
+  <ellipse cx="64" cy="82" rx="30" ry="15" transform="rotate(-14 64 82)" fill="url(#glow)"/>
+  <path d="M64 18 C64 18 99 55 99 79 A35 35 0 0 1 29 79 C29 55 64 18 64 18 Z" fill="url(#glass)"/>
+  <path d="M64 18 C64 18 99 55 99 79 A35 35 0 0 1 29 79 C29 55 64 18 64 18 Z" fill="none" stroke="url(#rim)" stroke-width="2.6"/>
+  <path d="M52 50 C46.5 58 42.5 66.5 42 75" fill="none" stroke="url(#shine)" stroke-width="5.5" stroke-linecap="round"/>
+  <ellipse cx="79" cy="97" rx="8" ry="3.2" transform="rotate(-38 79 97)" fill="#fff" opacity="0.35"/>
+</svg>

@@ -1,0 +1,638 @@
+"""The bridge between the QML customizer and the engine.
+
+Backend owns the Settings being edited, turns them into Tokens on every
+change (so the preview follows the slider without a round trip to disk) and
+runs everything slow (target detection, planning, apply, revert) on worker
+threads so the window never stalls.
+"""
+
+from __future__ import annotations
+
+import ast
+import configparser
+import os
+from collections.abc import Callable
+from dataclasses import asdict, fields, replace
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import Property, QObject, QProcess, QThread, QUrl, Signal, Slot
+from PySide6.QtGui import QColor, QGuiApplication, QIcon
+
+from .. import APP_ID, palette
+from .. import settings as settings_mod
+from ..color import Color
+from ..env import Env
+from ..settings import GNOME_ACCENTS, PRESETS, Settings
+
+GROUP_ORDER = ("Desktop", "Panel", "Apps", "Terminal", "My apps")
+
+# The windows the preview opens, so their dock icons get a "running" dot.
+RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
+
+FALLBACK_DOCK = ("org.gnome.Nautilus.desktop", "org.gnome.Ptyxis.desktop")
+
+
+def qcolor(c: Color) -> QColor:
+    return QColor.fromRgbF(c.r, c.g, c.b, c.a)
+
+
+def tokens_map(t: palette.Tokens) -> dict[str, Any]:
+    """Tokens as QML sees them: colours become QColor, the rest stays as is."""
+    return {k: qcolor(v) if isinstance(v, Color) else v for k, v in t.__dict__.items()}
+
+
+class _Task(QThread):
+    """Runs one function off the GUI thread; `report(fraction, text)` feeds progress."""
+
+    progressed = Signal(float, str)
+    finishedWith = Signal(object)
+
+    def __init__(self, fn: Callable[[Callable[[float, str], None]], Any], parent: QObject | None = None):
+        super().__init__(parent)
+        self._fn = fn
+
+    def run(self) -> None:
+        try:
+            out = self._fn(lambda f, text: self.progressed.emit(float(f), str(text)))
+        except Exception as e:  # surfaced to the user instead of dying silently in a thread
+            out = e
+        self.finishedWith.emit(out)
+
+
+def _parse_strv(text: str | None) -> list[str]:
+    if not text:
+        return []
+    text = text.strip()
+    if text.startswith("@as"):
+        text = text[3:].strip()
+    try:
+        v = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        return []
+    return [str(x) for x in v] if isinstance(v, list) else []
+
+
+def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
+    """(name, icon) from an installed .desktop file, searched like the Shell does."""
+    dirs = [env.data / "applications", env.data / "flatpak/exports/share/applications",
+            Path("/var/lib/flatpak/exports/share/applications")]
+    dirs += [Path(d) / "applications" for d in
+             (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":") if d]
+    stem = desktop_id.removesuffix(".desktop")
+    for d in dirs:
+        p = d / desktop_id
+        if not p.is_file():
+            continue
+        cp = configparser.ConfigParser(interpolation=None, strict=False)
+        try:
+            cp.read(p, encoding="utf-8")
+            sec = cp["Desktop Entry"]
+        except (configparser.Error, KeyError, OSError, UnicodeDecodeError):
+            continue
+        return sec.get("Name", stem), sec.get("Icon", stem)
+    return None
+
+
+class Backend(QObject):
+    settingsChanged = Signal()
+    tokensChanged = Signal()
+    previewChanged = Signal()
+    uiChanged = Signal()
+    targetsChanged = Signal()
+    busyChanged = Signal()
+    progressChanged = Signal()
+    savedChanged = Signal()
+    planReady = Signal("QVariantList")
+    applyFinished = Signal("QVariantList")
+    revertFinished = Signal("QVariantList")
+    failed = Signal(str)
+
+    def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
+                 settings_path: Path | None = None, ui_dark: bool | None = None,
+                 start: bool = True, parent: QObject | None = None):
+        super().__init__(parent)
+        self._env = env or Env()
+        self._engine_factory = engine_factory or self._default_engine
+        self._engine: Any = None
+        self._path = settings_path
+        self._saved = settings_mod.load(settings_path)
+        self._s = replace(self._saved, targets=dict(self._saved.targets))
+        self._ui_override = ui_dark
+        self._system_dark = self._env.prefers_dark() if ui_dark is None else ui_dark
+        self._system_accent = self._env.system_accent()
+        self._preview_dark = self._effective_dark()
+        self._targets: list[dict] = []
+        self._targets_ready = False
+        self._busy = ""
+        self._progress = 0.0
+        self._progress_text = ""
+        self._has_backup = False
+        self._task: _Task | None = None
+        self._task_done: Callable[[Any], None] = lambda out: None
+        self._task_busy = False
+        self._monitor: QProcess | None = None
+        self._wallpaper = self._find_wallpaper()
+        self._dock = self._find_dock()
+        self._rebuild_tokens()
+        if start:
+            self.refreshTargets()
+            self._watch_scheme()
+
+    # ---- helpers -----------------------------------------------------------------
+    @staticmethod
+    def _default_engine() -> Any:
+        from ..engine import Engine
+        return Engine()
+
+    def _engine_obj(self) -> Any:
+        if self._engine is None:
+            self._engine = self._engine_factory()
+        return self._engine
+
+    def _effective_dark(self) -> bool:
+        if self._s.scheme == "auto":
+            return self._system_dark
+        return self._s.scheme == "dark"
+
+    def _find_wallpaper(self) -> str:
+        try:
+            p = self._env.wallpaper()
+        except Exception:
+            p = None
+        return QUrl.fromLocalFile(str(p)).toString() if p else ""
+
+    def _find_dock(self) -> list[dict]:
+        """The real dock: installed favourites, then the apps the preview shows running."""
+        try:
+            favs = _parse_strv(self._env.gsettings_get("org.gnome.shell", "favorite-apps"))
+        except Exception:
+            favs = []
+        ids = [d for d in favs if _desktop_entry(self._env, d)] or list(FALLBACK_DOCK)
+        for app in RUNNING_APPS + (APP_ID,):
+            if f"{app}.desktop" not in ids:
+                ids.append(f"{app}.desktop")
+        out = []
+        for did in ids[:10]:
+            stem = did.removesuffix(".desktop")
+            name, icon = _desktop_entry(self._env, did) or (stem.split(".")[-1], stem)
+            if stem == APP_ID:
+                name, url = "Liquid Glass", self._own_icon_url()
+            elif icon.startswith("/"):
+                url = QUrl.fromLocalFile(icon).toString() if Path(icon).is_file() else ""
+            else:
+                url = f"image://lgicon/{icon}" if QIcon.hasThemeIcon(icon) else ""
+            out.append({"id": did, "name": name, "icon": url,
+                        "running": stem in RUNNING_APPS or stem == APP_ID})
+        return out
+
+    @staticmethod
+    def _own_icon_url() -> str:
+        from .app import find_icon
+        p = find_icon()
+        return QUrl.fromLocalFile(str(p)).toString() if p else ""
+
+    def _rebuild_tokens(self) -> None:
+        s = self._s
+        self._dark_t = palette.build(s, dark=True, system_accent=self._system_accent)
+        self._light_t = palette.build(s, dark=False, system_accent=self._system_accent)
+        auto = replace(s, opacity=None, blur=None, terminal_opacity=None)
+        a = palette.build(auto, dark=self._preview_dark, system_accent=self._system_accent)
+        self._auto = {"opacity": round(a.chrome.a, 2), "blur": a.blur_radius,
+                      "terminal_opacity": a.terminal_opacity}
+        self._maps = (tokens_map(self._dark_t), tokens_map(self._light_t))
+        self.tokensChanged.emit()
+
+    def _changed(self) -> None:
+        self._rebuild_tokens()
+        self.settingsChanged.emit()
+
+    def _set(self, name: str, value: Any) -> None:
+        if getattr(self._s, name) == value:
+            return
+        try:
+            s = replace(self._s, **{name: value}).normalized()
+        except (TypeError, ValueError):
+            return
+        if s == self._s:
+            return
+        self._s = s
+        if name == "scheme" and self._effective_dark() != self._preview_dark:
+            self._preview_dark = self._effective_dark()   # show the style just picked
+            self.previewChanged.emit()
+        self._changed()
+
+    def _watch_scheme(self) -> None:
+        """Follow GNOME's dark/light switch while the app is open."""
+        if self._ui_override is not None or not self._env.which("gsettings"):
+            return
+        p = QProcess(self)
+        p.readyReadStandardOutput.connect(self._on_scheme_output)
+        p.start("gsettings", ["monitor", "org.gnome.desktop.interface", "color-scheme"])
+        self._monitor = p
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.shutdown)
+
+    def _on_scheme_output(self) -> None:
+        if self._monitor is None:
+            return
+        text = bytes(self._monitor.readAllStandardOutput()).decode(errors="replace")
+        if "color-scheme" not in text:
+            return
+        dark = "dark" in text.splitlines()[-1]
+        if dark != self._system_dark:
+            preview_followed = self._preview_dark == self._effective_dark()
+            self._system_dark = dark
+            if preview_followed:
+                self._preview_dark = self._effective_dark()
+                self.previewChanged.emit()
+                self._rebuild_tokens()
+            self.uiChanged.emit()
+
+    @Slot()
+    def shutdown(self) -> None:
+        if self._monitor is not None:
+            self._monitor.kill()
+            self._monitor.waitForFinished(500)
+            self._monitor = None
+
+    # ---- settings properties ---------------------------------------------------
+    def _p(name: str, typ: type, none: Any = None, notify=settingsChanged):  # noqa: N805
+        def get(self):
+            v = getattr(self._s, name)
+            return none if v is None else v
+
+        def put(self, v):
+            if none is not None and v is not None and v < 0:
+                v = None
+            elif typ is int and v is not None:
+                v = int(round(v))
+            self._set(name, v)
+        return Property(typ, get, put, notify=notify)
+
+    frost = _p("frost", float)
+    scheme = _p("scheme", str)
+    accent = _p("accent", str)
+    tint = _p("tint", str)
+    tintStrength = _p("tint_strength", float)
+    radius = _p("radius", int)
+    highlight = _p("highlight", float)
+    opacity = _p("opacity", float, -1.0)          # -1 means "follow the slider"
+    blur = _p("blur", int, -1)
+    reduceTransparency = _p("reduce_transparency", bool)
+    panelStyle = _p("panel_style", str)
+    panelMargin = _p("panel_margin", int)
+    blurAppWindows = _p("blur_app_windows", bool)
+    terminalOpacity = _p("terminal_opacity", float, -1.0)
+    del _p
+
+    def _get_auto(self) -> dict:
+        return dict(self._auto)
+
+    autoValues = Property("QVariantMap", _get_auto, notify=tokensChanged)
+
+    @Property(bool, notify=settingsChanged)
+    def dirty(self) -> bool:
+        return self._s != self._saved.normalized()
+
+    @Property(str, notify=settingsChanged)
+    def activePreset(self) -> str:
+        for name, values in PRESETS.items():
+            want = {"opacity": None, "blur": None, **values}
+            if all(_close(getattr(self._s, k), v) for k, v in want.items()):
+                return name
+        return ""
+
+    @Property("QStringList", constant=True)
+    def presets(self) -> list[str]:
+        return list(PRESETS)
+
+    @Property("QVariantList", constant=True)
+    def accents(self) -> list[dict]:
+        return [{"id": k, "color": v, "label": k.capitalize()} for k, v in GNOME_ACCENTS.items()]
+
+    @Property(str, constant=True)
+    def systemAccent(self) -> str:
+        return self._system_accent or "blue"
+
+    @Slot(str)
+    def applyPreset(self, name: str) -> None:
+        if name not in PRESETS:
+            return
+        s = settings_mod.apply_preset(self._s, name)
+        s.targets = dict(self._s.targets)
+        if s != self._s:
+            self._s = s
+            self._changed()
+
+    @Slot()
+    def resetDefaults(self) -> None:
+        s = Settings(targets=dict(self._s.targets))
+        if s != self._s:
+            was_dark = self._effective_dark()
+            self._s = s
+            if self._effective_dark() != was_dark:
+                self._preview_dark = self._effective_dark()
+                self.previewChanged.emit()
+            self._changed()
+
+    @Slot()
+    def discardChanges(self) -> None:
+        self._s = replace(self._saved, targets=dict(self._saved.targets))
+        self._preview_dark = self._effective_dark()
+        self.previewChanged.emit()
+        self._changed()
+
+    @Slot(str, result=bool)
+    def isColor(self, value: str) -> bool:
+        return settings_mod._is_hex(value)
+
+    # ---- tokens -------------------------------------------------------------------
+    def _get_tokens(self) -> dict:
+        return self._maps[0] if self._preview_dark else self._maps[1]
+
+    tokens = Property("QVariantMap", _get_tokens, notify=tokensChanged)
+    darkTokens = Property("QVariantMap", lambda self: self._maps[0], notify=tokensChanged)
+    lightTokens = Property("QVariantMap", lambda self: self._maps[1], notify=tokensChanged)
+
+    def _get_preview_dark(self) -> bool:
+        return self._preview_dark
+
+    def _set_preview_dark(self, v: bool) -> None:
+        if bool(v) != self._preview_dark:
+            self._preview_dark = bool(v)
+            self.previewChanged.emit()
+            self._rebuild_tokens()
+
+    previewDark = Property(bool, _get_preview_dark, _set_preview_dark, notify=previewChanged)
+
+    # ---- the app's own look ------------------------------------------------------
+    @Property(bool, notify=uiChanged)
+    def uiDark(self) -> bool:
+        return self._system_dark
+
+    @Property(QColor, notify=tokensChanged)
+    def uiAccent(self) -> QColor:
+        return qcolor(palette.resolve_accent(self._s, self._system_accent))
+
+    @Property(QColor, notify=tokensChanged)
+    def uiAccentFg(self) -> QColor:
+        return qcolor(self._dark_t.accent_fg)
+
+    @Slot(str, result=str)
+    def iconUrl(self, name: str) -> str:
+        return f"image://lgicon/{name}" if name and QIcon.hasThemeIcon(name) else ""
+
+    @Property(str, constant=True)
+    def wallpaper(self) -> str:
+        return self._wallpaper
+
+    @Property(str, constant=True)
+    def userName(self) -> str:
+        """Shown in the preview's terminal prompt and menu, like on the real desktop."""
+        import getpass
+        try:
+            return getpass.getuser()
+        except Exception:  # no passwd entry in some sandboxes
+            return "user"
+
+    @Property(str, constant=True)
+    def hostName(self) -> str:
+        import socket
+        return socket.gethostname().split(".")[0] or "fedora"
+
+    @Property("QVariantList", constant=True)
+    def dock(self) -> list[dict]:
+        return self._dock
+
+    # ---- targets -------------------------------------------------------------------
+    @Property("QVariantList", notify=targetsChanged)
+    def targets(self) -> list[dict]:
+        groups: dict[str, list[dict]] = {}
+        for t in self._targets:
+            item = dict(t, enabled=self._s.target_enabled(t["id"]))
+            groups.setdefault(t["group"], []).append(item)
+        order = sorted(groups, key=lambda g: (GROUP_ORDER.index(g) if g in GROUP_ORDER else 99, g))
+        return [{"group": g, "items": groups[g]} for g in order]
+
+    @Property(bool, notify=targetsChanged)
+    def targetsReady(self) -> bool:
+        return self._targets_ready
+
+    @Property(int, notify=targetsChanged)
+    def activeTargetCount(self) -> int:
+        return sum(1 for t in self._targets if t["available"] and self._s.target_enabled(t["id"]))
+
+    @Property(bool, notify=targetsChanged)
+    def hasBackup(self) -> bool:
+        return self._has_backup
+
+    @Slot(str, bool)
+    def setTargetEnabled(self, target_id: str, on: bool) -> None:
+        if self._s.target_enabled(target_id) == bool(on):
+            return
+        targets = dict(self._s.targets)
+        targets[target_id] = bool(on)
+        self._s = replace(self._s, targets=targets)
+        self.settingsChanged.emit()
+        self.targetsChanged.emit()
+
+    @Slot()
+    def refreshTargets(self) -> None:
+        s = self._s.normalized()
+
+        def job(report):
+            engine = self._engine_obj()
+            try:
+                ctx = engine.context(s)
+            except Exception:
+                ctx = None
+            out = []
+            for t in engine.targets:
+                try:
+                    notes = list(t.live_notes(ctx)) if ctx is not None and hasattr(t, "live_notes") else list(t.notes or [])
+                except Exception:
+                    notes = list(t.notes or [])
+                try:
+                    det = t.detect(engine.env)
+                    available, detail = bool(det.available), det.detail or ""
+                except Exception as e:
+                    available, detail = False, f"Could not check: {e}"
+                out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
+                            "summary": t.summary, "notes": notes,
+                            "available": available, "detail": detail})
+            return out, self._backup_exists(engine)
+        self._run("detect", job, self._targets_done, show_busy=False)
+
+    def _targets_done(self, out: Any) -> None:
+        if isinstance(out, Exception):
+            self._targets, self._has_backup = [], False
+            self.failed.emit(f"Could not load targets: {out}")
+        else:
+            self._targets, self._has_backup = out
+        self._targets_ready = True
+        self.targetsChanged.emit()
+
+    @staticmethod
+    def _backup_exists(engine: Any) -> bool:
+        try:
+            from ..engine import Backup
+            return bool(Backup(engine.env).targets_with_changes())
+        except Exception:
+            return False
+
+    # ---- long-running work --------------------------------------------------------
+    @Property(bool, notify=busyChanged)
+    def busy(self) -> bool:
+        return bool(self._busy)
+
+    @Property(str, notify=busyChanged)
+    def busyKind(self) -> str:
+        return self._busy
+
+    @Property(float, notify=progressChanged)
+    def progress(self) -> float:
+        return self._progress
+
+    @Property(str, notify=progressChanged)
+    def progressText(self) -> str:
+        return self._progress_text
+
+    def _run(self, kind: str, fn, done, show_busy: bool = True) -> bool:
+        if self._task is not None:
+            return False
+        task = _Task(fn, self)
+        self._task, self._task_done, self._task_busy = task, done, show_busy
+        if show_busy:
+            self._busy = kind
+            self._progress, self._progress_text = 0.0, ""
+            self.busyChanged.emit()
+            self.progressChanged.emit()
+        # Bound slots of this object, so results arrive queued on the GUI thread.
+        task.progressed.connect(self._on_progress)
+        task.finishedWith.connect(self._on_task_done)
+        task.start()
+        return True
+
+    @Slot(object)
+    def _on_task_done(self, out: Any) -> None:
+        task, done = self._task, self._task_done
+        self._task = None
+        if task is not None:
+            task.wait()
+            task.deleteLater()
+        if self._task_busy:
+            self._busy = ""
+            self.busyChanged.emit()
+        done(out)
+
+    @Slot(float, str)
+    def _on_progress(self, f: float, text: str) -> None:
+        self._progress, self._progress_text = f, text
+        self.progressChanged.emit()
+
+    @Slot()
+    def requestPlan(self) -> None:
+        s = self._s.normalized()
+
+        def job(report):
+            engine = self._engine_obj()
+            names = {t.id: t.name for t in engine.targets}
+            home = str(engine.env.home)
+            report(0.1, "Planning")
+            plan = engine.plan(s)
+            return [{"id": tid, "name": names.get(tid, tid),
+                     "actions": [{"kind": type(a).__name__, "text": _tilde(a.describe(), home)} for a in actions]}
+                    for tid, actions in plan.items()]
+
+        def done(out):
+            if isinstance(out, Exception):
+                self.failed.emit(f"Could not work out the changes: {out}")
+            else:
+                self.planReady.emit(out)
+        self._run("plan", job, done)
+
+    @Slot()
+    def apply(self) -> None:
+        s = self._s.normalized()
+        try:
+            settings_mod.save(s, self._path)
+        except OSError as e:
+            self.failed.emit(f"Could not save settings: {e}")
+            return
+        self._saved = s
+        self.settingsChanged.emit()
+        self.savedChanged.emit()
+
+        def job(report):
+            engine = self._engine_obj()
+            ts = list(engine.targets)
+            if not ts:
+                report(0.5, "Writing tokens")
+                return [], self._backup_exists(engine)
+            results = []
+            for i, t in enumerate(ts):
+                report(i / len(ts), t.name)
+                results += engine.apply(s, only={t.id})
+            report(1.0, "Done")
+            return results, self._backup_exists(engine)
+
+        def done(out):
+            if isinstance(out, Exception):
+                self.failed.emit(f"Apply stopped: {out}")
+                return
+            results, self._has_backup = out
+            self.targetsChanged.emit()
+            self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
+                                      "message": r.message} for r in results])
+        self._run("apply", job, done)
+
+    @Slot()
+    def revert(self) -> None:
+        def job(report):
+            engine = self._engine_obj()
+            report(0.3, "Restoring")
+            problems = engine.revert()
+            return list(problems), self._backup_exists(engine)
+
+        def done(out):
+            if isinstance(out, Exception):
+                self.failed.emit(f"Restore stopped: {out}")
+                return
+            problems, self._has_backup = out
+            self.targetsChanged.emit()
+            self.revertFinished.emit(problems)
+        self._run("revert", job, done)
+
+    @Slot(result=bool)
+    def waitIdle(self) -> bool:
+        """For tests and the screenshot mode: block until background work ends."""
+        from PySide6.QtCore import QCoreApplication, QElapsedTimer
+        timer = QElapsedTimer()
+        timer.start()
+        while self._task is not None and timer.elapsed() < 30000:
+            QCoreApplication.processEvents()
+            QThread.msleep(5)
+        return self._task is None
+
+    # ---- plumbing for tests ----------------------------------------------------------
+    def settings(self) -> Settings:
+        return self._s
+
+    def settings_dict(self) -> dict:
+        return asdict(self._s)
+
+
+def _tilde(text: str, home: str) -> str:
+    """Show paths under the home folder as ~/…, the way people read them."""
+    return text.replace(home.rstrip("/") + "/", "~/") if home and home != "/" else text
+
+
+def _close(a: Any, b: Any) -> bool:
+    if isinstance(a, float) or isinstance(b, float):
+        return a is not None and b is not None and abs(float(a) - float(b)) < 0.005
+    return a == b
+
+
+SETTING_FIELDS = tuple(f.name for f in fields(Settings))
