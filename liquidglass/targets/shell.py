@@ -8,12 +8,13 @@ from dataclasses import dataclass, field
 from ..env import Env
 from ..render import glass as rg
 from ..render import shell as rs
-from .base import Action, Context, Detection, GSet, ListEdit, Target, WriteFile
+from .base import Action, Context, Detection, GReset, GSet, ListEdit, Target, WriteFile
 
 USER_THEME = "user-theme@gnome-shell-extensions.gcampax.github.com"
 BLUR = "blur-my-shell@aunetx"
 DASH_TO_PANEL = "dash-to-panel@jderose9.github.com"
 ARCMENU = "arcmenu@arcmenu.com"
+JUST_PERFECTION = "just-perfection-desktop@just-perfection"
 THEME_NAME = "LiquidGlass"
 
 
@@ -99,6 +100,22 @@ class GlassEffects(Target):
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))
         if env.extension_path(BLUR) is not None:
             acts += [GSet(f"{self.BLUR_SCHEMA}.{part}", "blur", "false") for part in self.BLUR_OVERLAP]
+        acts += self._startup_actions(ctx)
+        return acts
+
+    # Dash to Panel and Just Perfection each have their own "start on the desktop" option, and
+    # each would open the overview again if theirs said otherwise, so theirs follows ours.
+    STARTUP_KEYS = ((DASH_TO_PANEL, "org.gnome.shell.extensions.dash-to-panel", "hide-overview-on-startup", "true"),
+                    (JUST_PERFECTION, "org.gnome.shell.extensions.just-perfection", "startup-status", "0"))
+
+    def _startup_actions(self, ctx: Context) -> list[Action]:
+        s = ctx.settings
+        on = s.start_on_desktop or s.overview_off
+        acts: list[Action] = []
+        for uuid, schema, key, value in self.STARTUP_KEYS:
+            if ctx.env.extension_path(uuid) is None:
+                continue
+            acts.append(GSet(schema, key, value) if on else GReset(schema, key))
         return acts
 
     def live_notes(self, ctx: Context) -> list[str]:

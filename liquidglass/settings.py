@@ -62,6 +62,10 @@ class Settings:
     glass_overview: bool = True     # blurred wallpaper behind the overview
     glass_see_windows: bool = True  # panel and menus show the windows behind them, not just the wallpaper
 
+    # Desktop behaviour, done by the same Shell extension.
+    start_on_desktop: bool = True   # log in to the desktop, not the Activities overview
+    overview_off: bool = False      # Activities never opens: no hot corner, Super key or swipe
+
     # Per-part overrides: {"panel": {"tint": "#rrggbb", "radius": 12}, ...}.
     # Parts: panel, arcmenu, quicksettings, calendar (and notifications), overview (dash and
     # overview), windows, terminal. Keys: tint, tint_strength (0..1), radius (0..32 px),
@@ -89,7 +93,7 @@ class Settings:
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
-                  "glass_overview", "glass_see_windows"):
+                  "glass_overview", "glass_see_windows", "start_on_desktop", "overview_off"):
             setattr(s, k, bool(getattr(s, k)))
         if s.opacity is not None:
             s.opacity = _clamp(float(s.opacity), 0.6)

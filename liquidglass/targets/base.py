@@ -43,6 +43,18 @@ class GSet:
 
 
 @dataclass(frozen=True)
+class GReset:
+    """Put a gsettings key back the way it was before this target changed it, if it did.
+    For options the user has since turned off; a key we never touched is left alone."""
+    schema: str
+    key: str
+    path: str | None = None
+
+    def describe(self) -> str:
+        return f"restore {self.schema} {self.key} if Liquid Glass changed it"
+
+
+@dataclass(frozen=True)
 class Command:
     """An unprivileged helper command. `touches` lists files it changes, so
     they're backed up first and restored on revert."""
@@ -82,7 +94,7 @@ class FlatpakOverride:
         return f"flatpak override for all apps: {', '.join(bits)}"
 
 
-Action = WriteFile | GSet | Command | ListEdit | FlatpakOverride
+Action = WriteFile | GSet | GReset | Command | ListEdit | FlatpakOverride
 
 
 # ---- context and target -------------------------------------------------------

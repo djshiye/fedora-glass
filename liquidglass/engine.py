@@ -28,7 +28,7 @@ from . import palette
 from .env import Env
 from .settings import Settings, config_dir
 from .targets import all_targets
-from .targets.base import Action, Command, Context, FlatpakOverride, GSet, ListEdit, Target, WriteFile
+from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 
 
 @dataclass
@@ -134,6 +134,19 @@ class Backup:
             return False
         self.data["gsettings"][key] = {"target": target, "value": old}
         return True
+
+    def reset_gsetting(self, target: str, env: Env, g: GReset) -> str | None:
+        """Undo this target's change to one key. Returns a problem, or None."""
+        key = f"{g.schema}|{g.path or ''}|{g.key}"
+        e = self.data["gsettings"].get(key)
+        if not e or e["target"] != target:
+            return None
+        r = env.gsettings_set(g.schema, g.key, e["value"], g.path)
+        if not r.ok:
+            return f"{g.schema} {g.key}: {r.err.strip()}"
+        if not env.dry_run:
+            del self.data["gsettings"][key]
+        return None
 
     def record_command(self, target: str, c: Command) -> None:
         if c.undo:
@@ -393,6 +406,9 @@ class Engine:
                 r = self.env.gsettings_set(a.schema, a.key, a.value, a.path)
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
+            elif isinstance(a, GReset):
+                if (err := backup.reset_gsetting(tid, self.env, a)):
+                    errs.append(err)
             elif isinstance(a, ListEdit):
                 if a.key not in self.env.gsettings_keys(a.schema, a.path):
                     continue

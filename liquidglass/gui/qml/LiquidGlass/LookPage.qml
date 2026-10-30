@@ -738,6 +738,33 @@ Item {
             Card {
                 width: parent.width
                 height: implicitHeight
+                Column {
+                    width: parent.width
+                    spacing: 4
+                    SectionTitle { text: "Desktop" }
+                    SwitchRow {
+                        objectName: "startOnDesktop"
+                        label: "Start on the desktop"
+                        caption: "Log in straight to your desktop, not the Activities overview"
+                        tip: "When you log in, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
+                        enabled: !Backend.overviewOff
+                        checked: Backend.startOnDesktop || Backend.overviewOff
+                        onToggled: (on) => Backend.startOnDesktop = on
+                    }
+                    SwitchRow {
+                        objectName: "overviewOff"
+                        label: "Turn off the overview"
+                        caption: "The hot corner, Super key and three-finger swipe no longer open Activities"
+                        tip: "Activities never opens, not from the top-left corner, the Super key or a swipe. Open apps from ArcMenu or Dash to Panel instead. Without ArcMenu, the app grid still opens, so you can always start an app."
+                        checked: Backend.overviewOff
+                        onToggled: (on) => Backend.overviewOff = on
+                    }
+                }
+            }
+
+            Card {
+                width: parent.width
+                height: implicitHeight
                 padding: 8
                 Expander {
                     id: fine

@@ -15,6 +15,7 @@ export const DEFAULTS = Object.freeze({
     menus: {enabled: true, behind: 'windows', look: {}},
     windows: {enabled: true, radius: 12, skip: [], look: {refraction: 0, bend: 0, highlight: 0, blur: 30}},
     overview: {enabled: true, blur: 40, brightness: 0.7},
+    desktop: {startOnDesktop: false, overviewOff: false},
     look: {...DEFAULT_LOOK},
 });
 
@@ -78,6 +79,10 @@ export function parse(text) {
         if (cfg[name].look)
             cfg[name].look = cleanLook(cfg[name].look, look);
     }
+    const desktop = raw.desktop && typeof raw.desktop === 'object' ? raw.desktop : {};
+    cfg.desktop = {};
+    for (const [k, v] of Object.entries(DEFAULTS.desktop))
+        cfg.desktop[k] = typeof desktop[k] === 'boolean' ? desktop[k] : v;
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};

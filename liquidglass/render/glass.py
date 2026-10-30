@@ -17,7 +17,7 @@ from ..settings import Settings
 
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
-FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "prefs.js")
+FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "desktop.js", "prefs.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -96,6 +96,8 @@ def config(s: Settings, t: Tokens) -> dict:
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,
+        # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
+        "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
     }
 
 

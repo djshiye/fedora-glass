@@ -360,3 +360,42 @@ def test_menus_never_wait_long_for_their_glass():
     assert "source_remove" in release and "disconnect(this._holdPaint)" in release
     destroy = js[js.index("    destroy() {\n        if (this._later)"):]
     assert "this._release();" in destroy[:destroy.index("\n    }\n")]
+
+
+def test_desktop_options_reach_the_extension(fake_env):
+    t = context(fake_env).tokens
+    assert rg.config(Settings(), t)["desktop"] == {"startOnDesktop": True, "overviewOff": False}
+    assert rg.config(Settings(start_on_desktop=False), t)["desktop"] == {"startOnDesktop": False, "overviewOff": False}
+    # With the overview off there is nothing to start in.
+    assert rg.config(Settings(start_on_desktop=False, overview_off=True), t)["desktop"] == {
+        "startOnDesktop": True, "overviewOff": True}
+
+
+def test_start_on_desktop_keeps_dash_to_panel_and_just_perfection_in_step(fake_env):
+    dtp, jp = "org.gnome.shell.extensions.dash-to-panel", "org.gnome.shell.extensions.just-perfection"
+    # Without them installed, their settings are left alone.
+    acts = ts.GlassEffects().plan(context(fake_env))
+    assert not [a for a in acts if getattr(a, "schema", "") in (dtp, jp)]
+
+    install(fake_env, ts.DASH_TO_PANEL, ts.JUST_PERFECTION)
+    fake_env.gs[(dtp, None)] = {"hide-overview-on-startup": "false"}
+    fake_env.gs[(jp, None)] = {"startup-status": "1"}
+    engine = Engine(fake_env, [ts.GlassEffects()])
+    engine.apply(Settings())
+    assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "true"
+    assert fake_env.gs[(jp, None)]["startup-status"] == "0"
+    # Turning it off puts back what they had.
+    engine.apply(Settings(start_on_desktop=False))
+    assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "false"
+    assert fake_env.gs[(jp, None)]["startup-status"] == "1"
+    # A choice the user made there themselves is kept.
+    fake_env.gs[(dtp, None)]["hide-overview-on-startup"] = "true"
+    engine.apply(Settings(start_on_desktop=False))
+    assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "true"
+
+
+def test_desktop_options_are_checked_in_the_extension():
+    js = (rg.SOURCE / "config.js").read_text()
+    assert "desktop: {startOnDesktop: false, overviewOff: false}" in js
+    ext = (rg.SOURCE / "extension.js").read_text()
+    assert "DesktopBehaviour" in ext and "this._desktop?.destroy()" in ext

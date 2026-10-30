@@ -102,7 +102,7 @@ Sheet {
                                     height: Math.max(18, line.height)
                                     Icon {
                                         y: 1
-                                        name: act.modelData.kind === "WriteFile" ? "write" : act.modelData.kind === "GSet" ? "set" : "run"
+                                        name: act.modelData.kind === "WriteFile" ? "write" : act.modelData.kind === "GSet" || act.modelData.kind === "GReset" ? "set" : "run"
                                         size: 15
                                         color: Theme.textDim
                                     }

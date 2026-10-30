@@ -41,6 +41,14 @@ parts that would blur the same things twice, and **Restore original** turns them
 gnome-extensions uninstall blur-my-shell@aunetx   # or: sudo dnf remove gnome-shell-extension-blur-my-shell
 ```
 
+## Straight to the desktop
+
+GNOME logs in to your desktop instead of the Activities overview (**Start on the desktop**, on by
+default). **Turn off the overview** goes further: the hot corner, the Super key and the three-finger
+swipe stop opening Activities, and you start apps from ArcMenu or Dash to Panel. Without ArcMenu the
+app grid still opens, so there is always a way to start an app. If Dash to Panel or Just Perfection
+is installed, their own start-up option is set to match, and turning ours off puts theirs back.
+
 ## What it themes
 
 GNOME Shell, Dash to Panel, ArcMenu, GTK 4 and libadwaita apps (Nautilus included), GTK 3 apps,

@@ -333,6 +333,8 @@ class Backend(QObject):
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)
     glassSeeWindows = _p("glass_see_windows", bool)
+    startOnDesktop = _p("start_on_desktop", bool)
+    overviewOff = _p("overview_off", bool)
     del _p
 
     # ---- per-part overrides ------------------------------------------------------
