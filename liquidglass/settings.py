@@ -98,8 +98,8 @@ class Settings:
     lock_clock: str = "bold"            # gnome, bold or thin
     lock_clock_position: str = "gnome"  # gnome (upper third), top or middle
     lock_slide: str = "spring"          # how the sheet leaves on unlock: gnome, smooth or spring
-    lock_slide_ms: int = 600            # 250..1200
-    lock_bounce: float = 0.35           # 0..1, spring only
+    lock_slide_ms: int = 450            # 250..1200
+    lock_bounce: float = 0.2            # 0..1, spring only
 
     def target_enabled(self, target_id: str) -> bool:
         return self.targets.get(target_id, True)

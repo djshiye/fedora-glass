@@ -46,7 +46,8 @@ function sheetLook(c) {
 
 function cardLook(c) {
     const [r, g, b, a] = c.tint;
-    return {...sheetLook(c), refraction: 22, bend: 26, depth: 0.3,
+    // A shallow lens: on a plain backdrop a deep edge only reads as darker bands.
+    return {...sheetLook(c), refraction: 12, bend: 16, depth: 0.12, dispersion: 0.15,
         brightness: Math.min(1, c.dim + 0.12), tint: [r, g, b, Math.min(1, a * 0.6)], highlight: 0.55,
         ceiling: CARD_CEILING, solid: 0};
 }

@@ -21,7 +21,7 @@ export const DEFAULTS = Object.freeze({
     // The glass lock screen: frost, darkening and tint of the sheet, the password card,
     // GNOME's clock look and place, and how the sheet slides away on unlock.
     lock: {enabled: true, blur: 60, dim: 0.72, tint: [0, 0, 0, 0.12], card: true,
-        clockStyle: 'bold', clockPosition: 'gnome', slide: 'spring', slideMs: 600, bounce: 0.35},
+        clockStyle: 'bold', clockPosition: 'gnome', slide: 'spring', slideMs: 450, bounce: 0.2},
     look: {...DEFAULT_LOOK},
 });
 

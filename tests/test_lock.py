@@ -97,3 +97,20 @@ def test_lock_glass_keeps_white_text_readable_on_any_wallpaper():
     for y in (sheet, card):
         assert 1.05 / (y + 0.05) >= 4.5
     assert "ceiling: SHEET_CEILING" in js and "ceiling: CARD_CEILING" in js
+
+
+def test_password_field_keeps_a_focus_ring_and_caret():
+    from liquidglass.render import shell as rs
+    for dark in (True, False):
+        css = rs.render_css(palette.build(Settings(), dark=dark))
+        i = css.index(".unlock-dialog .login-dialog-prompt-entry:focus")
+        block = css[i:css.index("}", i)]
+        assert "box-shadow: inset 0 0 0 2px" in block
+        entry = css[css.index(".unlock-dialog .login-dialog-prompt-entry, "):]
+        assert "caret-color:" in entry[:entry.index("}")]
+
+
+def test_unlock_defaults_are_quick():
+    assert (Settings.lock_slide_ms, Settings.lock_bounce) == (450, 0.2)
+    js = (EXT / "config.js").read_text()
+    assert "slideMs: 450, bounce: 0.2}" in js

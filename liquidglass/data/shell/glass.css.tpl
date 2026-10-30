@@ -624,9 +624,15 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 /* ---------------------------------------------------------------- lock and login */
 .unlock-dialog .login-dialog-prompt-entry, .login-dialog-prompt-entry, .login-dialog .login-dialog-prompt-entry {
   color: ${fg};
+  caret-color: ${fg};
   background-color: ${field};
   border: 1px solid ${edge};
   border-radius: 999px; }
+.unlock-dialog .login-dialog-prompt-entry:focus, .login-dialog-prompt-entry:focus,
+.login-dialog .login-dialog-prompt-entry:focus {
+  background-color: ${field_hover};
+  border-color: ${accent_edge};
+  box-shadow: inset 0 0 0 2px ${focus_ring}; }
 
 /* ---------------------------------------------------------------- Wheelguard popup */
 /* @boost */
