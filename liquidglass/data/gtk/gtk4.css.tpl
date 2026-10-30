@@ -351,24 +351,28 @@ revealer.top-bar > windowhandle { box-shadow: inset 0 -1px 0 var(--lg-divider); 
 /* ---- GNOME Calculator: keys are light glass, not grey pills ----------------------- */
 /* Same fill as cards (white glass in light, faint glass in dark), no painted sheen,
    and a soft, wide shadow at half strength. "=" keeps its accent fill.
-   Scoped through $glass_btn so these win over the general glass button rule. */
+   Scoped through $glass_btn so these win over the general glass button rule.
+   Every key, "=" included, shares one 24px radius: single-row keys clamp to capsules,
+   the two-row "=" gets the same corners. */
+.math-buttons $glass_btn, .math-buttons grid button.suggested-action { border-radius: 24px; }
 .math-buttons $glass_btn {
   background-color: var(--card-bg-color);
   background-image: none;
   color: var(--window-fg-color);
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 2px 8px -1px color-mix(in srgb, var(--lg-shadow) 50%, transparent);
 }
+/* Hover lays a faint shade over the glass: a little darker in light, a little brighter in dark. */
 .math-buttons $glass_btn:hover {
-  background-color: color-mix(in srgb, var(--card-bg-color) 85%, white);
+  background-image: linear-gradient(var(--lg-hover), var(--lg-hover));
+  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 3px 10px -1px color-mix(in srgb, var(--lg-shadow) 70%, transparent);
 }
 .math-buttons $glass_btn:active,
 .math-buttons $glass_btn:checked,
 .math-buttons $glass_btn.keyboard-activating {
   background-color: color-mix(in srgb, var(--card-bg-color), var(--lg-active));
+  background-image: none;
   box-shadow: inset 0 1px 2px 0 color-mix(in srgb, var(--lg-shadow) 50%, transparent), inset 0 0 0 1px var(--lg-edge);
 }
-/* The two-row "=" key: a tall rounded key whose corners match the pill ends, not an oval. */
-.math-buttons grid button.suggested-action { border-radius: 22px; }
 
 /* ---- misc --------------------------------------------------------------------------- */
 *:focus-visible { outline-color: color-mix(in srgb, var(--lg-accent-text) 70%, transparent); }
