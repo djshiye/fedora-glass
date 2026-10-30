@@ -20,7 +20,6 @@ Rectangle {
     scale: shown ? 1 : 0.96
     Behavior on opacity { NumberAnimation { duration: Theme.normal } }
     Behavior on scale { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
-    RimLight { radius: 22; edge: Theme.borderHi }
     Row {
         id: row
         anchors.centerIn: parent

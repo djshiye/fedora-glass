@@ -21,7 +21,6 @@ LookPage 1.0 LookPage.qml
 OverrideSlider 1.0 OverrideSlider.qml
 PreviewDesktop 1.0 PreviewDesktop.qml
 ResultsSheet 1.0 ResultsSheet.qml
-RimLight 1.0 RimLight.qml
 SectionTitle 1.0 SectionTitle.qml
 Segmented 1.0 Segmented.qml
 Sheet 1.0 Sheet.qml

@@ -70,11 +70,13 @@ float cauchy(float um, float B) {
     return IOR + B * (1.0 / (um * um) - 1.0 / 0.3025);
 }
 
-vec3 env(vec2 p) {
+// Premultiplied: alpha tells how much of the sample found a backdrop at all
+// (past the preview's own edge there is none).
+vec4 env(vec2 p) {
     float sp = REACH * 0.3;
-    return at(p).rgb * 0.4
-        + (at(p + vec2(sp, 0.0)).rgb + at(p - vec2(sp, 0.0)).rgb
-         + at(p + vec2(0.0, sp)).rgb + at(p - vec2(0.0, sp)).rgb) * 0.15;
+    return at(p) * 0.4
+        + (at(p + vec2(sp, 0.0)) + at(p - vec2(sp, 0.0))
+         + at(p + vec2(0.0, sp)) + at(p - vec2(0.0, sp))) * 0.15;
 }
 
 vec3 vivid(vec3 c, float k) {
@@ -91,7 +93,7 @@ float grain(vec2 p) {
 vec3 glow(vec2 px, vec2 n, float inside, float bev, float F, float crest) {
     vec4 g = texture(content, px / size);
     float gl = dot(g.rgb, vec3(0.213, 0.715, 0.072));
-    vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 2.2;
+    vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 2.6;
     vec3 c = chroma * 1.1 + g.rgb * 0.08;
     if (inside < bev + 4.0) {
         vec4 m = texture(content, (px - n * (2.0 * inside + 6.0)) / size);
@@ -99,7 +101,7 @@ vec3 glow(vec2 px, vec2 n, float inside, float bev, float F, float crest) {
         vec3 mc = max(m.rgb - vec3(ml * 0.6), 0.0) * 1.6 + vec3(ml) * 0.25;
         c += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bev, 1.0)) * 1.2;
     }
-    return vec3(1.0) - exp(-c * bleed * 1.6);
+    return vec3(1.0) - exp(-c * bleed * 2.6);
 }
 
 void main() {
@@ -159,7 +161,7 @@ void main() {
             col = at(px);
         }
         vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
-        col.rgb *= exp(-vec3(0.018, 0.008, 0.012) * (th / max(-Rt.z, 0.2) - th));
+        col.rgb *= exp(-vec3(0.006, 0.0025, 0.004) * min(th / max(-Rt.z, 0.2) - th, 40.0));
         col = over(col, tint, 1.0);
     }
     if (mode > 0.5 && mode < 1.5) {
@@ -177,11 +179,15 @@ void main() {
     if (hl > 0.0 && slope > 0.0) {
         vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
         vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
-        seen = vivid(env(px0 + dir * REACH * length(Rf.xy)), 1.4);
+        vec4 e = env(px0 + dir * REACH * length(Rf.xy));
+        seen = vivid(e.rgb / max(e.a, 1e-3), 1.4);
         float lobe = pow(max(dot(n, LIGHT), 0.0), 8.0) * crest;
         lobe += pow(max(dot(-n, LIGHT), 0.0), 8.0) * crest * 0.3;
-        a = clamp(F * hl * 1.9 * (1.0 + 2.5 * lobe), 0.0, 1.0);
-        seen *= 1.0 + 1.5 * lobe;
+        // The last few px of the rounded edge are near grazing: a thin wet band
+        // that mirrors the surroundings almost fully.
+        float wet = smoothstep(5.0, 1.0, inside) * smoothstep(0.0, 0.8, inside);
+        a = clamp((F * 1.9 + wet * 0.7) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92) * clamp(e.a, 0.0, 1.0);
+        seen *= 1.25 + 1.5 * lobe;
     }
     vec3 b = (mode > 1.5 && bleed > 0.0) ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
     if (mode > 1.5) {

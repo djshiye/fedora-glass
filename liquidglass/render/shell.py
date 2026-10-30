@@ -59,7 +59,7 @@ def veil(t: Tokens, kind: str, frost: float | None = None) -> float:
     f = t.frost if frost is None else frost
     if kind == "panel":
         return lerp(0.18, 0.45, f)
-    return lerp(0.30, 0.55, f) if t.dark else lerp(0.38, 0.62, f)
+    return lerp(0.16, 0.45, f) if t.dark else lerp(0.30, 0.60, f)
 
 
 # Which parts the extension draws glass behind as menus; the panel is the other one.

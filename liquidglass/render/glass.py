@@ -33,7 +33,7 @@ def extension_files() -> dict[str, str]:
 def _brightness(t: Tokens, f: float) -> float:
     """The extension darkens (or, in light mode, lifts) the glass behind a thin theme veil,
     so text keeps its contrast without the theme painting an 85% opaque fill."""
-    return round(lerp(0.62, 0.72, f) if t.dark else lerp(1.08, 1.0, f), 3)
+    return round(lerp(0.74, 0.80, f) if t.dark else lerp(1.06, 1.0, f), 3)
 
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
@@ -47,6 +47,8 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
             "bleed": p["bleed"], "highlight": p["glare"]}
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
+        # Darkening dulls colour, so glass under a veil is a little more vivid.
+        look["saturation"] = round(min(3.0, t.vibrancy * 1.3), 3)
     c = p["tint"]
     return {"look": look, "tint": [c.r, c.g, c.b, 0]}      # the Shell theme paints the fill
 

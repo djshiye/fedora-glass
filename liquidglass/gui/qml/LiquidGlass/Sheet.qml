@@ -46,7 +46,6 @@ C.Popup {
             anchors.fill: parent
             radius: 24
             color: Theme.sheet
-            RimLight { radius: 24; edge: Theme.borderHi }
         }
     }
 

@@ -118,6 +118,17 @@ class Signals {
     }
 }
 
+// What to copy for the content's light: the anchor, or, when it is an empty
+// wrapper (quick settings sits in a 0×0 widget), its child that holds the target.
+function glowSource(anchor, target) {
+    if (anchor.width > 1 && anchor.height > 1)
+        return anchor;
+    let a = target;
+    while (a && a.get_parent() !== anchor)
+        a = a.get_parent();
+    return a ?? anchor;
+}
+
 /**
  * A pane that sits right below `anchor` (a child of a free-layout container
  * such as the Shell's UI group) and copies the on-screen rectangle, corner
@@ -214,8 +225,9 @@ class Follower {
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
         // The light the content casts into the glass comes from the content itself.
         // Both panes are the anchor's siblings; never clone an actor into itself.
-        const nested = top.contains(anchor) || anchor.contains(top) || anchor.contains(pane);
-        top.setSources(nested ? [] : [anchor]);
+        const glow = glowSource(anchor, target);
+        const nested = top.contains(glow) || glow.contains(top) || glow.contains(pane);
+        top.setSources(nested ? [] : [glow]);
         const edges = screenEdges(target, sx, sy, w, h);
         pane.setEdges(edges);
         top.setEdges(edges);

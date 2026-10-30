@@ -106,12 +106,12 @@ def _surfaces(s: Settings, dark: bool, tint: Color, strength: float, f: float) -
         base = Color.hex("#17181d").mix(tint, strength * 0.55)
         surface = base.mix(WHITE, lerp(0.02, 0.11, f))     # milky lift towards white when frosted
         a_chrome, a_window = lerp(0.24, 0.66, f), lerp(0.50, 0.78, f)
-        a_view, a_pop = lerp(0.66, 0.86, f), lerp(0.78, 0.90, f)
+        a_view, a_pop = lerp(0.80, 0.90, f), lerp(0.78, 0.90, f)   # text areas stay solid enough to read
     else:
         base = Color.hex("#f5f6fa").mix(tint, strength * 0.45)
         surface = base.mix(WHITE, lerp(0.0, 0.25, f))
         a_chrome, a_window = lerp(0.40, 0.76, f), lerp(0.52, 0.82, f)
-        a_view, a_pop = lerp(0.62, 0.88, f), lerp(0.80, 0.93, f)
+        a_view, a_pop = lerp(0.80, 0.92, f), lerp(0.80, 0.93, f)
 
     if s.opacity is not None:
         o = s.opacity

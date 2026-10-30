@@ -32,7 +32,6 @@ C.AbstractButton {
         border.color: control.selected ? Theme.alpha(Theme.accent, 0.65) : Theme.border
         Behavior on color { ColorAnimation { duration: Theme.fast } }
         Behavior on border.color { ColorAnimation { duration: Theme.fast } }
-        RimLight { radius: height / 2; edge: "transparent" }
         FocusRing { target: control; radius: height / 2 }
     }
 }

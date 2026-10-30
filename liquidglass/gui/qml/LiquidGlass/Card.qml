@@ -9,7 +9,6 @@ Rectangle {
     color: Theme.surface
     implicitHeight: body.childrenRect.height + 2 * padding
 
-    RimLight { radius: root.radius }
     Item {
         id: body
         x: root.padding

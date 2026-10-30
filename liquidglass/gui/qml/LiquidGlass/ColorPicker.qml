@@ -36,7 +36,6 @@ C.Popup {
         color: Theme.sheet
         border.width: 1
         border.color: Theme.borderHi
-        RimLight { radius: 18; edge: "transparent" }
     }
 
     contentItem: Column {
