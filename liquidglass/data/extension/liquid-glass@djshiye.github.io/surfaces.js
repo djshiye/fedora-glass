@@ -87,6 +87,8 @@ class WindowWatch {
             for (const sig of ['position-changed', 'size-changed', 'notify::minimized'])
                 this._windows.on(win, sig, this._changed);
             this._windows.on(actor, 'notify::visible', this._changed);
+            // A closed window's actor is disposed before the next restack: never touch it again.
+            this._windows.on(actor, 'destroy', () => this._windows.forget(actor));
         }
     }
 
@@ -106,6 +108,11 @@ class Signals {
 
     on(obj, signal, fn) {
         this._ids.push([obj, obj.connect(signal, fn)]);
+    }
+
+    /** Drop obj's connections without disconnecting (it is being disposed). */
+    forget(obj) {
+        this._ids = this._ids.filter(([o]) => o !== obj);
     }
 
     clear() {
@@ -144,10 +151,17 @@ class Follower {
         this._signals = new Signals();
         this._later = 0;
         this._onGone = onGone;
+        this.rect = null;         // [x, y, w, h] on the stage, while shown
+        followers.add(this);
 
         for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
             MOVES.forEach(s => this._signals.on(a, s, () => this.queue()));
         this._signals.on(target, 'style-changed', () => this.queue());
+        // An open menu holds a grab, so presses reach it but not the stage.
+        this._signals.on(anchor, 'captured-event', (_a, event) => {
+            motion.current?.event(event);
+            return Clutter.EVENT_PROPAGATE;
+        });
         this._signals.on(target, 'destroy', () => this.destroy());
         this._signals.on(anchor, 'destroy', () => this.destroy());
         this._signals.on(this.pane, 'destroy', () => {
@@ -195,6 +209,7 @@ class Follower {
         const hide = () => {
             pane.hide();
             top.hide();
+            this.rect = null;
         };
         if (!this.settings.enabled || !target.mapped || target.width < 2 || target.height < 2) {
             hide();
@@ -235,14 +250,25 @@ class Follower {
         top.setEdges(edges);
         pane.place(lx, ly, w, h, radii, sx, sy);
         top.place(lx, ly, w, h, radii, sx, sy);
+        const appearing = !pane.visible;
+        this.rect = [sx, sy, w, h];
         pane.show();
         top.show();
+        if (appearing)
+            motion.current?.opened(this);
+    }
+
+    setMotion(m) {
+        this.pane?.setMotion(m);
+        this.top?.setMotion({...m, lx: null, ly: null, px: 0, py: 0});
     }
 
     destroy() {
         if (this._later)
             global.compositor.get_laters().remove(this._later);
         this._later = 0;
+        followers.delete(this);
+        motion.current?.forget(this);
         this._signals.clear();
         windowWatch.current?.listeners.delete(this._onWindows);
         const {pane, top} = this;
@@ -254,6 +280,191 @@ class Follower {
             this._onGone = null;
         }
     }
+}
+
+// ---- motion: a light that follows the pointer, press and open springs --------------
+// Nothing runs while the pointer is still: a pointer event schedules one step
+// before the next redraw, and steps go on only while a spring is still moving.
+const followers = new Set();
+const motion = {current: null};
+const REACH = 300;          // px around a pane where the pointer turns its light
+const PARALLAX = 16;        // px the reflections slide at most
+
+class Motion {
+    constructor() {
+        this._state = new Map();    // follower -> springs
+        this._pointer = null;
+        this._later = 0;
+        this._last = 0;
+        this._settings = St.Settings.get();
+        // The cursor tracker reports every pointer move, also ones the stage's
+        // event chain never sees.
+        this._cursor = global.backend.get_cursor_tracker();
+        this._cursorId = this._cursor.connect('position-invalidated', () => {
+            const [x, y] = global.get_pointer();
+            this._pointer = [x, y];
+            this._kick();
+        });
+        this._stage = global.stage.connect('captured-event', (_s, event) => {
+            this.event(event);
+            return Clutter.EVENT_PROPAGATE;
+        });
+    }
+
+    get _animate() {
+        return this._settings.enable_animations;
+    }
+
+    _look(f) {
+        return f.settings?.look ?? {};
+    }
+
+    _st(f) {
+        let st = this._state.get(f);
+        if (!st) {
+            st = {lx: null, ly: null, tx: null, ty: null, px: 0, py: 0, tpx: 0, tpy: 0,
+                press: 0, pressV: 0, pressT: 0, open: 1, openV: 0};
+            this._state.set(f, st);
+        }
+        return st;
+    }
+
+    event(event) {
+        const type = event.type();
+        if (type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) {
+            const [x, y] = event.get_coords();
+            for (const f of followers) {
+                const r = f.rect;
+                if (r && this._look(f).motion > 0 && x >= r[0] && y >= r[1] && x < r[0] + r[2] && y < r[1] + r[3])
+                    this._st(f).pressT = 1;
+            }
+            this._kick();
+        } else if (type === Clutter.EventType.BUTTON_RELEASE || type === Clutter.EventType.TOUCH_END ||
+                   type === Clutter.EventType.TOUCH_CANCEL) {
+            for (const st of this._state.values())
+                st.pressT = 0;
+            this._kick();
+        }
+    }
+
+    opened(f) {
+        if (!this._animate || !(this._look(f).motion > 0))
+            return;
+        const st = this._st(f);
+        st.open = 0;          // the bevel condenses from flat, with a little overshoot
+        st.openV = 0;
+        f.setMotion({open: 0});
+        this._kick();
+    }
+
+    forget(f) {
+        this._state.delete(f);
+    }
+
+    _kick() {
+        if (this._later)
+            return;
+        this._later = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._later = 0;
+            this._step();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _step() {
+        const now = GLib.get_monotonic_time() / 1e6;
+        const dt = Math.min(0.033, Math.max(0.001, this._last ? now - this._last : 0.016));
+        this._last = now;
+        const animate = this._animate;
+        let moving = false;
+        for (const f of followers) {
+            const r = f.rect;
+            if (!r)
+                continue;
+            const L = this._look(f);
+            const st = this._st(f);
+            // Where the light should come from: the pane's own light, turned towards
+            // the pointer while it is near.
+            const a = (L.lightAngle ?? -125) * Math.PI / 180;
+            let [tx, ty] = [Math.cos(a), Math.sin(a)];
+            let [tpx, tpy] = [0, 0];
+            const w = animate ? L.pointerLight ?? 0 : 0;
+            if (w > 0 && this._pointer) {
+                const [x, y] = this._pointer;
+                const cx = r[0] + r[2] / 2, cy = r[1] + r[3] / 2;
+                const dx = Math.max(r[0] - x, 0, x - r[0] - r[2]);
+                const dy = Math.max(r[1] - y, 0, y - r[1] - r[3]);
+                const near = Math.max(0, 1 - Math.hypot(dx, dy) / REACH);
+                if (near > 0) {
+                    const ux = x - cx, uy = y - cy;
+                    const k = Math.hypot(ux, uy, Math.max(r[2], r[3]) * 0.5) || 1;
+                    const m = w * near;
+                    tx = tx * (1 - m) + (ux / k) * m;
+                    ty = ty * (1 - m) + (uy / k) * m;
+                    // As if your head moved in front of real glass: the reflections slide.
+                    tpx = -Math.max(-1, Math.min(1, ux / (r[2] / 2))) * PARALLAX * near;
+                    tpy = -Math.max(-1, Math.min(1, uy / (r[3] / 2))) * PARALLAX * near;
+                }
+            }
+            if (st.lx === null) {
+                [st.lx, st.ly] = [Math.cos(a), Math.sin(a)];
+            }
+            // Critically damped follow, about 120 ms to settle.
+            const e = 1 - Math.exp(-dt / 0.04);
+            const prev = [st.lx, st.ly, st.px, st.py, st.press, st.open];
+            st.lx += (tx - st.lx) * e;
+            st.ly += (ty - st.ly) * e;
+            st.px += (tpx - st.px) * e;
+            st.py += (tpy - st.py) * e;
+            // Press and open: springs with a small overshoot.
+            if (animate) {
+                [st.press, st.pressV] = spring(st.press, st.pressV, st.pressT, 1370, 44, dt);   // ~180 ms
+                [st.open, st.openV] = spring(st.open, st.openV, 1, 900, 36, dt);           // ~220 ms
+            } else {
+                [st.press, st.pressV, st.open, st.openV] = [0, 0, 1, 0];
+            }
+            const settled = Math.abs(tx - st.lx) + Math.abs(ty - st.ly) < 0.002 &&
+                Math.abs(tpx - st.px) + Math.abs(tpy - st.py) < 0.05 &&
+                Math.abs(st.pressT - st.press) + Math.abs(st.pressV) < 0.002 &&
+                Math.abs(1 - st.open) + Math.abs(st.openV) < 0.002;
+            if (settled) {
+                [st.lx, st.ly, st.px, st.py, st.press, st.open] = [tx, ty, tpx, tpy, st.pressT, 1];
+                st.pressV = st.openV = 0;
+            } else {
+                moving = true;
+            }
+            const now_ = [st.lx, st.ly, st.px, st.py, st.press, st.open];
+            if (now_.some((v, i) => Math.abs(v - prev[i]) > 1e-4)) {
+                f.setMotion({lx: st.lx, ly: st.ly, px: st.px, py: st.py, press: st.press, open: st.open});
+            }
+        }
+        if (moving)
+            this._kick();
+        else
+            this._last = 0;
+    }
+
+    destroy() {
+        if (this._later)
+            global.compositor.get_laters().remove(this._later);
+        this._later = 0;
+        global.stage.disconnect(this._stage);
+        this._cursor.disconnect(this._cursorId);
+        for (const f of followers)
+            f.setMotion({lx: null, ly: null, px: 0, py: 0, press: 0, open: 1});
+        this._state.clear();
+    }
+}
+
+// One step of a damped spring towards `to` (stiffness k, damping c).
+function spring(x, v, to, k, c, dt) {
+    const steps = Math.ceil(dt / 0.008);
+    const h = dt / steps;
+    for (let i = 0; i < steps; i++) {
+        v += (k * (to - x) - c * v) * h;
+        x += v * h;
+    }
+    return [x, v];
 }
 
 // ---- top bar and Dash to Panel ------------------------------------------------
@@ -567,6 +778,7 @@ export class GlassManager {
     constructor(cfg) {
         this.cfg = cfg;
         windowWatch.current = new WindowWatch();
+        motion.current = new Motion();
         this._parts = [new Panels(cfg), new Popups(cfg), new Windows(cfg), new OverviewBackdrop(cfg)];
         this._signals = new Signals();
         // Behind the panel and menus is the overview while it is open, the windows otherwise.
@@ -585,6 +797,8 @@ export class GlassManager {
     destroy() {
         this._signals.clear();
         stopMoving();
+        motion.current?.destroy();
+        motion.current = null;
         this._parts.forEach(p => p.destroy());
         this._parts = [];
         windowWatch.current?.destroy();

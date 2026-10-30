@@ -438,12 +438,16 @@ Item {
                 model: root.dock
                 delegate: Item {
                     required property var modelData
+                    required property int index
+                    readonly property bool focused: index === root.dock.findIndex(d => d.running)
                     width: root.u(48); height: parent.height
+                    // Like Dash to Panel: a faint wash behind the focused app only.
                     Rectangle {
                         anchors.centerIn: parent
                         width: root.u(44); height: root.u(40)
                         radius: Math.min(height / 2, root.rs)
-                        color: modelData.running ? (root.t.hover || "transparent") : "transparent"
+                        color: root.dark ? "#ffffff" : "#000000"
+                        opacity: focused ? 0.08 : 0
                     }
                     AppIcon {
                         anchors.centerIn: parent
@@ -452,12 +456,14 @@ Item {
                         label: modelData.name
                         tileColor: root.t.accent || "#3584e4"
                     }
+                    // A small dot under each running app, as on the desktop.
                     Rectangle {
                         visible: modelData.running
                         anchors.horizontalCenter: parent.horizontalCenter
-                        y: parent.height - root.u(6)
-                        width: root.u(12); height: root.u(3); radius: height / 2
-                        color: root.t.accent || "white"
+                        y: parent.height - root.u(5)
+                        width: root.u(3); height: width; radius: width / 2
+                        color: root.fg
+                        opacity: focused ? 0.9 : 0.55
                     }
                 }
             }

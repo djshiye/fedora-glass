@@ -88,20 +88,22 @@ float grain(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
 }
 
-// The content's light: each icon lights the glass around it, and light caught
-// inside the glass comes out at the nearest edge, mirrored there.
+// The content's light: each coloured icon lights the glass around it, and light
+// caught inside the glass comes out at the nearest edge, mirrored there. Only
+// colour bleeds (white and grey cast nothing, or the glass turns milky); the
+// surface's light also leaves at the very edge as a faint one px hairline.
 vec3 glow(vec2 px, vec2 n, float inside, float bev, float F, float crest) {
     vec4 g = texture(content, px / size);
-    float gl = dot(g.rgb, vec3(0.213, 0.715, 0.072));
-    vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 2.6;
-    vec3 c = chroma * 1.1 + g.rgb * 0.08;
+    vec3 c = (g.rgb - vec3(min(g.r, min(g.g, g.b)))) * 2.86;
     if (inside < bev + 4.0) {
         vec4 m = texture(content, (px - n * (2.0 * inside + 6.0)) / size);
-        float ml = dot(m.rgb, vec3(0.213, 0.715, 0.072));
-        vec3 mc = max(m.rgb - vec3(ml * 0.6), 0.0) * 1.6 + vec3(ml) * 0.25;
+        vec3 mc = (m.rgb - vec3(min(m.r, min(m.g, m.b)))) * 1.6;
         c += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bev, 1.0)) * 1.2;
     }
-    return vec3(1.0) - exp(-c * bleed * 2.6);
+    float hair = smoothstep(2.2, 0.9, inside) * smoothstep(0.0, 0.6, inside);
+    float gm = max(g.r, max(g.g, g.b));
+    vec3 tone = mix(vec3(1.0), g.rgb / max(gm, 1e-3), 0.5 * step(0.01, gm));
+    return vec3(1.0) - exp(-c * bleed * 2.6) + tone * hair * 0.065;
 }
 
 void main() {
@@ -136,7 +138,7 @@ void main() {
     float crest = 4.0 * x * (1.0 - x);
 
     if (mode > 2.5) {
-        vec3 b = bleed > 0.0 ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
+        vec3 b = glow(px0, n, inside, bev, F, crest);
         fragColor = vec4(b, 0.0) * cov * qt_Opacity;     // added light: nothing under it dims
         return;
     }
@@ -185,11 +187,15 @@ void main() {
         lobe += pow(max(dot(-n, LIGHT), 0.0), 8.0) * crest * 0.3;
         // The last few px of the rounded edge are near grazing: a thin wet band
         // that mirrors the surroundings almost fully.
-        float wet = smoothstep(5.0, 1.0, inside) * smoothstep(0.0, 0.8, inside);
-        a = clamp((F * 1.9 + wet * 0.7) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92) * clamp(e.a, 0.0, 1.0);
-        seen *= 1.25 + 1.5 * lobe;
+        float wet = smoothstep(2.4, 0.8, inside) * smoothstep(0.0, 0.6, inside);
+        a = clamp((F * 1.9 + wet * 0.3) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92) * clamp(e.a, 0.0, 1.0);
+        // Restraint: the reflection lights the edge only a little above the glass
+        // itself, so a bright backdrop gives no brighter a line than a dark one.
+        vec4 under = mode > 1.5 ? at(px0) : col;
+        vec3 base = under.rgb / max(under.a, 1e-3);
+        seen = min(seen * (1.15 + 0.8 * lobe), base + vec3(0.05 + 0.03 * lobe));
     }
-    vec3 b = (mode > 1.5 && bleed > 0.0) ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
+    vec3 b = mode > 1.5 ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
     if (mode > 1.5) {
         // Over the content: the reflection blends in, the bleed adds light.
         fragColor = vec4(min(seen * a, vec3(1.0)) + b, a) * cov * qt_Opacity;

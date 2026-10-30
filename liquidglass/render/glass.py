@@ -44,7 +44,8 @@ FROST_SCALE = {"panel": 0.35, "arcmenu": 0.75, "quicksettings": 0.75, "calendar"
 def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     p = t.parts[name]
     look = {"blur": round(p["blur"] * FROST_SCALE.get(name, 1.0)), "refraction": p["lens_width"], "bend": p["lens_bend"],
-            "bleed": p["bleed"], "highlight": p["glare"]}
+            # A thin bar holds its icons close to both edges, so the same glow reads stronger there.
+            "bleed": round(p["bleed"] * (0.7 if name == "panel" else 1.0), 3), "highlight": p["glare"]}
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
@@ -67,6 +68,8 @@ def config(s: Settings, t: Tokens) -> dict:
         "saturation": t.vibrancy,
         "brightness": 1.0,
         "bleed": t.bleed,              # how much content colours light up the glass
+        "pointerLight": 0.0 if off else s.pointer_light,   # the light turns towards the pointer
+        "motion": 1 if s.liquid_motion and not off else 0, # press and open springs
         "tint": [0, 0, 0, 0],          # the Shell theme paints the tint
         "highlight": t.glare,
         "lightAngle": -125,            # from the top left, as in the preview

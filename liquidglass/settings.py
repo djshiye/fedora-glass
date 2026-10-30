@@ -55,6 +55,8 @@ class Settings:
     dispersion: float = 0.3         # 0..1, rainbow split along the rim
     vibrancy: float = 0.85          # 0..1, how much colour shows through
     bleed: float = 0.6              # 0..1, how much icon and text colours light up the glass around them
+    pointer_light: float = 0.5      # 0..1, how far the light on the glass turns towards the pointer
+    liquid_motion: bool = True      # glass springs a little when pressed and when a menu opens
     glass_panel: bool = True
     glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu
     glass_overview: bool = True     # blurred wallpaper behind the overview
@@ -82,6 +84,8 @@ class Settings:
         s.dispersion = _clamp(float(s.dispersion))
         s.vibrancy = _clamp(float(s.vibrancy))
         s.bleed = _clamp(float(s.bleed), Settings.bleed)
+        s.pointer_light = _clamp(float(s.pointer_light), Settings.pointer_light)
+        s.liquid_motion = bool(s.liquid_motion)
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",

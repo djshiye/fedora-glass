@@ -200,9 +200,19 @@ def dtp_values(t: Tokens) -> dict[str, str]:
         "highlight-appicon-hover-background-color": f"'{t.hover.css}'",
         "highlight-appicon-pressed-background-color": f"'{t.active.css}'",
         "highlight-appicon-hover-border-radius": str(t.radius_small),
+        # Running apps get a small dot, not a bar; the focused one a faint glass wash.
         "focus-highlight-color": f"'{(WHITE if t.dark else BLACK).hex6}'",
+        "focus-highlight-opacity": "8",
+        "dot-style-focused": "'DOTS'",
+        "dot-style-unfocused": "'DOTS'",
+        "dot-size": "3",
         "dot-color-override": "true",
         **{f"dot-color-{i}": f"'{t.fg.hex6}'" for i in (1, 2, 3, 4)},
+        "dot-color-unfocused-different": "true",
+        # No separator line before the show-desktop button at the panel's end.
+        "desktop-line-use-custom-color": "true",
+        "desktop-line-custom-color": "'rgba(0,0,0,0)'",
+        **{f"dot-color-unfocused-{i}": f"'{t.fg.mix(BLACK if t.dark else WHITE, 0.45).hex6}'" for i in (1, 2, 3, 4)},
     }
 
 

@@ -327,6 +327,8 @@ class Backend(QObject):
     dispersion = _p("dispersion", float)
     vibrancy = _p("vibrancy", float)
     bleed = _p("bleed", float)
+    pointerLight = _p("pointer_light", float)
+    liquidMotion = _p("liquid_motion", bool)
     glassPanel = _p("glass_panel", bool)
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)
