@@ -205,6 +205,18 @@ def test_engine_replaces_symlinked_gtk_css(fake_env):
     assert (d / "gtk.css").is_symlink()
 
 
+def test_calculator_keys_outrank_the_glass_button_rule():
+    # The general glass button selector carries many :not()s, so a plain
+    # ".math-buttons button" rule loses to it. The Calculator rule must extend it.
+    t = toks(False, 0.4)
+    css = gtk4.render(toks(True, 0.4), t)
+    head = ".math-buttons " + gtk4._geometry(t)["glass_btn"] + " {"
+    assert head in css
+    start = css.index(head) + len(head)
+    body = css[start:css.index("}", start)]
+    assert "var(--card-bg-color)" in body and "background-image: none" in body
+
+
 def _specificity(selector: str) -> tuple[int, int, int]:
     """CSS specificity (ids, classes and pseudo-classes, elements) of one simple selector chain."""
     s = re.sub(r":not\(([^)]*)\)", r" \1", selector)
