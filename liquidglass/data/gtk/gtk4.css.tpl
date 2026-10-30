@@ -15,23 +15,18 @@ label.dim-label, .dim-label { opacity: 0.55; }
 treeview.view { background-color: var(--view-bg-color); }
 treeview.view header button { background-color: transparent; border-radius: 0; box-shadow: none; background-image: none; }
 
-/* ---- windows: rim light on top, faint glass edge, deep soft shadow ------- */
+/* ---- windows: deep soft shadow. The edge and its reflections are real glass,
+   drawn by the Shell behind the window, so nothing here paints light. ---- */
 window.csd {
   border-radius: $radius_window;
   outline: none;
-  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 160px);
   box-shadow:
-    inset 0 1px 0 var(--lg-rim),
-    inset 0 14px 22px -16px var(--lg-rim),
-    inset 0 0 0 1px var(--lg-edge),
     0 0 0 1px rgba(0, 0, 0, 0.30),
     0 18px 48px 4px var(--lg-deep-shadow),
     0 4px 12px 0 var(--lg-shadow);
 }
 window.csd:backdrop {
   box-shadow:
-    inset 0 1px 0 var(--lg-edge),
-    inset 0 0 0 1px var(--lg-edge),
     0 0 0 1px rgba(0, 0, 0, 0.22),
     0 8px 28px 2px var(--lg-shadow);
 }

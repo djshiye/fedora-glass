@@ -13,7 +13,9 @@ const PARTS = ['panel', 'arcmenu', 'quicksettings', 'calendar'];
 export const DEFAULTS = Object.freeze({
     panel: {enabled: true, behind: 'windows', look: {}},
     menus: {enabled: true, behind: 'windows', look: {}},
-    windows: {enabled: true, radius: 12, skip: [], look: {refraction: 0, bend: 0, highlight: 0, blur: 30}},
+    // App windows: a narrower lens than the menus, and no colour bleed.
+    windows: {enabled: true, behind: 'windows', radius: 12, skip: [],
+        look: {refraction: 14, bend: 16, dispersion: 0.2, depth: 0.1, highlight: 0.45, bleed: 0, blur: 30}},
     overview: {enabled: true, blur: 40, brightness: 0.7},
     look: {...DEFAULT_LOOK},
 });
@@ -78,6 +80,9 @@ export function parse(text) {
         if (cfg[name].look)
             cfg[name].look = cleanLook(cfg[name].look, look);
     }
+    // Terminal windows can have their own look; it starts from the app windows' one.
+    const tl = raw.windows && typeof raw.windows === 'object' ? raw.windows.terminalLook : null;
+    cfg.windows.terminalLook = tl && typeof tl === 'object' ? cleanLook({...cfg.windows.look, ...tl}, cfg.windows.look) : null;
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};

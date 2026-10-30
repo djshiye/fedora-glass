@@ -4,8 +4,6 @@ window.csd, window.csd.background { border-radius: $radius_window; }
 window.csd > decoration, decoration {
   border-radius: $radius_window;
   box-shadow:
-    inset 0 1px 0 @lg_rim,
-    inset 0 0 0 1px @lg_edge,
     0 0 0 1px rgba(0, 0, 0, 0.30),
     0 18px 44px 2px @lg_deep_shadow,
     0 4px 12px 0 @lg_shadow;
@@ -15,7 +13,7 @@ window.csd.maximized > decoration, window.csd.fullscreen > decoration, window.cs
   border-radius: 0; box-shadow: none; margin: 0;
 }
 window.csd:backdrop > decoration {
-  box-shadow: inset 0 1px 0 @lg_edge, inset 0 0 0 1px @lg_edge, 0 0 0 1px rgba(0, 0, 0, 0.22), 0 8px 24px 2px @lg_shadow;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 8px 24px 2px @lg_shadow;
 }
 
 /* ---- header bars -------------------------------------------------------------- */
@@ -28,7 +26,7 @@ headerbar, .titlebar, headerbar:backdrop, .titlebar:backdrop {
   box-shadow: inset 0 -1px 0 @lg_divider;
   border-radius: 0;
 }
-window.csd > .titlebar, window.csd > headerbar { border-top-left-radius: $radius_window; border-top-right-radius: $radius_window; box-shadow: inset 0 1px 0 @lg_rim, inset 0 -1px 0 @lg_divider; }
+window.csd > .titlebar, window.csd > headerbar { border-top-left-radius: $radius_window; border-top-right-radius: $radius_window; box-shadow: inset 0 -1px 0 @lg_divider; }
 headerbar.selection-mode { background-color: @accent_bg_color; color: @accent_fg_color; }
 searchbar, .search-bar, actionbar { background-color: @lg_bar; border: none; box-shadow: inset 0 -1px 0 @lg_divider; }
 actionbar { box-shadow: inset 0 1px 0 @lg_divider; }

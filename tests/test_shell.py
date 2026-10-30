@@ -192,6 +192,22 @@ def test_glass_config_follows_frost_and_settings(fake_env):
     assert "steam" in cfg["windows"]["skip"]
 
 
+def test_window_glass_has_a_lens_and_no_bleed(fake_env):
+    cfg = rg.config(Settings(), context(fake_env).tokens)
+    win = cfg["windows"]
+    assert win["behind"] == "windows"
+    assert win["look"]["refraction"] > 0 and win["look"]["bend"] > 0 and win["look"]["highlight"] > 0
+    assert win["look"]["bleed"] == 0 and win["terminalLook"]["bleed"] == 0
+    # Windows get a narrower lens than the menus, and their own part controls drive it.
+    assert win["look"]["refraction"] < cfg["parts"]["quicksettings"]["look"]["refraction"]
+    s = Settings(parts={"windows": {"refraction": 0.0, "reflections": 0.0}, "terminal": {"reflections": 1.0}})
+    own = rg.config(s, context(fake_env, parts=s.parts).tokens)["windows"]
+    assert own["look"]["bend"] == 0 and own["look"]["highlight"] == 0
+    assert own["terminalLook"]["highlight"] > win["terminalLook"]["highlight"]
+    seen = rg.config(Settings(glass_see_windows=False), context(fake_env, glass_see_windows=False).tokens)
+    assert seen["windows"]["behind"] == "wallpaper"
+
+
 def test_dash_to_panel_floating_and_docked(fake_env):
     install(fake_env, ts.DASH_TO_PANEL)
     def values(style):
