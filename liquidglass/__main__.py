@@ -5,14 +5,16 @@
   liquid-glass plan            show what Apply would change, change nothing
   liquid-glass status          list targets and whether they're available
   liquid-glass revert [TARGET] restore the original look (everything, or one target)
-  liquid-glass watch           re-apply when GNOME switches dark/light (run by a user service)
+  liquid-glass watch           re-apply when GNOME switches dark/light or High Contrast (run by a user service)
 """
 
 from __future__ import annotations
 
 import argparse
+import queue
 import subprocess
 import sys
+import threading
 
 from . import __version__, settings as settings_mod
 
@@ -74,23 +76,63 @@ def cmd_revert(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def _take_all(q: queue.Queue) -> set:
+    """Wait for one item, then take every other one already waiting, so a quick
+    run of switches makes one apply instead of one each."""
+    got = {q.get()}
+    while True:
+        try:
+            got.add(q.get_nowait())
+        except queue.Empty:
+            return got
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
-    """Follow GNOME's dark/light switch. Only parts that can't switch by
-    themselves (Shell theme, GTK 3, terminal, Qt) need a re-apply."""
+    """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
+    switch only needs the parts that can't switch by themselves (Shell theme,
+    GTK 3, terminal, Qt); High Contrast changes every part (glass goes opaque)."""
+    keys = (("org.gnome.desktop.interface", "color-scheme"), ("org.gnome.desktop.a11y.interface", "high-contrast"))
+    procs: list[subprocess.Popen] = []
+
+    def stop_all() -> None:
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+            p.wait()
+
     try:
-        proc = subprocess.Popen(["gsettings", "monitor", "org.gnome.desktop.interface", "color-scheme"],
-                                stdout=subprocess.PIPE, text=True)
+        for schema, key in keys:
+            procs.append(subprocess.Popen(["gsettings", "monitor", schema, key], stdout=subprocess.PIPE, text=True))
     except OSError as e:
+        stop_all()              # never leave the first monitor running on its own
         print(f"gsettings not available: {e}", file=sys.stderr)
         return 1
-    assert proc.stdout is not None
     eng = _engine()
     only = {t.id for t in eng.targets if t.scheme_dependent}
-    for _line in proc.stdout:
-        s = settings_mod.load()
-        if s.scheme == "auto" and eng.is_applied():   # after Restore original, stay out of the way
-            eng.apply(s, only=only)
-    return proc.wait()
+    changes: queue.Queue[int | None] = queue.Queue()
+
+    def follow(i: int, p: subprocess.Popen) -> None:
+        assert p.stdout is not None
+        for _line in p.stdout:
+            changes.put(i)
+        changes.put(None)       # that monitor ended
+
+    for i, p in enumerate(procs):
+        threading.Thread(target=follow, args=(i, p), daemon=True).start()
+    try:
+        while True:
+            got = _take_all(changes)
+            if None in got:
+                # Half a watcher would miss switches: stop, and let the user service start a fresh one.
+                print("liquid-glass watch: a gsettings monitor stopped", file=sys.stderr)
+                return 1
+            s = settings_mod.load()
+            contrast = 1 in got
+            # After Restore original, stay out of the way.
+            if eng.is_applied() and (contrast or s.scheme == "auto"):
+                eng.apply(s, only=None if contrast else only)
+    finally:
+        stop_all()
 
 
 def cmd_gui(args: argparse.Namespace) -> int:
@@ -119,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("revert", help="restore the original look")
     r.add_argument("target", nargs="?")
     r.set_defaults(func=cmd_revert)
-    sub.add_parser("watch", help="follow dark/light switches").set_defaults(func=cmd_watch)
+    sub.add_parser("watch", help="follow dark/light and High Contrast switches").set_defaults(func=cmd_watch)
     g = sub.add_parser("gui", help="open the customizer")
     g.add_argument("qt_args", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_gui)

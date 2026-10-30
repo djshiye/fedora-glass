@@ -84,6 +84,9 @@ class Settings:
     # Switch Ptyxis profiles to the Liquid Glass palette (it carries the glass top bar).
     # Off unless the user opts in, so their own terminal colours are never replaced.
     terminal_colors: bool = False
+    # Ptyxis has its own light/dark switch, set to dark out of the box. Off unless the
+    # user opts in: then Ptyxis follows GNOME's style; off again brings their own value back.
+    terminal_follows_style: bool = False
 
     def target_enabled(self, target_id: str) -> bool:
         return self.targets.get(target_id, True)
@@ -103,7 +106,7 @@ class Settings:
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
-                  "glass_overview", "glass_see_windows", "terminal_colors", "start_on_desktop",
+                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "start_on_desktop",
                   "overview_off"):
             setattr(s, k, bool(getattr(s, k)))
         if s.opacity is not None:

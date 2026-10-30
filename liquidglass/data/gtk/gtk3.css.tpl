@@ -257,7 +257,10 @@ infobar > revealer > box, infobar { background-color: alpha(@accent_bg_color, 0.
 /* ---- tabs ------------------------------------------------------------------------------------------------------------ */
 notebook > header { background-color: transparent; box-shadow: inset 0 -1px 0 @lg_divider; border: none; }
 notebook > header > tabs > tab { border-radius: $radius_menu_item $radius_menu_item 0 0; border: none; background-image: none; }
-notebook > header > tabs > tab:checked { background-color: @lg_glass_hi; box-shadow: inset 0 1px 0 @lg_rim; }
+notebook > header > tabs > tab { color: @theme_fg_color; }
+notebook > header > tabs > tab:hover { background-color: @lg_hover; }
+/* The open tab: full-strength text and an accent line, so it reads in light and dark alike. */
+notebook > header > tabs > tab:checked { color: @theme_fg_color; background-color: @lg_glass_hi; box-shadow: inset 0 1px 0 @lg_rim, inset 0 -2px 0 @lg_accent; }
 notebook > stack { background-color: @view_bg_color; }
 stackswitcher button { border-radius: 999px; }
 

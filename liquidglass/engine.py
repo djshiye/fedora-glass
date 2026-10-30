@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import configparser
 import contextlib
+import dataclasses
 import errno
 import fcntl
 import hashlib
@@ -524,6 +525,10 @@ class Engine:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
     def context(self, settings: Settings) -> Context:
+        if self.env.high_contrast() and not settings.reduce_transparency:
+            # High Contrast asks for solid surfaces: no see-through glass anywhere, for
+            # as long as it is on. The user's own setting is left as it is.
+            settings = dataclasses.replace(settings, reduce_transparency=True)
         accent = self.env.system_accent()
         dark = palette.build(settings, dark=True, system_accent=accent)
         light = palette.build(settings, dark=False, system_accent=accent)

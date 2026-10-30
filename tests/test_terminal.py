@@ -176,3 +176,28 @@ def test_detect_missing(fake_env, monkeypatch):
     assert not tt.GnomeTerminal().detect(fake_env).available
     (fake_env.config / "btop").mkdir(parents=True)
     assert tt.Btop().detect(fake_env).available
+
+
+def test_ptyxis_follows_light_and_dark_only_when_asked(fake_env):
+    from liquidglass.engine import Engine
+    fake_env.gs[("org.gnome.Ptyxis", None)] = {"profile-uuids": "['abcdef0123456789']",
+                                               "default-profile-uuid": "'abcdef0123456789'",
+                                               "interface-style": "'dark'"}
+    engine = Engine(fake_env, [tt.Ptyxis()])
+    style = lambda: fake_env.gs[("org.gnome.Ptyxis", None)]["interface-style"]  # noqa: E731
+    engine.apply(Settings())
+    assert style() == "'dark'"                       # left alone unless the user opts in
+    engine.apply(Settings(terminal_follows_style=True))
+    assert style() == "'system'"
+    engine.apply(Settings(terminal_follows_style=False))
+    assert style() == "'dark'"                       # their own value comes back
+    # A choice the user makes in Ptyxis afterwards is kept when the switch goes off.
+    engine.apply(Settings(terminal_follows_style=True))
+    fake_env.gs[("org.gnome.Ptyxis", None)]["interface-style"] = "'light'"
+    engine.apply(Settings(terminal_follows_style=False))
+    assert style() == "'light'"
+    # Restore original brings back the value from before Liquid Glass.
+    fake_env.gs[("org.gnome.Ptyxis", None)]["interface-style"] = "'dark'"
+    engine.apply(Settings(terminal_follows_style=True))
+    engine.revert()
+    assert style() == "'dark'"
