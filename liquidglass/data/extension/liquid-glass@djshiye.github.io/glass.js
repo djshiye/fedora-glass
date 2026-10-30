@@ -587,6 +587,10 @@ class LiquidGlassPane extends Clutter.Actor {
                 // Redraw the whole pane whenever a window behind changes.
                 if (GObject.signal_lookup('damaged', src.constructor.$gtype))
                     ids.push(src.connect('damaged', () => this.queueFull()));
+                // A source made in the same frame (the wallpaper, right after the
+                // extension is turned on) has no place yet: copy it once it has one.
+                if (!src.meta_window)
+                    ids.push(src.connect('notify::allocation', () => this._stage && this._syncClones()));
                 clone.connect('destroy', () => {
                     if (this._clones.get(src) === clone)
                         this._clones.delete(src);
