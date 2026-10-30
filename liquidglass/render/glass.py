@@ -36,6 +36,21 @@ def _brightness(t: Tokens, f: float) -> float:
     return round(lerp(0.88, 0.92, f) if t.dark else lerp(1.06, 1.0, f), 3)
 
 
+# Light glass only: how much its milk thickens over a dark backdrop (see glass.js).
+# Menus hold the most text; the panel is a thin bar whose icons need less; app
+# windows paint most of their own background already.
+LIFT = {"panel": 0.6, "arcmenu": 0.72, "quicksettings": 0.72, "calendar": 0.72, "windows": 0.45, "terminal": 0.0}
+
+
+def _milk(t: Tokens, name: str) -> dict:
+    """Light mode: the glass's own body colour (the part's surface, user tint included)
+    and how much it thickens over dark backdrops. Dark glass never does."""
+    if t.dark or t.blur_radius == 0:
+        return {}
+    c = t.parts[name]["popover"]
+    return {"lift": LIFT.get(name, 0.0), "milk": [round(c.r, 4), round(c.g, 4), round(c.b, 4)]}
+
+
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
 # text and want more.
 CONTACT_SHADOW = {"panel": 0.2, "arcmenu": 0.28, "quicksettings": 0.28, "calendar": 0.28}
@@ -48,7 +63,7 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
             # A thin bar holds its icons close to both edges, so the same glow reads stronger there.
             "bleed": round(p["bleed"] * (0.7 if name == "panel" else 1.0), 3), "highlight": p["glare"],
             # A soft contact shadow, cast away from the light (it follows the pointer light).
-            "shadow": CONTACT_SHADOW.get(name, 0.0)}
+            "shadow": CONTACT_SHADOW.get(name, 0.0), **_milk(t, name)}
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
@@ -63,7 +78,7 @@ def _window_look(t: Tokens, name: str) -> dict:
     p = t.parts[name]
     return {"blur": max(24, p["blur"]), "refraction": round(p["lens_width"] * 0.85, 1),
             "bend": round(p["lens_bend"] * 0.6, 1), "dispersion": round(t.dispersion * 0.6, 3),
-            "depth": 0.1, "highlight": p["glare"], "bleed": 0, "shadow": 0}
+            "depth": 0.1, "highlight": p["glare"], "bleed": 0, "shadow": 0, **_milk(t, name)}
 
 
 def config(s: Settings, t: Tokens) -> dict:
@@ -100,6 +115,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
+                           **{k: menus_look[k] for k in ("lift", "milk") if k in menus_look},
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
