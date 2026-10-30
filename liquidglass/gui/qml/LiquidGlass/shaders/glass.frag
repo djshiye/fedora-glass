@@ -4,9 +4,9 @@
 // Kyant's AndroidLiquidGlass (Apache License 2.0). View rays are refracted by
 // Snell's law (IOR 1.5) through the slab to the backdrop; the index follows
 // Cauchy's equation at five wavelengths for dispersion; Fresnel (Schlick)
-// sets how much the surface reflects; a low key light adds a Blinn-Phong
-// highlight on the facing rim and, reflected inside, on the opposite one;
-// Beer-Lambert absorption darkens longer paths. `source` is the (already
+// weights the reflection of a studio in front of the screen (a bright soft
+// box top left, a dim ceiling, a dark floor); Beer-Lambert absorption darkens
+// and greens the slanting paths through the edge. `source` is the (already
 // blurred) backdrop lying exactly under the item.
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -19,11 +19,11 @@ layout(std140, binding = 0) uniform buf {
     float refraction;  // thickness of the glass slab, px
     float magnify;     // >1 magnifies the backdrop like a lens
     float fringe;      // dispersion, 0..1
-    float rimWidth;    // px
+    float rimWidth;    // unused: the optics draw the edge
     float sheen;       // soft top-down gloss, 0..1
     vec4 tint;
     vec4 rim;
-    vec4 edge;
+    vec4 edge;         // unused: the optics draw the edge
     float mode;        // 0 = everything, 1 = body only, 2 = rim and edge only
     float depth;       // 0..1, how domed the top is
 };
@@ -58,6 +58,22 @@ vec2 throughGlass(vec3 N, float n, float th) {
 
 float cauchy(float um, float B) {
     return IOR + B * (1.0 / (um * um) - 1.0 / 0.3025);
+}
+
+const vec2 LIGHT = vec2(-0.5574, -0.8302);   // from the top left
+
+vec3 softbox(vec3 R) {
+    vec3 K = normalize(vec3(LIGHT, 0.45));
+    return vec3(1.0, 0.98, 0.95) * 18.0 * smoothstep(0.88, 0.991, dot(R, K));
+}
+
+vec3 studio(vec3 R) {
+    if (R.z < 0.0)
+        return vec3(0.22);
+    float up = clamp(-R.y, 0.0, 1.0);
+    float room = 0.06 + 0.5 * up * up;
+    float bounce = 0.7 * smoothstep(0.75, 0.97, dot(R, normalize(vec3(-LIGHT, 0.45))));
+    return vec3(0.92, 0.96, 1.0) * (room + bounce) + softbox(R);
 }
 
 void main() {
@@ -105,7 +121,8 @@ void main() {
         } else {
             s = texture(source, px / size);
         }
-        s.rgb *= exp(-vec3(0.0016, 0.0009, 0.0013) * th / max(N.z, 0.2));
+        vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
+        s.rgb *= exp(-vec3(0.018, 0.008, 0.012) * (th / max(-Rt.z, 0.2) - th));
     }
 
     vec4 col = s;
@@ -119,24 +136,15 @@ void main() {
         return;
     }
 
-    float edgeLine = 1.0 - smoothstep(0.0, 1.25, inside);
-    col = over(col, edge, edgeLine);
-
-    // Reflections, in the rim colour; its alpha is their strength.
+    // Reflections of a studio in front of the screen, weighted by Fresnel; the
+    // rim colour's alpha is their strength. No drawn outline: the edge is lit
+    // where it faces the light and shaded where it faces the floor.
+    float hl = rim.a;
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
-    vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
-    float sky = 0.35 + 0.65 * clamp(0.5 - 0.5 * Rf.y, 0.0, 1.0);
-    vec2 l2 = normalize(vec2(-0.55, -1.0));
-    vec3 L = normalize(vec3(l2, 0.2));
-    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    float shin = 24.0;
-    float norm = (shin + 8.0) / 25.0;
-    float spec = pow(max(dot(N, H), 0.0), shin) * norm;
-    float inner = pow(max(dot(vec3(-N.xy, N.z), H), 0.0), shin) * norm * (1.0 - F) * 0.5;
-    float band = 1.0 - smoothstep(0.0, max(rimWidth, 0.5), inside);
-    float facing = pow(abs(dot(n, l2)), 2.0);
-    float rimAmt = clamp(0.5 * F * sky + 22.0 * F * (spec + inner) + band * (0.15 + 0.6 * facing), 0.0, 1.0);
-    col = over(col, rim, rimAmt);
+    vec3 refl = studio(reflect(vec3(0.0, 0.0, -1.0), N)) * F;
+    refl += softbox(reflect(vec3(0.0, 0.0, -1.0), vec3(-N.xy, N.z))) * (1.0 - F) * 0.05;
+    float a = clamp(F * hl, 0.0, 1.0);
+    col = vec4(min(col.rgb * (1.0 - a) + refl * hl, vec3(1.0)), col.a * (1.0 - a) + a);
 
     fragColor = col * cov * qt_Opacity;
 }

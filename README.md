@@ -100,11 +100,15 @@ top edge rounds off, like a glass paperweight. The optics follow real glass:
 - **Dispersion:** the index changes with wavelength by Cauchy's equation. The shader traces five
   wavelengths from blue to red, so the edge splits light into a faint rainbow, as a prism does.
 - **Reflection:** Fresnel's equations (Schlick's form) decide how much the surface mirrors: about 4%
-  head-on and nearly all of it at grazing angles, which is why real glass edges glow.
-- **Highlights:** a low light from the top left gives a sharp highlight where the rim faces it. The
-  same light, reflected inside the glass, comes out dimmer on the opposite rim.
-- **Absorption:** by the Beer-Lambert law, light that travels further through the glass comes out
-  very slightly darker.
+  head-on and nearly all of it at grazing angles. What it mirrors is a lit studio in front of the
+  screen: a bright soft box at the top left, a dim ceiling and a dark floor. So the rim catches a
+  highlight on the side facing the light and goes dark on the side facing the floor, as real glass
+  does, instead of glowing evenly all round. Light reflected inside the glass shows faintly on the
+  opposite rim.
+- **Absorption:** by the Beer-Lambert law, light that slants through the rounded edge crosses more
+  glass and comes out a shade darker and greener, like the edge of a pane of window glass.
+- **No drawn outlines:** where the glass is on, the theme leaves the panel and menus without a
+  border line, because the optics draw the edge.
 
 Reflections are drawn above each menu, because light reflects off the top of the glass, over its
 tint. The surface shape is ported from Kyant's

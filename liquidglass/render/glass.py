@@ -46,7 +46,6 @@ def config(s: Settings, t: Tokens) -> dict:
         "highlight": t.glare,
         "lightAngle": -125,            # from the top left, as in the preview
         "falloff": 2.0,
-        "rim": 1.5,
         "shadow": 0,
     }
     return {

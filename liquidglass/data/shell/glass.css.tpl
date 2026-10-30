@@ -194,8 +194,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .popup-menu-content, .candidate-popup-content {
   color: ${fg};
   background-color: ${popover};
-  border: 1px solid ${edge};
-  border-top-color: ${rim};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
   border-radius: ${r_menu}px;
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .popup-menu-item {
@@ -246,8 +246,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .quick-settings {
   color: ${fg};
   background-color: ${popover};
-  border: 1px solid ${edge};
-  border-top-color: ${rim};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
   border-radius: ${r_big}px;
   box-shadow: 0 14px 40px 0 ${shadow}; }
 .quick-toggle {
@@ -423,15 +423,21 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   box-shadow: none; }
 .notification-banner {
   background-color: ${popover};
-  border: 1px solid ${edge};
-  border-top-color: ${rim};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
   border-radius: ${r}px;
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .url-highlighter {
   link-color: ${accent_text}; }
 
 /* ---------------------------------------------------------------- OSD, switchers */
-.osd-window, .workspace-switcher, .resize-popup, .screenshot-ui-panel, #LookingGlassDialog {
+.osd-window {
+  color: ${fg};
+  background-color: ${osd};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
+  box-shadow: 0 10px 30px 0 ${shadow}; }
+.workspace-switcher, .resize-popup, .screenshot-ui-panel, #LookingGlassDialog {
   color: ${fg};
   background-color: ${osd};
   border: 1px solid ${edge};
@@ -440,8 +446,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .switcher-list {
   color: ${fg};
   background-color: ${osd};
-  border: 1px solid ${edge};
-  border-top-color: ${rim};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
   border-radius: ${r_osd}px;
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .osd-window .level {
@@ -626,14 +632,14 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .popup-menu-content.wg-menu {
   padding: 0;
   background-color: ${popover};
-  border: 1px solid ${edge};
-  border-top-color: ${rim};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
   border-radius: ${r_menu}px;
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .popup-menu-content.wg-menu.wg-light {
   background-color: ${popover};
-  border: 1px solid ${edge};
-  border-top-color: ${rim};
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .wg-root, .wg-light .wg-root {
   color: ${fg}; }
@@ -691,7 +697,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 
 /* ---------------------------------------------------------------- ArcMenu (surfaces; its own theme options colour the rest) */
 .arcmenu-menu .popup-menu-content {
-  border-top-color: ${rim};
+  border-top-color: ${glass_rim};
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .arcmenu-tooltip, #ArcMenu_Tooltip {
   color: ${fg};

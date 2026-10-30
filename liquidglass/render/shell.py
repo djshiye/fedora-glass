@@ -18,6 +18,9 @@ from ..palette import Tokens
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/shell/glass.css.tpl"
 
 
+_NONE = "rgba(0,0,0,0)"
+
+
 def radii(t: Tokens) -> dict[str, int]:
     """One radius scale shared by the CSS and the Dash to Panel / ArcMenu keys,
     so the blur clip always matches the painted surface."""
@@ -87,7 +90,11 @@ def values(t: Tokens) -> dict[str, str]:
         "dialog": surf["dialog"].css, "osd": surf["osd"].css,
         "card": t.card.css, "card_hover": card_hover.css, "card_active": card_active.css,
         "hover": t.hover.css, "active": t.active.css, "selected": selected.css,
-        "rim": t.highlight.css, "edge": t.edge.css, "divider": t.divider.css, "shadow": t.shadow.css,
+        "rim": t.highlight.css, "edge": t.edge.css,
+        # Glass surfaces get their edge from the extension's optics, not a drawn line.
+        "glass_edge": _NONE if t.glass_menu_edges else t.edge.css,
+        "glass_rim": _NONE if t.glass_menu_edges else t.highlight.css,
+        "divider": t.divider.css, "shadow": t.shadow.css,
         "fg": t.fg.css, "fg_dim": t.fg_dim.css, "fg_faint": t.fg_faint.css,
         "accent": acc.css, "accent_fg": t.accent_fg.css, "accent_text": t.accent_text.css,
         "accent_edge": acc.mix(WHITE, 0.35).with_alpha(0.7).css,
@@ -141,7 +148,7 @@ def dtp_values(t: Tokens) -> dict[str, str]:
         "trans-panel-opacity": f"{bg.a:.3f}",
         "trans-use-dynamic-opacity": "false",
         "trans-use-custom-gradient": "false",
-        "trans-use-border": "true",
+        "trans-use-border": "false" if t.glass_panel_edges else "true",
         "trans-border-width": "1",
         "trans-border-use-custom-color": "true",
         "trans-border-custom-color": f"'{t.edge.css}'",
@@ -177,7 +184,7 @@ def arcmenu_values(t: Tokens) -> dict[str, str]:
         "override-menu-theme": "true",
         "menu-background-color": f"'{bg.css}'",
         "menu-foreground-color": f"'{fg.css}'",
-        "menu-border-color": f"'{t.edge.css}'",
+        "menu-border-color": f"'{_NONE if t.glass_menu_edges else t.edge.css}'",
         "menu-border-width": "1",
         "menu-border-radius": str(r["r_menu"]),
         "menu-separator-color": f"'{t.divider.css}'",

@@ -12,9 +12,11 @@
 // - the Fresnel term (Schlick's approximation) decides how much light the
 //   surface reflects: little head-on, nearly all at grazing angles, which is
 //   what makes real glass edges glow;
-// - a key light gives a Blinn-Phong specular highlight on the facing rim and,
-//   after reflecting inside the glass, a dimmer one on the opposite rim;
-// - Beer-Lambert absorption darkens light a little along longer paths.
+// - what the surface mirrors is a studio in front of the screen (a bright soft
+//   box as the key light, a dim ceiling, a dark floor), so the rim is lit on
+//   the side facing the light and shaded on the other, and light reflected
+//   inside the glass shows faintly on the opposite rim;
+// - Beer-Lambert absorption darkens and greens the slanting paths through the edge.
 
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
@@ -44,7 +46,6 @@ uniform float hl;
 uniform float hl_x;
 uniform float hl_y;
 uniform float hl_falloff;
-uniform float rim_w;
 uniform float shadow;
 uniform float mode;              // 0 = glass and reflections, 1 = glass only, 2 = reflections only
 
@@ -86,6 +87,27 @@ vec2 throughGlass(vec3 N, float n, float th) {
 // Cauchy's equation, fitted so n(550 nm) = IOR; B grows with dispersion.
 float cauchy(float um, float B) {
     return IOR + B * (1.0 / (um * um) - 1.0 / 0.3025);
+}
+
+// The key light: a large soft box at lightAngle, low over the screen. It is
+// far brighter than the room (a real light source is), so even a 4% reflection
+// of it reads as a highlight; hl_falloff tightens it.
+vec3 softbox(vec3 R) {
+    vec3 K = normalize(vec3(hl_x, hl_y, 0.45));
+    float size = 0.12 / max(hl_falloff, 0.25);
+    return vec3(1.0, 0.98, 0.95) * 18.0 * smoothstep(1.0 - 2.0 * size, 1.0 - 0.15 * size, dot(R, K));
+}
+
+// The room in front of the screen, as the glass mirrors it: a dim ceiling,
+// a dark floor, a faint bounce card opposite the key light, and the key light.
+vec3 studio(vec3 R) {
+    if (R.z < 0.0)
+        return vec3(0.22);            // grazing: the glass mirrors itself and what lies behind it
+    float up = clamp(-R.y, 0.0, 1.0);
+    float room = 0.06 + 0.5 * up * up;
+    vec3 B = normalize(vec3(-hl_x, -hl_y, 0.45));
+    float bounce = 0.7 * smoothstep(0.75, 0.97, dot(R, B));
+    return vec3(0.92, 0.96, 1.0) * (room + bounce) + softbox(R);
 }
 
 void main() {
@@ -158,9 +180,12 @@ void main() {
         col.rgb = clamp(mix(vec3(l), col.rgb, saturation) * brightness, 0.0, 1.0);
         col.rgb = min(col.rgb, vec3(col.a));
 
-        // Beer-Lambert: a faint, slightly green absorption along the path in the glass.
-        float path = th / max(N.z, 0.2);
-        col.rgb *= exp(-vec3(0.0016, 0.0009, 0.0013) * path);
+        // Beer-Lambert: light crossing the rounded edge slants through more glass than
+        // light crossing the flat top, and soda-lime glass takes a little more red
+        // and blue than green, so the edge is a shade darker and greener.
+        vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
+        float extra = th / max(-Rt.z, 0.2) - th;
+        col.rgb *= exp(-vec3(0.018, 0.008, 0.012) * extra);
 
         vec4 t = vec4(tint_r, tint_g, tint_b, 1.0) * tint_a;
         col = t + col * (1.0 - t.a);
@@ -170,28 +195,22 @@ void main() {
         return;
     }
 
-    // Reflection. Fresnel decides how much of the surroundings the surface
-    // mirrors; the surroundings are a soft sky, brighter above.
-    float cosi = N.z;
-    float F = F0 + (1.0 - F0) * pow(1.0 - cosi, 5.0);
+    // Reflection. Fresnel decides how much of the room in front of the screen
+    // the surface mirrors: 4% head-on, nearly all of it at grazing angles. What
+    // it mirrors is the studio below: bright where it faces the key light, dark
+    // where it faces the floor, so the rim is lit on one side and shaded on the
+    // other instead of glowing evenly all round.
+    float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
-    float sky = 0.35 + 0.65 * clamp(0.5 - 0.5 * Rf.y, 0.0, 1.0);
-    // A low key light from lightAngle, far brighter than the sky, so the rim
-    // facing it catches a sharp highlight.
-    vec3 L = normalize(vec3(hl_x, hl_y, 0.2));
-    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    float shin = 6.0 * hl_falloff * hl_falloff;
-    float norm = (shin + 8.0) / 25.0;               // energy-conserving Blinn-Phong
-    float spec = pow(max(dot(N, H), 0.0), shin) * norm;
-    // The same light, reflected inside the glass, leaves through the opposite rim.
-    vec3 Ni = vec3(-N.xy, N.z);
-    float inner = pow(max(dot(Ni, H), 0.0), shin) * norm * (1.0 - F) * 0.5;
-    // A crisp line where the surface turns vertical: there glass reflects almost everything.
-    float band = 1.0 - smoothstep(0.0, max(rim_w, 0.5), inside);
-    float facing = pow(abs(dot(n, vec2(hl_x, hl_y))), hl_falloff);
-    float k = hl * (0.5 * F * sky + 22.0 * F * (spec + inner) + band * (0.15 + 0.6 * facing));
-    k = clamp(k, 0.0, 1.0);
-    col = vec4(k) + col * (1.0 - k);
+    vec3 refl = studio(Rf) * F;
+    // Light from the key that refracts in, reflects off the far side of the glass
+    // and comes back out lights the opposite rim, much dimmer.
+    vec3 Ri = reflect(vec3(0.0, 0.0, -1.0), vec3(-N.xy, N.z));
+    refl += softbox(Ri) * (1.0 - F) * 0.05;
+    float a = clamp(F * hl, 0.0, 1.0);
+    // Premultiplied: the surface lets (1 - a) of what is under it through and adds
+    // its reflection, which may be brighter than its own alpha (it is emitted light).
+    col = vec4(min(col.rgb * (1.0 - a) + refl * hl, vec3(1.0)), col.a * (1.0 - a) + a);
 
     cogl_color_out = col * cov * cogl_color_in.a;
 }
@@ -224,7 +243,6 @@ export const DEFAULT_LOOK = Object.freeze({
     highlight: 0.55,    // 0..1
     lightAngle: -125,   // degrees, -90 = from the top
     falloff: 2.0,
-    rim: 1.5,           // px
     shadow: 0,          // 0..1, drawn by the pane itself
 });
 
@@ -372,7 +390,6 @@ class LiquidGlassPane extends Clutter.Actor {
             hl: Math.max(0, Math.min(1, L.highlight)),
             hl_x: Math.cos(a), hl_y: Math.sin(a),
             hl_falloff: Math.max(0.25, L.falloff),
-            rim_w: Math.max(0, L.rim),
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             mode: this._layer,
         });

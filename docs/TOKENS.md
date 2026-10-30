@@ -48,6 +48,7 @@ Colours are `#RRGGBBAA`. Numbers are plain JSON numbers. New keys may appear in 
 | `radius`, `radius_small` | corner radii in px |
 | `blur_radius`, `blur_brightness` | the blur behind glass |
 | `lens_width`, `lens_bend`, `dispersion`, `vibrancy`, `glare` | the glass lens: rounded-edge width and slab thickness in px, rainbow edge 0..1, colour boost (1 = none), rim highlight 0..1 |
+| `glass_panel_edges`, `glass_menu_edges` | true when the Liquid Glass extension draws the panel's or the menus' edges, so a theme should leave them without a border line |
 | `terminal_opacity` | terminal background opacity |
 | `panel_floating`, `panel_margin` | panel style |
 | `blur_app_windows` | whether app windows get blur behind them |

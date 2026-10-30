@@ -28,7 +28,7 @@ function cleanLook(raw, base) {
     const ranges = {
         blur: [0, 100], refraction: [0, 80], bend: [0, 80], depth: [0, 1], dispersion: [0, 1],
         saturation: [0, 3], brightness: [0, 2], highlight: [0, 1], lightAngle: [-360, 360],
-        falloff: [0.25, 8], rim: [0, 8], shadow: [0, 1],
+        falloff: [0.25, 8], shadow: [0, 1],
     };
     for (const [k, [lo, hi]] of Object.entries(ranges))
         out[k] = num(raw[k], base[k], lo, hi);

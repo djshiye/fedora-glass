@@ -276,3 +276,24 @@ def test_glass_running_reads_the_shell_state(fake_env, monkeypatch):
                             ("({},)", 0, False), ("", 1, False)):
         monkeypatch.setattr(fake_env, "run", lambda argv, timeout=30, o=out, c=code: RunResult(c, o, ""))
         assert ts.GlassEffects.running(fake_env) is want
+
+
+def test_glass_surfaces_drop_the_drawn_outline():
+    def block(css, sel):
+        i = css.index("\n" + sel + " {")
+        return css[i:css.index("}", i)]
+
+    on = palette.build(Settings(), dark=True)
+    css = rs.render_css(on)
+    for sel in (".quick-settings", ".osd-window", ".switcher-list", ".notification-banner"):
+        assert "border: 1px solid rgba(0,0,0,0)" in block(css, sel), sel
+    # Surfaces the extension doesn't cover keep theirs.
+    assert on.edge.css in block(css, ".workspace-switcher, .resize-popup, .screenshot-ui-panel, #LookingGlassDialog")
+    assert rs.dtp_values(on)["trans-use-border"] == "false"
+    assert "rgba(0,0,0,0)" in rs.arcmenu_values(on)["menu-border-color"]
+
+    off = palette.build(Settings(glass_menus=False, glass_panel=False), dark=True)
+    assert on.edge.css in block(rs.render_css(off), ".quick-settings")
+    assert rs.dtp_values(off)["trans-use-border"] == "true"
+    no_ext = palette.build(Settings(targets={"glass": False}), dark=True)
+    assert on.edge.css in block(rs.render_css(no_ext), ".quick-settings")

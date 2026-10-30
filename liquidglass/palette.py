@@ -67,6 +67,9 @@ class Tokens:
     dispersion: float      # 0..1
     vibrancy: float        # saturation multiplier, 1 = unchanged
     glare: float           # directional highlight along the rim, 0..1
+    # The glass extension draws these surfaces' edges itself, so the theme leaves them unbordered.
+    glass_panel_edges: bool
+    glass_menu_edges: bool
 
     def to_json(self) -> str:
         """Public token file for apps that read it (see docs/TOKENS.md)."""
@@ -181,4 +184,6 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
         dispersion=0.0 if s.reduce_transparency else round(s.dispersion * lerp(1.0, 0.35, f), 3),
         vibrancy=round(1.0 + s.vibrancy * lerp(1.0, 0.6, f), 3),
         glare=round(s.highlight * lerp(0.7, 0.3, f), 3),
+        glass_panel_edges=s.glass_panel and s.target_enabled("glass") and not s.reduce_transparency,
+        glass_menu_edges=s.glass_menus and s.target_enabled("glass") and not s.reduce_transparency,
     )
