@@ -31,6 +31,13 @@ import * as C from './curves.js';
 import {Signals} from './common.js';
 
 const WM_SIGNALS = ['map', 'minimize', 'unminimize', 'destroy'];
+// The parts of GNOME's window manager the window animations build on. They are
+// private, so they are checked before anything is changed.
+const WM_METHODS = ['_mapWindow', '_mapWindowDone', '_minimizeWindow', '_minimizeWindowDone', '_unminimizeWindow',
+    '_unminimizeWindowDone', '_destroyWindow', '_destroyWindowDone', '_shouldAnimate', '_getAnimationWindowType'];
+const WM_SETS = ['_mapping', '_minimizing', '_unminimizing', '_destroying', '_skippedActors'];
+const COMPLETED = {open: 'completed_map', minimize: 'completed_minimize', unminimize: 'completed_unminimize',
+    close: 'completed_destroy'};
 const WATCHDOG_MIN_MS = 1500;
 const RETARGET_MS = 120;     // a restore this soon after a minimize was cut short starts where it was
 const FIELD = {'scale-x': 'scale_x', 'scale-y': 'scale_y', 'translation-x': 'translation_x',
@@ -43,6 +50,11 @@ function animationsOn() {
 
 
 const running = new Map();   // actor -> the animation running on it
+const GENIE_FRAME_BUDGET_US = 20000;
+const GENIE_BUDGET_FRAMES = 10;
+const GENIE_SLOW_FRAMES = 3;
+let frameBudget = true;
+let genieFallbacks = 0;
 const guards = new Map();    // window actor -> the genie copy standing in for it
 
 /**
@@ -295,7 +307,6 @@ const GenieEffect = GObject.registerClass(
 class LiquidGlassGenie extends Clutter.ShaderEffect {
     _init(win, icon, intensity) {
         super._init();
-        this.set_shader_source(GENIE_SHADER);
         this._frame = '';
         const vertical = Math.abs(icon.y + icon.height / 2 - win.y - win.height / 2) >=
             Math.abs(icon.x + icon.width / 2 - win.x - win.width / 2);
@@ -304,6 +315,11 @@ class LiquidGlassGenie extends Clutter.ShaderEffect {
         this._set({win_x: win.x, win_y: win.y, win_w: win.width, win_h: win.height,
             ico_x: icon.x, ico_y: icon.y, ico_w: Math.max(1, icon.width), ico_h: Math.max(1, icon.height),
             pinch: C.geniePinch(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
+    }
+
+    // One shader program for the class, built once, rather than one per minimize.
+    vfunc_get_static_shader_source() {
+        return GENIE_SHADER;
     }
 
     _set(values) {
@@ -385,8 +401,32 @@ function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
     });
     actor.add_transition('liquid-glass-guard', guard);
     anim.onFrame = u => effect.setProgress(lerp(p0, p1, ease(u)));
+    // If the shader is too heavy for this machine (3 of the first 10 frames over
+    // budget), the rest of this one animation scales the copy towards the icon instead.
+    const budget = {last: 0, frames: 0, slow: 0};
+    const fallBack = () => {
+        genieFallbacks++;
+        holder.remove_effect(effect);
+        const w0 = local(win), w1 = local(iconRect);
+        clone.set_pivot_point(0, 0);
+        anim.onFrame = u => {
+            const q = lerp(p0, p1, ease(u));
+            clone.set_scale(lerp(1, w1.width / w0.width, q), lerp(1, w1.height / w0.height, q));
+            clone.set_translation(lerp(0, w1.x - w0.x, q), lerp(0, w1.y - w0.y, q), 0);
+        };
+    };
     const [, t] = anim.transitions[0];
-    t.connect('new-frame', () => anim.onFrame(Math.min(1, t.get_elapsed_time() / Math.max(1, ms))));
+    t.connect('new-frame', () => {
+        if (frameBudget && budget.frames < GENIE_BUDGET_FRAMES) {
+            const now = GLib.get_monotonic_time();
+            // The first frame also builds the shader: it isn't counted.
+            if (budget.last && now - budget.last > GENIE_FRAME_BUDGET_US && ++budget.slow === GENIE_SLOW_FRAMES)
+                fallBack();
+            budget.last = now;
+            budget.frames++;
+        }
+        anim.onFrame(Math.min(1, t.get_elapsed_time() / Math.max(1, ms)));
+    });
     effect.setProgress(p0);
     return anim;
 }
@@ -399,6 +439,7 @@ class WindowAnimations {
         this._blocked = [];     // GNOME's own handlers, blocked while ours run
         this._ids = [];
         this._cut = new WeakMap();   // actor -> where its minimize was cut short, and when
+        this._stocked = new WeakSet();   // actors whose current event GNOME's own code took
     }
 
     get motion() {
@@ -414,6 +455,14 @@ class WindowAnimations {
     }
 
     _install() {
+        const missing = [...WM_METHODS.filter(n => typeof Main.wm?.[n] !== 'function'),
+            ...WM_SETS.filter(n => typeof Main.wm?.[n]?.has !== 'function')];
+        if (missing.length) {
+            if (!this._warned)
+                log(`Liquid Glass: this GNOME has no ${missing.join(', ')}; leaving window animations to GNOME`);
+            this._warned = true;
+            return;
+        }
         const wm = global.window_manager;
         const found = [];
         for (const name of WM_SIGNALS) {
@@ -456,7 +505,9 @@ class WindowAnimations {
             wm._skippedActors.add(actor);
         const fn = {open: '_mapWindow', minimize: '_minimizeWindow', unminimize: '_unminimizeWindow',
             close: '_destroyWindow'}[kind];
-        return wm[fn](shellwm, actor);
+        const ret = wm[fn](shellwm, actor);
+        this._stocked.add(actor);   // GNOME has the event now
+        return ret;
     }
 
     _choice(kind, actor) {
@@ -469,19 +520,39 @@ class WindowAnimations {
         if (!animationsOn() || wm._skippedActors.has(actor) || !wm._shouldAnimate() || !actor.get_texture?.() ||
             !actor.meta_window || wm._getAnimationWindowType(actor) !== Meta.WindowType.NORMAL)
             return 'gnome';
-        // Already being animated by GNOME: our handler must have run second.
+        // Still in an earlier effect (Mutter normally ends it first).
         if (wm._minimizing.has(actor) || wm._unminimizing.has(actor) || wm._mapping.has(actor) ||
             wm._destroying.has(actor))
             return 'skip';
         return m.preset;
     }
 
+    // End whatever effect the window is still in, through GNOME's own done
+    // path, so Mutter hears it finished before the next one starts.
+    _finishEarlier(shellwm, actor) {
+        const wm = Main.wm;
+        stop(actor, false);
+        if (wm._mapping.has(actor))
+            wm._mapWindowDone(shellwm, actor);
+        if (wm._minimizing.has(actor))
+            wm._minimizeWindowDone(shellwm, actor);
+        if (wm._unminimizing.has(actor))
+            wm._unminimizeWindowDone(shellwm, actor);
+        if (wm._destroying.has(actor))
+            wm._destroyWindowDone(shellwm, actor);
+    }
+
     _run(kind, shellwm, actor) {
-        let choice = 'gnome';
+        let choice = null;
+        this._stocked.delete(actor);
         try {
             choice = this._choice(kind, actor);
-            if (choice === 'skip')
-                return;
+            if (choice === 'skip') {
+                this._finishEarlier(shellwm, actor);
+                choice = this._choice(kind, actor);
+                if (choice === 'skip')
+                    choice = 'off';   // never leave the event unhandled
+            }
             if (choice === 'gnome' || choice === 'off') {
                 this._stock(kind, shellwm, actor, choice === 'gnome');
                 return;
@@ -495,23 +566,36 @@ class WindowAnimations {
         }
     }
 
-    // Something went wrong: make sure GNOME still finishes the window's effect.
+    // Something went wrong: make sure the window's effect still finishes. Whatever
+    // already holds the event finishes it; if nothing does, GNOME's own code takes
+    // it without animating, and if even that fails, Mutter is told it is done.
     _rescue(kind, shellwm, actor, choice) {
         const wm = Main.wm;
-        stop(actor, false);
         try {
-            if (kind === 'minimize' && wm._minimizing.has(actor))
+            stop(actor, false);
+        } catch {}
+        try {
+            if (kind === 'open' && wm._mapping?.has(actor))
+                wm._mapWindowDone(shellwm, actor);
+            else if (kind === 'minimize' && wm._minimizing?.has(actor))
                 wm._minimizeWindowDone(shellwm, actor);
-            else if (kind === 'unminimize' && wm._unminimizing.has(actor))
+            else if (kind === 'unminimize' && wm._unminimizing?.has(actor))
                 wm._unminimizeWindowDone(shellwm, actor);
-            else if (kind === 'close' && wm._destroying.has(actor))
+            else if (kind === 'close' && wm._destroying?.has(actor))
                 wm._destroyWindowDone(shellwm, actor);
-            else if (choice !== 'gnome' && choice !== 'off' && kind !== 'open')
+            else if (!this._stocked.has(actor))
                 this._stock(kind, shellwm, actor, false);
-            reset(actor);
         } catch (e) {
-            logError(e, 'Liquid Glass: finishing a window effect');
+            logError(e, `Liquid Glass: GNOME couldn't finish the ${kind} (${choice ?? 'no choice'}); ending it`);
+            try {
+                shellwm[COMPLETED[kind]](actor);
+            } catch (e2) {
+                logError(e2, 'Liquid Glass: ending a window effect');
+            }
         }
+        try {
+            reset(actor);
+        } catch {}
     }
 
     _iconRect(actor) {
@@ -669,8 +753,11 @@ class WindowAnimations {
     }
 
     destroy() {
-        this.finishAll();
-        this._uninstall();
+        try {
+            this.finishAll();
+        } finally {
+            this._uninstall();
+        }
     }
 }
 
@@ -1002,14 +1089,29 @@ export class Animations {
     }
 
     destroy() {
-        if (this._animId)
-            this._settings.disconnect(this._animId);
-        this._animId = 0;
-        this.panel.destroy();
-        this.windows.destroy();
-        for (const actor of [...running.keys()])
-            stop(actor, true);
+        // GNOME's own window handlers come back first, whatever happens after.
+        try {
+            this.windows.destroy();
+        } finally {
+            try {
+                if (this._animId)
+                    this._settings.disconnect(this._animId);
+                this._animId = 0;
+                this.panel.destroy();
+            } finally {
+                for (const actor of [...running.keys()])
+                    stop(actor, true);
+            }
+        }
     }
+}
+
+// For QA: how many genie animations fell back to scaling, and a switch for the
+// frame budget (frame strips on software rendering would always trip it).
+export function qaGenie(budget = null) {
+    if (budget !== null)
+        frameBudget = Boolean(budget);
+    return {fallbacks: genieFallbacks, budget: frameBudget};
 }
 
 // For QA: how many animations are running now (0 when idle).

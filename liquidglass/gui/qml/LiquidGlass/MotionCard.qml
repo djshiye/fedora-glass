@@ -434,7 +434,7 @@ Card {
                                 implicitHeight: 32
                                 leftPadding: 0; rightPadding: 0
                                 anchors.verticalCenter: parent.verticalCenter
-                                tip: "Intensity and speed"
+                                tip: "More settings"
                                 Accessible.name: "Intensity and speed for " + row.modelData.label
                                 onClicked: root.expandedEv = row.open ? "" : row.ev
                             }
@@ -481,16 +481,41 @@ Card {
                                     onMoved: (v) => { Backend.setMotion(row.ev, "intensity", v); root._pendingEv = row.ev; settle.restart() }
                                     tip: "How lively it is: how far it overshoots or bounces before settling. Left settles calmly; right is bouncier."
                                 }
-                                LabeledSlider {
-                                    objectName: "motionSpeed-" + row.ev
+                                // Speed is log-scaled: the slider runs -1..1 as log2(speed), so 1.0x sits
+                                // at the centre and each half is a doubling (0.5x..1x, 1x..2x).
+                                Item {
                                     width: parent.width
-                                    label: "Speed"
-                                    enabled: row.adjustable
-                                    from: 0.5; to: 2; stepSize: 0.05
-                                    value: row.cfg.speed
-                                    format: (v) => v.toFixed(1) + "×"
-                                    onMoved: (v) => { Backend.setMotion(row.ev, "speed", v); root._pendingEv = row.ev; settle.restart() }
-                                    tip: "How fast it plays. Left is slower; right is faster."
+                                    height: speedSlider.implicitHeight + 16
+                                    LabeledSlider {
+                                        id: speedSlider
+                                        objectName: "motionSpeed-" + row.ev
+                                        width: parent.width
+                                        label: "Speed"
+                                        enabled: row.adjustable
+                                        from: -1; to: 1; stepSize: 0.01
+                                        value: Math.log(Math.max(0.5, Math.min(2, row.cfg.speed))) / Math.LN2
+                                        format: (p) => Math.pow(2, p).toFixed(1) + "×"
+                                        onMoved: (p) => {
+                                            // snap to exactly 1.0x near the centre, store the real speed
+                                            const sp = Math.abs(p) < 0.04 ? 1 : Math.max(0.5, Math.min(2, Math.pow(2, p)))
+                                            Backend.setMotion(row.ev, "speed", Math.round(sp * 100) / 100)
+                                            root._pendingEv = row.ev; settle.restart()
+                                        }
+                                        tip: "How fast it plays. Left is slower, the middle is normal speed, right is faster."
+                                    }
+                                    Text {
+                                        y: speedSlider.height + 2
+                                        text: "Slower"
+                                        color: row.adjustable ? Theme.textDim : Theme.textFaint
+                                        font.pixelSize: Theme.fsSmall
+                                    }
+                                    Text {
+                                        y: speedSlider.height + 2
+                                        anchors.right: parent.right
+                                        text: "Faster"
+                                        color: row.adjustable ? Theme.textDim : Theme.textFaint
+                                        font.pixelSize: Theme.fsSmall
+                                    }
                                 }
                             }
                         }

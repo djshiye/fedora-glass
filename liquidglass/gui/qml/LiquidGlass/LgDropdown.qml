@@ -129,11 +129,27 @@ FocusScope {
         }
         exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
 
-        background: Rectangle {
-            radius: 14
-            color: Theme.dark ? Qt.rgba(0.09, 0.095, 0.12, 0.96) : Qt.rgba(0.975, 0.978, 0.985, 0.97)
-            border.width: 1
-            border.color: Theme.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.12)
+        // Fully opaque: the list sits over card text and the preview, and any
+        // see-through here makes the rows hard to read.
+        background: Item {
+            // soft drop shadow: two faint rings, no effect layer needed
+            Rectangle {
+                x: -3; y: -1; width: parent.width + 6; height: parent.height + 8
+                radius: 17
+                color: Qt.rgba(0, 0, 0, Theme.dark ? 0.22 : 0.07)
+            }
+            Rectangle {
+                x: -1; y: 1; width: parent.width + 2; height: parent.height + 4
+                radius: 15
+                color: Qt.rgba(0, 0, 0, Theme.dark ? 0.30 : 0.09)
+            }
+            Rectangle {
+                anchors.fill: parent
+                radius: 14
+                color: Theme.dark ? Qt.rgba(0.105, 0.11, 0.135, 1) : Qt.rgba(0.985, 0.987, 0.993, 1)
+                border.width: 1
+                border.color: Theme.dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.12)
+            }
         }
 
         contentItem: FocusScope {

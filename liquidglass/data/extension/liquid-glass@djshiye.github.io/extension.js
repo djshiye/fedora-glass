@@ -23,7 +23,11 @@ export default class LiquidGlassExtension extends Extension {
 
     disable() {
         // Windows and icons mid-animation land at once, and GNOME's own animations come back.
-        this._animations?.destroy();
+        try {
+            this._animations?.destroy();
+        } catch (e) {
+            logError(e, 'Liquid Glass: turning the animations off');   // the rest still turns off
+        }
         this._animations = null;
         this._desktop?.destroy();
         this._desktop = null;
