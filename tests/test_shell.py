@@ -208,6 +208,18 @@ def test_window_glass_has_a_lens_and_no_bleed(fake_env):
     assert seen["windows"]["behind"] == "wallpaper"
 
 
+def test_content_views_let_a_little_glass_through():
+    from liquidglass.render.gtk4 import view_color
+    for dark in (True, False):
+        for f in (0.0, 0.45, 1.0):
+            t = palette.build(Settings(frost=f), dark=dark)
+            layer = view_color(t)
+            total = 1 - (1 - t.window.a) * (1 - layer.a)        # the view on the window background
+            assert total == pytest.approx(t.view.a, abs=2e-3) and 0.85 <= total <= 0.94
+    calm = palette.build(Settings(reduce_transparency=True), dark=True)
+    assert 1 - (1 - calm.window.a) * (1 - view_color(calm).a) >= 0.97 - 1e-3
+
+
 def test_dash_to_panel_floating_and_docked(fake_env):
     install(fake_env, ts.DASH_TO_PANEL)
     def values(style):

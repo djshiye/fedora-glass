@@ -106,12 +106,12 @@ def _surfaces(s: Settings, dark: bool, tint: Color, strength: float, f: float) -
         base = Color.hex("#17181d").mix(tint, strength * 0.55)
         surface = base.mix(WHITE, lerp(0.02, 0.11, f))     # milky lift towards white when frosted
         a_chrome, a_window = lerp(0.24, 0.66, f), lerp(0.50, 0.78, f)
-        a_view, a_pop = lerp(0.80, 0.90, f), lerp(0.78, 0.90, f)   # text areas stay solid enough to read
+        a_view, a_pop = lerp(0.86, 0.92, f), lerp(0.78, 0.90, f)   # text areas stay solid enough to read
     else:
         base = Color.hex("#f5f6fa").mix(tint, strength * 0.45)
         surface = base.mix(WHITE, lerp(0.0, 0.25, f))
         a_chrome, a_window = lerp(0.40, 0.76, f), lerp(0.52, 0.82, f)
-        a_view, a_pop = lerp(0.80, 0.92, f), lerp(0.80, 0.93, f)
+        a_view, a_pop = lerp(0.86, 0.93, f), lerp(0.80, 0.93, f)
 
     if s.opacity is not None:
         o = s.opacity
@@ -123,6 +123,8 @@ def _surfaces(s: Settings, dark: bool, tint: Color, strength: float, f: float) -
     return {
         "window": surface.with_alpha(a_window),
         "chrome": surface.with_alpha(a_chrome),
+        # How solid a content view (the Files grid, a text area) looks in the end, glass
+        # included: the frosted glass shows a little through, text stays readable.
         "view": surface.mix(BLACK if dark else WHITE, 0.25).with_alpha(a_view),
         "popover": surface.with_alpha(a_pop),
         "dialog": surface.with_alpha(min(1.0, a_pop + 0.04)),

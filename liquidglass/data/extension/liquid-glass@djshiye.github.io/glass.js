@@ -398,6 +398,7 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
         // area). Its blur and rim reach past that part, and the copy is kept and
         // shown again later, so re-render all of it once more, in full.
         if (flags & Clutter.EffectPaintFlags.ACTOR_DIRTY) {
+            this.renders = (this.renders ?? 0) + 1;    // read by the QA tools
             if (this._full)
                 this._full = false;
             else
