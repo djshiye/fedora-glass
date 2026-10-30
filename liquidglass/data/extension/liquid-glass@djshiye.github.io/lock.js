@@ -30,17 +30,23 @@ const CLOCK_STYLES = {
     thin: {time: 'font-size: 92pt; font-weight: 200;', date: 'font-weight: 400;'},
 };
 
-// The sheet is calm: no pointer light, no motion, no colour bleed.
+// The sheet is calm: no pointer light, no motion, no colour bleed. Its ceiling
+// keeps the white clock readable on any wallpaper: at most linear Y 0.13, which
+// is 5.8:1 against white.
+const SHEET_CEILING = 0.13;
+const CARD_CEILING = 0.17;      // a little lighter, still 4.8:1 for the name and messages
+
 function sheetLook(c) {
     return {blur: c.blur, refraction: 34, bend: 40, depth: 0.2, dispersion: 0.25, saturation: 1.35,
         brightness: c.dim, tint: c.tint, highlight: 0.5, bleed: 0, pointerLight: 0, motion: 0,
-        adapt: 0, shadow: 0};
+        adapt: 0, shadow: 0, ceiling: SHEET_CEILING, solid: 1};
 }
 
 function cardLook(c) {
     const [r, g, b, a] = c.tint;
     return {...sheetLook(c), refraction: 22, bend: 26, depth: 0.3,
-        brightness: Math.min(1, c.dim + 0.12), tint: [r, g, b, Math.min(1, a * 0.6)], highlight: 0.55};
+        brightness: Math.min(1, c.dim + 0.12), tint: [r, g, b, Math.min(1, a * 0.6)], highlight: 0.55,
+        ceiling: CARD_CEILING, solid: 0};
 }
 
 /**

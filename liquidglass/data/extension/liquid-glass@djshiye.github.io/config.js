@@ -36,7 +36,8 @@ function cleanLook(raw, base) {
     const ranges = {
         blur: [0, 100], refraction: [0, 80], bend: [0, 80], depth: [0, 1], dispersion: [0, 1],
         saturation: [0, 3], brightness: [0, 2], highlight: [0, 1], lightAngle: [-360, 360],
-        shadow: [0, 1], bleed: [0, 1], adapt: [0, 1], lift: [0, 1], hairline: [0, 0.3], pointerLight: [0, 1], motion: [0, 1],
+        shadow: [0, 1], bleed: [0, 1], adapt: [0, 1], lift: [0, 1], hairline: [0, 0.3], ceiling: [0, 1], solid: [0, 1],
+        pointerLight: [0, 1], motion: [0, 1],
     };
     // edgeLight is the newer name for highlight.
     if (typeof raw.highlight !== 'number' && typeof raw.edgeLight === 'number')
