@@ -140,12 +140,6 @@ $glass_btn:active, $glass_btn:checked {
   background-image: none;
   box-shadow: inset 0 1px 3px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge);
 }
-windowcontrols > button > image {
-  background-color: var(--lg-glass);
-  background-image: linear-gradient(to bottom, var(--lg-sheen-top), var(--lg-sheen-bottom) 70%);
-  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
-}
-windowcontrols > button:hover > image { background-color: var(--lg-glass-hi); }
 button.suggested-action, button.destructive-action, button.opaque {
   background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 60%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.10), 0 2px 8px 0 var(--lg-shadow);
@@ -168,6 +162,62 @@ splitbutton > menubutton:last-child > button { border-radius: 0 999px 999px 0; }
 button.osd, .osd button { background-color: rgba(20, 20, 24, 0.55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.10); }
 menubutton > button, dropdown > button, combobox button.combo { border-radius: 999px; }
 button.destructive-action { color: var(--destructive-fg-color); }
+
+/* ---- header bar buttons: flat icons on one glass bar -------------------------
+   No bubbles at rest. Hovering a button lifts a glass tile under that one button,
+   pressing it thins the tile and dips the icon. Calls to action (Save, Delete)
+   stay filled. The tile fades in quickly and out slowly. */
+$hdr_btn {
+  border-radius: 8px;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: color-mix(in srgb, currentColor 85%, transparent);
+  transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
+}
+/* Unfocused windows dim their icons; hovering one brings it back. */
+$hdr_btn_backdrop { color: color-mix(in srgb, var(--headerbar-fg-color) 50%, transparent); }
+$hdr_btn_hover, $hdr_btn_checked {
+  background-color: var(--lg-tile);
+  background-image: none;
+  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
+  color: var(--headerbar-fg-color);
+  transition-duration: 120ms;
+}
+$hdr_btn_checked { color: var(--accent-color); }
+$hdr_btn_active {
+  background-color: var(--lg-tile-press);
+  background-image: none;
+  box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge);
+  transition-duration: 60ms;
+}
+$hdr_btn_icon { transition: -gtk-icon-transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+$hdr_btn_icon_active { -gtk-icon-transform: scale(0.94); transition-duration: 60ms; }
+
+/* Window controls: the same flat glyphs and tile. Close turns soft red on hover only. */
+windowcontrols > button {
+  border-radius: 8px;
+  background-color: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--headerbar-fg-color) 85%, transparent);
+  transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
+}
+windowcontrols > button > image, windowcontrols > button:hover > image, windowcontrols > button:active > image {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  transition: -gtk-icon-transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+windowcontrols > button:backdrop { color: color-mix(in srgb, var(--headerbar-fg-color) 50%, transparent); }
+windowcontrols > button:hover {
+  background-color: var(--lg-tile);
+  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
+  color: var(--headerbar-fg-color);
+  transition-duration: 120ms;
+}
+windowcontrols > button:active { background-color: var(--lg-tile-press); box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
+windowcontrols > button:active > image { -gtk-icon-transform: scale(0.94); }
+windowcontrols > button.close:hover, windowcontrols > button.close:active { background-color: var(--lg-close); box-shadow: none; color: white; }
 
 /* ---- entries, search, spin buttons ----------------------------------------- */
 entry, spinbutton, searchentry, row.entry, row.spin {

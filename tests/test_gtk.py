@@ -195,3 +195,42 @@ def test_engine_replaces_symlinked_gtk_css(fake_env):
     assert "Liquid Glass" in (d / "gtk.css").read_text()
     assert Engine(fake_env, targets=[by_id("gtk4")]).revert("gtk4") == []
     assert (d / "gtk.css").is_symlink()
+
+
+def _specificity(selector: str) -> tuple[int, int, int]:
+    """CSS specificity (ids, classes and pseudo-classes, elements) of one simple selector chain."""
+    s = re.sub(r":not\(([^)]*)\)", r" \1", selector)
+    classes = len(re.findall(r"[.:][\w-]+", s))
+    elements = len(re.findall(r"(?:^|[\s>+~])([a-z][\w-]*)", s))
+    return 0, classes, elements
+
+
+def test_header_buttons_are_flat_and_outrank_glass_pills():
+    t = toks(True, 0.4)
+    geo = gtk4._geometry(t)
+    pill = _specificity(geo["glass_btn"] + ":hover")
+    for sel in geo["hdr_btn_hover"].split(", "):
+        assert _specificity(sel) > pill, sel
+    for sel in geo["hdr_btn"].split(", "):
+        assert _specificity(sel) > _specificity(geo["glass_btn"]), sel
+        # Calls to action stay filled.
+        assert ":not(.suggested-action)" in sel and ":not(.destructive-action)" in sel
+    css = gtk4.render(t)
+    rest = css.split(geo["hdr_btn"] + " {", 1)[1].split("}", 1)[0]
+    assert "background-color: transparent" in rest and "box-shadow: none" in rest
+    assert "border-radius: 8px" in rest
+
+
+def test_window_controls_are_flat_and_close_is_red_only_on_hover():
+    css = gtk4.render(toks(True, 0.4))
+    assert "windowcontrols > button > image {\n  background-color: var(--lg-glass)" not in css
+    red = [line for line in css.splitlines() if "var(--lg-close)" in line]
+    assert red and all(":hover" in line for line in red)
+
+
+@pytest.mark.parametrize("dark", (True, False))
+def test_gtk3_header_buttons_are_flat(dark):
+    css = gtk3.render(toks(dark, 0.4))
+    assert ".titlebutton, headerbar .titlebutton { border-radius: 999px" not in css
+    assert "headerbar .titlebutton.close:hover" in css and "@lg_close" in css
+    assert "@lg_tile" in css and "@lg_tile_press" in css

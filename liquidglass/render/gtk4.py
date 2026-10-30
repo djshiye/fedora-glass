@@ -94,6 +94,11 @@ def glass_colors(t: Tokens) -> dict[str, Color]:
         "lg-tooltip": t.osd.with_alpha(max(t.osd.a, 0.88)),
         "lg-tooltip-fg": Color.hex("#f4f5f9") if t.dark else t.fg,
         "lg-deep-shadow": Color(0, 0, 0, 0.34 if t.dark else 0.22),
+        # Header bar buttons: a glass tile under the hovered button only, a little
+        # less dense while pressed, and a soft red under Close.
+        "lg-tile": Color(1, 1, 1, 0.06 if t.dark else 0.50),
+        "lg-tile-press": Color(1, 1, 1, 0.035 if t.dark else 0.32),
+        "lg-close": Color.hex("#ff5f57").with_alpha(0.85),
     }
 
 
@@ -114,6 +119,22 @@ def named_colors(t: Tokens) -> str:
                      for k, v in adwaita_colors(t).items())
 
 
+# Where header bar buttons live: libadwaita and GTK 3 header bars, Ptyxis's top bar,
+# and the buttons at either end of a tab bar.
+_HEADER_SCOPES = ("headerbar", ".top-bar", "tabbar .start-action", "tabbar .end-action")
+# Buttons that keep their own look in a header bar: calls to action, the window
+# controls (styled on their own), and Files' path bar (a field, not a button row).
+# The list is also long on purpose: it has to outrank $glass_btn, which carries nine :not()s.
+_HEADER_KEEP = (".suggested-action", ".destructive-action", ".opaque", ".osd", ".close",
+                ".minimize", ".maximize", ".chip", ".swatch", ".nautilus-path-button", ".titlebutton")
+
+
+def header_buttons(state: str = "", child: str = "") -> str:
+    """Selector list for flat header bar buttons, with an optional state and child node."""
+    keep = "".join(f":not({c})" for c in _HEADER_KEEP)
+    return ", ".join(f"{scope} button{keep}{state}{child}" for scope in _HEADER_SCOPES)
+
+
 def _geometry(t: Tokens) -> dict[str, str]:
     r = t.window_radius
     return {
@@ -125,6 +146,13 @@ def _geometry(t: Tokens) -> dict[str, str]:
         "radius_window": f"{max(8, r)}px",
         "glass_btn": "button:not(.flat):not(.suggested-action):not(.destructive-action)"
                      ":not(.opaque):not(.osd):not(.close):not(.minimize):not(.maximize):not(.chip):not(.swatch)",
+        "hdr_btn": header_buttons(),
+        "hdr_btn_hover": header_buttons(":hover"),
+        "hdr_btn_active": header_buttons(":active"),
+        "hdr_btn_checked": header_buttons(":checked"),
+        "hdr_btn_backdrop": header_buttons(":backdrop"),
+        "hdr_btn_icon": header_buttons(child=" image"),
+        "hdr_btn_icon_active": header_buttons(":active", " image"),
     }
 
 
