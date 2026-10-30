@@ -36,6 +36,8 @@ class GSet:
     value: str                 # GVariant text, e.g. "true", "'name'", "0.5"
     path: str | None = None    # for relocatable schemas
     optional: bool = True      # skip silently if the key doesn't exist on this version
+    # Another app's own setting: if the user changes it after us, undoing leaves their choice.
+    keep_user_change: bool = False
 
     def describe(self) -> str:
         where = f"{self.schema}:{self.path}" if self.path else self.schema

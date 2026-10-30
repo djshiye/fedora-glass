@@ -399,3 +399,63 @@ def test_desktop_options_are_checked_in_the_extension():
     assert "desktop: {startOnDesktop: false, overviewOff: false}" in js
     ext = (rg.SOURCE / "extension.js").read_text()
     assert "DesktopBehaviour" in ext and "this._desktop?.destroy()" in ext
+
+
+def test_their_own_start_up_choice_comes_back_not_the_default(fake_env):
+    """A value the user picked before Liquid Glass came along is what Restore original and
+    turning ours off put back, never the schema default."""
+    dtp, jp = "org.gnome.shell.extensions.dash-to-panel", "org.gnome.shell.extensions.just-perfection"
+    install(fake_env, ts.DASH_TO_PANEL, ts.JUST_PERFECTION)
+    for undo in ("switch off", "restore original"):
+        fake_env.gs[(dtp, None)] = {"hide-overview-on-startup": "false"}
+        fake_env.gs[(jp, None)] = {"startup-status": "1"}
+        engine = Engine(fake_env, [ts.GlassEffects()])
+        engine.apply(Settings(overview_off=True))
+        assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "true"
+        assert fake_env.gs[(jp, None)]["startup-status"] == "0"
+        engine.apply(Settings(overview_off=True))      # applying again keeps the first backup
+        if undo == "switch off":
+            engine.apply(Settings(start_on_desktop=False, overview_off=False))
+        else:
+            assert engine.revert() == []
+        assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "false", undo
+        assert fake_env.gs[(jp, None)]["startup-status"] == "1", undo
+
+
+def test_turning_the_overview_off_never_changes_has_overview():
+    """Only the start-up step touches sessionMode.hasOverview, and it always restores it."""
+    js = (rg.SOURCE / "desktop.js").read_text()
+    writes = [line.strip() for line in js.splitlines() if re.search(r"hasOverview\s*=[^=]", line)]
+    assert writes == ["Main.sessionMode.hasOverview = false;",
+                      "Main.sessionMode.hasOverview = this._realHasOverview;"]
+    block = js[js.index("_blockOverview() {"):js.index("_allowOverview() {")]
+    assert "hasOverview" not in block and "settings" not in block   # in memory only, gone on a Shell restart
+    destroy = js[js.index("    destroy() {"):]
+    assert "this._endStartup();" in destroy and "this._allowOverview();" in destroy
+
+
+def test_a_change_made_in_their_settings_while_ours_is_on_is_kept(fake_env):
+    """The user had it on, we set it (on), then they switched it off in Dash to Panel while ours
+    was on: switching ours off, or Restore original, must not force it back on."""
+    dtp, jp = "org.gnome.shell.extensions.dash-to-panel", "org.gnome.shell.extensions.just-perfection"
+    install(fake_env, ts.DASH_TO_PANEL, ts.JUST_PERFECTION)
+    for undo in ("switch off", "restore original"):
+        fake_env.gs[(dtp, None)] = {"hide-overview-on-startup": "true"}
+        fake_env.gs[(jp, None)] = {"startup-status": "0"}
+        engine = Engine(fake_env, [ts.GlassEffects()])
+        engine.apply(Settings())
+        fake_env.gs[(dtp, None)]["hide-overview-on-startup"] = "false"     # changed in Dash to Panel
+        fake_env.gs[(jp, None)]["startup-status"] = "1"                    # changed in Just Perfection
+        if undo == "switch off":
+            engine.apply(Settings(start_on_desktop=False))
+        else:
+            assert engine.revert() == []
+        assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "false", undo
+        assert fake_env.gs[(jp, None)]["startup-status"] == "1", undo
+        # Nothing of ours is left to undo later.
+        assert not [k for k in engine_backup_keys(fake_env) if dtp in k or jp in k], undo
+
+
+def engine_backup_keys(env):
+    from liquidglass.engine import Backup
+    return list(Backup(env).data["gsettings"])

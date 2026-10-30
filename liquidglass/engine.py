@@ -141,12 +141,23 @@ class Backup:
         e = self.data["gsettings"].get(key)
         if not e or e["target"] != target:
             return None
+        if self.changed_since(env, key, e):
+            del self.data["gsettings"][key]     # the user's own choice now; leave it
+            return None
         r = env.gsettings_set(g.schema, g.key, e["value"], g.path)
         if not r.ok:
             return f"{g.schema} {g.key}: {r.err.strip()}"
         if not env.dry_run:
             del self.data["gsettings"][key]
         return None
+
+    @staticmethod
+    def changed_since(env: Env, key: str, e: dict) -> bool:
+        """Whether the user changed a key we marked as theirs to keep after we set it."""
+        if "ours" not in e:
+            return False
+        schema, path, k = key.split("|", 2)
+        return env.gsettings_get(schema, k, path or None) != e["ours"]
 
     def record_command(self, target: str, c: Command) -> None:
         if c.undo:
@@ -191,6 +202,9 @@ class Backup:
             if not mine(e):
                 continue
             schema, path, k = key.split("|", 2)
+            if self.changed_since(self.env, key, e):
+                del self.data["gsettings"][key]
+                continue
             r = self.env.gsettings_set(schema, k, e["value"], path or None)
             if r.ok:
                 del self.data["gsettings"][key]
@@ -406,6 +420,8 @@ class Engine:
                 r = self.env.gsettings_set(a.schema, a.key, a.value, a.path)
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
+                elif a.keep_user_change and not self.env.dry_run:
+                    backup.data["gsettings"][f"{a.schema}|{a.path or ''}|{a.key}"]["ours"] = a.value
             elif isinstance(a, GReset):
                 if (err := backup.reset_gsetting(tid, self.env, a)):
                     errs.append(err)

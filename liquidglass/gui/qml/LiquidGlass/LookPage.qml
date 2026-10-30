@@ -754,8 +754,8 @@ Item {
                     SwitchRow {
                         objectName: "overviewOff"
                         label: "Turn off the overview"
-                        caption: "The hot corner, Super key and three-finger swipe no longer open Activities"
-                        tip: "Activities never opens, not from the top-left corner, the Super key or a swipe. Open apps from ArcMenu or Dash to Panel instead. Without ArcMenu, the app grid still opens, so you can always start an app."
+                        caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
+                        tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu or Dash to Panel. Without ArcMenu, the app grid still opens. Switch this off, or turn off Liquid Glass, and it all comes back at once."
                         checked: Backend.overviewOff
                         onToggled: (on) => Backend.overviewOff = on
                     }

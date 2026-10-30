@@ -115,7 +115,7 @@ class GlassEffects(Target):
         for uuid, schema, key, value in self.STARTUP_KEYS:
             if ctx.env.extension_path(uuid) is None:
                 continue
-            acts.append(GSet(schema, key, value) if on else GReset(schema, key))
+            acts.append(GSet(schema, key, value, keep_user_change=True) if on else GReset(schema, key))
         return acts
 
     def live_notes(self, ctx: Context) -> list[str]:
