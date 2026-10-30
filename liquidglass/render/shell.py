@@ -192,11 +192,10 @@ def dtp_values(t: Tokens) -> dict[str, str]:
         "trans-panel-opacity": f"{bg.a:.3f}",
         "trans-use-dynamic-opacity": "false",
         "trans-use-custom-gradient": "false",
-        # Dark glass draws its own edge; light glass keeps the thin dark hairline.
-        "trans-use-border": "false" if t.glass_panel_edges and t.dark else "true",
+        "trans-use-border": "false" if t.glass_panel_edges else "true",
         "trans-border-width": "1",
         "trans-border-use-custom-color": "true",
-        "trans-border-custom-color": f"'{(LIGHT_HAIRLINE if t.glass_panel_edges else t.edge).css}'",
+        "trans-border-custom-color": f"'{t.edge.css}'",
         "global-border-radius": f"{_dtp_radius(t) if floating else 0}",
         "panel-top-bottom-margins": f"{m}",
         "panel-side-margins": f"{m}",

@@ -72,6 +72,7 @@ uniform float milk_r;            // the light glass's own body colour
 uniform float milk_g;
 uniform float milk_b;
 uniform float light_glass;       // 1 for light glass (it has a milk), 0 for dark
+uniform float hair;              // 0..0.3, light glass: a thin dark contact line at its edge
 uniform float bleed;             // strength of the content's colour in the glass
 uniform float edge_l;            // 1 where that side touches the screen edge
 uniform float edge_t;
@@ -419,6 +420,10 @@ void main() {
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
         col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, x, h) * col.a, vec3(col.a));
     }
+    // Light glass over a light backdrop has no edge of its own, so a bar can keep
+    // a thin dark contact line: darker, never lit. Sides on the screen edge have none.
+    if (hair > 0.0)
+        col.rgb *= 1.0 - hair * smoothstep(1.6, 0.6, inside) * smoothstep(0.0, 0.4, inside);
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
     cogl_color_out = (col * cov + vec4(0.0, 0.0, 0.0, s) * (1.0 - cov)) * cogl_color_in.a;
@@ -491,6 +496,7 @@ export const DEFAULT_LOOK = Object.freeze({
     adapt: 0.35,        // 0..1, how much the glass adjusts to what's behind it
     lift: 0,            // 0..1, light glass: its milk thickens over a dark backdrop
     milk: [0.96, 0.965, 0.98], // the light glass's own body colour, rgb 0..1
+    hairline: 0,        // 0..0.3, light glass: a thin dark line at its edge
     shadow: 0,          // 0..1, drawn by the pane itself
 });
 
@@ -748,6 +754,7 @@ class LiquidGlassPane extends Clutter.Actor {
             lift: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.lift)),
             milk_r: L.milk[0], milk_g: L.milk[1], milk_b: L.milk[2],
             light_glass: L.lift > 0 ? 1 : 0,
+            hair: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.3, L.hairline)),
             bleed: this._layer === LAYERS.reflections ? Math.max(0, Math.min(1, L.bleed)) : 0,
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             mode: this._layer,

@@ -525,8 +525,15 @@ def test_light_glass_keeps_a_thin_dark_hairline_and_a_solid_focus_ring():
     for sel in (".popup-menu-content, .candidate-popup-content", ".quick-settings"):
         b = block(css, sel)
         assert f"border: 1px solid {hair}" in b and f"border-top-color: {hair}" in b, sel
-    assert rs.dtp_values(light)["trans-use-border"] == "true"
-    assert rs.dtp_values(light)["trans-border-custom-color"] == f"'{hair}'"
+    # The panel's hairline is drawn in its glass: Dash to Panel's own border (a lit
+    # line over dark wallpapers) stays off, and dark output is as before.
+    assert rs.dtp_values(light)["trans-use-border"] == "false"
+    dark = palette.build(Settings(), dark=True)
+    assert rs.dtp_values(dark)["trans-border-custom-color"] == f"'{dark.edge.css}'"
+    looks = rg.config(Settings(), light)["parts"]
+    assert looks["panel"]["look"]["hairline"] == rg.HAIRLINE["panel"]
+    assert all("hairline" not in looks[p]["look"] for p in looks if p != "panel")
+    assert all("hairline" not in v["look"] for v in rg.config(Settings(), dark)["parts"].values())
     assert rs.arcmenu_values(light)["menu-border-color"] == f"'{hair}'"
     # A dark contact line, never a lit one.
     assert rs.LIGHT_HAIRLINE.r == rs.LIGHT_HAIRLINE.g == rs.LIGHT_HAIRLINE.b == 0

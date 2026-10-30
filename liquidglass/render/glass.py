@@ -41,6 +41,9 @@ def _brightness(t: Tokens, f: float) -> float:
 # Menus hold the most text; the panel is a thin bar whose icons need less; app
 # windows paint most of their own background already.
 LIFT = {"panel": 0.6, "arcmenu": 0.72, "quicksettings": 0.72, "calendar": 0.72, "windows": 0.45, "terminal": 0.0}
+# Light glass only: the panel's thin dark edge line, drawn in the glass under its
+# 30 % veil (about the 11 % black hairline the menus draw in CSS). Menus have theirs.
+HAIRLINE = {"panel": 0.14}
 
 
 def _milk(t: Tokens, name: str) -> dict:
@@ -49,7 +52,10 @@ def _milk(t: Tokens, name: str) -> dict:
     if t.dark or t.blur_radius == 0:
         return {}
     c = t.parts[name]["popover"]
-    return {"lift": LIFT.get(name, 0.0), "milk": [round(c.r, 4), round(c.g, 4), round(c.b, 4)]}
+    out = {"lift": LIFT.get(name, 0.0), "milk": [round(c.r, 4), round(c.g, 4), round(c.b, 4)]}
+    if name in HAIRLINE:
+        out["hairline"] = HAIRLINE[name]
+    return out
 
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
