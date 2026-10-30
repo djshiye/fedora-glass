@@ -15,6 +15,7 @@ import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import {GlassPane, moving, stopMoving} from './glass.js';
 
+const HOLD_MAX_MS = 100;   // a menu waits at most this long for its glass
 const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
 const MOVES = ['notify::allocation', 'notify::visible', 'notify::opacity', 'notify::translation-x',
     'notify::translation-y', 'notify::scale-x', 'notify::scale-y', 'notify::mapped'];
@@ -154,6 +155,7 @@ class Follower {
         this.rect = null;         // [x, y, w, h] on the stage, while shown
         this._held = null;        // the target's own opacity, while it waits for its glass
         this._holdId = 0;
+        this._holdPaint = 0;
         followers.add(this);
 
         for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
@@ -193,10 +195,27 @@ class Follower {
             return;
         this._held = this.target.opacity;
         this.target.opacity = 0;
-        // Whatever happens, never leave a menu invisible.
-        this._holdId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+        // Whatever happens, never leave a menu invisible: if the glass has not
+        // painted after HOLD_MAX_MS, show the menu anyway. On a slow machine a
+        // frame can take longer than that, so give the glass one frame at least.
+        let frames = 0, expired = false;
+        const giveUp = () => {
+            global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+                this._release();
+                return GLib.SOURCE_REMOVE;
+            });
+            global.stage.queue_redraw();
+        };
+        this._holdPaint = global.stage.connect('after-paint', () => {
+            frames++;
+            if (frames >= 4 || expired)
+                giveUp();
+        });
+        this._holdId = GLib.timeout_add(GLib.PRIORITY_HIGH, HOLD_MAX_MS, () => {
             this._holdId = 0;
-            this._release();
+            expired = true;
+            if (frames >= 1)
+                giveUp();
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -205,6 +224,9 @@ class Follower {
         if (this._holdId)
             GLib.source_remove(this._holdId);
         this._holdId = 0;
+        if (this._holdPaint)
+            global.stage.disconnect(this._holdPaint);
+        this._holdPaint = 0;
         if (this._held === null)
             return;
         const o = this._held;
@@ -299,10 +321,11 @@ class Follower {
     }
 
     setMotion(m) {
-        // The rim light is drawn by the content's light layer; the glass only gives.
+        // The pointer brightens the glass's own rim reflection; the content's light
+        // layer only gives with a press.
         const {sx, sy, k, ...shape} = m;
-        this.pane?.setMotion(shape);
-        this.top?.setMotion(m);
+        this.pane?.setMotion(m);
+        this.top?.setMotion(shape);
         // A menu condenses into place as it opens: a little small, then its size.
         if (this.condense && m.open !== undefined && this.target) {
             const sc = 0.96 + 0.04 * Math.min(m.open, 1.0) + 0.02 * Math.max(0, m.open - 1);

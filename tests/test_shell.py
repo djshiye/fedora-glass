@@ -346,3 +346,17 @@ def test_veil_is_light_and_text_stays_readable():
                 assert t.fg.contrast(over) >= 4.5, (name, dark, f)
     solid = palette.build(Settings(frost=1.0, opacity=0.95), dark=True)
     assert rs.surfaces(solid)["popover"].a >= 0.95                      # solid presets are left alone
+
+
+def test_menus_never_wait_long_for_their_glass():
+    # A menu is held invisible until its glass paints; that hold must always end on its own.
+    js = (Path(rg.__file__).parent.parent / "data/extension/liquid-glass@djshiye.github.io/surfaces.js").read_text()
+    limit = int(re.search(r"const HOLD_MAX_MS = (\d+);", js).group(1))
+    assert limit <= 100
+    hold = js[js.index("    _hold() {"):js.index("    _release() {")]
+    assert "GLib.timeout_add(GLib.PRIORITY_HIGH, HOLD_MAX_MS" in hold        # wall-clock safety net
+    assert "'after-paint'" in hold and "frames >= 4" in hold                 # and a frame-count one
+    release = js[js.index("    _release() {"):js.index("    update(settings) {")]
+    assert "source_remove" in release and "disconnect(this._holdPaint)" in release
+    destroy = js[js.index("    destroy() {\n        if (this._later)"):]
+    assert "this._release();" in destroy[:destroy.index("\n    }\n")]

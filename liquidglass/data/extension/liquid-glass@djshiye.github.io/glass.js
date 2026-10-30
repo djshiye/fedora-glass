@@ -203,12 +203,7 @@ void main() {
         float hair = smoothstep(2.2, 0.9, inside) * smoothstep(0.0, 0.6, inside);
         float gm = max(g.r, max(g.g, g.b));
         vec3 tone = mix(vec3(1.0), g.rgb / max(gm, 1e-3), 0.5 * step(0.01, gm));
-        // The pointer is a light of its own: the rim nearest to it catches it, so a
-        // highlight travels along the edge as the pointer goes round.
-        vec2 dp = px - vec2(ptr_x, ptr_y);
-        float spec = ptr_k * exp(-dot(dp, dp) / 64800.0);       // sigma 180 px
-        float sheen = smoothstep(14.0, 0.0, inside) * smoothstep(0.0, 0.6, inside);
-        vec3 edgeLight = tone * (hair * (0.065 + 0.34 * spec) + sheen * sheen * 0.12 * spec);
+        vec3 edgeLight = tone * hair * 0.065;
         if (inside < bevel + 4.0) {
             // Content near the edge, mirrored into it by reflection inside the glass.
             vec4 m = at(px - n * (2.0 * inside + 6.0));
@@ -284,11 +279,17 @@ void main() {
         // that mirrors the surroundings almost fully.
         // The same hairline on every surface, thin bars included.
         float wet = smoothstep(2.4, 0.8, inside) * smoothstep(0.0, 0.6, inside);
-        float a = clamp((F * 1.9 + wet * 0.3) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92);
+        // Near the pointer the rim catches more of the same reflection: a gain on
+        // what it really mirrors, in the backdrop's own colours, never added light.
+        // Over a black backdrop there is nothing to brighten.
+        vec2 dp = px - vec2(ptr_x, ptr_y);
+        float spec = ptr_k * exp(-dot(dp, dp) / 64800.0);       // sigma 180 px
+        float a = clamp((F * 1.9 + wet * (0.3 + 1.2 * spec)) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe + 2.0 * spec),
+                        0.0, 0.92);
         // Restraint: the reflection may light the edge only a little above the glass
         // itself, so a bright backdrop gives no brighter a line than a dark one.
         vec3 base = col.rgb / max(col.a, 1e-3);
-        seen = min(seen * (1.15 + 0.8 * lobe), base + vec3(0.05 + 0.03 * lobe));
+        seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
