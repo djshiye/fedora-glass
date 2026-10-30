@@ -76,6 +76,36 @@ for (const p of [0.1, 0.3, 0.5, 0.7, 0.9]) {
 }
 check(C.genieWarp(0, 0, 0.5, win, icon).every(Number.isFinite), 'genie is finite');
 
+// The sampler guard: NaN time, a huge frame gap and wild values never reach a window.
+{
+    let hits = 0;
+    const hit = () => hits++;
+    const sx = C.guarded(C.spring(1), 'scale-x', null, hit);
+    check(sx(NaN) === 1 && sx(1e9) === 1 && sx(-1e9) === C.SCALE_MIN, 'NaN and huge time land on the ends');
+    const wild = C.guarded(u => 1 + 5 * u, 'scale-y', null, hit);
+    check(wild(1) === C.SCALE_MAX && wild(0.5) === C.SCALE_MAX && C.SCALE_MAX <= 1.15 + 1e-9, 'scale is held at 1.15 at most');
+    check(C.guarded(() => -0.27, 'scale-x', null, hit)(0.5) === 0.01, 'scale never flips or goes flat');
+    const nan = C.guarded(u => (u > 0.5 ? NaN : u), 'scale-x', null, hit);
+    check(nan(0.75) === 1, 'a NaN value falls back to the rest value when the end is NaN too');
+    const tx = C.guarded(u => 5000 * u, 'translation-x', {lo: -100, hi: 1600}, hit);
+    check(tx(1) === 1600 && tx(0.01) === 50, 'translation stays inside the bounds');
+    const op = C.guarded(() => Infinity, 'opacity', null, hit);
+    check(op(0.3) === 255, 'opacity that is not finite falls back');
+    check(hits >= 6, `each pull is reported (${hits})`);
+    let quiet = 0;
+    const sp = C.spring(0.5);
+    const ok = C.guarded(u => 0.8 + 0.2 * sp(u), 'scale-x', null, () => quiet++);
+    sample(u => ok(u));
+    check(quiet === 0, 'a normal curve is never pulled');
+    // Hover at full intensity, with its overshoot and squash, stays under the cap.
+    for (const name of C.PRESETS.hover.filter(p => p !== 'off')) {
+        const g = C.hoverTarget(1), f = C.curve(name, 1), w = C.wobble(name, 1);
+        const top = Math.max(...sample(u => (1 + (g.scale - 1) * f(u)) * (1 + C.HOVER_SQUASH * w(u))));
+        check(top <= C.SCALE_MAX, `hover ${name}@1 peaks at ${top.toFixed(3)}`);
+    }
+    check(near(C.hoverTarget(0.5).scale, 1.08), 'hover default still grows 8%');
+}
+
 if (failed) {
     print(`${failed} check(s) failed`);
     imports.system.exit(1);

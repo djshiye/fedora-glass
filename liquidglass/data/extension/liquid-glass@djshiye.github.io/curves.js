@@ -211,11 +211,19 @@ export function startScale(preset, intensity) {
     }
 }
 
-/** Panel hover: how much the item grows and how far it lifts, in px. */
+/**
+ * Panel hover: how much the item grows and how far it lifts, in px. 8% at the
+ * default; past it the growth flattens, so even with a full overshoot and the jelly
+ * squash on top an icon stays under 115%.
+ */
 export function hoverTarget(intensity) {
     const i = clamp(intensity);
-    return {scale: 1 + 0.16 * i, lift: 4 * i};
+    const grow = i <= 0.5 ? 0.16 * i : 0.08 + 0.08 * (i - 0.5);
+    return {scale: 1 + grow, lift: 4 * i};
 }
+
+/** How much of the jelly squash a hovered icon gets: a hint of it, not a wobble. */
+export const HOVER_SQUASH = 0.2;
 
 /**
  * One hop of the taskbar icon while an app starts, over u in 0..1: how far up
@@ -272,6 +280,40 @@ export function genieWarp(px, py, p, win, icon, intensity = 0.5) {
     const a = pa + (ia0 + along * ial - pa) * ra;
     const b = pb + (ib0 + across * ibl - pb) * rb;
     return vertical ? [b, a] : [a, b];
+}
+
+// ---- the last line of defence ----------------------------------------------------------
+
+export const SCALE_MIN = 0.01;   // never flat, never flipped
+export const SCALE_MAX = 1 + MAX_OVERSHOOT;   // nothing ever grows past 115%
+
+/**
+ * Make one animation property function safe to hand to Clutter: time outside 0..1
+ * (a huge frame gap) is pinned to the ends, NaN time counts as the end, and a value
+ * that is not finite or out of range is pulled back. bounds: {lo, hi} for that
+ * property, or null for none. onClamp() is called whenever a value had to be pulled.
+ */
+export function guarded(fn, prop, bounds, onClamp = () => {}) {
+    const rest = prop === 'opacity' ? 255 : prop.startsWith('scale') ? 1 : 0;
+    const [lo, hi] = prop.startsWith('scale') ? [SCALE_MIN, SCALE_MAX]
+        : prop === 'opacity' ? [0, 255] : bounds ? [bounds.lo, bounds.hi] : [-Infinity, Infinity];
+    const end = (() => {
+        const v = fn(1);
+        return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : rest;
+    })();
+    return u => {
+        const t = Number.isFinite(u) ? Math.min(1, Math.max(0, u)) : 1;
+        const v = fn(t);
+        if (!Number.isFinite(v)) {
+            onClamp(prop, v);
+            return end;
+        }
+        if (v < lo || v > hi) {
+            onClamp(prop, v);
+            return Math.min(hi, Math.max(lo, v));
+        }
+        return v;
+    };
 }
 
 /** The smallest rectangle holding both. */

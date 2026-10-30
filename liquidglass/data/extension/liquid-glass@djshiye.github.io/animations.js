@@ -29,6 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
+import {freezeSource, thawSource} from './glass.js';
 
 const WM_SIGNALS = ['map', 'minimize', 'unminimize', 'destroy'];
 // The parts of GNOME's window manager the window animations build on. They are
@@ -55,6 +56,7 @@ const GENIE_BUDGET_FRAMES = 10;
 const GENIE_SLOW_FRAMES = 3;
 let frameBudget = true;
 let genieFallbacks = 0;
+let clampCount = 0;
 const guards = new Map();    // window actor -> the genie copy standing in for it
 
 /**
@@ -64,71 +66,92 @@ const guards = new Map();    // window actor -> the genie copy standing in for i
  * runs exactly once, when the animation completes or is stopped, and not at all
  * if another animation on the same actor replaces it.
  */
-function animate(actor, ms, fns, onDone, {frames = false} = {}) {
-    stop(actor, false);
-    const anim = {actor, fns, onDone, transitions: [], left: 0, watchdog: 0, done: false, timeline: null};
+// Where an actor's translation may take it: a window stays on its monitor (it may
+// go up to its own size past an edge, never further); anything else stays within
+// the stage's size.
+function bounds(actor) {
+    const win = actor.meta_window;
+    const mon = win && win.get_monitor() >= 0 ? Main.layoutManager.monitors[win.get_monitor()] : null;
+    if (mon) {
+        return {
+            'translation-x': {lo: mon.x - actor.x - actor.width, hi: mon.x + mon.width - actor.x},
+            'translation-y': {lo: mon.y - actor.y - actor.height, hi: mon.y + mon.height - actor.y},
+        };
+    }
+    const [W, H] = global.stage.get_size();
+    return {'translation-x': {lo: -W, hi: W}, 'translation-y': {lo: -H, hi: H}};
+}
+
+let clampLogged = false;
+
+/** Every property function, guarded: no value out of range or NaN ever reaches an actor. */
+function safeFns(actor, fns) {
+    const b = bounds(actor);
+    const out = {};
+    for (const [prop, fn] of Object.entries(fns)) {
+        if (!fn)
+            continue;
+        out[prop] = C.guarded(fn, prop, b[prop] ?? null, (p, v) => {
+            clampCount++;
+            if (!clampLogged)
+                log(`Liquid Glass: an animation asked for ${p} = ${v}; held it in range (logged once)`);
+            clampLogged = true;
+        });
+    }
+    return out;
+}
+
+function animate(actor, ms, rawFns, onDone) {
+    stop(actor, false, true);
+    // A window in motion: glass that shows it from behind keeps its last picture.
+    if (actor.meta_window)
+        freezeSource(actor);
+    const fns = safeFns(actor, rawFns);
+    const anim = {actor, fns, onDone, transitions: [], watchdog: 0, done: false, timeline: null};
     running.set(actor, anim);
     actor.set_pivot_point(0, 0);
-    if (frames) {
-        // Panel items: Dash to Panel's icon containers don't take key frames reliably,
-        // so a timeline on the item's own frame clock sets each frame directly.
-        const tl = new Clutter.Timeline({actor, duration: Math.max(1, ms)});
-        anim.timeline = tl;
-        tl.connect('new-frame', () => anim.done || setAt(anim, Math.min(1, tl.get_elapsed_time() / Math.max(1, ms))));
-        tl.connect('stopped', (_t, finished) => {
-            if (running.get(actor) === anim && !anim.done)
-                finish(anim, finished);
-        });
-        anim.watchdog = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(WATCHDOG_MIN_MS, ms * 2), () => {
-            anim.watchdog = 0;
-            if (!anim.done)
-                finish(anim, false);
-            return GLib.SOURCE_REMOVE;
-        });
-        setAt(anim, 0);
-        tl.start();
-        return anim;
-    }
-    // Each curve is sampled into key frames, about one per frame at 60 fps, with
-    // straight lines between them: Clutter runs it from there.
-    const n = Math.max(12, Math.min(72, Math.round(ms / 16)));
-    for (const [prop, fn] of Object.entries(fns)) {
-        // A whole number would reach Clutter as an int, which a float property won't take: nudge it.
-        const val = prop === 'opacity' ? u => Math.round(Math.min(255, Math.max(0, fn(u))))
-            : u => (v => (Number.isInteger(v) ? v + 1e-7 : v))(fn(u));
-        const t = new Clutter.KeyframeTransition({property_name: prop, duration: Math.max(1, ms),
+    // A timeline on the actor's own frame clock works out each frame from the time
+    // since the start, so a long frame (a stall, a shader compile) only skips ahead
+    // on the curve. (Clutter's key frame transitions run off the curve after a long
+    // frame: a window could flip or blow up to several times its size.)
+    const tl = new Clutter.Timeline({actor, duration: Math.max(1, ms)});
+    anim.timeline = tl;
+    tl.connect('new-frame', () => {
+        if (anim.done)
+            return;
+        const u = Math.min(1, tl.get_elapsed_time() / Math.max(1, ms));
+        anim.onTick?.();
+        setAt(anim, u);
+        anim.onFrame?.(u);
+    });
+    tl.connect('stopped', (_t, finished) => {
+        if (running.get(actor) === anim && !anim.done)
+            finish(anim, finished);
+    });
+    // GNOME ends a window's effects by removing its transitions (when the window is
+    // minimized again, closed, or Mutter moves on): a do-nothing transition held on
+    // the window lets that stop the timeline's animation too.
+    if (actor.meta_window) {
+        const hold = new Clutter.PropertyTransition({property_name: 'z-position', duration: ms * 4 + WATCHDOG_MIN_MS,
             remove_on_complete: true});
-        t.set_from(val(0));
-        t.set_to(val(1));
-        const keys = [], values = [], modes = [];
-        for (let i = 1; i < n; i++) {
-            keys.push(i / n);
-            values.push(val(i / n));
-            modes.push(Clutter.AnimationMode.LINEAR);
-        }
-        t.set_key_frames(keys);
-        t.set_values(values);
-        t.set_modes(modes);
-        t.connect('stopped', (_t, finished) => {
-            if (running.get(actor) !== anim || anim.done)
-                return;
-            if (!finished)
-                finish(anim, false);     // cut short: by GNOME, the watchdog or Reduce animation
-            else if (--anim.left === 0)
-                finish(anim, true);
+        hold.set_from(actor.z_position + 1e-7);
+        hold.set_to(actor.z_position + 1e-7);
+        hold.connect('stopped', () => {
+            if (running.get(actor) === anim && !anim.done)
+                finish(anim, false);
         });
-        anim.transitions.push([`liquid-glass-${prop}`, t]);
-        anim.left++;
+        anim.transitions.push(['liquid-glass-hold', hold]);
+        actor.add_transition('liquid-glass-hold', hold);
     }
-    // A transition only moves while the stage draws frames; if it ever stops, this finishes it.
+    // A timeline only moves while the stage draws frames; if it ever stops, this finishes it.
     anim.watchdog = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(WATCHDOG_MIN_MS, ms * 2), () => {
         anim.watchdog = 0;
         if (!anim.done)
             finish(anim, false);
         return GLib.SOURCE_REMOVE;
     });
-    for (const [name, t] of anim.transitions)
-        actor.add_transition(name, t);
+    setAt(anim, 0);
+    tl.start();
     return anim;
 }
 
@@ -145,8 +168,10 @@ function finish(anim, finished) {
         GLib.source_remove(anim.watchdog);
     anim.watchdog = 0;
     const {actor} = anim;
-    if (running.get(actor) === anim)
+    if (running.get(actor) === anim) {
         running.delete(actor);
+        thawSource(actor);
+    }
     try {
         if (!finished)
             anim.cut = Object.fromEntries(Object.keys(anim.fns).map(p => [p, actor[FIELD[p]]]));
@@ -166,10 +191,12 @@ function finish(anim, finished) {
 }
 
 /** Stop the animation on an actor. With jump, it lands on its end state and reports done. */
-function stop(actor, jump = true) {
+function stop(actor, jump = true, replacing = false) {
     const anim = running.get(actor) ?? guards.get(actor);
     if (!anim)
         return;
+    if (!replacing && anim.actor === actor)
+        thawSource(actor);
     if (jump) {
         finish(anim, false);
         return;
@@ -307,6 +334,9 @@ const GenieEffect = GObject.registerClass(
 class LiquidGlassGenie extends Clutter.ShaderEffect {
     _init(win, icon, intensity) {
         super._init();
+        // Per instance: a static (per-class) shader shares its uniforms between
+        // copies on GNOME 50, so two overlapping minimizes would cross-wire.
+        this.set_shader_source(GENIE_SHADER);
         this._frame = '';
         const vertical = Math.abs(icon.y + icon.height / 2 - win.y - win.height / 2) >=
             Math.abs(icon.x + icon.width / 2 - win.x - win.width / 2);
@@ -315,11 +345,6 @@ class LiquidGlassGenie extends Clutter.ShaderEffect {
         this._set({win_x: win.x, win_y: win.y, win_w: win.width, win_h: win.height,
             ico_x: icon.x, ico_y: icon.y, ico_w: Math.max(1, icon.width), ico_h: Math.max(1, icon.height),
             pinch: C.geniePinch(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
-    }
-
-    // One shader program for the class, built once, rather than one per minimize.
-    vfunc_get_static_shader_source() {
-        return GENIE_SHADER;
     }
 
     _set(values) {
@@ -384,8 +409,10 @@ function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
     guard.set_to(0);
     let anim = null;
     const fns = {'opacity': u => opacity(u)};
+    freezeSource(actor);
     anim = animate(holder, ms, fns, (finished, a) => {
         guards.delete(actor);
+        thawSource(actor);
         try {
             actor.remove_transition('liquid-glass-guard');
         } catch {}
@@ -415,18 +442,16 @@ function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
             clone.set_translation(lerp(0, w1.x - w0.x, q), lerp(0, w1.y - w0.y, q), 0);
         };
     };
-    const [, t] = anim.transitions[0];
-    t.connect('new-frame', () => {
-        if (frameBudget && budget.frames < GENIE_BUDGET_FRAMES) {
-            const now = GLib.get_monotonic_time();
-            // The first frame also builds the shader: it isn't counted.
-            if (budget.last && now - budget.last > GENIE_FRAME_BUDGET_US && ++budget.slow === GENIE_SLOW_FRAMES)
-                fallBack();
-            budget.last = now;
-            budget.frames++;
-        }
-        anim.onFrame(Math.min(1, t.get_elapsed_time() / Math.max(1, ms)));
-    });
+    anim.onTick = () => {
+        if (!frameBudget || budget.frames >= GENIE_BUDGET_FRAMES)
+            return;
+        const now = GLib.get_monotonic_time();
+        // The first frame also builds the shader: it isn't counted.
+        if (budget.last && now - budget.last > GENIE_FRAME_BUDGET_US && ++budget.slow === GENIE_SLOW_FRAMES)
+            fallBack();
+        budget.last = now;
+        budget.frames++;
+    };
     effect.setProgress(p0);
     return anim;
 }
@@ -713,7 +738,7 @@ class WindowAnimations {
         const fns = moveFns(actor, from, {sx: 1, sy: 1, tx: 0, ty: 0, path: u => Math.min(1, curve(u))}, curve,
             C.wobble(m.preset, m.intensity), u => Math.max(1, lerp(from.op ?? 0, 255, C.easeOut(Math.min(1, u * 2.5)))));
         // Start on the first frame where it was, not where GNOME left it.
-        for (const [prop, fn] of Object.entries(fns))
+        for (const [prop, fn] of Object.entries(safeFns(actor, fns)))
             actor[FIELD[prop]] = prop === 'opacity' ? Math.round(fn(0)) : fn(0);
         actor.set_pivot_point(0, 0);
         actor.show();
@@ -924,12 +949,13 @@ class PanelAnimations {
         const from = visual(t);
         const {width: tw, height: th} = t;
         const curve = on ? C.curve(m.preset, m.intensity) : C.spring(m.preset === 'scalefade' ? 0 : m.intensity * 0.5);
-        const wob = on ? C.wobble(m.preset, m.intensity) : () => 0;
+        const jelly = C.wobble(m.preset, m.intensity);
+        const wob = on ? u => C.HOVER_SQUASH * jelly(u) : () => 0;
         const to = {sx: goal.scale, sy: goal.scale, tx: tw * (1 - goal.scale) / 2, ty: th * (1 - goal.scale) / 2 - goal.lift};
         const ms = on ? C.duration('hover', m.preset, m.speed) : C.hoverOutDuration(m.speed);
         const fns = moveFns(t, from, to, curve, wob, null);
         delete fns.opacity;
-        animate(t, ms, fns, null, {frames: true});
+        animate(t, ms, fns, null);
     }
 
     // ---- launch ----
@@ -984,7 +1010,7 @@ class PanelAnimations {
         animate(target, C.duration('launch', m.preset, m.speed), fns, finished => {
             if (finished && this._launching.get(app) === l)
                 this._hop(app, target);
-        }, {frames: true});
+        });
     }
 
     _endLaunch(app, settle) {
@@ -1007,7 +1033,7 @@ class PanelAnimations {
             // Land softly from wherever the hop is.
             const fns = moveFns(t, visual(t), {sx: 1, sy: 1, tx: 0, ty: 0}, C.spring(0.3), () => 0, null);
             delete fns.opacity;
-            animate(t, C.hoverOutDuration(this.motion.launch.speed) * 1.4, fns, () => reset(t), {frames: true});
+            animate(t, C.hoverOutDuration(this.motion.launch.speed) * 1.4, fns, () => reset(t));
         }
     }
 
@@ -1031,7 +1057,7 @@ class PanelAnimations {
                 'scale-y': u => 1 - sq(u),
                 'translation-x': u => -w * sq(u) / 2,
                 'translation-y': u => h * sq(u) - dip(u),
-            }, () => reset(t), {frames: true});
+            }, () => reset(t));
         }
     }
 
@@ -1111,7 +1137,7 @@ export class Animations {
 export function qaGenie(budget = null) {
     if (budget !== null)
         frameBudget = Boolean(budget);
-    return {fallbacks: genieFallbacks, budget: frameBudget};
+    return {fallbacks: genieFallbacks, budget: frameBudget, clamps: clampCount};
 }
 
 // For QA: how many animations are running now (0 when idle).
