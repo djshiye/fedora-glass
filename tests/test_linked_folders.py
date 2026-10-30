@@ -231,3 +231,19 @@ def test_an_unchanged_file_keeps_its_first_backup(fake_env):
         Engine(fake_env, targets=[gtk4()]).apply(Settings(frost=0.2 if _ else 0.8))
     assert Engine(fake_env, targets=[gtk4()]).revert() == []
     assert (d / "gtk.css").read_text() == "/* the user's own */"
+
+
+def test_an_apply_killed_before_saving_keeps_the_true_original(fake_env):
+    """Apply is killed after writing gtk.css but before the backup list is saved. The next
+    Apply must still see that file as ours, so Revert brings back the user's own file."""
+    d = fake_env.config / "gtk-4.0"
+    d.mkdir(parents=True)
+    (d / "gtk.css").write_text("/* the user's own */")
+    Engine(fake_env, targets=[gtk4()]).apply(Settings(frost=0.8))
+    manifest = Backup(fake_env).manifest_path
+    saved = manifest.read_bytes()
+    Engine(fake_env, targets=[gtk4()]).apply(Settings(frost=0.2))
+    manifest.write_bytes(saved)                                  # the save never happened
+    Engine(fake_env, targets=[gtk4()]).apply(Settings(frost=0.5))
+    assert Engine(fake_env, targets=[gtk4()]).revert() == []
+    assert (d / "gtk.css").read_text() == "/* the user's own */"

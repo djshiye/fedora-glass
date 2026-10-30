@@ -181,6 +181,18 @@ class Backup:
             return hashlib.sha256(data).hexdigest() == e["wrote"]
         return b"Liquid Glass" in data[:512]
 
+    @staticmethod
+    def _has_header(path: Path) -> bool:
+        """A regular file (not a link) that one of our Applies wrote: covers an Apply killed
+        after the write but before the manifest was saved, so its file never looks foreign."""
+        try:
+            if path.is_symlink() or not path.is_file():
+                return False
+            with open(path, "rb") as f:
+                return b"Liquid Glass" in f.read(512)
+        except OSError:
+            return False
+
     def _forget_file(self, key: str, e: dict) -> None:
         if e.get("kind") == "file":
             with contextlib.suppress(OSError):
@@ -241,7 +253,7 @@ class Backup:
         if self.env.dry_run:
             return
         if (old := self.data["files"].get(key)) is not None:
-            if not old.get("wrote") or self.is_ours(path, old):
+            if not old.get("wrote") or self.is_ours(path, old) or self._has_header(path):
                 return
             # Something else replaced what we wrote (a theme update relinking gtk.css):
             # that is the user's look now, so Revert should bring that back, not the old one.
