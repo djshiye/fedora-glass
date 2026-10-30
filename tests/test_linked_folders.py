@@ -205,3 +205,29 @@ def test_a_relinked_style_sheet_is_noticed(fake_env):
     assert Backup(fake_env).overwritten() == ["gtk4"]
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert Backup(fake_env).overwritten() == []
+
+
+def test_revert_after_a_theme_relink_and_reapply_keeps_the_theme_link(fake_env):
+    """Apply, then orchis-update relinks gtk.css, then Re-apply, then Revert: Orchis's link stays."""
+    theme = orchis(fake_env)
+    d = fake_env.config / "gtk-4.0"
+    d.mkdir(parents=True)
+    (d / "gtk.css").write_text("/* the user's own, before Liquid Glass */")
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    (d / "gtk.css").unlink()
+    (d / "gtk.css").symlink_to(theme / "gtk.css")               # orchis-update
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())         # Re-apply
+    assert "Liquid Glass" in (d / "gtk.css").read_text() and not (d / "gtk.css").is_symlink()
+    assert Engine(fake_env, targets=[gtk4()]).revert() == []
+    assert (d / "gtk.css").is_symlink() and os.readlink(d / "gtk.css") == str(theme / "gtk.css")
+    assert (theme / "gtk.css").read_text() == "/* orchis */"
+
+
+def test_an_unchanged_file_keeps_its_first_backup(fake_env):
+    d = fake_env.config / "gtk-4.0"
+    d.mkdir(parents=True)
+    (d / "gtk.css").write_text("/* the user's own */")
+    for _ in range(2):
+        Engine(fake_env, targets=[gtk4()]).apply(Settings(frost=0.2 if _ else 0.8))
+    assert Engine(fake_env, targets=[gtk4()]).revert() == []
+    assert (d / "gtk.css").read_text() == "/* the user's own */"

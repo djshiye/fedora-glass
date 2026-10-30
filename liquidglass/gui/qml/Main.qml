@@ -313,12 +313,12 @@ Window {
                     visible: !Backend.busy
                     width: 8; height: 8; radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Backend.dirty ? Theme.accent : Theme.good
+                    color: Backend.dirty ? Theme.accent : Backend.lostNote !== "" ? Theme.warn : Theme.good
                 }
                 Text {
                     visible: !Backend.busy
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Backend.dirty ? "Unapplied changes" : "Up to date"
+                    text: Backend.dirty ? "Unapplied changes" : Backend.lostNote !== "" ? "Needs re-apply" : "Up to date"
                     color: Theme.textDim
                     font.pixelSize: 13
                 }

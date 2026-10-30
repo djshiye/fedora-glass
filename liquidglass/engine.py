@@ -238,8 +238,14 @@ class Backup:
         if (folder := self.linked_folder(path)) is not None:
             self.unlink_folder(target, folder)
         key = str(path)
-        if key in self.data["files"] or self.env.dry_run:
+        if self.env.dry_run:
             return
+        if (old := self.data["files"].get(key)) is not None:
+            if not old.get("wrote") or self.is_ours(path, old):
+                return
+            # Something else replaced what we wrote (a theme update relinking gtk.css):
+            # that is the user's look now, so Revert should bring that back, not the old one.
+            self._forget_file(key, old)
         entry: dict = {"target": target}
         if path.is_dir() and not path.is_symlink():
             # A folder is never ours to replace (and revert must never delete it).
