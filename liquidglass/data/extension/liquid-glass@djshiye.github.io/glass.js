@@ -269,8 +269,8 @@ void main() {
         // The last few px of the rounded edge are near grazing: a thin wet band
         // that mirrors the surroundings almost fully.
         float wet = smoothstep(5.0, 1.0, inside) * smoothstep(0.0, 0.8, inside);
-        float a = clamp((F * 1.9 + wet * 0.7) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92);
-        col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a * (1.25 + 1.5 * lobe), vec3(col.a));
+        float a = clamp((F * 1.9 + wet * 0.9) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92);
+        col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a * (1.4 + 1.5 * lobe), vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 

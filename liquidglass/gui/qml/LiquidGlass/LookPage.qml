@@ -308,7 +308,7 @@ Item {
                             id: tintButton
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 92
+                            width: 108
                             height: 34
                             hoverEnabled: true
                             focusPolicy: Qt.StrongFocus
@@ -492,7 +492,7 @@ Item {
                             C.AbstractButton {
                                 id: partTint
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: 92
+                                width: 108
                                 height: 34
                                 hoverEnabled: true
                                 focusPolicy: Qt.StrongFocus

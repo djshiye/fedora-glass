@@ -33,7 +33,7 @@ def extension_files() -> dict[str, str]:
 def _brightness(t: Tokens, f: float) -> float:
     """The extension darkens (or, in light mode, lifts) the glass behind a thin theme veil,
     so text keeps its contrast without the theme painting an 85% opaque fill."""
-    return round(lerp(0.74, 0.80, f) if t.dark else lerp(1.06, 1.0, f), 3)
+    return round(lerp(0.88, 0.92, f) if t.dark else lerp(1.06, 1.0, f), 3)
 
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
