@@ -632,7 +632,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .login-dialog .login-dialog-prompt-entry:focus {
   background-color: ${field_hover};
   border-color: ${accent_edge};
-  box-shadow: inset 0 0 0 2px ${focus_ring}; }
+  /* GNOME's own focus ring is !important; ours must be too, or a faint grey one wins. */
+  box-shadow: inset 0 0 0 2px ${focus_ring} !important; }
 
 /* ---------------------------------------------------------------- Wheelguard popup */
 /* @boost */
