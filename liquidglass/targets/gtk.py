@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..env import Env
@@ -39,6 +40,42 @@ def find_adw_gtk3(env: Env) -> Path | None:
     return None
 
 
+_DARK_NAME = re.compile(r"[-_]dark(?![a-z])", re.I)
+_BG_DEFINE = re.compile(
+    r"@define-color\s+(?:window_bg_color|theme_bg_color|bg_color)\s+(#[0-9a-f]{6}|#[0-9a-f]{3})\b", re.I)
+
+
+def _is_dark_hex(h: str) -> bool:
+    h = h.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5
+
+
+def kept_theme_is_dark(env: Env) -> bool | None:
+    """Whether the user's own GTK 3 theme draws dark windows: from its name (Orchis-Dark,
+    Foo_dark-compact) or the window background its gtk.css defines. None when unknown."""
+    raw = env.gsettings_get("org.gnome.desktop.interface", "gtk-theme") or ""
+    name = raw.strip().strip("'\"")
+    if not name:
+        return None
+    if _DARK_NAME.search(name):
+        return True
+    if name in ("Adwaita", "Default"):
+        return False                # GTK 3's built-in themes are light
+    for d in adw_gtk3_dirs(env):
+        css = d / name / "gtk-3.0/gtk.css"
+        try:
+            text = css.read_text(encoding="utf-8", errors="replace")[:200_000]
+        except OSError:
+            continue
+        if m := _BG_DEFINE.search(text):
+            return _is_dark_hex(m.group(1))
+        return None
+    return None
+
+
 class Gtk3(Target):
     """GTK 3 apps. With adw-gtk3 installed the whole theme is recoloured to glass (it draws
     every widget from libadwaita's named colours). On any other GTK 3 theme (Orchis, say)
@@ -63,9 +100,14 @@ class Gtk3(Target):
 
     def plan(self, ctx: Context) -> list[Action]:
         t = ctx.tokens
+        if (kept := find_adw_gtk3(ctx.env) is None):
+            # The user's own GTK 3 theme stays selected and keeps drawing tabs, entries and
+            # the rest, so our sheet must match its darkness, not the desktop's light/dark.
+            if (dark := kept_theme_is_dark(ctx.env)) is not None:
+                t = ctx.dark if dark else ctx.light
         css = WriteFile(ctx.env.config / "gtk-3.0/gtk.css", gtk3.render(t) + headerbar.gtk3_css(ctx.settings, t))
-        if find_adw_gtk3(ctx.env) is None:
-            return [css]            # the user's own GTK 3 theme stays selected
+        if kept:
+            return [css]
         return [GSet("org.gnome.desktop.interface", "gtk-theme", f"'{gtk3.theme_name(t)}'"), css]
 
 

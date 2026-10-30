@@ -159,6 +159,40 @@ def test_gtk3_works_without_adw_gtk3(fake_env):
     assert any(isinstance(a, GSet) for a in t.plan(ctx))
 
 
+@pytest.mark.parametrize("theme,css,want_dark", [
+    ("Orchis-Dark", None, True),                  # the name says so
+    ("Orchis-Dark-Compact", None, True),
+    ("Foo_dark", None, True),
+    ("Adwaita", None, False),                     # GTK 3's built-in theme is light
+    ("Mine", "@define-color theme_bg_color #2c2c2c;", True),
+    ("Mine", "@define-color window_bg_color #fafafa;", False),
+    ("Mine", "window { color: red; }", None),     # can't tell: follow the desktop
+    ("Missing", None, None),
+])
+@pytest.mark.parametrize("desktop_dark", (True, False))
+def test_gtk3_sheet_follows_a_kept_themes_darkness(fake_env, theme, css, want_dark, desktop_dark):
+    """Orchis-Dark kept in light mode: its tab strip stays dark, so our GTK 3 sheet must be
+    the dark one too, or tab labels go dark-on-dark."""
+    fake_env.gs[("org.gnome.desktop.interface", None)]["gtk-theme"] = f"'{theme}'"
+    if css is not None:
+        d = fake_env.home / ".themes" / theme / "gtk-3.0"
+        d.mkdir(parents=True)
+        (d / "gtk.css").write_text(css)
+    ctx = ctx_for(fake_env, dark=desktop_dark)
+    w = next(a for a in by_id("gtk3").plan(ctx) if isinstance(a, WriteFile))
+    dark = desktop_dark if want_dark is None else want_dark
+    assert w.content.startswith(gtk3.render(ctx.dark if dark else ctx.light))
+
+
+@pytest.mark.parametrize("desktop_dark", (True, False))
+def test_gtk3_with_adw_gtk3_follows_the_desktop(fake_env, desktop_dark):
+    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
+    fake_env.gs[("org.gnome.desktop.interface", None)]["gtk-theme"] = "'Orchis-Dark'"
+    ctx = ctx_for(fake_env, dark=desktop_dark)
+    w = next(a for a in by_id("gtk3").plan(ctx) if isinstance(a, WriteFile))
+    assert w.content.startswith(gtk3.render(ctx.tokens))
+
+
 def test_gtk3_also_found_in_dot_themes(fake_env):
     (fake_env.home / ".themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
     assert "adw-gtk3 found" in by_id("gtk3").detect(fake_env).detail
@@ -241,6 +275,7 @@ def test_header_buttons_are_flat_and_outrank_glass_pills():
     assert "border-radius: 8px" in rest
     # Flat but clearly enabled: 90% of the title's colour, not a disabled-looking grey.
     assert "color: color-mix(in srgb, currentColor 90%, transparent)" in rest
+    assert geo["hdr_btn_checked"] + " { color: var(--accent-color); }" not in css
 
 
 def test_window_controls_are_flat_and_close_is_red_only_on_hover():
@@ -257,6 +292,8 @@ def test_gtk3_header_buttons_are_flat(dark):
     assert "headerbar .titlebutton.close:hover" in css and "@lg_close" in css
     assert "@lg_tile" in css and "@lg_tile_press" in css
     assert "color: alpha(@headerbar_fg_color, 0.9);" in css
+    # Selected (checked) header buttons show it with the tile; accent text is too faint on glass.
+    assert ":checked { color: @accent_color; }" not in css
 
 
 def test_unfocused_bars_fade_once_to_65_percent():

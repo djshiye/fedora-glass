@@ -124,8 +124,6 @@ headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutto
   color: @headerbar_fg_color;
   transition-duration: 120ms;
 }
-headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked,
-.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked { color: @accent_color; }
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active,
 .titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active {
   background-color: @lg_tile_press;
