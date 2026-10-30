@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..env import Env
 from ..render import apps as ra
+from ..render import headerbar
 from ..render import terminal as rt
 from .base import Action, Context, Detection, GSet, Target, WriteFile
 
@@ -59,8 +60,11 @@ class Ptyxis(Target):
         return out
 
     def plan(self, ctx: Context) -> list[Action]:
-        acts: list[Action] = [WriteFile(self.palette_path(ctx.env), rt.ptyxis_palette(ctx.dark, ctx.light))]
         opacity = window_opacity(ctx)
+        titlebar = {name: headerbar.ptyxis_titlebar(ctx.settings, t, opacity)
+                    for name, t in (("dark", ctx.dark), ("light", ctx.light))}
+        acts: list[Action] = [WriteFile(self.palette_path(ctx.env),
+                                        rt.ptyxis_palette(ctx.dark, ctx.light, titlebar))]
         for u in self.profiles(ctx.env):
             path = f"/org/gnome/Ptyxis/Profiles/{u}/"
             acts.append(GSet("org.gnome.Ptyxis.Profile", "palette", f"'{rt.PTYXIS_PALETTE_NAME}'", path))

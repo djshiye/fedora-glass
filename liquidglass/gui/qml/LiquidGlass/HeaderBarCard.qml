@@ -18,7 +18,7 @@ Card {
             wrapMode: Text.WordWrap
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
-            text: "The bar along the top of Files, Settings, Text Editor and other GNOME apps. Open apps pick changes up when restarted. Terminal takes the height; its glass follows Terminal opacity."
+            text: "The bar along the top of Files, Terminal, Settings and other GNOME apps. Apps opened after Apply show the change. Files and Terminal keep running after you close them, so they update after you log out and back in."
         }
         LabeledSlider {
             objectName: "headerHeight"
@@ -27,7 +27,7 @@ Card {
             value: Backend.headerHeight
             format: (v) => Math.round(v) === root.gnomeHeight ? Math.round(v) + " px · GNOME default" : Math.round(v) + " px"
             onMoved: (v) => Backend.headerHeight = v
-            tip: "How tall the bar at the top of app windows is. Left makes it slimmer, with slightly smaller buttons below 40 px, so apps show more content; right gives it more room. 47 px is GNOME's own size."
+            tip: "Sets how tall the bar at the top of app windows is. 47 px is GNOME's normal size."
         }
         OverrideSlider {
             objectName: "headerOpacity"
@@ -41,7 +41,7 @@ Card {
             autoText: "Window"
             autoTip: "The header bar uses the same glass as the rest of the window"
             resetTip: "Go back to the same glass as the rest of the window"
-            tip: "How much of the desktop shows through the header bar. Left makes it clearer than the window below it, so it reads as a pane of glass; right makes it more solid. Titles stay readable because it never goes fully clear."
+            tip: "Sets how much of the desktop shows through the bar at the top of app windows. Left is clearer, right is more solid."
         }
     }
 }

@@ -113,17 +113,23 @@ def derive(t: Tokens) -> TermPalette:
 PTYXIS_PALETTE_NAME = "Liquid Glass"
 
 
-def _ptyxis_section(name: str, p: TermPalette) -> str:
+def _ptyxis_section(name: str, p: TermPalette, titlebar: Color | None = None) -> str:
     lines = [f"[{name}]", f"Background={p.bg.hex6}", f"Foreground={p.fg.hex6}",
              f"Cursor={p.cursor.hex6}"]
+    if titlebar is not None:
+        # Ptyxis paints its top bar from these, above our gtk.css, and keeps their alpha.
+        lines += [f"TitlebarBackground={titlebar.hex8}", f"TitlebarForeground={p.fg.hex6}"]
     lines += [f"Color{i}={c.hex6}" for i, c in enumerate(p.ansi)]
     return "\n".join(lines) + "\n"
 
 
-def ptyxis_palette(dark: Tokens, light: Tokens) -> str:
-    """A .palette file for ~/.local/share/org.gnome.Ptyxis/palettes/ with both schemes."""
+def ptyxis_palette(dark: Tokens, light: Tokens, titlebar: dict[str, Color] | None = None) -> str:
+    """A .palette file for ~/.local/share/org.gnome.Ptyxis/palettes/ with both schemes.
+    `titlebar` maps "dark"/"light" to the top bar colour (with alpha)."""
+    tb = titlebar or {}
     head = f"[Palette]\nName={PTYXIS_PALETTE_NAME}\n"
-    return head + "\n" + _ptyxis_section("Light", derive(light)) + "\n" + _ptyxis_section("Dark", derive(dark))
+    return (head + "\n" + _ptyxis_section("Light", derive(light), tb.get("light"))
+            + "\n" + _ptyxis_section("Dark", derive(dark), tb.get("dark")))
 
 
 # ---- GNOME Terminal ---------------------------------------------------------

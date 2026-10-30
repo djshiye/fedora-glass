@@ -18,8 +18,13 @@ window background itself becomes two bands: the header colour for the top
 the height control fixes every header bar to the same height, which is why
 the see-through control turns the height rules on too. GTK 3 header bars
 paint their own background, so there the bar simply takes the colour.
-Ptyxis paints its window in the terminal palette from its own style sheet,
-which outranks ours, so its bar follows the Terminal opacity setting instead.
+Ptyxis paints its window and top bar from its own style sheet, which outranks
+ours, so its bar gets the same glass through the palette's TitlebarBackground
+(see ptyxis_titlebar). Its height follows the header bar rules like any app.
+
+Running apps keep the style sheet they started with: Files and Terminal stay
+running in the background after their last window closes, so changes show
+once they are fully quit and reopened.
 """
 
 from __future__ import annotations
@@ -116,3 +121,19 @@ def gtk3_css(s: Settings, t: Tokens) -> str:
     if c is not None:
         out.append(f"headerbar, .titlebar, headerbar:backdrop, .titlebar:backdrop {{ background-color: {c.css}; }}\n")
     return "".join(out)
+
+
+def ptyxis_titlebar(s: Settings, t: Tokens, window_opacity: float):
+    """Colour for Ptyxis's top bar, so it reads as the same glass as other header bars.
+
+    Ptyxis draws the bar over its window background, which already has the terminal's
+    opacity, so the bar adds just enough to land on the header's alpha (or the
+    window glass alpha when the user hasn't set one)."""
+    s = s.normalized()
+    target = t.window.a if s.header_opacity is None or s.reduce_transparency else s.header_opacity
+    if window_opacity >= 1.0:
+        alpha = 0.0
+    else:
+        alpha = max(0.0, 1.0 - (1.0 - target) / (1.0 - window_opacity))
+    return t.window.with_alpha(round(alpha, 3))
+

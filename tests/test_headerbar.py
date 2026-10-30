@@ -8,6 +8,7 @@ from liquidglass import palette, settings as settings_mod
 from liquidglass.render import headerbar
 from liquidglass.settings import Settings
 from liquidglass.targets import gtk as tg
+from liquidglass.targets import terminal as tt
 from liquidglass.targets.base import Context, WriteFile
 
 from test_gtk import balanced
@@ -101,3 +102,25 @@ def test_old_settings_files_still_load(tmp_path):
     settings_mod.save(Settings(header_height=40, header_opacity=0.25), p)
     s = settings_mod.load(p)
     assert (s.header_height, s.header_opacity) == (40, 0.25)
+
+
+def test_ptyxis_titlebar_matches_header_glass():
+    s = Settings(header_opacity=0.8)
+    t = both(s)[0]
+    c = headerbar.ptyxis_titlebar(s, t, 0.5)
+    # bar over a 50% window lands on the 80% header: 1 - (1 - 0.8) / (1 - 0.5)
+    assert c.a == pytest.approx(0.6)
+    assert 1 - (1 - c.a) * (1 - 0.5) == pytest.approx(0.8)
+    # never negative: a header clearer than the terminal window just shows the window glass
+    assert headerbar.ptyxis_titlebar(Settings(header_opacity=0.2), t, 0.8).a == 0.0
+    assert headerbar.ptyxis_titlebar(Settings(), t, 1.0).a == 0.0
+
+
+def test_ptyxis_palette_carries_titlebar(fake_env):
+    target = next(t for t in tt.TARGETS if t.id == "ptyxis")
+    ctx = ctx_for(fake_env, header_opacity=0.9)
+    pal = next(a for a in target.plan(ctx) if isinstance(a, WriteFile)).content
+    assert pal.count("TitlebarBackground=#") == 2 and pal.count("TitlebarForeground=#") == 2
+    for line in pal.splitlines():
+        if line.startswith("TitlebarBackground="):
+            assert len(line.split("=")[1]) == 9   # #rrggbbaa
