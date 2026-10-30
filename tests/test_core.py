@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 from dataclasses import dataclass
 
+import liquidglass
 from liquidglass import palette, settings
 from liquidglass.color import Color
 from liquidglass.engine import Engine
@@ -351,3 +354,11 @@ def test_tokens_json_exports_parts():
     out = json.loads(palette.build(Settings(), dark=True).to_json())
     assert out["parts"]["panel"]["chrome"].startswith("#") and out["bleed"] > 0
     assert out["panel_radius"] == 18
+
+
+def test_version_is_the_same_everywhere():
+    # The app, the RPM and the Shell extension must ship one version.
+    root = Path(__file__).resolve().parent.parent
+    spec = re.search(r"^Version:\s*(\S+)", (root / "packaging/liquid-glass.spec").read_text(), re.M).group(1)
+    meta = json.loads((root / "liquidglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
+    assert liquidglass.__version__ == spec == meta["version-name"]
