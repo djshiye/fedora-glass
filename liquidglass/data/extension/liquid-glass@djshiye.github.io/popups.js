@@ -26,6 +26,7 @@ export class Popups {
     constructor(cfg) {
         this.cfg = cfg;
         this._followers = new Map();   // surface -> Follower
+        this._waiting = new Map();     // surface -> [signal ids], until it first opens
         this._signals = new Signals();
         const ui = Main.layoutManager.uiGroup;
         this._laters = new Set();
@@ -76,12 +77,41 @@ export class Popups {
     }
 
     _follow(surface, anchor, part = 'menus') {
-        if (!surface || this._followers.has(surface))
+        if (!surface || this._followers.has(surface) || this._waiting.has(surface))
             return;
+        if (surface.mapped) {
+            this._makeFollower(surface, anchor, part);
+            return;
+        }
+        // Build the glass when the menu first opens, not before: menus that are made
+        // but never opened (or left behind by another extension) carry no pane.
+        const ids = [
+            surface.connect('notify::mapped', () => {
+                if (!surface.mapped)
+                    return;
+                this._stopWaiting(surface);
+                // It is about to be seen: hold it back until its glass is up.
+                this._makeFollower(surface, anchor, part)._hold();
+            }),
+            surface.connect('destroy', () => this._stopWaiting(surface)),
+        ];
+        this._waiting.set(surface, ids);
+    }
+
+    _stopWaiting(surface) {
+        const ids = this._waiting.get(surface);
+        if (!ids)
+            return;
+        this._waiting.delete(surface);
+        ids.forEach(id => surface.disconnect(id));
+    }
+
+    _makeFollower(surface, anchor, part) {
         const f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
         f.part = part;
         f.condense = true;
         this._followers.set(surface, f);
+        return f;
     }
 
     _settings(part) {
@@ -104,6 +134,8 @@ export class Popups {
         const laters = global.compositor.get_laters();
         this._laters.forEach(id => laters.remove(id));
         this._laters.clear();
+        for (const surface of [...this._waiting.keys()])
+            this._stopWaiting(surface);
         for (const f of [...this._followers.values()])
             f.destroy();
         this._followers.clear();
