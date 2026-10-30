@@ -38,7 +38,7 @@ def _brightness(t: Tokens, f: float) -> float:
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
 # text and want more.
-FROST_SCALE = {"panel": 0.35, "arcmenu": 0.75, "quicksettings": 0.75, "calendar": 0.75, "overview": 1.0}
+FROST_SCALE = {"panel": 0.35, "arcmenu": 1.2, "quicksettings": 1.2, "calendar": 1.2, "overview": 1.0}
 
 
 def _part_config(t: Tokens, name: str, veiled: bool) -> dict:

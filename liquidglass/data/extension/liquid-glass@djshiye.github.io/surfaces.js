@@ -152,11 +152,15 @@ class Follower {
         this._later = 0;
         this._onGone = onGone;
         this.rect = null;         // [x, y, w, h] on the stage, while shown
+        this._held = null;        // the target's own opacity, while it waits for its glass
+        this._holdId = 0;
         followers.add(this);
 
         for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
             MOVES.forEach(s => this._signals.on(a, s, () => this.queue()));
         this._signals.on(target, 'style-changed', () => this.queue());
+        // Never show a surface before its glass: hold it until the pane has painted.
+        this._signals.on(target, 'notify::mapped', () => (target.mapped ? this._hold() : this._release()));
         // An open menu holds a grab, so presses reach it but not the stage.
         this._signals.on(anchor, 'captured-event', (_a, event) => {
             motion.current?.event(event);
@@ -182,6 +186,32 @@ class Follower {
         anchor.get_parent().insert_child_below(this.pane, anchor);
         anchor.get_parent().insert_child_below(this.top, anchor);
         this.update(settings);
+    }
+
+    _hold() {
+        if (this._held !== null || !this.settings.enabled || this.pane?.visible)
+            return;
+        this._held = this.target.opacity;
+        this.target.opacity = 0;
+        // Whatever happens, never leave a menu invisible.
+        this._holdId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            this._holdId = 0;
+            this._release();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _release() {
+        if (this._holdId)
+            GLib.source_remove(this._holdId);
+        this._holdId = 0;
+        if (this._held === null)
+            return;
+        const o = this._held;
+        this._held = null;
+        try {
+            this.target.opacity = o;
+        } catch {}   // already gone
     }
 
     update(settings) {
@@ -235,7 +265,7 @@ class Follower {
         }
         let opacity = 1;
         for (let a = target; a && a !== parent; a = a.get_parent())
-            opacity *= a.opacity / 255;
+            opacity *= (a === target && this._held !== null ? this._held : a.opacity) / 255;
         pane.opacity = top.opacity = Math.round(opacity * 255);
         const p = pane.pad;
         const radii = radiiOf(target);
@@ -256,11 +286,29 @@ class Follower {
         top.show();
         if (appearing)
             motion.current?.opened(this);
+        if (this._held !== null) {
+            // Show the surface on the frame after its glass first paints.
+            pane.onNextPaint(() => {
+                const laters = global.compositor.get_laters();
+                laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
+                    this._release();
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
+        }
     }
 
     setMotion(m) {
-        this.pane?.setMotion(m);
-        this.top?.setMotion({...m, lx: null, ly: null, px: 0, py: 0});
+        // The rim light is drawn by the content's light layer; the glass only gives.
+        const {sx, sy, k, ...shape} = m;
+        this.pane?.setMotion(shape);
+        this.top?.setMotion(m);
+        // A menu condenses into place as it opens: a little small, then its size.
+        if (this.condense && m.open !== undefined && this.target) {
+            const sc = 0.96 + 0.04 * Math.min(m.open, 1.0) + 0.02 * Math.max(0, m.open - 1);
+            this.target.set_pivot_point(0.5, 0.5);
+            this.target.set_scale(sc, sc);
+        }
     }
 
     destroy() {
@@ -270,6 +318,13 @@ class Follower {
         followers.delete(this);
         motion.current?.forget(this);
         this._signals.clear();
+        // Only now, so that putting the target back queues nothing.
+        this._release();
+        if (this.condense) {
+            try {
+                this.target.set_scale(1, 1);
+            } catch {}
+        }
         windowWatch.current?.listeners.delete(this._onWindows);
         const {pane, top} = this;
         this.pane = this.top = null;
@@ -287,8 +342,7 @@ class Follower {
 // before the next redraw, and steps go on only while a spring is still moving.
 const followers = new Set();
 const motion = {current: null};
-const REACH = 300;          // px around a pane where the pointer turns its light
-const PARALLAX = 16;        // px the reflections slide at most
+const REACH = 220;          // px around a pane where the pointer lights its rim
 
 class Motion {
     constructor() {
@@ -322,8 +376,7 @@ class Motion {
     _st(f) {
         let st = this._state.get(f);
         if (!st) {
-            st = {lx: null, ly: null, tx: null, ty: null, px: 0, py: 0, tpx: 0, tpy: 0,
-                press: 0, pressV: 0, pressT: 0, open: 1, openV: 0};
+            st = {x: null, y: null, k: 0, press: 0, pressV: 0, pressT: 0, open: 1, openV: 0};
             this._state.set(f, st);
         }
         return st;
@@ -383,39 +436,26 @@ class Motion {
                 continue;
             const L = this._look(f);
             const st = this._st(f);
-            // Where the light should come from: the pane's own light, turned towards
-            // the pointer while it is near.
-            const a = (L.lightAngle ?? -125) * Math.PI / 180;
-            let [tx, ty] = [Math.cos(a), Math.sin(a)];
-            let [tpx, tpy] = [0, 0];
+            // The pointer lights the rim nearest to it while it is near the pane.
             const w = animate ? L.pointerLight ?? 0 : 0;
+            let tk = 0;
+            let [tx, ty] = [st.x, st.y];
             if (w > 0 && this._pointer) {
-                const [x, y] = this._pointer;
-                const cx = r[0] + r[2] / 2, cy = r[1] + r[3] / 2;
-                const dx = Math.max(r[0] - x, 0, x - r[0] - r[2]);
-                const dy = Math.max(r[1] - y, 0, y - r[1] - r[3]);
-                const near = Math.max(0, 1 - Math.hypot(dx, dy) / REACH);
-                if (near > 0) {
-                    const ux = x - cx, uy = y - cy;
-                    const k = Math.hypot(ux, uy, Math.max(r[2], r[3]) * 0.5) || 1;
-                    const m = w * near;
-                    tx = tx * (1 - m) + (ux / k) * m;
-                    ty = ty * (1 - m) + (uy / k) * m;
-                    // As if your head moved in front of real glass: the reflections slide.
-                    tpx = -Math.max(-1, Math.min(1, ux / (r[2] / 2))) * PARALLAX * near;
-                    tpy = -Math.max(-1, Math.min(1, uy / (r[3] / 2))) * PARALLAX * near;
-                }
+                [tx, ty] = this._pointer;
+                const dx = Math.max(r[0] - tx, 0, tx - r[0] - r[2]);
+                const dy = Math.max(r[1] - ty, 0, ty - r[1] - r[3]);
+                tk = Math.min(1, w * 1.6) * Math.max(0, 1 - Math.hypot(dx, dy) / REACH);
             }
-            if (st.lx === null) {
-                [st.lx, st.ly] = [Math.cos(a), Math.sin(a)];
-            }
-            // Critically damped follow, about 120 ms to settle.
+            if (st.x === null || st.k < 0.01)
+                [st.x, st.y] = [tx, ty];     // a light that is off jumps; a lit one glides
             const e = 1 - Math.exp(-dt / 0.04);
-            const prev = [st.lx, st.ly, st.px, st.py, st.press, st.open];
-            st.lx += (tx - st.lx) * e;
-            st.ly += (ty - st.ly) * e;
-            st.px += (tpx - st.px) * e;
-            st.py += (tpy - st.py) * e;
+            const fade = 1 - Math.exp(-dt / 0.08);
+            const prev = [st.x, st.y, st.k, st.press, st.open];
+            if (tx !== null) {
+                st.x += (tx - st.x) * e;
+                st.y += (ty - st.y) * e;
+            }
+            st.k += (tk - st.k) * fade;
             // Press and open: springs with a small overshoot.
             if (animate) {
                 [st.press, st.pressV] = spring(st.press, st.pressV, st.pressT, 1370, 44, dt);   // ~180 ms
@@ -423,20 +463,21 @@ class Motion {
             } else {
                 [st.press, st.pressV, st.open, st.openV] = [0, 0, 1, 0];
             }
-            const settled = Math.abs(tx - st.lx) + Math.abs(ty - st.ly) < 0.002 &&
-                Math.abs(tpx - st.px) + Math.abs(tpy - st.py) < 0.05 &&
+            const settled = (tx === null || Math.abs(tx - st.x) + Math.abs(ty - st.y) < 0.5) &&
+                Math.abs(tk - st.k) < 0.005 &&
                 Math.abs(st.pressT - st.press) + Math.abs(st.pressV) < 0.002 &&
                 Math.abs(1 - st.open) + Math.abs(st.openV) < 0.002;
             if (settled) {
-                [st.lx, st.ly, st.px, st.py, st.press, st.open] = [tx, ty, tpx, tpy, st.pressT, 1];
+                [st.x, st.y, st.k, st.press, st.open] = [tx, ty, tk, st.pressT, 1];
                 st.pressV = st.openV = 0;
             } else {
                 moving = true;
             }
-            const now_ = [st.lx, st.ly, st.px, st.py, st.press, st.open];
-            if (now_.some((v, i) => Math.abs(v - prev[i]) > 1e-4)) {
-                f.setMotion({lx: st.lx, ly: st.ly, px: st.px, py: st.py, press: st.press, open: st.open});
-            }
+            const now_ = [st.x, st.y, st.k, st.press, st.open];
+            // Only what shows: an unlit pointer moving about costs nothing.
+            const lit = st.k > 0.003 || prev[2] > 0.003;
+            if (now_.some((v, i) => (i > 1 || lit) && Math.abs(v - prev[i]) > (i < 2 ? 0.25 : 1e-3)))
+                f.setMotion({sx: st.x ?? 0, sy: st.y ?? 0, k: st.k, press: st.press, open: st.open});
         }
         if (moving)
             this._kick();
@@ -451,7 +492,7 @@ class Motion {
         global.stage.disconnect(this._stage);
         this._cursor.disconnect(this._cursorId);
         for (const f of followers)
-            f.setMotion({lx: null, ly: null, px: 0, py: 0, press: 0, open: 1});
+            f.setMotion({k: 0, press: 0, open: 1});
         this._state.clear();
     }
 }
@@ -618,6 +659,7 @@ class Popups {
             return;
         const f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
         f.part = part;
+        f.condense = true;
         this._followers.set(surface, f);
     }
 

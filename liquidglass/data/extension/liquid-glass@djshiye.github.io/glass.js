@@ -54,8 +54,9 @@ uniform float tint_a;
 uniform float hl;                // strength of the edge reflections
 uniform float hl_x;              // where the light rests (only shapes the reflections)
 uniform float hl_y;
-uniform float par_x;              // px the reflections slide as the pointer moves (parallax)
-uniform float par_y;
+uniform float ptr_x;              // the pointer, in px on this pane
+uniform float ptr_y;
+uniform float ptr_k;              // 0..1, how strongly the rim near it lights up
 uniform float env_reach;         // px, how far beyond the edge the rim sees
 uniform float cheap;             // 1 while something moves behind: fewer taps
 uniform float valid_x0;          // the part of the texture that is on screen
@@ -202,7 +203,12 @@ void main() {
         float hair = smoothstep(2.2, 0.9, inside) * smoothstep(0.0, 0.6, inside);
         float gm = max(g.r, max(g.g, g.b));
         vec3 tone = mix(vec3(1.0), g.rgb / max(gm, 1e-3), 0.5 * step(0.01, gm));
-        vec3 edgeLight = tone * hair * 0.065;
+        // The pointer is a light of its own: the rim nearest to it catches it, so a
+        // highlight travels along the edge as the pointer goes round.
+        vec2 dp = px - vec2(ptr_x, ptr_y);
+        float spec = ptr_k * exp(-dot(dp, dp) / 64800.0);       // sigma 180 px
+        float sheen = smoothstep(14.0, 0.0, inside) * smoothstep(0.0, 0.6, inside);
+        vec3 edgeLight = tone * (hair * (0.065 + 0.34 * spec) + sheen * sheen * 0.12 * spec);
         if (inside < bevel + 4.0) {
             // Content near the edge, mirrored into it by reflection inside the glass.
             vec4 m = at(px - n * (2.0 * inside + 6.0));
@@ -269,7 +275,7 @@ void main() {
     if (hl > 0.0 && slope > 0.0) {
         vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
         vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
-        vec3 seen = vivid(env(px + dir * env_reach * length(Rf.xy) + vec2(par_x, par_y)), 1.4);
+        vec3 seen = vivid(env(px + dir * env_reach * length(Rf.xy)), 1.4);
         vec2 L = vec2(hl_x, hl_y);
         float lobe = pow(max(dot(n, L), 0.0), 8.0) * crest;
         // The same light, reflected inside, comes out faintly at the opposite edge.
@@ -297,6 +303,7 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
         super._init();
         this.set_shader_source(SHADER);
         this._frame = '';
+        this.onPaint = null;
     }
 
     vfunc_paint_target(node, paintContext) {
@@ -315,6 +322,9 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
             }
         }
         super.vfunc_paint_target(node, paintContext);
+        const done = this.onPaint;
+        this.onPaint = null;
+        done?.();
     }
 
     setFloats(values) {
@@ -412,7 +422,7 @@ class LiquidGlassPane extends Clutter.Actor {
         this._edges = '';
         this.setEdges([false, false, false, false]);
         this._cheap = false;
-        this._motion = {lx: null, ly: null, px: 0, py: 0, press: 0, open: 1};
+        this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1};
         this._applyLook();
         panes.add(this);
         this.connect('destroy', () => {
@@ -507,6 +517,8 @@ class LiquidGlassPane extends Clutter.Actor {
         });
         this._syncClones();
         this._applyShape();
+        if (this._motion.k > 0)
+            this._applyMotion();   // the pointer is held in this pane's own px
     }
 
     _syncClones() {
@@ -569,16 +581,17 @@ class LiquidGlassPane extends Clutter.Actor {
         this._applyMotion();
     }
 
+    /** Calls fn once, right after the pane next paints. */
+    onNextPaint(fn) {
+        this._glass.onPaint = fn;
+        this._glass.queue_repaint();
+    }
+
     _applyMotion() {
         const L = this._look, m = this._motion;
-        const a = L.lightAngle * Math.PI / 180;
-        let [lx, ly] = [Math.cos(a), Math.sin(a)];
-        if (m.lx !== null) {
-            const k = Math.hypot(m.lx, m.ly) || 1;
-            [lx, ly] = [m.lx / k, m.ly / k];
-        }
+        const [ox, oy] = this._stage ?? [0, 0];
         this._glass.setFloats({
-            hl_x: lx, hl_y: ly, par_x: m.px, par_y: m.py,
+            ptr_x: m.sx - ox, ptr_y: m.sy - oy, ptr_k: Math.max(0, Math.min(1, m.k)),
             refr_h: Math.max(0, L.refraction) * Math.max(0, m.open),
             refr_amt: Math.max(0, L.bend) * (1 + 0.15 * m.press),
             depth: Math.max(0, Math.min(1, L.depth + 0.1 * m.press)),
