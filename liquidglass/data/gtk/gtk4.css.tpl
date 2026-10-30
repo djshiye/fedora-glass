@@ -175,12 +175,10 @@ $hdr_btn {
   color: color-mix(in srgb, currentColor 85%, transparent);
   transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
 }
-/* Unfocused windows dim their icons; hovering one brings it back. */
-$hdr_btn_backdrop { color: color-mix(in srgb, var(--headerbar-fg-color) 50%, transparent); }
 $hdr_btn_hover, $hdr_btn_checked {
   background-color: var(--lg-tile);
   background-image: none;
-  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
+  box-shadow: inset 0 1px 0 var(--lg-rim);
   color: var(--headerbar-fg-color);
   transition-duration: 120ms;
 }
@@ -188,7 +186,7 @@ $hdr_btn_checked { color: var(--accent-color); }
 $hdr_btn_active {
   background-color: var(--lg-tile-press);
   background-image: none;
-  box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge);
+  box-shadow: inset 0 1px 2px 0 var(--lg-shadow);
   transition-duration: 60ms;
 }
 $hdr_btn_icon { transition: -gtk-icon-transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -208,16 +206,32 @@ windowcontrols > button > image, windowcontrols > button:hover > image, windowco
   box-shadow: none;
   transition: -gtk-icon-transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-windowcontrols > button:backdrop { color: color-mix(in srgb, var(--headerbar-fg-color) 50%, transparent); }
 windowcontrols > button:hover {
   background-color: var(--lg-tile);
-  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
+  box-shadow: inset 0 1px 0 var(--lg-rim);
   color: var(--headerbar-fg-color);
   transition-duration: 120ms;
 }
-windowcontrols > button:active { background-color: var(--lg-tile-press); box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
+windowcontrols > button:active { background-color: var(--lg-tile-press); box-shadow: inset 0 1px 2px 0 var(--lg-shadow); }
 windowcontrols > button:active > image { -gtk-icon-transform: scale(0.94); }
 windowcontrols > button.close:hover, windowcontrols > button.close:active { background-color: var(--lg-close); box-shadow: none; color: white; }
+
+/* Unfocused windows: libadwaita fades the whole bar to 50%, which on top of the
+   icons' own 85% nearly hides them. Fade bars to 65% instead (titles, icons and
+   text buttons alike), keeping libadwaita's rule that nested bars fade only once. */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle, toolbarview > .bottom-bar:backdrop > windowhandle,
+tabbar .box:backdrop > scrolledwindow, tabbar .box:backdrop > .start-action, tabbar .box:backdrop > .end-action {
+  filter: opacity(0.65);
+  transition: filter 120ms ease-out;
+}
+toolbarview > .top-bar headerbar:backdrop > windowhandle, toolbarview > .bottom-bar headerbar:backdrop > windowhandle,
+toolbarview > .top-bar tabbar .box:backdrop > scrolledwindow, toolbarview > .bottom-bar tabbar .box:backdrop > scrolledwindow,
+toolbarview > .top-bar tabbar .box:backdrop > .start-action, toolbarview > .bottom-bar tabbar .box:backdrop > .start-action,
+toolbarview > .top-bar tabbar .box:backdrop > .end-action, toolbarview > .bottom-bar tabbar .box:backdrop > .end-action,
+tabbar.inline .box:backdrop > scrolledwindow, tabbar.inline .box:backdrop > .start-action, tabbar.inline .box:backdrop > .end-action {
+  filter: none;
+}
 
 /* ---- entries, search, spin buttons ----------------------------------------- */
 entry, spinbutton, searchentry, row.entry, row.spin {

@@ -111,13 +111,13 @@ headerbar .linked:not(.vertical) > button:not(.suggested-action):not(.destructiv
   transition: background-color 200ms ease-out, box-shadow 200ms ease-out;
 }
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):backdrop,
-.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):backdrop { color: alpha(@headerbar_fg_color, 0.5); }
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):backdrop { color: alpha(@headerbar_fg_color, 0.65); }
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):hover,
 .titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):hover,
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked,
 .titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked {
   background-color: @lg_tile;
-  box-shadow: inset 0 1px 0 @lg_rim, inset 0 0 0 1px @lg_edge;
+  box-shadow: inset 0 1px 0 @lg_rim;
   color: @headerbar_fg_color;
   transition-duration: 120ms;
 }
@@ -126,10 +126,10 @@ headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutto
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active,
 .titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active {
   background-color: @lg_tile_press;
-  box-shadow: inset 0 1px 2px 0 @lg_shadow, inset 0 0 0 1px @lg_edge;
+  box-shadow: inset 0 1px 2px 0 @lg_shadow;
 }
-headerbar button:not(.suggested-action):not(.destructive-action):active image,
-.titlebar button:not(.suggested-action):not(.destructive-action):active image { -gtk-icon-transform: scale(0.94); }
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active image,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active image { -gtk-icon-transform: scale(0.94); }
 
 /* Window controls: flat glyphs, the same tile on hover, Close turns soft red. */
 .titlebutton, headerbar .titlebutton, .titlebar .titlebutton {
@@ -137,10 +137,10 @@ headerbar button:not(.suggested-action):not(.destructive-action):active image,
   background-color: transparent; background-image: none; box-shadow: none;
   color: alpha(@headerbar_fg_color, 0.85);
 }
-headerbar .titlebutton:backdrop, .titlebar .titlebutton:backdrop { color: alpha(@headerbar_fg_color, 0.5); }
+headerbar .titlebutton:backdrop, .titlebar .titlebutton:backdrop { color: alpha(@headerbar_fg_color, 0.65); }
 headerbar .titlebutton:hover, .titlebar .titlebutton:hover {
   background-color: @lg_tile;
-  box-shadow: inset 0 1px 0 @lg_rim, inset 0 0 0 1px @lg_edge;
+  box-shadow: inset 0 1px 0 @lg_rim;
   color: @headerbar_fg_color;
 }
 headerbar .titlebutton:active, .titlebar .titlebutton:active { background-color: @lg_tile_press; }

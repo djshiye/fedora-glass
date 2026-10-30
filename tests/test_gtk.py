@@ -234,3 +234,12 @@ def test_gtk3_header_buttons_are_flat(dark):
     assert ".titlebutton, headerbar .titlebutton { border-radius: 999px" not in css
     assert "headerbar .titlebutton.close:hover" in css and "@lg_close" in css
     assert "@lg_tile" in css and "@lg_tile_press" in css
+
+
+def test_unfocused_bars_fade_once_to_65_percent():
+    css = gtk4.render(toks(True, 0.4))
+    assert "headerbar:backdrop > windowhandle," in css and "filter: opacity(0.65)" in css
+    # Icons don't add a second fade of their own on top of the bar's.
+    assert ":backdrop { color: color-mix" not in css
+    gtk3_css = gtk3.render(toks(True, 0.4))
+    assert "alpha(@headerbar_fg_color, 0.65)" in gtk3_css
