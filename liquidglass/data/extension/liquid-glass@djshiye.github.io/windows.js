@@ -91,10 +91,6 @@ class WindowGlass {
         const w = this.win, s = this.settings;
         if (!s.enabled || w.fullscreen || w.minimized || !WINDOW_TYPES.has(w.get_window_type()))
             return false;
-        // A window that is closing has no monitor, and Mutter aborts the whole Shell if
-        // asked for its work area (see sync).
-        if (w.get_monitor() < 0)
-            return false;
         // A title bar drawn by the Shell is opaque: nothing would show.
         if (typeof w.is_client_decorated === 'function' && w.get_client_type?.() === Meta.WindowClientType.X11 &&
             !w.is_client_decorated())
