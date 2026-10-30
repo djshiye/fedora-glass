@@ -131,9 +131,17 @@ class Backup:
         key = str(folder)
         if key in self.data["dirlinks"] or self.env.dry_run:
             return
-        inside = [k for k in self.data["files"] if Path(k).is_relative_to(folder)]
         new_dirs: set[str] = set()
-        problems = [p for k in inside if (p := self._restore_file(k, self.data["files"][k], new_dirs))]
+        problems = []
+        for k in [k for k in self.data["files"] if Path(k).is_relative_to(folder)]:
+            e = self.data["files"][k]
+            if self.is_ours(Path(k), e):
+                if (problem := self._restore_file(k, e, new_dirs)):
+                    problems.append(problem)
+            else:
+                # The theme has replaced that file since (an update, say): a repair would put
+                # an old copy over a newer one, so the record goes and the theme's file stays.
+                self._forget_file(k, e)
         _remove_empty(new_dirs)
         if problems:
             raise OSError("; ".join(problems))
@@ -158,6 +166,73 @@ class Backup:
                 folder.symlink_to(link)
             shutil.rmtree(tmp, ignore_errors=True)
             raise
+
+    @staticmethod
+    def is_ours(path: Path, e: dict) -> bool:
+        """Whether `path` still holds what Apply wrote there: the same bytes, or (for
+        records older than that check) one of our generated files."""
+        try:
+            data = path.read_bytes() if path.is_file() else None
+        except OSError:
+            return False
+        if data is None:
+            return False
+        if e.get("wrote"):
+            return hashlib.sha256(data).hexdigest() == e["wrote"]
+        return b"Liquid Glass" in data[:512]
+
+    def _forget_file(self, key: str, e: dict) -> None:
+        if e.get("kind") == "file":
+            with contextlib.suppress(OSError):
+                os.unlink(e["copy"])
+        del self.data["files"][key]
+
+    def tidy_folders(self) -> None:
+        """Before an Apply: finish or clear a folder swap an earlier Apply was stopped in
+        the middle of, and keep the links in each folder we made in step with the theme
+        folder it stands in for (new theme files get a link, removed ones lose theirs)."""
+        if self.env.dry_run:
+            return
+        for parent in {self.env.config} | {Path(k).parent for k in self.data["dirlinks"]}:
+            if not parent.is_dir():
+                continue
+            for stray in parent.glob(".*.lg-tmp"):
+                if not stray.is_dir() or stray.is_symlink():
+                    continue            # atomic_write's temp files are files, and not ours to sweep
+                base = parent / stray.name[1:-len(".lg-tmp")].rsplit(".", 1)[0]
+                with contextlib.suppress(OSError):
+                    if str(base) in self.data["dirlinks"] and not base.exists() and not base.is_symlink():
+                        os.rename(stray, base)      # stopped between unlink and rename
+                    else:
+                        shutil.rmtree(stray)
+        for key, e in self.data["dirlinks"].items():
+            folder = Path(key)
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+            real = (folder.parent / e["link"]).resolve()
+            made = e.setdefault("made", [])
+            for name in list(made):
+                q = folder / name
+                if q.is_symlink() and not q.exists():           # the theme dropped that file
+                    q.unlink()
+                if not q.is_symlink() and not q.exists():
+                    made.remove(name)
+            if real.is_dir():
+                for entry in sorted(real.iterdir()):
+                    q = folder / entry.name
+                    if not q.exists() and not q.is_symlink():
+                        q.symlink_to(entry)
+                        made.append(entry.name)
+        self.save()
+
+    def overwritten(self) -> list[str]:
+        """Targets whose files were replaced by something else since Apply (a theme
+        update relinking gtk.css, for one), so their look is gone until the next Apply."""
+        lost = set()
+        for key, e in self.data["files"].items():
+            if e.get("wrote") and not self.is_ours(Path(key), e):
+                lost.add(e["target"])
+        return sorted(lost)
 
     def record_file(self, target: str, path: Path) -> None:
         if (folder := self.linked_folder(path)) is not None:
@@ -456,6 +531,7 @@ class Engine:
     def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
         ctx = self.context(settings)
         backup = Backup(self.env)
+        backup.tidy_folders()
         results: list[Result] = []
         for t in self.targets:
             if only and t.id not in only:
@@ -501,7 +577,10 @@ class Engine:
             if isinstance(a, WriteFile):
                 backup.record_file(tid, a.path)
                 if not self.env.dry_run:
-                    atomic_write(a.path, a.content.encode() if isinstance(a.content, str) else a.content, a.mode)
+                    data = a.content.encode() if isinstance(a.content, str) else a.content
+                    atomic_write(a.path, data, a.mode)
+                    if (rec := backup.data["files"].get(str(a.path))) is not None:
+                        rec["wrote"] = hashlib.sha256(data).hexdigest()
             elif isinstance(a, GSet):
                 if a.key not in self.env.gsettings_keys(a.schema, a.path):
                     if not a.optional:

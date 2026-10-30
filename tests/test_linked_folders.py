@@ -144,3 +144,64 @@ def test_dry_run_changes_nothing(fake_env):
     fake_env.dry_run = True
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert d.is_symlink() and (theme / "gtk.css").read_text() == "/* orchis */"
+
+
+def test_repair_leaves_a_theme_file_someone_else_changed(fake_env, monkeypatch):
+    """An Orchis update reinstalls the theme after the old version wrote into it: the
+    old backup must never go over the fresh file."""
+    theme = orchis(fake_env)
+    d = link_config(fake_env, "gtk-4.0", theme)
+    monkeypatch.setattr(Backup, "linked_folder", lambda self, path: None)
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    monkeypatch.undo()
+    (theme / "gtk.css").write_text("/* orchis, updated */")          # the theme's update
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    assert (theme / "gtk.css").read_text() == "/* orchis, updated */"
+    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert Engine(fake_env, targets=[gtk4()]).revert() == []
+    assert d.is_symlink() and (theme / "gtk.css").read_text() == "/* orchis, updated */"
+
+
+def test_folder_links_follow_the_theme(fake_env):
+    theme = orchis(fake_env)
+    d = link_config(fake_env, "gtk-4.0", theme)
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    (theme / "new.css").write_text("/* new */")
+    (theme / "assets/check.png").unlink()
+    (theme / "assets").rmdir()
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    assert (d / "new.css").read_text() == "/* new */"
+    assert not (d / "assets").is_symlink() and not (d / "assets").exists()
+    assert Engine(fake_env, targets=[gtk4()]).revert() == []
+    assert d.is_symlink()
+
+
+@pytest.mark.parametrize("swapped", (False, True))
+def test_an_interrupted_swap_is_cleaned_up(fake_env, swapped):
+    theme = orchis(fake_env)
+    d = link_config(fake_env, "gtk-4.0", theme)
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    stray = d.parent / ".gtk-4.0.x1y2z3.lg-tmp"
+    if swapped:
+        d.rename(stray)                # stopped after the link went, before the rename
+    else:
+        stray.mkdir()
+        (stray / "gtk.css").symlink_to(theme / "gtk.css")
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    assert not stray.exists() and d.is_dir() and not d.is_symlink()
+    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert (theme / "gtk.css").read_text() == "/* orchis */"     # rmtree never followed a link
+
+
+def test_a_relinked_style_sheet_is_noticed(fake_env):
+    """orchis-update deletes and relinks ~/.config/gtk-4.0/gtk.css; the app then offers Re-apply."""
+    theme = orchis(fake_env)
+    d = fake_env.config / "gtk-4.0"
+    d.mkdir(parents=True)
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    assert Backup(fake_env).overwritten() == []
+    (d / "gtk.css").unlink()
+    (d / "gtk.css").symlink_to(theme / "gtk.css")
+    assert Backup(fake_env).overwritten() == ["gtk4"]
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    assert Backup(fake_env).overwritten() == []

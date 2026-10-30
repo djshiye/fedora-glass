@@ -202,7 +202,7 @@ Window {
         Item {
             id: pages
             anchors.top: header.bottom
-            anchors.bottom: footer.top
+            anchors.bottom: lostBanner.top
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 24
@@ -228,6 +228,55 @@ Window {
                 enabled: win.pageIndex === 1
                 transform: Translate { x: win.pageIndex === 1 ? 0 : 16; Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
                 Behavior on opacity { NumberAnimation { duration: Theme.normal } }
+            }
+        }
+
+        // ------------------------------------- another app replaced what Apply wrote
+        // (a theme update relinking gtk.css, say). Said once, quietly, with a way back.
+        Rectangle {
+            id: lostBanner
+            objectName: "lostBanner"
+            readonly property bool shown: Backend.lostNote !== "" && !Backend.busy
+            anchors.bottom: footer.top
+            anchors.bottomMargin: shown ? 12 : 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width - 48, 760)
+            height: shown ? 48 : 0
+            visible: height > 0
+            clip: true
+            radius: 12
+            color: Theme.well
+            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+            Icon {
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                name: "info"
+                color: Theme.accentText
+                size: 18
+            }
+            Text {
+                x: 42
+                width: parent.width - x - reapply.width - 28
+                anchors.verticalCenter: parent.verticalCenter
+                text: Backend.lostNote
+                color: Theme.textDim
+                font.pixelSize: Theme.fsSmall
+                elide: Text.ElideRight
+            }
+            LgButton {
+                id: reapply
+                objectName: "reapply"
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                kind: "secondary"
+                implicitHeight: 32
+                leftPadding: 14; rightPadding: 14
+                text: "Re-apply"
+                iconName: "refresh"
+                enabled: !Backend.busy
+                tip: "Write the Liquid Glass look again. Nothing else changes."
+                onClicked: Backend.apply()
             }
         }
 
