@@ -100,14 +100,15 @@ def test_lock_glass_keeps_white_text_readable_on_any_wallpaper():
 
 
 def test_password_field_keeps_a_focus_ring_and_caret():
-    from liquidglass.render import shell as rs
-    for dark in (True, False):
-        css = rs.render_css(palette.build(Settings(), dark=dark))
-        i = css.index(".unlock-dialog .login-dialog-prompt-entry:focus")
-        block = css[i:css.index("}", i)]
-        assert "box-shadow: inset 0 0 0 2px" in block
-        entry = css[css.index(".unlock-dialog .login-dialog-prompt-entry, "):]
-        assert "caret-color:" in entry[:entry.index("}")]
+    # GNOME's own theme is in use while locked, so the lock brings its own small stylesheet.
+    css = (EXT / "lock.css").read_text()
+    focus = css[css.index(".unlock-dialog .login-dialog-prompt-entry:focus"):]
+    assert "box-shadow: inset 0 0 0 2px -st-accent-color !important;" in focus
+    assert "caret-color:" in css
+    assert "lock.css" in rg.FILES
+    js = (EXT / "lock.js").read_text()
+    detach = js[js.index("    _detach() {"):js.index("    destroy() {")]
+    assert "this._unloadStyle();" in detach
 
 
 def test_unlock_defaults_are_quick():

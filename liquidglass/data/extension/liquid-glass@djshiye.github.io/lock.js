@@ -10,6 +10,7 @@
 // lock screen is simply GNOME's own.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
@@ -20,6 +21,9 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {GlassPane} from './glass.js';
 import {Signals} from './common.js';
 import {Wallpaper} from './wallpaper.js';
+
+// Focus ring and caret for the password field, loaded only while locked.
+const STYLESHEET = Gio.File.new_for_uri(import.meta.url).get_parent().get_child('lock.css');
 
 const SLIDE_MAX_MS = 1500;      // the longest slide the settings allow
 const STALL_MS = 100;           // a frame later than this means the desktop was busy waking up
@@ -88,8 +92,26 @@ export class LockGlass {
                     });
                 });
             }
+            // GNOME swaps the Shell theme as the screen locks; keep the stylesheet in the one in use.
+            this._signals.on(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this._safe(() => this._loadStyle()));
             this._attach();
         });
+    }
+
+    _loadStyle() {
+        this._unloadStyle();
+        if (this._ended || !this.cfg.enabled)
+            return;
+        const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
+        if (theme?.load_stylesheet(STYLESHEET))
+            this._theme = theme;
+    }
+
+    _unloadStyle() {
+        try {
+            this._theme?.unload_stylesheet(STYLESHEET);
+        } catch {}   // that theme is gone
+        this._theme = null;
     }
 
     // Anything that goes wrong takes the glass away and leaves GNOME's own lock screen.
@@ -143,6 +165,7 @@ export class LockGlass {
             this._dialogSignals.on(dialog._stack, 'notify::allocation', () => this._queue());
         }
         this._styleClock();
+        this._loadStyle();
         this._queue();
     }
 
@@ -312,6 +335,7 @@ export class LockGlass {
         this._dialog = null;
         this._wall?.destroy();
         this._wall = null;
+        this._unloadStyle();
     }
 
     destroy() {
