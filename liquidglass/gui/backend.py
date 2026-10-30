@@ -146,6 +146,7 @@ class Backend(QObject):
         # offer to restart Files (it keeps running with the old style sheet).
         self._header_note = ""
         self._terminal_pal = ""
+        self._lost: list[str] = []         # targets whose applied files something else replaced
         # The glass extension follows its config file live, so once it runs the
         # desktop can follow the sliders before Apply.
         self._glass_live = False
@@ -341,6 +342,7 @@ class Backend(QObject):
     headerHeight = _p("header_height", int)
     headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
     terminalColors = _p("terminal_colors", bool)
+    terminalFollowsStyle = _p("terminal_follows_style", bool)
     startOnDesktop = _p("start_on_desktop", bool)
     overviewOff = _p("overview_off", bool)
     del _p
@@ -536,6 +538,14 @@ class Backend(QObject):
     def hasBackup(self) -> bool:
         return self._has_backup
 
+    @Property(str, notify=targetsChanged)
+    def lostNote(self) -> str:
+        """One line when another app (a theme update, say) replaced files Apply wrote, or ""."""
+        if not self._lost:
+            return ""
+        what = self._lost[0] if len(self._lost) == 1 else ", ".join(self._lost[:-1]) + " and " + self._lost[-1]
+        return f"Another app replaced the Liquid Glass look for {what}. Apply again to bring it back."
+
     @Slot(str, bool)
     def setTargetEnabled(self, target_id: str, on: bool) -> None:
         if self._s.target_enabled(target_id) == bool(on):
@@ -570,8 +580,18 @@ class Backend(QObject):
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
                             "available": available, "detail": detail})
-            return out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine)
+            names = {t["id"]: t["name"] for t in out}
+            lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
+            return out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine), lost
         self._run("detect", job, self._targets_done, show_busy=False)
+
+    @staticmethod
+    def _overwritten(engine: Any) -> list[str]:
+        try:
+            from ..engine import Backup
+            return Backup(engine.env).overwritten()
+        except Exception:
+            return []
 
     @staticmethod
     def _glass_running(engine: Any) -> bool:
@@ -600,7 +620,7 @@ class Backend(QObject):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
         else:
-            self._targets, self._has_backup, self._glass_live, self._terminal_pal = out
+            self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost = out
         self._targets_ready = True
         self.targetsChanged.emit()
 
@@ -748,6 +768,7 @@ class Backend(QObject):
                 return
             problems, self._has_backup = out
             self._glass_live = False
+            self._lost = []
             self.targetsChanged.emit()
             if header_changed:
                 self._set_header_note("pending")

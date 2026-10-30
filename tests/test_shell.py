@@ -376,9 +376,14 @@ def test_veil_is_light_and_text_stays_readable():
     assert rs.surfaces(solid)["popover"].a >= 0.95                      # solid presets are left alone
 
 
+def test_every_extension_module_is_installed():
+    # A module left out of FILES would be missing from the installed extension, and it would not load.
+    assert {p.name for p in rg.SOURCE.iterdir() if p.suffix in (".js", ".json")} == set(rg.FILES)
+
+
 def test_menus_never_wait_long_for_their_glass():
     # A menu is held invisible until its glass paints; that hold must always end on its own.
-    js = (Path(rg.__file__).parent.parent / "data/extension/liquid-glass@djshiye.github.io/surfaces.js").read_text()
+    js = "".join((rg.SOURCE / f).read_text() for f in ("common.js", "follower.js"))
     limit = int(re.search(r"const HOLD_MAX_MS = (\d+);", js).group(1))
     assert limit <= 100
     hold = js[js.index("    _hold() {"):js.index("    _release() {")]
@@ -487,3 +492,65 @@ def test_a_change_made_in_their_settings_while_ours_is_on_is_kept(fake_env):
 def engine_backup_keys(env):
     from liquidglass.engine import Backup
     return list(Backup(env).data["gsettings"])
+
+
+# ---- light mode -------------------------------------------------------------------------
+def test_light_glass_thickens_over_dark_backdrops_and_dark_glass_never_does():
+    s = Settings()
+    light, dark = rg.config(s, palette.build(s, dark=False)), rg.config(s, palette.build(s, dark=True))
+    for cfg_part in ("panel", "arcmenu", "quicksettings", "calendar"):
+        look = light["parts"][cfg_part]["look"]
+        assert 0 < look["lift"] <= 1 and len(look["milk"]) == 3 and min(look["milk"]) > 0.8, cfg_part
+        assert "lift" not in dark["parts"][cfg_part]["look"] and "milk" not in dark["parts"][cfg_part]["look"]
+    assert light["menus"]["look"]["lift"] > 0 and light["windows"]["look"]["lift"] > 0
+    # Terminals paint their own background: their glass stays thin.
+    assert light["windows"]["terminalLook"]["lift"] == 0
+    # The milk follows the user's tint.
+    warm = Settings(tint="#ff8800", tint_strength=1.0)
+    milk = rg.config(warm, palette.build(warm, dark=False))["parts"]["quicksettings"]["look"]["milk"]
+    assert milk[0] > milk[2]
+    # Without real glass (reduce transparency), nothing to thicken.
+    calm = Settings(reduce_transparency=True)
+    assert "lift" not in rg.config(calm, palette.build(calm, dark=False))["parts"]["panel"]["look"]
+
+
+def test_light_glass_keeps_a_thin_dark_hairline_and_a_solid_focus_ring():
+    def block(css, sel):
+        i = css.index("\n" + sel + " {")
+        return css[i:css.index("}", i)]
+
+    hair = rs.LIGHT_HAIRLINE.css
+    light = palette.build(Settings(), dark=False)
+    css = rs.render_css(light)
+    for sel in (".popup-menu-content, .candidate-popup-content", ".quick-settings"):
+        b = block(css, sel)
+        assert f"border: 1px solid {hair}" in b and f"border-top-color: {hair}" in b, sel
+    # The panel's hairline is drawn in its glass: Dash to Panel's own border (a lit
+    # line over dark wallpapers) stays off, and dark output is as before.
+    assert rs.dtp_values(light)["trans-use-border"] == "false"
+    dark = palette.build(Settings(), dark=True)
+    assert rs.dtp_values(dark)["trans-border-custom-color"] == f"'{dark.edge.css}'"
+    looks = rg.config(Settings(), light)["parts"]
+    assert looks["panel"]["look"]["hairline"] == rg.HAIRLINE["panel"]
+    assert all("hairline" not in looks[p]["look"] for p in looks if p != "panel")
+    assert all("hairline" not in v["look"] for v in rg.config(Settings(), dark)["parts"].values())
+    assert rs.arcmenu_values(light)["menu-border-color"] == f"'{hair}'"
+    # A dark contact line, never a lit one.
+    assert rs.LIGHT_HAIRLINE.r == rs.LIGHT_HAIRLINE.g == rs.LIGHT_HAIRLINE.b == 0
+    # The focus ring is the accent itself, at least 3:1 against white glass.
+    ring = re.search(r"inset 0 0 0 2px (rgba?\([^)]*\))", css).group(1)
+    nums = [float(v) for v in re.findall(r"[\d.]+", ring)]
+    assert len(nums) == 3 or nums[3] == 1.0
+    assert Color(nums[0] / 255, nums[1] / 255, nums[2] / 255, 1.0).contrast(Color(1, 1, 1, 1)) >= 3.0
+
+
+def test_high_contrast_makes_every_surface_solid(fake_env):
+    fake_env.gs[("org.gnome.desktop.a11y.interface", None)] = {"high-contrast": "true"}
+    ctx = Engine(fake_env).context(Settings())
+    assert ctx.settings.reduce_transparency
+    cfg = rg.config(ctx.settings, ctx.tokens)
+    assert not any(cfg[k]["enabled"] for k in ("panel", "menus", "windows", "overview"))
+    assert ctx.tokens.popover.a >= 0.95 and ctx.tokens.chrome.a >= 0.95
+    # The user's own setting is left alone: switching High Contrast off brings the glass back.
+    fake_env.gs[("org.gnome.desktop.a11y.interface", None)] = {"high-contrast": "false"}
+    assert not Engine(fake_env).context(Settings()).settings.reduce_transparency

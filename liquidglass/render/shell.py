@@ -19,6 +19,7 @@ _TEMPLATE = Path(__file__).resolve().parent.parent / "data/shell/glass.css.tpl"
 
 
 _NONE = "rgba(0,0,0,0)"
+LIGHT_HAIRLINE = BLACK.with_alpha(0.11)
 
 
 def radii(t: Tokens, r: int | None = None) -> dict[str, int]:
@@ -127,14 +128,17 @@ def values(t: Tokens) -> dict[str, str]:
         "card": t.card.css, "card_hover": card_hover.css, "card_active": card_active.css,
         "hover": t.hover.css, "active": t.active.css, "selected": selected.css,
         "rim": t.highlight.css, "edge": t.edge.css,
-        # Glass surfaces get their edge from the extension's optics, not a drawn line.
-        "glass_edge": _NONE if t.glass_menu_edges else t.edge.css,
-        "glass_rim": _NONE if t.glass_menu_edges else t.highlight.css,
+        # Dark glass gets its edge from the extension's optics, not a drawn line. Light
+        # glass on a light wallpaper would have no edge at all, so it keeps a thin dark
+        # hairline all round: a contact line, never a lit one.
+        "glass_edge": (_NONE if t.dark else LIGHT_HAIRLINE.css) if t.glass_menu_edges else t.edge.css,
+        "glass_rim": (_NONE if t.dark else LIGHT_HAIRLINE.css) if t.glass_menu_edges else t.highlight.css,
         "divider": t.divider.css, "shadow": t.shadow.css,
         "fg": t.fg.css, "fg_dim": t.fg_dim.css, "fg_faint": t.fg_faint.css,
         "accent": acc.css, "accent_fg": t.accent_fg.css, "accent_text": t.accent_text.css,
         "accent_edge": acc.mix(WHITE, 0.35).with_alpha(0.7).css,
-        "focus_ring": acc.mix(WHITE, 0.3).with_alpha(0.75).css,
+        # Light glass is near white: a pale ring would vanish on it, so it takes the accent itself.
+        "focus_ring": (acc.mix(WHITE, 0.3).with_alpha(0.75) if t.dark else acc.mix(BLACK, 0.12)).css,
         "selection": t.selection.css, "destructive": t.destructive.css, "success": t.success.css,
         "warning": t.warning.css, "warning_wash": t.warning.with_alpha(0.14).css,
         "ctrl_top": ctrl[0].css, "ctrl_bot": ctrl[1].css,
@@ -234,7 +238,7 @@ def arcmenu_values(t: Tokens) -> dict[str, str]:
         "override-menu-theme": "true",
         "menu-background-color": f"'{bg.css}'",
         "menu-foreground-color": f"'{fg.css}'",
-        "menu-border-color": f"'{_NONE if t.glass_menu_edges else t.edge.css}'",
+        "menu-border-color": f"'{(_NONE if t.dark else LIGHT_HAIRLINE.css) if t.glass_menu_edges else t.edge.css}'",
         "menu-border-width": "1",
         "menu-border-radius": str(r["r_menu"]),
         "menu-separator-color": f"'{t.divider.css}'",

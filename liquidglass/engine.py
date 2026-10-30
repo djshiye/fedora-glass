@@ -13,6 +13,8 @@ from __future__ import annotations
 import ast
 import configparser
 import contextlib
+import dataclasses
+import errno
 import fcntl
 import hashlib
 import io
@@ -56,6 +58,13 @@ def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
         raise
 
 
+def _remove_empty(dirs: set[str]) -> None:
+    """Take away folders an Apply created, deepest first, and only while empty."""
+    for d in sorted(dirs, key=len, reverse=True):
+        with contextlib.suppress(OSError):
+            os.rmdir(d)
+
+
 def parse_strv(text: str | None) -> list[str]:
     """gsettings 'as' text ("['a', 'b']" or "@as []") to a list."""
     if not text:
@@ -75,7 +84,7 @@ def format_strv(items: list[str]) -> str:
 
 
 class Backup:
-    SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak")
+    SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak", "dirlinks")
 
     def __init__(self, env: Env):
         self.env = env
@@ -98,10 +107,158 @@ class Backup:
         atomic_write(self.manifest_path, json.dumps(self.data, indent=1).encode(), 0o600)
 
     # ---- recording ----------------------------------------------------------
-    def record_file(self, target: str, path: Path) -> None:
-        key = str(path)
-        if key in self.data["files"] or self.env.dry_run:
+    def linked_folder(self, path: Path) -> Path | None:
+        """The first folder above `path` that is a symlink, looking only below the user's
+        config, data and state folders (those roots may be links on purpose: dotfiles,
+        Silverblue's /home). A theme installer often links ~/.config/gtk-4.0 into its own
+        theme folder, and writing through that link would overwrite the theme."""
+        roots = sorted((r for r in (self.env.config, self.env.data, self.env.state)
+                        if path.is_relative_to(r)), key=lambda r: len(r.parts), reverse=True)
+        if not roots:
+            return None
+        d = roots[0]
+        for part in path.parent.relative_to(roots[0]).parts:
+            d = d / part
+            if d.is_symlink():
+                return d
+        return None
+
+    def unlink_folder(self, target: str, folder: Path) -> None:
+        """Turn a linked folder into a real one, so writes land in the user's own config.
+
+        The new folder links back to every entry of the old target (assets, gtk-dark.css,
+        ...), so whatever the theme provided keeps working. Files an earlier version wrote
+        through the link are put back first, which repairs the theme folder."""
+        key = str(folder)
+        if key in self.data["dirlinks"] or self.env.dry_run:
             return
+        new_dirs: set[str] = set()
+        problems = []
+        for k in [k for k in self.data["files"] if Path(k).is_relative_to(folder)]:
+            e = self.data["files"][k]
+            if self.is_ours(Path(k), e):
+                if (problem := self._restore_file(k, e, new_dirs)):
+                    problems.append(problem)
+            else:
+                # The theme has replaced that file since (an update, say): a repair would put
+                # an old copy over a newer one, so the record goes and the theme's file stays.
+                self._forget_file(k, e)
+        _remove_empty(new_dirs)
+        if problems:
+            raise OSError("; ".join(problems))
+        link = os.readlink(folder)
+        real = folder.resolve()
+        tmp = Path(tempfile.mkdtemp(dir=folder.parent, prefix=f".{folder.name}.", suffix=".lg-tmp"))
+        made = []
+        try:
+            if real.is_dir():
+                for entry in sorted(real.iterdir()):
+                    (tmp / entry.name).symlink_to(entry)
+                    made.append(entry.name)
+            os.chmod(tmp, 0o755)
+            # Record before swapping, so an interrupted Apply can still be reverted.
+            self.data["dirlinks"][key] = {"target": target, "link": link, "made": made}
+            self.save()
+            folder.unlink()
+            os.rename(tmp, folder)
+        except BaseException:
+            self.data["dirlinks"].pop(key, None)
+            if not folder.exists() and not folder.is_symlink():
+                folder.symlink_to(link)
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise
+
+    @staticmethod
+    def is_ours(path: Path, e: dict) -> bool:
+        """Whether `path` still holds what Apply wrote there: the same bytes, or (for
+        records older than that check) one of our generated files."""
+        try:
+            data = path.read_bytes() if path.is_file() else None
+        except OSError:
+            return False
+        if data is None:
+            return False
+        if e.get("wrote"):
+            return hashlib.sha256(data).hexdigest() == e["wrote"]
+        return b"Liquid Glass" in data[:512]
+
+    @staticmethod
+    def _has_header(path: Path) -> bool:
+        """A regular file (not a link) that one of our Applies wrote: covers an Apply killed
+        after the write but before the manifest was saved, so its file never looks foreign."""
+        try:
+            if path.is_symlink() or not path.is_file():
+                return False
+            with open(path, "rb") as f:
+                return b"Liquid Glass" in f.read(512)
+        except OSError:
+            return False
+
+    def _forget_file(self, key: str, e: dict) -> None:
+        if e.get("kind") == "file":
+            with contextlib.suppress(OSError):
+                os.unlink(e["copy"])
+        del self.data["files"][key]
+
+    def tidy_folders(self) -> None:
+        """Before an Apply: finish or clear a folder swap an earlier Apply was stopped in
+        the middle of, and keep the links in each folder we made in step with the theme
+        folder it stands in for (new theme files get a link, removed ones lose theirs)."""
+        if self.env.dry_run:
+            return
+        for parent in {self.env.config} | {Path(k).parent for k in self.data["dirlinks"]}:
+            if not parent.is_dir():
+                continue
+            for stray in parent.glob(".*.lg-tmp"):
+                if not stray.is_dir() or stray.is_symlink():
+                    continue            # atomic_write's temp files are files, and not ours to sweep
+                base = parent / stray.name[1:-len(".lg-tmp")].rsplit(".", 1)[0]
+                with contextlib.suppress(OSError):
+                    if str(base) in self.data["dirlinks"] and not base.exists() and not base.is_symlink():
+                        os.rename(stray, base)      # stopped between unlink and rename
+                    else:
+                        shutil.rmtree(stray)
+        for key, e in self.data["dirlinks"].items():
+            folder = Path(key)
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+            real = (folder.parent / e["link"]).resolve()
+            made = e.setdefault("made", [])
+            for name in list(made):
+                q = folder / name
+                if q.is_symlink() and not q.exists():           # the theme dropped that file
+                    q.unlink()
+                if not q.is_symlink() and not q.exists():
+                    made.remove(name)
+            if real.is_dir():
+                for entry in sorted(real.iterdir()):
+                    q = folder / entry.name
+                    if not q.exists() and not q.is_symlink():
+                        q.symlink_to(entry)
+                        made.append(entry.name)
+        self.save()
+
+    def overwritten(self) -> list[str]:
+        """Targets whose files were replaced by something else since Apply (a theme
+        update relinking gtk.css, for one), so their look is gone until the next Apply."""
+        lost = set()
+        for key, e in self.data["files"].items():
+            if e.get("wrote") and not self.is_ours(Path(key), e):
+                lost.add(e["target"])
+        return sorted(lost)
+
+    def record_file(self, target: str, path: Path) -> None:
+        if (folder := self.linked_folder(path)) is not None:
+            self.unlink_folder(target, folder)
+        key = str(path)
+        if self.env.dry_run:
+            return
+        if (old := self.data["files"].get(key)) is not None:
+            if not old.get("wrote") or self.is_ours(path, old) or self._has_header(path):
+                return
+            # Something else replaced what we wrote (a theme update relinking gtk.css):
+            # that is the user's look now, so Revert should bring that back, not the old one.
+            # The old copy goes only once the new original is safely stored (below).
         entry: dict = {"target": target}
         if path.is_dir() and not path.is_symlink():
             # A folder is never ours to replace (and revert must never delete it).
@@ -114,7 +271,9 @@ class Backup:
             os.chmod(self.root, 0o700)
             digest = hashlib.sha256(key.encode()).hexdigest()[:16]
             copy = store / f"{digest}-{path.name}"
-            shutil.copy2(path, copy)
+            fresh = copy.with_name(copy.name + ".new")
+            shutil.copy2(path, fresh)
+            os.replace(fresh, copy)       # never a moment without a stored original
             entry.update(kind="file", copy=str(copy), mode=path.stat().st_mode & 0o777)
         else:
             # Folders this write will create, so revert can take them away again.
@@ -123,6 +282,8 @@ class Backup:
                 new_dirs.append(str(d))
                 d = d.parent
             entry.update(kind="missing", new_dirs=new_dirs)
+        if old is not None and old.get("copy") and old["copy"] != entry.get("copy"):
+            self._forget_file(key, old)
         self.data["files"][key] = entry
 
     def record_gsetting(self, target: str, env: Env, g: GSet) -> bool:
@@ -170,34 +331,12 @@ class Backup:
         mine = lambda e: not target or e["target"] == target  # noqa: E731
         new_dirs: set[str] = set()
         for key, e in list(self.data["files"].items()):
-            if not mine(e):
-                continue
-            p = Path(key)
-            try:
-                if p.is_dir() and not p.is_symlink():
-                    # Not something we wrote: never delete a folder the user made there.
-                    if e["kind"] != "missing":
-                        raise IsADirectoryError("is now a folder, left as it is")
-                    del self.data["files"][key]
-                    continue
-                # Read the copy first, so a lost backup never costs the current file.
-                original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
-                if p.is_symlink() or p.exists():
-                    p.unlink()
-                if e["kind"] == "symlink":
-                    p.parent.mkdir(parents=True, exist_ok=True)
-                    p.symlink_to(e["link"])
-                elif original is not None:
-                    atomic_write(p, original, e.get("mode", 0o644))
-                    with contextlib.suppress(OSError):
-                        os.unlink(e["copy"])
-                new_dirs.update(e.get("new_dirs", []))
-                del self.data["files"][key]
-            except OSError as err:
-                problems.append(f"{p}: {err}")
-        for d in sorted(new_dirs, key=len, reverse=True):   # deepest first; only while empty
-            with contextlib.suppress(OSError):
-                os.rmdir(d)
+            if mine(e) and (problem := self._restore_file(key, e, new_dirs)):
+                problems.append(problem)
+        _remove_empty(new_dirs)
+        for key, e in list(self.data["dirlinks"].items()):
+            if mine(e) and (problem := self._restore_folder(key, e)):
+                problems.append(problem)
         for key, e in list(self.data["gsettings"].items()):
             if not mine(e):
                 continue
@@ -240,6 +379,57 @@ class Backup:
                 problems.append(f"{' '.join(e['undo'])}: {r.err.strip()}")
         self.save()
         return problems
+
+    def _restore_file(self, key: str, e: dict, new_dirs: set[str]) -> str | None:
+        """Put one recorded file back. Returns a problem, or None."""
+        p = Path(key)
+        try:
+            if p.is_dir() and not p.is_symlink():
+                # Not something we wrote: never delete a folder the user made there.
+                if e["kind"] != "missing":
+                    raise IsADirectoryError("is now a folder, left as it is")
+                del self.data["files"][key]
+                return None
+            # Read the copy first, so a lost backup never costs the current file.
+            original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
+            if p.is_symlink() or p.exists():
+                p.unlink()
+            if e["kind"] == "symlink":
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.symlink_to(e["link"])
+            elif original is not None:
+                atomic_write(p, original, e.get("mode", 0o644))
+                with contextlib.suppress(OSError):
+                    os.unlink(e["copy"])
+            new_dirs.update(e.get("new_dirs", []))
+            del self.data["files"][key]
+        except OSError as err:
+            return f"{p}: {err}"
+        return None
+
+    def _restore_folder(self, key: str, e: dict) -> str | None:
+        """Turn a folder we made back into the link it was. Anything the user has since
+        put in it stays, and then so does the folder."""
+        p = Path(key)
+        try:
+            if p.is_symlink():
+                del self.data["dirlinks"][key]      # already a link again
+                return None
+            if p.is_dir():
+                for name in e.get("made", []):
+                    q = p / name
+                    if q.is_symlink():
+                        q.unlink()
+                p.rmdir()                           # fails while the user's own files are in it
+            p.symlink_to(e["link"])
+            del self.data["dirlinks"][key]
+        except OSError as err:
+            owner = Path(e["link"]).parent.name or e["link"]
+            if err.errno in (errno.ENOTEMPTY, errno.EEXIST):
+                return (f"Kept your {p.name} folder because it has files you added. "
+                        f"Your link to {owner} was not restored.")
+            return f"Couldn't restore your {p.name} link to {owner}: {err.strerror or err}."
+        return None
 
     def targets_with_changes(self) -> set[str]:
         return {e["target"] for section in self.data.values() for e in section.values()}
@@ -335,6 +525,10 @@ class Engine:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
     def context(self, settings: Settings) -> Context:
+        if self.env.high_contrast() and not settings.reduce_transparency:
+            # High Contrast asks for solid surfaces: no see-through glass anywhere, for
+            # as long as it is on. The user's own setting is left as it is.
+            settings = dataclasses.replace(settings, reduce_transparency=True)
         accent = self.env.system_accent()
         dark = palette.build(settings, dark=True, system_accent=accent)
         light = palette.build(settings, dark=False, system_accent=accent)
@@ -364,6 +558,7 @@ class Engine:
     def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
         ctx = self.context(settings)
         backup = Backup(self.env)
+        backup.tidy_folders()
         results: list[Result] = []
         for t in self.targets:
             if only and t.id not in only:
@@ -409,7 +604,10 @@ class Engine:
             if isinstance(a, WriteFile):
                 backup.record_file(tid, a.path)
                 if not self.env.dry_run:
-                    atomic_write(a.path, a.content.encode() if isinstance(a.content, str) else a.content, a.mode)
+                    data = a.content.encode() if isinstance(a.content, str) else a.content
+                    atomic_write(a.path, data, a.mode)
+                    if (rec := backup.data["files"].get(str(a.path))) is not None:
+                        rec["wrote"] = hashlib.sha256(data).hexdigest()
             elif isinstance(a, GSet):
                 if a.key not in self.env.gsettings_keys(a.schema, a.path):
                     if not a.optional:
