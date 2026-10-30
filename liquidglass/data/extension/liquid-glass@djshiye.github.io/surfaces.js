@@ -338,7 +338,7 @@ class Follower {
     setMotion(m) {
         // The pointer brightens the glass's own rim reflection; the content's light
         // layer only gives with a press.
-        const {sx, sy, k, ...shape} = m;
+        const {k, ...shape} = m;
         this.pane?.setMotion(m);
         this.top?.setMotion(shape);
         // A menu condenses into place as it opens: a little small, then its size.
@@ -429,7 +429,8 @@ class Motion {
     event(event) {
         const type = event.type();
         if (type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) {
-            this._pressItem(event.get_source());
+            // GNOME 50 events carry no source: ask the stage which actor got it.
+            this._pressItem(global.stage.get_event_actor(event));
             const [x, y] = event.get_coords();
             for (const f of followers) {
                 const r = f.rect;
