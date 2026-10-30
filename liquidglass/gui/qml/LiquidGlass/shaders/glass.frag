@@ -1,10 +1,13 @@
 #version 440
-// Liquid Glass surface: refracting bezel, tint, 1px edge and a directional
-// specular rim, all inside an antialiased rounded rectangle. `source` is the
-// (already blurred) backdrop that lies exactly under the item. The lens is the
-// same as the Shell extension's (glass.js), after Kyant's AndroidLiquidGlass
-// (Apache License 2.0): circular edge profile, SDF gradient as the normal,
-// a pull towards the centre for depth, seven-band dispersion.
+// Liquid Glass surface, with the same physical optics as the Shell extension
+// (glass.js): a glass slab whose top edge rounds off in a quarter circle, after
+// Kyant's AndroidLiquidGlass (Apache License 2.0). View rays are refracted by
+// Snell's law (IOR 1.5) through the slab to the backdrop; the index follows
+// Cauchy's equation at five wavelengths for dispersion; Fresnel (Schlick)
+// sets how much the surface reflects; a low key light adds a Blinn-Phong
+// highlight on the facing rim and, reflected inside, on the opposite one;
+// Beer-Lambert absorption darkens longer paths. `source` is the (already
+// blurred) backdrop lying exactly under the item.
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
@@ -13,16 +16,16 @@ layout(std140, binding = 0) uniform buf {
     vec2 size;
     float radius;
     float bezel;       // width of the refracting band along the edge, px
-    float refraction;  // how far the bezel bends the backdrop, px
+    float refraction;  // thickness of the glass slab, px
     float magnify;     // >1 magnifies the backdrop like a lens
-    float fringe;      // chromatic split of the bent light, 0..1
+    float fringe;      // dispersion, 0..1
     float rimWidth;    // px
     float sheen;       // soft top-down gloss, 0..1
     vec4 tint;
     vec4 rim;
     vec4 edge;
     float mode;        // 0 = everything, 1 = body only, 2 = rim and edge only
-    float depth;       // 0..1, bends towards the centre as well as across the edge
+    float depth;       // 0..1, how domed the top is
 };
 layout(binding = 1) uniform sampler2D source;
 
@@ -45,6 +48,18 @@ vec4 over(vec4 dst, vec4 c, float k) {
     return c * k + dst * (1.0 - c.a * k);
 }
 
+const float IOR = 1.5;
+const float F0 = 0.04;
+
+vec2 throughGlass(vec3 N, float n, float th) {
+    vec3 R = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / n);
+    return R.xy * th / max(-R.z, 0.2);
+}
+
+float cauchy(float um, float B) {
+    return IOR + B * (1.0 / (um * um) - 1.0 / 0.3025);
+}
+
 void main() {
     vec2 c = size * 0.5;
     vec2 p = qt_TexCoord0 * size - c;
@@ -58,34 +73,39 @@ void main() {
 
     float gr = min(r * 1.5, min(c.x, c.y));
     vec2 n = gradRoundRect(p, c, gr);
-
     float inside = -d;
-    float t = clamp(inside / max(bezel, 1.0), 0.0, 1.0);
-    float u = 1.0 - t;
-    float bend = 1.0 - sqrt(max(0.0, 1.0 - u * u));   // circular lens profile
 
-    vec2 uv = (c + p / max(magnify, 0.01)) / size;
-    vec2 g = normalize(n + depth * normalize(p + vec2(1e-4)));
-    vec2 off = -g * refraction * bend / size;
-    vec4 s;
-    if (mode > 1.5) {
-        s = vec4(0.0);
-    } else if (fringe > 0.001) {
-        vec2 f = off * fringe * (p.x * p.y) / max(c.x * c.y, 1.0) * 2.0;
-        vec2 rc = uv + off;
-        vec4 red = texture(source, rc + f);
-        vec4 orange = texture(source, rc + f * (2.0 / 3.0));
-        vec4 yellow = texture(source, rc + f * (1.0 / 3.0));
-        vec4 green = texture(source, rc);
-        vec4 cyan = texture(source, rc - f * (1.0 / 3.0));
-        vec4 blue = texture(source, rc - f * (2.0 / 3.0));
-        vec4 purple = texture(source, rc - f);
-        s.r = (red.r + orange.r + yellow.r) / 3.5 + purple.r / 7.0;
-        s.g = orange.g / 7.0 + (yellow.g + green.g + cyan.g) / 3.5;
-        s.b = (cyan.b + blue.b + purple.b) / 3.0;
-        s.a = (red.a + orange.a + yellow.a + green.a + cyan.a + blue.a + purple.a) / 7.0;
-    } else {
-        s = texture(source, uv + off);
+    float th = refraction;
+    float slope = 0.0;
+    float bev = min(bezel, min(c.x, c.y));
+    if (bev > 0.0 && inside < bev) {
+        float x = 1.0 - inside / bev;
+        float z = sqrt(max(1.0 - x * x, 0.0));
+        slope = x / max(z, 0.06);
+    }
+    vec2 dome = depth * 0.25 * p / max(c.x, c.y);
+    vec3 N = normalize(vec3(n * slope + dome, 1.0));
+
+    vec2 px = c + p / max(magnify, 0.01);
+    vec4 s = vec4(0.0);
+    if (mode < 1.5) {
+        if (th > 0.01 && fringe > 0.001 && slope > 0.02) {
+            float B = 0.08 * fringe;
+            vec4 s450 = texture(source, (px + throughGlass(N, cauchy(0.45, B), th)) / size);
+            vec4 s500 = texture(source, (px + throughGlass(N, cauchy(0.50, B), th)) / size);
+            vec4 s550 = texture(source, (px + throughGlass(N, IOR, th)) / size);
+            vec4 s600 = texture(source, (px + throughGlass(N, cauchy(0.60, B), th)) / size);
+            vec4 s650 = texture(source, (px + throughGlass(N, cauchy(0.65, B), th)) / size);
+            s.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
+            s.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
+            s.b = (s450.b + 0.4 * s500.b) / 1.4;
+            s.a = (s450.a + s500.a + s550.a + s600.a + s650.a) / 5.0;
+        } else if (th > 0.01) {
+            s = texture(source, (px + throughGlass(N, IOR, th)) / size);
+        } else {
+            s = texture(source, px / size);
+        }
+        s.rgb *= exp(-vec3(0.0016, 0.0009, 0.0013) * th / max(N.z, 0.2));
     }
 
     vec4 col = s;
@@ -102,11 +122,20 @@ void main() {
     float edgeLine = 1.0 - smoothstep(0.0, 1.25, inside);
     col = over(col, edge, edgeLine);
 
-    float up = pow(abs(dot(n, normalize(vec2(-0.55, -1.0)))), 2.0);
-    float down = max(dot(n, normalize(vec2(0.4, 1.0))), 0.0);
-    float rimLine = 1.0 - smoothstep(0.0, max(rimWidth, 0.5), inside);
-    float glow = u * u * u * 0.35;
-    float rimAmt = clamp((rimLine + glow) * (0.14 + 0.86 * up + 0.2 * pow(down, 2.0)), 0.0, 1.0);
+    // Reflections, in the rim colour; its alpha is their strength.
+    float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
+    vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
+    float sky = 0.35 + 0.65 * clamp(0.5 - 0.5 * Rf.y, 0.0, 1.0);
+    vec2 l2 = normalize(vec2(-0.55, -1.0));
+    vec3 L = normalize(vec3(l2, 0.2));
+    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+    float shin = 24.0;
+    float norm = (shin + 8.0) / 25.0;
+    float spec = pow(max(dot(N, H), 0.0), shin) * norm;
+    float inner = pow(max(dot(vec3(-N.xy, N.z), H), 0.0), shin) * norm * (1.0 - F) * 0.5;
+    float band = 1.0 - smoothstep(0.0, max(rimWidth, 0.5), inside);
+    float facing = pow(abs(dot(n, l2)), 2.0);
+    float rimAmt = clamp(0.5 * F * sky + 22.0 * F * (spec + inner) + band * (0.15 + 0.6 * facing), 0.0, 1.0);
     col = over(col, rim, rimAmt);
 
     fragColor = col * cov * qt_Opacity;

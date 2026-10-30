@@ -91,12 +91,25 @@ UI, and Slack only takes a pasted colour string (the app shows it, ready to copy
 ## How the glass works
 
 The extension puts a pane behind each Shell surface. The pane holds a live copy of what is behind
-it (the wallpaper and the windows under it), blurs it, and runs it through a lens shader: a
-rounded-rectangle distance field gives the surface normal, a circular profile bends the backdrop
-along the rim, a pull towards the centre adds depth, seven colour bands split the light at the
-edge, and a highlight lights the rim from the top left. The lens is ported from Kyant's
+it (the wallpaper and the windows under it), blurs it, and looks at it through a slab of glass whose
+top edge rounds off, like a glass paperweight. The optics follow real glass:
+
+- **Refraction:** every view ray bends by Snell's law (index 1.5, like crown glass) where it enters the
+  curved edge, then travels down through the slab to the backdrop. That is why the rim magnifies
+  and bends what is behind it while the flat middle stays true.
+- **Dispersion:** the index changes with wavelength by Cauchy's equation. The shader traces five
+  wavelengths from blue to red, so the edge splits light into a faint rainbow, as a prism does.
+- **Reflection:** Fresnel's equations (Schlick's form) decide how much the surface mirrors: about 4%
+  head-on and nearly all of it at grazing angles, which is why real glass edges glow.
+- **Highlights:** a low light from the top left gives a sharp highlight where the rim faces it. The
+  same light, reflected inside the glass, comes out dimmer on the opposite rim.
+- **Absorption:** by the Beer-Lambert law, light that travels further through the glass comes out
+  very slightly darker.
+
+Reflections are drawn above each menu, because light reflects off the top of the glass, over its
+tint. The surface shape is ported from Kyant's
 [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) (Apache 2.0, see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)). The app's preview uses the same lens, so what
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)). The app's preview uses the same optics, so what
 you see there is what you get on the desktop.
 
 <p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Glass panel, ArcMenu and windows over a colourful wallpaper: the rim bends the stripes behind it"></p>

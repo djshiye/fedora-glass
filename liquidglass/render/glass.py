@@ -44,7 +44,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "brightness": 1.0,
         "tint": [0, 0, 0, 0],          # the Shell theme paints the tint
         "highlight": t.glare,
-        "lightAngle": -55,
+        "lightAngle": -125,            # from the top left, as in the preview
         "falloff": 2.0,
         "rim": 1.5,
         "shadow": 0,

@@ -5,6 +5,7 @@
 
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -118,7 +119,8 @@ class Follower {
         this.target = target;
         this.anchor = anchor;
         this.settings = settings;
-        this.pane = new GlassPane();
+        this.pane = new GlassPane('glass');
+        this.top = new GlassPane('reflections');
         this._signals = new Signals();
         this._later = 0;
         this._onGone = onGone;
@@ -132,18 +134,24 @@ class Follower {
             this.pane = null;     // its parent went first
             this.destroy();
         });
+        this._signals.on(this.top, 'destroy', () => {
+            this.top = null;
+            this.destroy();
+        });
         this._onWindows = () => {
             if (this.settings.behind === 'windows' && this.target.mapped)
                 this.queue();
         };
         windowWatch.current?.listeners.add(this._onWindows);
         anchor.get_parent().insert_child_below(this.pane, anchor);
+        anchor.get_parent().insert_child_above(this.top, anchor);
         this.update(settings);
     }
 
     update(settings) {
         this.settings = settings;
-        this.pane.setLook(settings.look);
+        this.pane?.setLook(settings.look);
+        this.top?.setLook(settings.look);
         this.sync();
     }
 
@@ -158,32 +166,47 @@ class Follower {
     }
 
     sync() {
-        const {target, anchor, pane} = this;
+        const {target, anchor, pane, top} = this;
         const parent = anchor.get_parent();
-        if (!pane || !parent || pane.get_parent() !== parent)
+        if (!pane || !top || !parent || pane.get_parent() !== parent || top.get_parent() !== parent)
             return;
-        if (!this.settings.enabled || !target.mapped || target.width < 2 || target.height < 2) {
+        const hide = () => {
             pane.hide();
+            top.hide();
+        };
+        if (!this.settings.enabled || !target.mapped || target.width < 2 || target.height < 2) {
+            hide();
             return;
         }
         if (pane.get_next_sibling() !== anchor)
             parent.set_child_below_sibling(pane, anchor);
+        if (top.get_previous_sibling() !== anchor)
+            parent.set_child_above_sibling(top, anchor);
 
         const [sx, sy] = target.get_transformed_position();
-        const [w, h] = target.get_transformed_size();
+        // Size from the allocation, which is what is painted: width/height (and so
+        // get_transformed_size()) fall back to the preferred size while a relayout is
+        // pending, and the volume OSD prefers twice the height it gets.
+        const box = target.get_allocation_box();
+        const far = target.apply_transform_to_point(new Graphene.Point3D({x: box.get_width(), y: box.get_height(), z: 0}));
+        const [w, h] = [far.x - sx, far.y - sy];
         const [ok, lx, ly] = parent.transform_stage_point(sx, sy);
-        if (!ok) {
-            pane.hide();
+        // A menu that has just opened is mapped a frame before it is allocated.
+        if (!ok || ![sx, sy, w, h, lx, ly].every(Number.isFinite)) {
+            hide();
             return;
         }
         let opacity = 1;
         for (let a = target; a && a !== parent; a = a.get_parent())
             opacity *= a.opacity / 255;
-        pane.opacity = Math.round(opacity * 255);
+        pane.opacity = top.opacity = Math.round(opacity * 255);
         const p = pane.pad;
+        const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
-        pane.place(lx, ly, w, h, radiiOf(target), sx, sy);
+        pane.place(lx, ly, w, h, radii, sx, sy);
+        top.place(lx, ly, w, h, radii, sx, sy);
         pane.show();
+        top.show();
     }
 
     destroy() {
@@ -192,9 +215,10 @@ class Follower {
         this._later = 0;
         this._signals.clear();
         windowWatch.current?.listeners.delete(this._onWindows);
-        const pane = this.pane;
-        this.pane = null;
+        const {pane, top} = this;
+        this.pane = this.top = null;
         pane?.destroy();
+        top?.destroy();
         if (this._onGone) {
             this._onGone(this);
             this._onGone = null;
