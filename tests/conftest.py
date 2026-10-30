@@ -24,11 +24,6 @@ class FakeEnv(Env):
         }
         self.commands: list[list[str]] = []
 
-    def extension_dirs(self):
-        # Only the throwaway home: extensions installed on the machine running the
-        # tests must not change what the tests see.
-        return [self.data / "gnome-shell/extensions"]
-
     def gsettings_keys(self, schema, path=None):
         return set(self.gs.get((schema, path), {}))
 
