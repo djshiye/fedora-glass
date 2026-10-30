@@ -173,11 +173,19 @@ vec2 dent(vec2 dp, float s, float t) {
 
 // Caustic: the rounded edge focuses light onto the backdrop on the side away
 // from the light, so the shaded rim gets a soft band of the backdrop's own
-// light, clearly brighter (nothing over black). A thin bar gathers its light
-// over less glass, so its band is a little softer. Returns the gain.
-float caustic(vec2 n, vec2 L, float crest, vec2 h) {
-    float k = 0.6 * mix(0.65, 1.0, smoothstep(30.0, 80.0, min(h.x, h.y)));
-    return 1.0 + k * max(dot(-n, L), 0.0) * crest;
+// light, clearly brighter. The lift is even in lightness (L*), so it reads the
+// same on every shaded side, short sides and end caps included, over dark
+// backdrops and bright ones; over black there is nothing to lift. c is a
+// straight (not premultiplied) colour.
+vec3 caustic(vec3 c, vec2 n, vec2 L, float crest, vec2 h) {
+    float facing = smoothstep(0.05, 0.45, dot(-n, L));
+    float dL = 12.5 * facing * sqrt(crest) * mix(0.85, 1.0, smoothstep(30.0, 80.0, min(h.x, h.y)));
+    vec3 lin = pow(max(c, vec3(0.0)), vec3(2.2));
+    float Y = max(dot(lin, vec3(0.2126, 0.7152, 0.0722)), 1e-6);
+    float Ls = 116.0 * pow(Y, 1.0 / 3.0) - 16.0;
+    float Ln = Ls + dL * smoothstep(0.0, 20.0, Ls);
+    float Yn = pow((Ln + 16.0) / 116.0, 3.0);
+    return pow(lin * (Yn / Y), vec3(1.0 / 2.2));
 }
 
 vec3 vivid(vec3 c, float k) {
@@ -358,7 +366,7 @@ void main() {
         vec3 base = col.rgb / max(col.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
-        col.rgb = min(col.rgb * caustic(n, L, crest, h), vec3(col.a));
+        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, crest, h) * col.a, vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 

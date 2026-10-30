@@ -97,9 +97,18 @@ vec2 jitter(vec2 p) {
 }
 
 // Caustic: the rounded edge focuses light onto the backdrop on the side away
-// from the light, a soft band of the backdrop's own light. Returns the gain.
-float caustic(vec2 n, float crest) {
-    return 1.0 + 0.25 * pow(max(dot(-n, LIGHT), 0.0), 2.0) * crest;
+// from the light, a soft band of the backdrop's own light. The lift is even in
+// lightness (L*), so every shaded side reads the same; over black there is
+// nothing to lift. c is a straight (not premultiplied) colour.
+vec3 caustic(vec3 c, vec2 n, float crest, vec2 h) {
+    float facing = smoothstep(0.05, 0.45, dot(-n, LIGHT));
+    float dL = 12.5 * facing * sqrt(crest) * mix(0.85, 1.0, smoothstep(30.0, 80.0, min(h.x, h.y)));
+    vec3 lin = pow(max(c, vec3(0.0)), vec3(2.2));
+    float Y = max(dot(lin, vec3(0.2126, 0.7152, 0.0722)), 1e-6);
+    float Ls = 116.0 * pow(Y, 1.0 / 3.0) - 16.0;
+    float Ln = Ls + dL * smoothstep(0.0, 20.0, Ls);
+    float Yn = pow((Ln + 16.0) / 116.0, 3.0);
+    return pow(lin * (Yn / Y), vec3(1.0 / 2.2));
 }
 
 // The content's light: each coloured icon lights the glass around it, and light
@@ -178,7 +187,7 @@ void main() {
         }
         vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
         col.rgb *= exp(-vec3(0.006, 0.0025, 0.004) * min(th / max(-Rt.z, 0.2) - th, 40.0));
-        col.rgb = min(col.rgb * caustic(n, crest), vec3(col.a));
+        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, crest, c) * col.a, vec3(col.a));
         col = over(col, tint, 1.0);
     }
     if (mode > 0.5 && mode < 1.5) {
