@@ -11,14 +11,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..color import lerp
+from ..color import Color, lerp
 from ..palette import Tokens
 from ..settings import Settings
 
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
-         "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js", "prefs.js",
+         "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js", "prefs.js",
          "dtpquiet.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
@@ -96,6 +96,16 @@ def _window_look(t: Tokens, name: str) -> dict:
             "depth": 0.1, "highlight": p["glare"], "bleed": 0, "shadow": 0, **_milk(t, name)}
 
 
+def _lock_config(s: Settings, off: bool) -> dict:
+    """The glass lock screen: one frosted sheet over the wallpaper, a glass card behind
+    the password, and how the sheet slides up on unlock."""
+    c = Color.hex(s.tint)
+    return {"enabled": s.lock_glass and not off, "blur": s.lock_blur, "dim": round(1 - s.lock_dim, 3),
+            "tint": [round(c.r, 4), round(c.g, 4), round(c.b, 4), round(s.lock_tint * 0.4, 3)],
+            "card": s.lock_card, "clockStyle": s.lock_clock, "clockPosition": s.lock_clock_position,
+            "slide": s.lock_slide, "slideMs": s.lock_slide_ms, "bounce": s.lock_bounce}
+
+
 def config(s: Settings, t: Tokens) -> dict:
     s = s.normalized()
     off = s.reduce_transparency
@@ -140,6 +150,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,
+        "lock": _lock_config(s, off),
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
     }

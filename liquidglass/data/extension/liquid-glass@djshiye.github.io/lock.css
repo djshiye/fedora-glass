@@ -1,0 +1,9 @@
+/* Liquid Glass lock screen. Loaded only while the screen is locked (the Shell theme
+   is GNOME's own then), and taken away again on unlock. Looks only. */
+
+/* The password field: a clear 2 px accent focus ring and a visible caret. GNOME's
+   own ring is !important, so this one is too. */
+.unlock-dialog .login-dialog-prompt-entry {
+  caret-color: #ffffff; }
+.unlock-dialog .login-dialog-prompt-entry:focus {
+  box-shadow: inset 0 0 0 2px -st-accent-color !important; }
