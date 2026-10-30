@@ -6,6 +6,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Signals} from './common.js';
+import {wrapAnimator} from './dtpquiet.js';
 import {Follower} from './follower.js';
 
 // ---- Dash to Panel's attention wiggle -------------------------------------------
@@ -32,33 +33,16 @@ function quiet(target) {
         Object.defineProperty(target, 'rotation_angle_z', QUIET);
 }
 
+let warned = false;
+function warnOnce(msg) {
+    if (!warned)
+        console.warn(`Liquid Glass: ${msg}`);
+    warned = true;
+}
+
 function unquiet(target) {
     if (Object.getOwnPropertyDescriptor(target, 'rotation_angle_z')?.set === QUIET.set)
         delete target.rotation_angle_z;
-}
-
-/** Wraps one Dash to Panel IconAnimator; returns how to undo it. */
-function quietAnimator(anim) {
-    const dancers = () => anim._animations?.dance ?? [];
-    const {addAnimation, removeAnimation} = anim;
-    if (typeof addAnimation !== 'function' || typeof removeAnimation !== 'function' || !Array.isArray(dancers()))
-        return null;
-    anim.addAnimation = function (target, name) {
-        addAnimation.call(this, target, name);
-        if (name === 'dance' && dancers().some(p => p.target === target))
-            quiet(target);
-    };
-    anim.removeAnimation = function (target, name) {
-        removeAnimation.call(this, target, name);
-        if (name === 'dance' && !dancers().some(p => p.target === target))
-            unquiet(target);
-    };
-    dancers().forEach(p => quiet(p.target));
-    return () => {
-        dancers().forEach(p => unquiet(p.target));
-        delete anim.addAnimation;
-        delete anim.removeAnimation;
-    };
 }
 
 // ---- top bar and Dash to Panel ------------------------------------------------
@@ -128,7 +112,7 @@ export class Panels {
             if (this._quieted.has(anim))
                 continue;
             try {
-                const undo = quietAnimator(anim);
+                const undo = wrapAnimator(anim, quiet, unquiet, warnOnce);
                 if (undo)
                     this._quieted.set(anim, undo);
             } catch (e) {
