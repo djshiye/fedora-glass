@@ -1,4 +1,4 @@
-"""GTK 3 stylesheet on top of the adw-gtk3 theme.
+"""GTK 3 stylesheet, on top of adw-gtk3 or the user's own GTK 3 theme.
 
 adw-gtk3 colours everything from libadwaita's named colours, and GTK 3 resolves
 named colours late, so redefining them in ~/.config/gtk-3.0/gtk.css recolours
@@ -16,7 +16,7 @@ from ..palette import Tokens
 from .gtk4 import _geometry, adwaita_colors, glass_colors, view_color
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk3.css.tpl"
-HEADER = "/* Liquid Glass for GTK 3 (adw-gtk3). Generated, edits are overwritten. */\n"
+HEADER = "/* Liquid Glass for GTK 3. Generated, edits are overwritten. */\n"
 
 THEMES = ("adw-gtk3", "adw-gtk3-dark")
 

@@ -144,21 +144,29 @@ def test_gtk4_target_writes_both_files(fake_env):
     assert all("@media (prefers-color-scheme: dark)" in a.content for a in acts)
 
 
-def test_gtk3_needs_adw_gtk3(fake_env):
+def test_gtk3_works_without_adw_gtk3(fake_env):
+    """Without adw-gtk3 the user's GTK 3 theme (Orchis, say) stays and our sheet goes on top."""
     t = by_id("gtk3")
-    det = t.detect(fake_env)
-    assert not det.available and "dnf install adw-gtk3-theme" in det.detail
-    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
     assert t.detect(fake_env).available
+    ctx = ctx_for(fake_env)
+    acts = t.plan(ctx)
+    assert not [a for a in acts if isinstance(a, GSet)], "the gtk-theme must stay the user's"
+    w = next(a for a in acts if isinstance(a, WriteFile))
+    assert w.path == fake_env.config / "gtk-3.0/gtk.css" and "headerbar" in w.content
+    assert t.live_notes(ctx) == ["Some GTK 3 details need adw-gtk3: sudo dnf install adw-gtk3-theme"]
+    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
+    assert t.live_notes(ctx) == []
+    assert any(isinstance(a, GSet) for a in t.plan(ctx))
 
 
 def test_gtk3_also_found_in_dot_themes(fake_env):
     (fake_env.home / ".themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
-    assert by_id("gtk3").detect(fake_env).available
+    assert "adw-gtk3 found" in by_id("gtk3").detect(fake_env).detail
 
 
 @pytest.mark.parametrize("dark,theme", [(True, "'adw-gtk3-dark'"), (False, "'adw-gtk3'")])
 def test_gtk3_plan(fake_env, dark, theme):
+    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
     acts = by_id("gtk3").plan(ctx_for(fake_env, dark=dark))
     gset = next(a for a in acts if isinstance(a, GSet))
     assert (gset.schema, gset.key, gset.value) == ("org.gnome.desktop.interface", "gtk-theme", theme)
@@ -195,3 +203,74 @@ def test_engine_replaces_symlinked_gtk_css(fake_env):
     assert "Liquid Glass" in (d / "gtk.css").read_text()
     assert Engine(fake_env, targets=[by_id("gtk4")]).revert("gtk4") == []
     assert (d / "gtk.css").is_symlink()
+
+
+def test_calculator_keys_outrank_the_glass_button_rule():
+    # The general glass button selector carries many :not()s, so a plain
+    # ".math-buttons button" rule loses to it. The Calculator rule must extend it.
+    t = toks(False, 0.4)
+    css = gtk4.render(toks(True, 0.4), t)
+    head = ".math-buttons " + gtk4._geometry(t)["glass_btn"] + " {"
+    assert head in css
+    start = css.index(head) + len(head)
+    body = css[start:css.index("}", start)]
+    assert "var(--card-bg-color)" in body and "background-image: none" in body
+
+
+def _specificity(selector: str) -> tuple[int, int, int]:
+    """CSS specificity (ids, classes and pseudo-classes, elements) of one simple selector chain."""
+    s = re.sub(r":not\(([^)]*)\)", r" \1", selector)
+    classes = len(re.findall(r"[.:][\w-]+", s))
+    elements = len(re.findall(r"(?:^|[\s>+~])([a-z][\w-]*)", s))
+    return 0, classes, elements
+
+
+def test_header_buttons_are_flat_and_outrank_glass_pills():
+    t = toks(True, 0.4)
+    geo = gtk4._geometry(t)
+    pill = _specificity(geo["glass_btn"] + ":hover")
+    for sel in geo["hdr_btn_hover"].split(", "):
+        assert _specificity(sel) > pill, sel
+    for sel in geo["hdr_btn"].split(", "):
+        assert _specificity(sel) > _specificity(geo["glass_btn"]), sel
+        # Calls to action stay filled.
+        assert ":not(.suggested-action)" in sel and ":not(.destructive-action)" in sel
+    css = gtk4.render(t)
+    rest = css.split(geo["hdr_btn"] + " {", 1)[1].split("}", 1)[0]
+    assert "background-color: transparent" in rest and "box-shadow: none" in rest
+    assert "border-radius: 8px" in rest
+    # Flat but clearly enabled: 90% of the title's colour, not a disabled-looking grey.
+    assert "color: color-mix(in srgb, currentColor 90%, transparent)" in rest
+
+
+def test_window_controls_are_flat_and_close_is_red_only_on_hover():
+    css = gtk4.render(toks(True, 0.4))
+    assert "windowcontrols > button > image {\n  background-color: var(--lg-glass)" not in css
+    red = [line for line in css.splitlines() if "var(--lg-close)" in line]
+    assert red and all(":hover" in line for line in red)
+
+
+@pytest.mark.parametrize("dark", (True, False))
+def test_gtk3_header_buttons_are_flat(dark):
+    css = gtk3.render(toks(dark, 0.4))
+    assert ".titlebutton, headerbar .titlebutton { border-radius: 999px" not in css
+    assert "headerbar .titlebutton.close:hover" in css and "@lg_close" in css
+    assert "@lg_tile" in css and "@lg_tile_press" in css
+    assert "color: alpha(@headerbar_fg_color, 0.9);" in css
+
+
+def test_unfocused_bars_fade_once_to_65_percent():
+    css = gtk4.render(toks(True, 0.4))
+    assert "headerbar:backdrop > windowhandle," in css and "filter: opacity(0.65)" in css
+    # Icons don't add a second fade of their own on top of the bar's.
+    assert ":backdrop { color: color-mix" not in css
+    gtk3_css = gtk3.render(toks(True, 0.4))
+    assert "alpha(@headerbar_fg_color, 0.65)" in gtk3_css
+
+
+def test_files_path_bar_is_one_field_with_flat_segments():
+    geo = gtk4._geometry(toks(True, 0.4))
+    assert _specificity(geo["path_btn"]) > _specificity(geo["glass_btn"])
+    assert _specificity(geo["path_btn_hover"]) > _specificity(geo["glass_btn"] + ":hover")
+    css = gtk4.render(toks(True, 0.4))
+    assert ".nautilus-pathbar .path-bar-box { background: none" in css
