@@ -1,11 +1,13 @@
-# Builds the RPM when a version tag (v1.2.3) is pushed and attaches it to a
-# GitHub release, so it installs with:
+# Builds the RPM and publishes it as a GitHub release, either when a version tag
+# (v1.2.3) is pushed or when run by hand from the Actions tab (that run tags the
+# commit with the version in the spec). The RPM then installs with:
 #   sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/liquid-glass.noarch.rpm
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write   # create the release and upload the RPM; nothing else
@@ -20,12 +22,14 @@ jobs:
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Tag matches the spec
+      - name: Version
         run: |
-          ver="${GITHUB_REF_NAME#v}"
           spec="$(rpmspec -q --qf '%{version}\n' --srpm packaging/liquid-glass.spec)"
-          test "$ver" = "$spec" || { echo "tag $ver but spec says $spec"; exit 1; }
-          echo "VER=$ver" >> "$GITHUB_ENV"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            test "${GITHUB_REF_NAME#v}" = "$spec" || { echo "tag $GITHUB_REF_NAME but spec says $spec"; exit 1; }
+          fi
+          echo "VER=$spec" >> "$GITHUB_ENV"
+          echo "TAG=v$spec" >> "$GITHUB_ENV"
 
       - name: Tests
         run: python3 -m pytest -q tests
@@ -46,5 +50,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" \
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Liquid Glass $VER" --notes "Install: sudo dnf install https://github.com/$GITHUB_REPOSITORY/releases/latest/download/liquid-glass.noarch.rpm"
