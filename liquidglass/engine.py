@@ -28,7 +28,7 @@ from . import palette
 from .env import Env
 from .settings import Settings, config_dir
 from .targets import all_targets
-from .targets.base import Action, Command, Context, FlatpakOverride, GSet, ListEdit, Target, WriteFile
+from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 
 
 @dataclass
@@ -135,6 +135,30 @@ class Backup:
         self.data["gsettings"][key] = {"target": target, "value": old}
         return True
 
+    def reset_gsetting(self, target: str, env: Env, g: GReset) -> str | None:
+        """Undo this target's change to one key. Returns a problem, or None."""
+        key = f"{g.schema}|{g.path or ''}|{g.key}"
+        e = self.data["gsettings"].get(key)
+        if not e or e["target"] != target:
+            return None
+        if self.changed_since(env, key, e):
+            del self.data["gsettings"][key]     # the user's own choice now; leave it
+            return None
+        r = env.gsettings_set(g.schema, g.key, e["value"], g.path)
+        if not r.ok:
+            return f"{g.schema} {g.key}: {r.err.strip()}"
+        if not env.dry_run:
+            del self.data["gsettings"][key]
+        return None
+
+    @staticmethod
+    def changed_since(env: Env, key: str, e: dict) -> bool:
+        """Whether the user changed a key we marked as theirs to keep after we set it."""
+        if "ours" not in e:
+            return False
+        schema, path, k = key.split("|", 2)
+        return env.gsettings_get(schema, k, path or None) != e["ours"]
+
     def record_command(self, target: str, c: Command) -> None:
         if c.undo:
             self.data["commands"][" ".join(c.argv)] = {"target": target, "undo": list(c.undo)}
@@ -178,6 +202,9 @@ class Backup:
             if not mine(e):
                 continue
             schema, path, k = key.split("|", 2)
+            if self.changed_since(self.env, key, e):
+                del self.data["gsettings"][key]
+                continue
             r = self.env.gsettings_set(schema, k, e["value"], path or None)
             if r.ok:
                 del self.data["gsettings"][key]
@@ -393,6 +420,11 @@ class Engine:
                 r = self.env.gsettings_set(a.schema, a.key, a.value, a.path)
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
+                elif a.keep_user_change and not self.env.dry_run:
+                    backup.data["gsettings"][f"{a.schema}|{a.path or ''}|{a.key}"]["ours"] = a.value
+            elif isinstance(a, GReset):
+                if (err := backup.reset_gsetting(tid, self.env, a)):
+                    errs.append(err)
             elif isinstance(a, ListEdit):
                 if a.key not in self.env.gsettings_keys(a.schema, a.path):
                     continue

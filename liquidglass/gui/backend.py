@@ -341,6 +341,8 @@ class Backend(QObject):
     headerHeight = _p("header_height", int)
     headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
     terminalColors = _p("terminal_colors", bool)
+    startOnDesktop = _p("start_on_desktop", bool)
+    overviewOff = _p("overview_off", bool)
     del _p
 
     # ---- per-part overrides ------------------------------------------------------

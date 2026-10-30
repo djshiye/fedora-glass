@@ -36,10 +36,24 @@ class GSet:
     value: str                 # GVariant text, e.g. "true", "'name'", "0.5"
     path: str | None = None    # for relocatable schemas
     optional: bool = True      # skip silently if the key doesn't exist on this version
+    # Another app's own setting: if the user changes it after us, undoing leaves their choice.
+    keep_user_change: bool = False
 
     def describe(self) -> str:
         where = f"{self.schema}:{self.path}" if self.path else self.schema
         return f"set {where} {self.key} = {self.value}"
+
+
+@dataclass(frozen=True)
+class GReset:
+    """Put a gsettings key back the way it was before this target changed it, if it did.
+    For options the user has since turned off; a key we never touched is left alone."""
+    schema: str
+    key: str
+    path: str | None = None
+
+    def describe(self) -> str:
+        return f"restore {self.schema} {self.key} if Liquid Glass changed it"
 
 
 @dataclass(frozen=True)
@@ -82,7 +96,7 @@ class FlatpakOverride:
         return f"flatpak override for all apps: {', '.join(bits)}"
 
 
-Action = WriteFile | GSet | Command | ListEdit | FlatpakOverride
+Action = WriteFile | GSet | GReset | Command | ListEdit | FlatpakOverride
 
 
 # ---- context and target -------------------------------------------------------
