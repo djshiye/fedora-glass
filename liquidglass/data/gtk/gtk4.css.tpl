@@ -140,12 +140,6 @@ $glass_btn:active, $glass_btn:checked {
   background-image: none;
   box-shadow: inset 0 1px 3px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge);
 }
-windowcontrols > button > image {
-  background-color: var(--lg-glass);
-  background-image: linear-gradient(to bottom, var(--lg-sheen-top), var(--lg-sheen-bottom) 70%);
-  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
-}
-windowcontrols > button:hover > image { background-color: var(--lg-glass-hi); }
 button.suggested-action, button.destructive-action, button.opaque {
   background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 60%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.10), 0 2px 8px 0 var(--lg-shadow);
@@ -168,6 +162,76 @@ splitbutton > menubutton:last-child > button { border-radius: 0 999px 999px 0; }
 button.osd, .osd button { background-color: rgba(20, 20, 24, 0.55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.10); }
 menubutton > button, dropdown > button, combobox button.combo { border-radius: 999px; }
 button.destructive-action { color: var(--destructive-fg-color); }
+
+/* ---- header bar buttons: flat icons on one glass bar -------------------------
+   No bubbles at rest. Hovering a button lifts a glass tile under that one button,
+   pressing it thins the tile and dips the icon. Calls to action (Save, Delete)
+   stay filled. The tile fades in quickly and out slowly. */
+$hdr_btn {
+  border-radius: 8px;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: color-mix(in srgb, currentColor 90%, transparent);
+  transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
+}
+$hdr_btn_hover, $hdr_btn_checked {
+  background-color: var(--lg-tile);
+  background-image: none;
+  box-shadow: inset 0 1px 0 var(--lg-rim);
+  color: var(--headerbar-fg-color);
+  transition-duration: 120ms;
+}
+$hdr_btn_checked { color: var(--accent-color); }
+$hdr_btn_active {
+  background-color: var(--lg-tile-press);
+  background-image: none;
+  box-shadow: inset 0 1px 2px 0 var(--lg-shadow);
+  transition-duration: 60ms;
+}
+$hdr_btn_icon { transition: -gtk-icon-transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+$hdr_btn_icon_active { -gtk-icon-transform: scale(0.94); transition-duration: 60ms; }
+
+/* Window controls: the same flat glyphs and tile. Close turns soft red on hover only. */
+windowcontrols > button {
+  border-radius: 8px;
+  background-color: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--headerbar-fg-color) 90%, transparent);
+  transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
+}
+windowcontrols > button > image, windowcontrols > button:hover > image, windowcontrols > button:active > image {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  transition: -gtk-icon-transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+windowcontrols > button:hover {
+  background-color: var(--lg-tile);
+  box-shadow: inset 0 1px 0 var(--lg-rim);
+  color: var(--headerbar-fg-color);
+  transition-duration: 120ms;
+}
+windowcontrols > button:active { background-color: var(--lg-tile-press); box-shadow: inset 0 1px 2px 0 var(--lg-shadow); }
+windowcontrols > button:active > image { -gtk-icon-transform: scale(0.94); }
+windowcontrols > button.close:hover, windowcontrols > button.close:active { background-color: var(--lg-close); box-shadow: none; color: white; }
+
+/* Unfocused windows: libadwaita fades the whole bar to 50%, which on top of the
+   icons' own 90% nearly hides them. Fade bars to 65% instead (titles, icons and
+   text buttons alike), keeping libadwaita's rule that nested bars fade only once. */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle, toolbarview > .bottom-bar:backdrop > windowhandle,
+tabbar .box:backdrop > scrolledwindow, tabbar .box:backdrop > .start-action, tabbar .box:backdrop > .end-action {
+  filter: opacity(0.65);
+  transition: filter 120ms ease-out;
+}
+toolbarview > .top-bar headerbar:backdrop > windowhandle, toolbarview > .bottom-bar headerbar:backdrop > windowhandle,
+toolbarview > .top-bar tabbar .box:backdrop > scrolledwindow, toolbarview > .bottom-bar tabbar .box:backdrop > scrolledwindow,
+toolbarview > .top-bar tabbar .box:backdrop > .start-action, toolbarview > .bottom-bar tabbar .box:backdrop > .start-action,
+toolbarview > .top-bar tabbar .box:backdrop > .end-action, toolbarview > .bottom-bar tabbar .box:backdrop > .end-action,
+tabbar.inline .box:backdrop > scrolledwindow, tabbar.inline .box:backdrop > .start-action, tabbar.inline .box:backdrop > .end-action {
+  filter: none;
+}
 
 /* ---- entries, search, spin buttons ----------------------------------------- */
 entry, spinbutton, searchentry, row.entry, row.spin {
@@ -336,9 +400,19 @@ toggle-group button:checked, toggle-group > toggle:checked {
 }
 
 /* ---- Nautilus ---------------------------------------------------------------------- */
-.path-bar-box, pathbar { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
+/* Files' path bar is one glass field: the location and the ⋮ menu share one fill. */
+.nautilus-pathbar, pathbar { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
+.path-bar-box { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
+.nautilus-pathbar > menubutton > button { margin: 3px; }
+.nautilus-pathbar .path-bar-box { background: none; box-shadow: none; padding: 0; }
+.nautilus-pathbar > scrolledwindow:dir(ltr) undershoot.left { border-radius: 999px 0 0 999px; }
+.nautilus-pathbar > scrolledwindow:dir(rtl) undershoot.right { border-radius: 0 999px 999px 0; }
 .path-bar-box button, pathbar button { border-radius: 999px; background: transparent; box-shadow: none; min-height: 28px; }
 .path-bar-box button.current-dir, pathbar button:checked, .path-bar-box button:checked { background-color: var(--lg-glass-hi); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge); }
+/* Folder segments sit flat inside the field (Files marks the current one in bold);
+   hovering a parent folder lifts the same glass tile as header buttons. */
+$path_btn { background: none; box-shadow: none; border-radius: 999px; }
+$path_btn_hover { background-color: var(--lg-tile); box-shadow: inset 0 1px 0 var(--lg-rim); }
 NautilusViewCell, .nautilus-grid-view > child { border-radius: $radius_card; }
 .nautilus-window .view, window.nautilus .view { background-color: var(--view-bg-color); }
 .floating-bar, .nautilus-floating-bar { border-radius: 999px; background-color: var(--popover-bg-color); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 4px 14px 0 var(--lg-shadow); }
