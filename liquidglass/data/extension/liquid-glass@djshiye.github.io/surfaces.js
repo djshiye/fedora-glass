@@ -156,6 +156,9 @@ class Follower {
         this._held = null;        // the target's own opacity, while it waits for its glass
         this._holdId = 0;
         this._holdPaint = 0;
+        this._opacity = 1;
+        this._closing = false;
+        this._faded = false;
         followers.add(this);
 
         for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
@@ -200,6 +203,8 @@ class Follower {
         // frame can take longer than that, so give the glass one frame at least.
         let frames = 0, expired = false;
         const giveUp = () => {
+            if (this._faded)
+                return;   // still invisible: wait until there is something to show
             global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
                 this._release();
                 return GLib.SOURCE_REMOVE;
@@ -290,16 +295,25 @@ class Follower {
             hide();
             return;
         }
-        // Glass is never half there: a fading menu (GNOME fades pop-ups as they open
-        // and close) fades its content over complete glass, which goes only at the end.
-        let shown = true;
+        // Opening, the glass is complete from its first frame and only the content
+        // fades in over it, so nothing sharp behind shows through. Closing, the
+        // glass fades with the content, so it is never left bare without its veil.
+        let opacity = 1;
         for (let a = target; a && a !== parent; a = a.get_parent())
-            shown &&= (a === target && this._held !== null ? this._held : a.opacity) > 0;
-        if (!shown) {
+            opacity *= (a === target && this._held !== null ? this._held : a.opacity) / 255;
+        // Fully faded (a menu about to fade in, or done fading out): no glass, and a
+        // held menu keeps waiting for it, since nothing of it could show anyway.
+        this._faded = opacity <= 0;
+        if (this._faded) {
             hide();
             return;
         }
-        pane.opacity = top.opacity = 255;
+        if (opacity >= 1 || !pane.visible)
+            this._closing = false;
+        else if (opacity < this._opacity - 1e-3)
+            this._closing = true;
+        this._opacity = opacity;
+        pane.opacity = top.opacity = this._closing ? Math.round(opacity * 255) : 255;
         const p = pane.pad;
         const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
@@ -375,6 +389,8 @@ class Motion {
         this._later = 0;
         this._last = 0;
         this._settings = St.Settings.get();
+        // Reduce animation can change at any time: follow it at once, pointer still or not.
+        this._animId = this._settings.connect('notify::enable-animations', () => this._kick());
         // The cursor tracker reports every pointer move, also ones the stage's
         // event chain never sees.
         this._cursor = global.backend.get_cursor_tracker();
@@ -515,6 +531,7 @@ class Motion {
         this._later = 0;
         global.stage.disconnect(this._stage);
         this._cursor.disconnect(this._cursorId);
+        this._settings.disconnect(this._animId);
         for (const f of followers)
             f.setMotion({k: 0, press: 0, open: 1});
         this._state.clear();
