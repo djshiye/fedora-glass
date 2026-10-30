@@ -16,7 +16,7 @@ from dataclasses import asdict, fields, replace
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QProcess, QThread, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
 from .. import APP_ID, palette
@@ -132,6 +132,14 @@ class Backend(QObject):
         self._task_done: Callable[[Any], None] = lambda out: None
         self._task_busy = False
         self._monitor: QProcess | None = None
+        self._pending_apply = False
+        # The glass extension follows its config file live, so once it runs the
+        # desktop can follow the sliders before Apply.
+        self._glass_live = False
+        self._live_timer = QTimer(self)
+        self._live_timer.setSingleShot(True)
+        self._live_timer.setInterval(120)
+        self._live_timer.timeout.connect(lambda: self._write_live_glass(self._s))
         self._wallpaper = self._find_wallpaper()
         self._dock = self._find_dock()
         self._rebuild_tokens()
@@ -206,6 +214,22 @@ class Backend(QObject):
     def _changed(self) -> None:
         self._rebuild_tokens()
         self.settingsChanged.emit()
+        if self._glass_live:
+            self._live_timer.start()
+
+    def _write_live_glass(self, s: Settings) -> None:
+        if not self._glass_live:
+            return
+        from ..engine import atomic_write
+        from ..render import glass as rg
+        s = s.normalized()
+        dark = s.scheme == "dark" or (s.scheme == "auto" and self._system_dark)
+        t = palette.build(s, dark=dark, system_accent=self._system_accent)
+        try:
+            path = self._env.config / "liquid-glass/shell-glass.json"
+            atomic_write(path, rg.render_config(s, t).encode())
+        except OSError:
+            pass   # the desktop just keeps its last look; Apply reports real problems
 
     def _set(self, name: str, value: Any) -> None:
         if getattr(self._s, name) == value:
@@ -252,6 +276,12 @@ class Backend(QObject):
 
     @Slot()
     def shutdown(self) -> None:
+        # Unapplied changes shown live on the desktop go back to the saved look.
+        self._live_timer.stop()
+        if self._task is not None:
+            self._task.wait(30000)    # let a running Apply or Restore finish first
+        if self._glass_live and self._s != self._saved:
+            self._write_live_glass(self._saved)
         if self._monitor is not None:
             self._monitor.kill()
             self._monitor.waitForFinished(500)
@@ -285,7 +315,18 @@ class Backend(QObject):
     panelMargin = _p("panel_margin", int)
     blurAppWindows = _p("blur_app_windows", bool)
     terminalOpacity = _p("terminal_opacity", float, -1.0)
+    refraction = _p("refraction", float)
+    dispersion = _p("dispersion", float)
+    vibrancy = _p("vibrancy", float)
+    glassPanel = _p("glass_panel", bool)
+    glassMenus = _p("glass_menus", bool)
+    glassOverview = _p("glass_overview", bool)
+    glassSeeWindows = _p("glass_see_windows", bool)
     del _p
+
+    @Property(bool, notify=targetsChanged)
+    def glassLive(self) -> bool:
+        return self._glass_live
 
     def _get_auto(self) -> dict:
         return dict(self._auto)
@@ -462,15 +503,25 @@ class Backend(QObject):
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
                             "available": available, "detail": detail})
-            return out, self._backup_exists(engine)
+            return out, self._backup_exists(engine), self._glass_running(engine)
         self._run("detect", job, self._targets_done, show_busy=False)
+
+    @staticmethod
+    def _glass_running(engine: Any) -> bool:
+        """Applied, and already loaded by the Shell (new extensions load at login)."""
+        try:
+            from ..engine import Backup
+            from ..targets.shell import GlassEffects
+            return "glass" in Backup(engine.env).targets_with_changes() and GlassEffects.running(engine.env)
+        except Exception:
+            return False
 
     def _targets_done(self, out: Any) -> None:
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
         else:
-            self._targets, self._has_backup = out
+            self._targets, self._has_backup, self._glass_live = out
         self._targets_ready = True
         self.targetsChanged.emit()
 
@@ -526,6 +577,9 @@ class Backend(QObject):
             self._busy = ""
             self.busyChanged.emit()
         done(out)
+        if self._pending_apply and self._task is None:
+            self._pending_apply = False
+            self.apply()
 
     @Slot(float, str)
     def _on_progress(self, f: float, text: str) -> None:
@@ -555,6 +609,10 @@ class Backend(QObject):
 
     @Slot()
     def apply(self) -> None:
+        if self._task is not None:
+            # Still checking the system in the background: apply as soon as that ends.
+            self._pending_apply = True
+            return
         s = self._s.normalized()
         try:
             settings_mod.save(s, self._path)
@@ -584,12 +642,17 @@ class Backend(QObject):
                 return
             results, self._has_backup = out
             self.targetsChanged.emit()
+            self.refreshTargets()          # the glass may be live now, and notes change
             self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
                                       "message": r.message} for r in results])
         self._run("apply", job, done)
 
     @Slot()
     def revert(self) -> None:
+        # From here on the extension's config is the engine's to remove; stop writing it.
+        self._live_timer.stop()
+        self._glass_live = False
+
         def job(report):
             engine = self._engine_obj()
             report(0.3, "Restoring")
@@ -601,6 +664,7 @@ class Backend(QObject):
                 self.failed.emit(f"Restore stopped: {out}")
                 return
             problems, self._has_backup = out
+            self._glass_live = False
             self.targetsChanged.emit()
             self.revertFinished.emit(problems)
         self._run("revert", job, done)

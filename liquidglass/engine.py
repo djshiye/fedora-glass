@@ -103,6 +103,9 @@ class Backup:
         if key in self.data["files"] or self.env.dry_run:
             return
         entry: dict = {"target": target}
+        if path.is_dir() and not path.is_symlink():
+            # A folder is never ours to replace (and revert must never delete it).
+            raise IsADirectoryError(f"{path} is a folder")
         if path.is_symlink():
             entry.update(kind="symlink", link=os.readlink(path))
         elif path.is_file():
@@ -114,7 +117,12 @@ class Backup:
             shutil.copy2(path, copy)
             entry.update(kind="file", copy=str(copy), mode=path.stat().st_mode & 0o777)
         else:
-            entry.update(kind="missing")
+            # Folders this write will create, so revert can take them away again.
+            new_dirs, d = [], path.parent
+            while d != d.parent and not d.exists():
+                new_dirs.append(str(d))
+                d = d.parent
+            entry.update(kind="missing", new_dirs=new_dirs)
         self.data["files"][key] = entry
 
     def record_gsetting(self, target: str, env: Env, g: GSet) -> bool:
@@ -136,26 +144,36 @@ class Backup:
         """Restore one target (or all). Returns problems, empty if clean."""
         problems: list[str] = []
         mine = lambda e: not target or e["target"] == target  # noqa: E731
+        new_dirs: set[str] = set()
         for key, e in list(self.data["files"].items()):
             if not mine(e):
                 continue
             p = Path(key)
             try:
+                if p.is_dir() and not p.is_symlink():
+                    # Not something we wrote: never delete a folder the user made there.
+                    if e["kind"] != "missing":
+                        raise IsADirectoryError("is now a folder, left as it is")
+                    del self.data["files"][key]
+                    continue
+                # Read the copy first, so a lost backup never costs the current file.
+                original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
                 if p.is_symlink() or p.exists():
-                    if p.is_dir() and not p.is_symlink():
-                        shutil.rmtree(p)
-                    else:
-                        p.unlink()
+                    p.unlink()
                 if e["kind"] == "symlink":
                     p.parent.mkdir(parents=True, exist_ok=True)
                     p.symlink_to(e["link"])
-                elif e["kind"] == "file":
-                    atomic_write(p, Path(e["copy"]).read_bytes(), e.get("mode", 0o644))
+                elif original is not None:
+                    atomic_write(p, original, e.get("mode", 0o644))
                     with contextlib.suppress(OSError):
                         os.unlink(e["copy"])
+                new_dirs.update(e.get("new_dirs", []))
                 del self.data["files"][key]
             except OSError as err:
                 problems.append(f"{p}: {err}")
+        for d in sorted(new_dirs, key=len, reverse=True):   # deepest first; only while empty
+            with contextlib.suppress(OSError):
+                os.rmdir(d)
         for key, e in list(self.data["gsettings"].items()):
             if not mine(e):
                 continue
@@ -380,7 +398,7 @@ class Engine:
                     continue
                 items = parse_strv(self.env.gsettings_get(a.schema, a.key, a.path))
                 key = f"{a.schema}|{a.path or ''}|{a.key}"
-                rec = backup.data["lists"].setdefault(key, {"target": tid, "added": [], "removed": []})
+                rec = backup.data["lists"].get(key, {"target": tid, "added": [], "removed": []})
                 changed = False
                 for i in a.add:
                     if i not in items:
@@ -395,6 +413,8 @@ class Engine:
                         if i not in rec["removed"]:
                             rec["removed"].append(i)
                 if changed:
+                    # Only a real change is recorded, so an untouched list doesn't count as applied.
+                    backup.data["lists"][key] = rec
                     r = self.env.gsettings_set(a.schema, a.key, format_strv(items), a.path)
                     if not r.ok:
                         errs.append(f"{a.schema} {a.key}: {r.err.strip()}")

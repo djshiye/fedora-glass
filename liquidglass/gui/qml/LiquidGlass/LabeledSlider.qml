@@ -9,6 +9,7 @@ Item {
     property real to: 1
     property real stepSize: 0.01
     property var format: (v) => Math.round(v * 100) + "%"
+    property string tip: ""
     signal moved(real value)
     width: parent ? parent.width : 300
     implicitHeight: 20 + 6 + slider.height
@@ -26,6 +27,8 @@ Item {
         font.pixelSize: 13
         font.features: { "tnum": 1 }
     }
+    HoverHandler { id: hover }
+    LgToolTip { shown: root.tip.length > 0 && hover.hovered; text: root.tip }
     LgSlider {
         id: slider
         y: 26

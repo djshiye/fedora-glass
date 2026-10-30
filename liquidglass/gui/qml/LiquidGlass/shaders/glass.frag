@@ -1,7 +1,10 @@
 #version 440
 // Liquid Glass surface: refracting bezel, tint, 1px edge and a directional
 // specular rim, all inside an antialiased rounded rectangle. `source` is the
-// (already blurred) backdrop that lies exactly under the item.
+// (already blurred) backdrop that lies exactly under the item. The lens is the
+// same as the Shell extension's (glass.js), after Kyant's AndroidLiquidGlass
+// (Apache License 2.0): circular edge profile, SDF gradient as the normal,
+// a pull towards the centre for depth, seven-band dispersion.
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
@@ -19,12 +22,22 @@ layout(std140, binding = 0) uniform buf {
     vec4 rim;
     vec4 edge;
     float mode;        // 0 = everything, 1 = body only, 2 = rim and edge only
+    float depth;       // 0..1, bends towards the centre as well as across the edge
 };
 layout(binding = 1) uniform sampler2D source;
 
 float sdRoundRect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + vec2(r);
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+vec2 gradRoundRect(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - (b - vec2(r));
+    vec2 s = vec2(p.x < 0.0 ? -1.0 : 1.0, p.y < 0.0 ? -1.0 : 1.0);
+    if (q.x >= 0.0 || q.y >= 0.0)
+        return s * normalize(max(q, 0.0) + vec2(1e-4));
+    float gx = step(q.y, q.x);
+    return s * vec2(gx, 1.0 - gx);
 }
 
 // Qt hands colour uniforms over premultiplied; k scales the layer's strength.
@@ -43,10 +56,8 @@ void main() {
         return;
     }
 
-    vec2 n = vec2(sdRoundRect(p + vec2(0.5, 0.0), c, r) - sdRoundRect(p - vec2(0.5, 0.0), c, r),
-                  sdRoundRect(p + vec2(0.0, 0.5), c, r) - sdRoundRect(p - vec2(0.0, 0.5), c, r));
-    float nl = length(n);
-    n = nl > 1e-4 ? n / nl : vec2(0.0);
+    float gr = min(r * 1.5, min(c.x, c.y));
+    vec2 n = gradRoundRect(p, c, gr);
 
     float inside = -d;
     float t = clamp(inside / max(bezel, 1.0), 0.0, 1.0);
@@ -54,14 +65,25 @@ void main() {
     float bend = 1.0 - sqrt(max(0.0, 1.0 - u * u));   // circular lens profile
 
     vec2 uv = (c + p / max(magnify, 0.01)) / size;
-    vec2 off = -n * refraction * bend / size;
+    vec2 g = normalize(n + depth * normalize(p + vec2(1e-4)));
+    vec2 off = -g * refraction * bend / size;
     vec4 s;
     if (mode > 1.5) {
         s = vec4(0.0);
     } else if (fringe > 0.001) {
-        vec2 f = off * fringe;
-        vec4 g = texture(source, uv + off);
-        s = vec4(texture(source, uv + off + f).r, g.g, texture(source, uv + off - f).b, g.a);
+        vec2 f = off * fringe * (p.x * p.y) / max(c.x * c.y, 1.0) * 2.0;
+        vec2 rc = uv + off;
+        vec4 red = texture(source, rc + f);
+        vec4 orange = texture(source, rc + f * (2.0 / 3.0));
+        vec4 yellow = texture(source, rc + f * (1.0 / 3.0));
+        vec4 green = texture(source, rc);
+        vec4 cyan = texture(source, rc - f * (1.0 / 3.0));
+        vec4 blue = texture(source, rc - f * (2.0 / 3.0));
+        vec4 purple = texture(source, rc - f);
+        s.r = (red.r + orange.r + yellow.r) / 3.5 + purple.r / 7.0;
+        s.g = orange.g / 7.0 + (yellow.g + green.g + cyan.g) / 3.5;
+        s.b = (cyan.b + blue.b + purple.b) / 3.0;
+        s.a = (red.a + orange.a + yellow.a + green.a + cyan.a + blue.a + purple.a) / 7.0;
     } else {
         s = texture(source, uv + off);
     }
@@ -80,11 +102,11 @@ void main() {
     float edgeLine = 1.0 - smoothstep(0.0, 1.25, inside);
     col = over(col, edge, edgeLine);
 
-    float up = max(dot(n, normalize(vec2(-0.4, -1.0))), 0.0);
+    float up = pow(abs(dot(n, normalize(vec2(-0.55, -1.0)))), 2.0);
     float down = max(dot(n, normalize(vec2(0.4, 1.0))), 0.0);
     float rimLine = 1.0 - smoothstep(0.0, max(rimWidth, 0.5), inside);
     float glow = u * u * u * 0.35;
-    float rimAmt = clamp((rimLine + glow) * (0.18 + 0.82 * pow(up, 1.4) + 0.38 * pow(down, 2.0)), 0.0, 1.0);
+    float rimAmt = clamp((rimLine + glow) * (0.14 + 0.86 * up + 0.2 * pow(down, 2.0)), 0.0, 1.0);
     col = over(col, rim, rimAmt);
 
     fragColor = col * cov * qt_Opacity;

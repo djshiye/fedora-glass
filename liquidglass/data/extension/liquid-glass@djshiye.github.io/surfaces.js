@@ -1,0 +1,518 @@
+// Puts glass panes behind Shell surfaces and keeps them in step: the top bar
+// or Dash to Panel, every popup menu (quick settings, calendar, ArcMenu and
+// app menus), notification banners, the volume OSD, Alt+Tab, app windows and
+// the overview background.
+
+import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
+import St from 'gi://St';
+
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
+
+import {GlassPane} from './glass.js';
+
+const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
+const MOVES = ['notify::allocation', 'notify::visible', 'notify::opacity', 'notify::translation-x',
+    'notify::translation-y', 'notify::scale-x', 'notify::scale-y', 'notify::mapped'];
+
+function radiiOf(actor) {
+    try {
+        const node = actor.get_theme_node();
+        return CORNERS.map(c => node.get_border_radius(c));
+    } catch {
+        return [0, 0, 0, 0];   // not styled yet
+    }
+}
+
+/**
+ * What a pane at stage rectangle (x, y, w, h) shows through: the wallpaper,
+ * then the windows on the current workspace that overlap it, bottom first. A
+ * clone of the whole window group would be simpler, but Mutter culls it to
+ * the screen and it comes out empty, so each window is copied on its own.
+ */
+function sourcesFor(behind, x, y, w, h) {
+    if (Main.overview.visible)
+        return [Main.layoutManager.overviewGroup];
+    const out = [Main.layoutManager._backgroundGroup];
+    if (behind === 'wallpaper')
+        return out;
+    const ws = global.workspace_manager.get_active_workspace();
+    for (const actor of global.get_window_actors()) {
+        const win = actor.meta_window;
+        if (!actor.visible || !win || win.minimized || !win.located_on_workspace(ws))
+            continue;
+        const r = win.get_buffer_rect();
+        if (r.x < x + w && r.x + r.width > x && r.y < y + h && r.y + r.height > y)
+            out.push(actor);
+    }
+    return out;
+}
+
+/** Tells every pane that shows windows when any window moves, restacks or switches workspace. */
+class WindowWatch {
+    constructor() {
+        this.listeners = new Set();
+        this._signals = new Signals();
+        this._windows = new Signals();
+        const changed = () => this.listeners.forEach(fn => fn());
+        this._changed = changed;
+        this._signals.on(global.display, 'restacked', () => {
+            this._watchAll();
+            changed();
+        });
+        this._signals.on(global.workspace_manager, 'active-workspace-changed', changed);
+        this._signals.on(global.display, 'window-created', () => this._watchAll());
+        this._watchAll();
+    }
+
+    _watchAll() {
+        this._windows.clear();
+        for (const actor of global.get_window_actors()) {
+            const win = actor.meta_window;
+            if (!win)
+                continue;
+            for (const sig of ['position-changed', 'size-changed', 'notify::minimized'])
+                this._windows.on(win, sig, this._changed);
+            this._windows.on(actor, 'notify::visible', this._changed);
+        }
+    }
+
+    destroy() {
+        this._signals.clear();
+        this._windows.clear();
+        this.listeners.clear();
+    }
+}
+
+export const windowWatch = {current: null};
+
+class Signals {
+    constructor() {
+        this._ids = [];
+    }
+
+    on(obj, signal, fn) {
+        this._ids.push([obj, obj.connect(signal, fn)]);
+    }
+
+    clear() {
+        for (const [obj, id] of this._ids) {
+            try {
+                obj.disconnect(id);
+            } catch {}
+        }
+        this._ids = [];
+    }
+}
+
+/**
+ * A pane that sits right below `anchor` (a child of a free-layout container
+ * such as the Shell's UI group) and copies the on-screen rectangle, corner
+ * radii and opacity of `target`, a descendant of `anchor`.
+ */
+class Follower {
+    constructor(target, anchor, settings, onGone) {
+        this.target = target;
+        this.anchor = anchor;
+        this.settings = settings;
+        this.pane = new GlassPane();
+        this._signals = new Signals();
+        this._later = 0;
+        this._onGone = onGone;
+
+        for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
+            MOVES.forEach(s => this._signals.on(a, s, () => this.queue()));
+        this._signals.on(target, 'style-changed', () => this.queue());
+        this._signals.on(target, 'destroy', () => this.destroy());
+        this._signals.on(anchor, 'destroy', () => this.destroy());
+        this._signals.on(this.pane, 'destroy', () => {
+            this.pane = null;     // its parent went first
+            this.destroy();
+        });
+        this._onWindows = () => {
+            if (this.settings.behind === 'windows' && this.target.mapped)
+                this.queue();
+        };
+        windowWatch.current?.listeners.add(this._onWindows);
+        anchor.get_parent().insert_child_below(this.pane, anchor);
+        this.update(settings);
+    }
+
+    update(settings) {
+        this.settings = settings;
+        this.pane.setLook(settings.look);
+        this.sync();
+    }
+
+    queue() {
+        if (this._later)
+            return;
+        this._later = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._later = 0;
+            this.sync();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    sync() {
+        const {target, anchor, pane} = this;
+        const parent = anchor.get_parent();
+        if (!pane || !parent || pane.get_parent() !== parent)
+            return;
+        if (!this.settings.enabled || !target.mapped || target.width < 2 || target.height < 2) {
+            pane.hide();
+            return;
+        }
+        if (pane.get_next_sibling() !== anchor)
+            parent.set_child_below_sibling(pane, anchor);
+
+        const [sx, sy] = target.get_transformed_position();
+        const [w, h] = target.get_transformed_size();
+        const [ok, lx, ly] = parent.transform_stage_point(sx, sy);
+        if (!ok) {
+            pane.hide();
+            return;
+        }
+        let opacity = 1;
+        for (let a = target; a && a !== parent; a = a.get_parent())
+            opacity *= a.opacity / 255;
+        pane.opacity = Math.round(opacity * 255);
+        const p = pane.pad;
+        pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
+        pane.place(lx, ly, w, h, radiiOf(target), sx, sy);
+        pane.show();
+    }
+
+    destroy() {
+        if (this._later)
+            global.compositor.get_laters().remove(this._later);
+        this._later = 0;
+        this._signals.clear();
+        windowWatch.current?.listeners.delete(this._onWindows);
+        const pane = this.pane;
+        this.pane = null;
+        pane?.destroy();
+        if (this._onGone) {
+            this._onGone(this);
+            this._onGone = null;
+        }
+    }
+}
+
+// ---- top bar and Dash to Panel ------------------------------------------------
+class Panels {
+    constructor(cfg) {
+        this.cfg = cfg;
+        this._followers = [];
+        this._signals = new Signals();
+        this._dtpId = 0;
+        this._rescanId = 0;
+        this._signals.on(Main.extensionManager, 'extension-state-changed', () => this.rescanSoon());
+        this.rescan();
+    }
+
+    _panels() {
+        const dtp = global.dashToPanel;
+        if (dtp?.panels?.length) {
+            if (dtp !== this._dtp && typeof dtp.connect === 'function') {
+                // Dash to Panel makes a new object each time it is enabled.
+                this._disconnectDtp();
+                try {
+                    this._dtpId = dtp.connect('panels-created', () => this.rescanSoon());
+                    this._dtp = dtp;
+                } catch {
+                    this._dtpId = 0;
+                }
+            }
+            return dtp.panels.filter(p => p.panel && p.panelBox?.get_parent())
+                .map(p => [p.panel, p.panelBox]);
+        }
+        const box = Main.layoutManager.panelBox;
+        return box?.get_parent() ? [[Main.panel, box]] : [];
+    }
+
+    _disconnectDtp() {
+        if (this._dtp && this._dtpId) {
+            try {
+                this._dtp.disconnect(this._dtpId);
+            } catch {}
+        }
+        this._dtp = null;
+        this._dtpId = 0;
+    }
+
+    rescanSoon() {
+        if (this._rescanId)
+            return;
+        this._rescanId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+            this._rescanId = 0;
+            this.rescan();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    rescan() {
+        this._followers.forEach(f => f.destroy());
+        this._followers = [];
+        for (const [target, anchor] of this._panels()) {
+            this._followers.push(new Follower(target, anchor, this.cfg.panel,
+                f => (this._followers = this._followers.filter(x => x !== f))));
+        }
+    }
+
+    update(cfg) {
+        this.cfg = cfg;
+        this._followers.forEach(f => f.update(cfg.panel));
+    }
+
+    sync() {
+        this._followers.forEach(f => f.queue());
+    }
+
+    destroy() {
+        if (this._rescanId)
+            GLib.source_remove(this._rescanId);
+        this._disconnectDtp();
+        this._signals.clear();
+        this._followers.forEach(f => f.destroy());
+        this._followers = [];
+    }
+}
+
+// ---- popup menus, notification banners, OSD and the window switcher ----------------
+class Popups {
+    constructor(cfg) {
+        this.cfg = cfg;
+        this._followers = new Map();   // surface -> Follower
+        this._signals = new Signals();
+        const ui = Main.layoutManager.uiGroup;
+        this._laters = new Set();
+        // Some pop-ups (Alt+Tab) are added before they finish building, so look a moment later.
+        this._signals.on(ui, 'child-added', (_p, child) => {
+            const laters = global.compositor.get_laters();
+            // Tooltips and the like can be gone before the later runs.
+            const gone = child.connect('destroy', () => {
+                laters.remove(id);
+                this._laters.delete(id);
+            });
+            const id = laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
+                this._laters.delete(id);
+                child.disconnect(gone);
+                this._consider(child);
+                return GLib.SOURCE_REMOVE;
+            });
+            this._laters.add(id);
+        });
+        ui.get_children().forEach(c => this._consider(c));
+        // Banners come and go inside the message tray.
+        const tray = Main.messageTray, bin = tray?._bannerBin;
+        if (bin) {
+            this._signals.on(bin, 'child-added', (_b, banner) => this._follow(banner, tray));
+            bin.get_children().forEach(b => this._follow(b, tray));
+        }
+    }
+
+    _consider(child) {
+        if (child.name === 'liquid-glass-pane')
+            return;
+        // Menus: a BoxPointer, or one wrapped in a widget (quick settings).
+        const bp = child instanceof BoxPointer ? child
+            : child.get_children?.().find(c => c instanceof BoxPointer) ?? null;
+        if (bp) {
+            this._follow(bp.bin?.get_child?.(), child);
+            return;
+        }
+        // Volume and brightness pop-ups.
+        const osd = child.get_children?.().find(c => c.has_style_class_name?.('osd-window'));
+        if (osd) {
+            this._follow(osd, child);
+            return;
+        }
+        // Alt+Tab and friends.
+        if (child._switcherList)
+            this._follow(child._switcherList, child);
+    }
+
+    _follow(surface, anchor) {
+        if (!surface || this._followers.has(surface))
+            return;
+        const f = new Follower(surface, anchor, this.cfg.menus, () => this._followers.delete(surface));
+        this._followers.set(surface, f);
+    }
+
+    update(cfg) {
+        this.cfg = cfg;
+        for (const f of this._followers.values())
+            f.update(cfg.menus);
+    }
+
+    sync() {
+        for (const f of this._followers.values())
+            f.queue();
+    }
+
+    destroy() {
+        this._signals.clear();
+        const laters = global.compositor.get_laters();
+        this._laters.forEach(id => laters.remove(id));
+        this._laters.clear();
+        for (const f of [...this._followers.values()])
+            f.destroy();
+        this._followers.clear();
+    }
+}
+
+// ---- app windows -------------------------------------------------------------------
+const WINDOW_TYPES = new Set([Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG,
+    Meta.WindowType.UTILITY]);
+
+class WindowGlass {
+    constructor(actor, owner) {
+        this.actor = actor;
+        this.win = actor.meta_window;
+        this.owner = owner;
+        this.pane = new GlassPane();
+        this._signals = new Signals();
+        actor.insert_child_at_index(this.pane, 0);
+        for (const s of ['position-changed', 'size-changed', 'notify::fullscreen',
+            'notify::maximized-horizontally', 'notify::maximized-vertically', 'notify::wm-class'])
+            this._signals.on(this.win, s, () => this.sync());
+        this._signals.on(actor, 'destroy', () => this.destroy());
+        this._signals.on(this.pane, 'destroy', () => {
+            this.pane = null;
+            this.destroy();
+        });
+        this.update(owner.cfg.windows);
+    }
+
+    update(settings) {
+        this.settings = settings;
+        if (!this.pane)
+            return;
+        this.pane.setLook(settings.look);
+        this.pane.setSources([Main.layoutManager._backgroundGroup]);
+        this.sync();
+    }
+
+    _wanted() {
+        const w = this.win, s = this.settings;
+        if (!s.enabled || w.fullscreen || !WINDOW_TYPES.has(w.get_window_type()))
+            return false;
+        const ids = [w.get_wm_class(), w.get_wm_class_instance(), w.get_gtk_application_id(), w.get_sandboxed_app_id()];
+        return !ids.some(id => id && s.skip.includes(id));
+    }
+
+    sync() {
+        if (!this.pane)
+            return;
+        if (!this._wanted()) {
+            this.pane.hide();
+            return;
+        }
+        const frame = this.win.get_frame_rect();
+        const buf = this.win.get_buffer_rect();
+        const maxed = this.win.maximized_horizontally && this.win.maximized_vertically;
+        const r = maxed ? 0 : this.settings.radius;
+        this.pane.place(frame.x - buf.x, frame.y - buf.y, frame.width, frame.height, [r, r, r, r], frame.x, frame.y);
+        this.pane.show();
+    }
+
+    destroy() {
+        this._signals.clear();
+        const pane = this.pane;
+        this.pane = null;
+        pane?.destroy();
+        this.owner.forget(this.actor);
+    }
+}
+
+class Windows {
+    constructor(cfg) {
+        this.cfg = cfg;
+        this._glass = new Map();
+        this._signals = new Signals();
+        this._pending = new Signals();
+        this._signals.on(global.display, 'window-created', (_d, win) => {
+            // The actor exists once the window is shown for the first time.
+            this._pending.on(win, 'shown', () => this._add(win.get_compositor_private()));
+        });
+        global.get_window_actors().forEach(a => this._add(a));
+    }
+
+    _add(actor) {
+        if (!actor || this._glass.has(actor) || !actor.meta_window)
+            return;
+        this._glass.set(actor, new WindowGlass(actor, this));
+    }
+
+    forget(actor) {
+        this._glass.delete(actor);
+    }
+
+    update(cfg) {
+        this.cfg = cfg;
+        for (const g of this._glass.values())
+            g.update(cfg.windows);
+    }
+
+    destroy() {
+        this._signals.clear();
+        this._pending.clear();
+        for (const g of [...this._glass.values()])
+            g.destroy();
+        this._glass.clear();
+    }
+}
+
+// ---- overview background ---------------------------------------------------------------
+class OverviewBackdrop {
+    constructor(cfg) {
+        this.actor = new Clutter.Actor({name: 'liquid-glass-overview', clip_to_allocation: true, reactive: false});
+        this.actor.add_constraint(new Clutter.BindConstraint({source: global.stage, coordinate: Clutter.BindCoordinate.ALL}));
+        this._clone = new Clutter.Clone({source: Main.layoutManager._backgroundGroup});
+        this.actor.add_child(this._clone);
+        this._blur = new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR});
+        this.actor.add_effect(this._blur);
+        Main.layoutManager.overviewGroup.insert_child_at_index(this.actor, 0);
+        this.update(cfg);
+    }
+
+    update(cfg) {
+        const o = cfg.overview;
+        this.actor.visible = o.enabled;
+        this._blur.radius = o.blur;
+        this._blur.brightness = o.brightness;
+    }
+
+    destroy() {
+        this.actor.destroy();
+    }
+}
+
+export class GlassManager {
+    constructor(cfg) {
+        this.cfg = cfg;
+        windowWatch.current = new WindowWatch();
+        this._parts = [new Panels(cfg), new Popups(cfg), new Windows(cfg), new OverviewBackdrop(cfg)];
+        this._signals = new Signals();
+        // Behind the panel and menus is the overview while it is open, the windows otherwise.
+        for (const s of ['showing', 'shown', 'hiding', 'hidden'])
+            this._signals.on(Main.overview, s, () => this._parts.forEach(p => p.sync?.()));
+    }
+
+    update(cfg) {
+        this.cfg = cfg;
+        this._parts.forEach(p => p.update(cfg));
+    }
+
+    destroy() {
+        this._signals.clear();
+        this._parts.forEach(p => p.destroy());
+        this._parts = [];
+        windowWatch.current?.destroy();
+        windowWatch.current = null;
+    }
+}

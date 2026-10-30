@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtQuick import QQuickImageProvider
 
@@ -17,7 +17,7 @@ class IconProvider(QQuickImageProvider):
         pm = icon.pixmap(QSize(side, side)) if not icon.isNull() else QPixmap()
         if pm.isNull():
             pm = QPixmap(side, side)
-            pm.fill(0)
+            pm.fill(Qt.GlobalColor.transparent)   # fill(0) paints an opaque black tile
         if size is not None:
             size.setWidth(pm.width())
             size.setHeight(pm.height())

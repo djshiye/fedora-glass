@@ -39,6 +39,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--scheme", choices=("dark", "light"), help="force the app and preview style")
     shot.add_argument("--held", action="store_true", help="draw the frost knob as if it were being dragged")
     shot.add_argument("--fine-tune", action="store_true", help="open the Fine-tune section")
+    shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
     shot.add_argument("--sheet", choices=("changes", "results", "restore"), help="open a sheet")
     shot.add_argument("--size", default="1280x820", help="content size WxH (shadow margin is added)")
     shot.add_argument("--delay-ms", type=int, default=2500)
@@ -135,6 +136,11 @@ def main(argv: list[str] | None = None) -> int:
         def stage() -> None:
             if args.held:
                 win.setProperty("frostHeld", 1.0)
+            if args.scroll:
+                from PySide6.QtCore import QObject
+                side = win.findChild(QObject, "options")
+                if side is not None:
+                    side.setProperty("contentY", args.scroll)
             if args.sheet == "changes":
                 backend.requestPlan()
             elif args.sheet == "results":

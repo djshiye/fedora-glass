@@ -219,3 +219,67 @@ def test_write_never_follows_planted_temp_links(fake_env):
     (css.parent / ".gtk.css.lg-tmp").symlink_to(victim)     # the old fixed temp name
     make_engine(fake_env).apply(Settings())
     assert victim.read_text() == "safe"
+
+
+def test_revert_never_deletes_a_folder_at_a_target_path(fake_env):
+    """A folder where we'd write makes the target fail, and revert leaves the folder alone."""
+    css = fake_env.config / "gtk-4.0/gtk.css"
+    css.mkdir(parents=True)
+    (css / "keep.txt").write_text("mine")
+    eng = make_engine(fake_env)
+    assert [r.status for r in eng.apply(Settings())] == ["failed"]
+    eng.revert()
+    assert (css / "keep.txt").read_text() == "mine"
+
+
+def test_revert_keeps_current_file_when_backup_copy_is_lost(fake_env):
+    css = fake_env.config / "gtk-4.0/gtk.css"
+    css.parent.mkdir(parents=True)
+    css.write_text("original")
+    eng = make_engine(fake_env)
+    eng.apply(Settings())
+    for f in (fake_env.state / "liquid-glass/backup/files").iterdir():
+        f.unlink()
+    assert eng.revert() != []
+    assert css.exists()           # still themed, not gone
+
+
+def test_untouched_list_is_not_recorded_as_a_change(fake_env):
+    from liquidglass.targets.base import ListEdit
+
+    @dataclass
+    class Ext(Target):
+        def plan(self, ctx):
+            return [ListEdit("org.gnome.shell", "enabled-extensions", add=("a@b",))]
+
+    fake_env.gs[("org.gnome.shell", None)] = {"enabled-extensions": "['a@b']"}
+    eng = Engine(fake_env, [Ext(id="e", name="Ext")])
+    eng.apply(Settings())
+    assert not eng.is_applied()
+
+
+def test_gui_subcommand_passes_its_options_through(monkeypatch):
+    from liquidglass import __main__ as cli
+    seen = {}
+    monkeypatch.setattr(cli, "cmd_gui", lambda a: seen.setdefault("args", a.qt_args) and 0)
+    cli.main(["gui", "--screenshot", "out.png", "--page", "1"])
+    assert seen["args"] == ["--screenshot", "out.png", "--page", "1"]
+
+
+def test_revert_removes_folders_it_created_but_keeps_ones_in_use(fake_env):
+    @dataclass
+    class Deep(Target):
+        def plan(self, ctx):
+            base = ctx.env.data / "gnome-shell/extensions/x@y"
+            return [WriteFile(base / "a.js", "a"), WriteFile(base / "sub/b.js", "b")]
+
+    existing = fake_env.data / "gnome-shell"
+    existing.mkdir(parents=True)
+    eng = Engine(fake_env, [Deep(id="d", name="Deep")])
+    eng.apply(Settings())
+    assert (fake_env.data / "gnome-shell/extensions/x@y/sub/b.js").is_file()
+    (fake_env.data / "gnome-shell/extensions/mine.txt").write_text("user file")
+    assert eng.revert() == []
+    assert not (fake_env.data / "gnome-shell/extensions/x@y").exists()
+    assert (fake_env.data / "gnome-shell/extensions/mine.txt").is_file()   # not empty: kept
+    assert existing.is_dir()

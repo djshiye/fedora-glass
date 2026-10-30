@@ -24,12 +24,14 @@ Item {
     readonly property real frost: t.frost !== undefined ? t.frost : 0.45
     readonly property bool dark: t.dark !== undefined ? t.dark : true
     readonly property real blurPx: (t.blur_radius || 0) * s
-    readonly property real refraction: reduceTransparency ? 0 : (16 - 11 * frost) * s
-    readonly property real bezel: (20 - 8 * frost) * s
-    readonly property real fringe: reduceTransparency ? 0 : 0.35 - 0.28 * frost
+    // The same lens the Shell extension draws (see render/glass.py), scaled to the preview.
+    readonly property real refraction: reduceTransparency ? 0 : (t.lens_bend !== undefined ? t.lens_bend : 16 - 11 * frost) * s
+    readonly property real bezel: Math.max(4, (t.lens_width !== undefined ? t.lens_width : 20 - 8 * frost) * s)
+    readonly property real fringe: reduceTransparency ? 0 : (t.dispersion !== undefined ? t.dispersion : 0.35 - 0.28 * frost)
+    readonly property real vivid: t.vibrancy !== undefined ? (t.vibrancy - 1) * 0.5 : 0
     readonly property real sheen: t.highlight ? Math.min(1, t.highlight.a * 1.6) : 0
     readonly property real brightness: ((t.blur_brightness || 1) - 1) * 0.35
-    readonly property real saturation: reduceTransparency ? 0 : 0.3 * (1 - frost)
+    readonly property real saturation: reduceTransparency ? 0 : Math.min(1, root.vivid)
     readonly property bool windowsBlur: t.blur_app_windows !== undefined ? t.blur_app_windows : true
     readonly property real r: t.radius !== undefined ? t.radius : 18
     readonly property real rs: t.radius_small !== undefined ? t.radius_small : 10
@@ -37,7 +39,7 @@ Item {
     readonly property color fgDim: t.fg_dim || "white"
     readonly property color fgFaint: t.fg_faint || "white"
     readonly property color folderBlue: dark ? "#62a0ea" : "#438de6"
-    readonly property string clock: Qt.formatTime(new Date(), "h:mm AP")
+    readonly property string clock: Qt.formatDate(new Date(), "MMM d") + "  " + Qt.formatTime(new Date(), "h:mm AP")
 
     function withAlpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
@@ -57,10 +59,11 @@ Item {
         shadowBlur: root.u(40)
         shadowY: root.u(10)
     }
+    // Behind app windows the extension draws plain frost; the window paints its own rim.
     component WindowGlass: ShellGlass {
-        blurRadius: root.windowsBlur ? root.blurPx : 0
-        refraction: root.windowsBlur ? root.refraction * 0.6 : 0
-        fringe: root.windowsBlur ? root.fringe * 0.6 : 0
+        blurRadius: root.windowsBlur ? Math.max(root.blurPx, root.u(24)) : 0
+        refraction: 0
+        fringe: 0
         saturation: root.windowsBlur ? root.saturation : 0
         brightness: root.windowsBlur ? root.brightness : 0
         radius: root.r
@@ -446,7 +449,7 @@ Item {
             anchors.right: parent.right; anchors.rightMargin: root.u(root.floating ? 18 : 14)
             anchors.verticalCenter: parent.verticalCenter
             spacing: root.u(18)
-            Label { text: "Oct 29  " + root.clock; anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
+            Label { text: root.clock; anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
             Row {
                 spacing: root.u(10); anchors.verticalCenter: parent.verticalCenter
                 Sym { name: "wifi" }

@@ -1,4 +1,4 @@
-"""GNOME Shell and its extensions: User Themes CSS, Blur my Shell, Dash to Panel, ArcMenu."""
+"""GNOME Shell and its extensions: User Themes CSS, our glass extension, Dash to Panel, ArcMenu."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 from ..env import Env
+from ..render import glass as rg
 from ..render import shell as rs
 from .base import Action, Context, Detection, GSet, ListEdit, Target, WriteFile
 
@@ -35,7 +36,7 @@ class GnomeShell(Target):
     summary: str = "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
     notes: list[str] = field(default_factory=lambda: [
         "Needs the User Themes extension (enabled automatically when installed).",
-        "Surfaces are translucent; the blur behind them comes from Blur my Shell."])
+        "Surfaces are translucent; the glass behind them comes from Liquid Glass effects."])
 
     def detect(self, env: Env) -> Detection:
         return _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
@@ -65,76 +66,55 @@ class GnomeShell(Target):
 
 
 @dataclass
-class BlurMyShell(Target):
-    id: str = "blur"
-    name: str = "Blur my Shell"
+class GlassEffects(Target):
+    id: str = "glass"
+    name: str = "Liquid Glass effects"
     group: str = "Desktop"
-    summary: str = "Liquid Glass refraction pipelines behind the panel, menus, overview and app windows."
+    summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu, app windows and the overview: "
+                    "live blur, a refracting rim, rim light and a rainbow edge.")
     notes: list[str] = field(default_factory=lambda: [
-        "Your own Blur my Shell pipelines are kept; Liquid Glass adds four of its own.",
-        "Falls back to plain blur when the installed Blur my Shell has no refraction effect."])
+        "Uses Liquid Glass's own GNOME Shell extension; Blur my Shell isn't needed."])
 
-    SCHEMA = "org.gnome.shell.extensions.blur-my-shell"
+    BLUR_SCHEMA = "org.gnome.shell.extensions.blur-my-shell"
+    # Blur my Shell parts that would draw a second blur over ours.
+    BLUR_OVERLAP = ("panel", "popup", "overview", "appfolder", "applications", "dash-to-panel", "dash-to-dock")
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, BLUR, "Blur my Shell", "gnome-shell-extension-blur-my-shell")
+        if env.which("gnome-shell") is None:
+            return Detection(False, "GNOME Shell is not installed")
+        return Detection(True)
+
+    def ext_dir(self, env: Env):
+        return env.data / "gnome-shell/extensions" / rg.UUID
+
+    def config_path(self, env: Env):
+        return env.config / "liquid-glass/shell-glass.json"
 
     def plan(self, ctx: Context) -> list[Action]:
-        env, t = ctx.env, ctx.tokens
-        ext = env.extension_path(BLUR)
-        refraction = ext is not None and (ext / "effects/refraction").is_dir()
-        pipelines = rs.merge_pipelines(env.gsettings_get(self.SCHEMA, "pipelines"),
-                                       rs.our_pipelines(t, refraction))
-        acts: list[Action] = [GSet(self.SCHEMA, "pipelines", pipelines)]
-
-        for comp, pid in rs.COMPONENT_PIPELINE.items():
-            acts.append(GSet(f"{self.SCHEMA}.{comp}", "pipeline", f"'{pid}'"))
-        s = lambda comp: f"{self.SCHEMA}.{comp}"  # noqa: E731
-
-        # Our theme paints the tint, so Blur my Shell must not overpaint these with its own.
-        acts += [GSet(s("panel"), "blur", "true"), GSet(s("panel"), "override-background", "false"),
-                 GSet(s("popup"), "blur", "true"), GSet(s("popup"), "override-background", "false"),
-                 GSet(s("popup"), "preserve-shell-theme", "true"),
-                 GSet(s("overview"), "blur", "true"), GSet(s("overview"), "style-components", "0"),
-                 GSet(s("appfolder"), "blur", "true"), GSet(s("appfolder"), "style-dialogs", "0")]
-        acts += [GSet(s("popup"), k, str(v)) for k, v in rs.popup_corner_keys(t).items()]
-
-        apps = s("applications")
-        acts += [GSet(apps, "blur", "true" if t.blur_app_windows else "false"),
-                 GSet(apps, "enable-all", "true" if t.blur_app_windows else "false"),
-                 # The window actor stays opaque: our CSS already makes GTK surfaces translucent,
-                 # and a translucent actor would fade text and content too.
-                 GSet(apps, "opacity", "255"),
-                 GSet(apps, "dynamic-opacity", "false"),
-                 GSet(apps, "unblur-when-fullscreen", "true"),
-                 GSet(apps, "blacklist", _blacklist(env.gsettings_get(apps, "blacklist"))),
-                 GSet(apps, "corner-radius", str(t.radius))]
+        env = ctx.env
+        d = self.ext_dir(env)
+        acts: list[Action] = [WriteFile(d / name, text) for name, text in rg.extension_files().items()]
+        acts.append(WriteFile(self.config_path(env), rg.render_config(ctx.settings, ctx.tokens)))
+        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,)))
+        acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))
+        if env.extension_path(BLUR) is not None:
+            acts += [GSet(f"{self.BLUR_SCHEMA}.{part}", "blur", "false") for part in self.BLUR_OVERLAP]
         return acts
 
+    def live_notes(self, ctx: Context) -> list[str]:
+        notes = list(self.notes)
+        if not self.running(ctx.env):
+            notes.append("Log out and back in once so GNOME Shell starts the Liquid Glass extension. "
+                         "After that, changes show up instantly.")
+        return notes
 
-# Apps that paint opaque windows (Electron, games, launchers): blurring behind them costs GPU
-# time and shows nothing.
-BLUR_SKIP = ("Plank", "Conky", "steam", "Steam", "discord", "Code", "code", "obsidian", "Slack",
-             "brave-browser", "brave-origin", "helium", "zoom", "Claude", "firefox", "libreoffice",
-             "org.prismlauncher.PrismLauncher")
-
-
-def _blacklist(current: str | None) -> str:
-    """Our skip list merged into the user's own (GVariant 'as' text in and out)."""
-    import ast
-    names: list[str] = []
-    if current:
-        text = current.removeprefix("@as ").strip()
-        try:
-            parsed = ast.literal_eval(text)
-            if isinstance(parsed, list):
-                names = [n for n in parsed if isinstance(n, str)]
-        except (ValueError, SyntaxError):
-            names = []
-    for n in BLUR_SKIP:
-        if n not in names:
-            names.append(n)
-    return "[" + ", ".join("'" + n.replace("\\", "\\\\").replace("'", "\\'") + "'" for n in names) + "]"
+    @staticmethod
+    def running(env: Env) -> bool:
+        """Whether the Shell has loaded our extension (it only finds new ones at login)."""
+        r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+                     "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", rg.UUID], timeout=5)
+        m = re.search(r"'state': <([\d.]+)>", r.out) if r.code == 0 else None
+        return m is not None and float(m.group(1)) == 1.0   # 1 = enabled and running
 
 
 @dataclass
@@ -169,4 +149,4 @@ class ArcMenu(Target):
         return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))
 
 
-TARGETS: list[Target] = [GnomeShell(), BlurMyShell(), DashToPanel(), ArcMenu()]
+TARGETS: list[Target] = [GnomeShell(), GlassEffects(), DashToPanel(), ArcMenu()]

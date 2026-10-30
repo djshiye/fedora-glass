@@ -21,6 +21,7 @@ Item {
     property real bezel: 12              // px
     property real magnify: 1
     property real fringe: 0
+    property real depth: 0.35
     property real rimWidth: 1.2
     property real sheen: 0
     // Draw the rim above the content (for panes whose content covers the body).
@@ -88,6 +89,7 @@ Item {
         property real refraction: root.refraction
         property real magnify: root.magnify
         property real fringe: root.fringe
+        property real depth: root.depth
         property real rimWidth: root.rimWidth
         property real sheen: root.sheen
         property color tint: root.tint

@@ -124,9 +124,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("qt_args", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_gui)
 
-    args = p.parse_args(argv)
+    raw = sys.argv[1:] if argv is None else list(argv)
+    if raw[:1] == ["gui"]:
+        # argparse's REMAINDER drops leading options (gui --screenshot ...), so hand them over as-is.
+        return cmd_gui(argparse.Namespace(qt_args=raw[1:]))
+    args = p.parse_args(raw)
     if not args.cmd:
-        args = p.parse_args(["gui", *(argv or [])])
+        return cmd_gui(argparse.Namespace(qt_args=raw))
     return args.func(args)
 
 

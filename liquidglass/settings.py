@@ -7,7 +7,9 @@ ignored and missing keys fall back to defaults, so old files keep working.
 from __future__ import annotations
 
 import json
+import math
 import os
+import tempfile
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
@@ -40,8 +42,17 @@ class Settings:
 
     panel_style: str = "floating"   # Dash to Panel: floating pill or edge-docked
     panel_margin: int = 8
-    blur_app_windows: bool = True   # Blur my Shell blur behind app windows
+    blur_app_windows: bool = True   # glass behind translucent app windows
     terminal_opacity: float | None = None
+
+    # The Liquid Glass Shell extension: the lens along the edge of the panel and menus.
+    refraction: float = 0.6         # 0..1, how strongly the rim bends what's behind
+    dispersion: float = 0.3         # 0..1, rainbow split along the rim
+    vibrancy: float = 0.5           # 0..1, how much colour shows through
+    glass_panel: bool = True
+    glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu
+    glass_overview: bool = True     # blurred wallpaper behind the overview
+    glass_see_windows: bool = True  # panel and menus show the windows behind them, not just the wallpaper
 
     # Target id -> enabled. Missing ids default to enabled.
     targets: dict[str, bool] = field(default_factory=dict)
@@ -55,14 +66,22 @@ class Settings:
         s.frost = _clamp(float(s.frost))
         s.tint_strength = _clamp(float(s.tint_strength))
         s.highlight = _clamp(float(s.highlight))
-        s.radius = int(min(32, max(0, int(s.radius))))
-        s.panel_margin = int(min(32, max(0, int(s.panel_margin))))
+        s.refraction = _clamp(float(s.refraction))
+        s.dispersion = _clamp(float(s.dispersion))
+        s.vibrancy = _clamp(float(s.vibrancy))
+        s.radius = _int(s.radius, 0, 32, Settings.radius)
+        s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
+        for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
+                  "glass_overview", "glass_see_windows"):
+            setattr(s, k, bool(getattr(s, k)))
         if s.opacity is not None:
-            s.opacity = _clamp(float(s.opacity))
+            s.opacity = _clamp(float(s.opacity), 0.6)
         if s.blur is not None:
-            s.blur = int(min(100, max(0, int(s.blur))))
+            b = float(s.blur)
+            s.blur = int(min(100, max(0, b))) if math.isfinite(b) else None
         if s.terminal_opacity is not None:
-            s.terminal_opacity = min(1.0, max(0.3, float(s.terminal_opacity)))
+            t = float(s.terminal_opacity)
+            s.terminal_opacity = min(1.0, max(0.3, t)) if math.isfinite(t) else None
         if s.scheme not in SCHEMES:
             s.scheme = "auto"
         if s.panel_style not in PANEL_STYLES:
@@ -75,8 +94,18 @@ class Settings:
         return s
 
 
-def _clamp(x: float) -> float:
+def _clamp(x: float, default: float = 0.5) -> float:
+    if not math.isfinite(x):
+        return default
     return 0.0 if x < 0 else 1.0 if x > 1 else x
+
+
+def _int(v: object, lo: int, hi: int, default: int) -> int:
+    try:
+        f = float(v)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    return int(min(hi, max(lo, f))) if math.isfinite(f) else default
 
 
 def _is_hex(v: object) -> bool:
@@ -123,14 +152,23 @@ def load(path: Path | None = None) -> Settings:
     known = {f.name for f in fields(Settings)}
     try:
         return Settings(**{k: v for k, v in raw.items() if k in known}).normalized()
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return Settings()
 
 
 def save(s: Settings, path: Path | None = None) -> Path:
     path = path or settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(asdict(s.normalized()), indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    # A fresh, exclusively created temp file: a planted symlink can't redirect the write.
+    fd, tmp = tempfile.mkstemp(prefix=".settings.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(s.normalized()), indent=2) + "\n")
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     return path

@@ -55,12 +55,18 @@ class Tokens:
     # Geometry and effects
     radius: int
     radius_small: int
-    blur_radius: int     # Blur my Shell radius, px
+    blur_radius: int     # blur behind glass, px
     blur_brightness: float
     terminal_opacity: float
     panel_floating: bool
     panel_margin: int
     blur_app_windows: bool
+    # The Shell's glass lens (see the extension's glass.js)
+    lens_width: float      # px of rim that bends the backdrop
+    lens_bend: float       # px it pulls the backdrop at the very edge
+    dispersion: float      # 0..1
+    vibrancy: float        # saturation multiplier, 1 = unchanged
+    glare: float           # directional highlight along the rim, 0..1
 
     def to_json(self) -> str:
         """Public token file for apps that read it (see docs/TOKENS.md)."""
@@ -169,4 +175,10 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
         panel_floating=s.panel_style == "floating",
         panel_margin=s.panel_margin,
         blur_app_windows=s.blur_app_windows and not s.reduce_transparency,
+        # Liquid glass bends a wide rim hard; frosted glass is thick and calm.
+        lens_width=0.0 if s.reduce_transparency else round(lerp(26, 16, f) * (0.4 + 0.6 * s.refraction), 1),
+        lens_bend=0.0 if s.reduce_transparency else round(lerp(34, 14, f) * s.refraction, 1),
+        dispersion=0.0 if s.reduce_transparency else round(s.dispersion * lerp(1.0, 0.35, f), 3),
+        vibrancy=round(1.0 + s.vibrancy * lerp(1.0, 0.6, f), 3),
+        glare=round(s.highlight * lerp(0.7, 0.3, f), 3),
     )

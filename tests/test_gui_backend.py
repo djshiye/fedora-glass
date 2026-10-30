@@ -94,7 +94,9 @@ def test_property_round_trips(make_backend):
     cases = {"frost": 0.8, "scheme": "light", "accent": "purple", "tint": "#112233",
              "tintStrength": 0.4, "radius": 24, "highlight": 0.2, "opacity": 0.6, "blur": 30,
              "reduceTransparency": True, "panelStyle": "docked", "panelMargin": 12,
-             "blurAppWindows": False, "terminalOpacity": 0.5}
+             "blurAppWindows": False, "terminalOpacity": 0.5, "refraction": 0.2, "dispersion": 0.9,
+             "vibrancy": 0.1, "glassPanel": False, "glassMenus": False, "glassOverview": False,
+             "glassSeeWindows": False}
     for name, value in cases.items():
         b.setProperty(name, value)
         got = b.property(name)
@@ -228,3 +230,36 @@ def test_qml_loads(make_backend, home):
     engine.rootContext().setContextProperty("appIconUrl", QUrl())
     comp = QQmlComponent(engine, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
     assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
+
+
+def test_missing_icon_is_transparent_not_black(app):
+    from PySide6.QtCore import QSize
+    from liquidglass.gui.icons import IconProvider
+    pm = IconProvider().requestPixmap("no-such-icon-xyz", QSize(), QSize(16, 16))
+    assert pm.toImage().pixelColor(0, 0).alpha() == 0
+
+
+def test_apply_waits_for_the_startup_check_instead_of_being_dropped(make_backend, home):
+    b = make_backend(start=True)          # the target check is running in the background
+    b.setProperty("frost", 0.7)
+    results = []
+    b.applyFinished.connect(results.append)
+    b.apply()
+    assert b.waitIdle()
+    assert results, "Apply was silently dropped while the target check ran"
+    assert settings_mod.load(home / "config/liquid-glass/settings.json").frost == pytest.approx(0.7)
+
+
+def test_live_glass_follows_sliders_and_falls_back_on_quit(make_backend, home):
+    import json
+    b = make_backend()
+    path = home / "config/liquid-glass/shell-glass.json"
+    b.setProperty("refraction", 0.9)
+    b._live_timer.stop()
+    assert not path.exists(), "nothing is written while the extension isn't running"
+    b._glass_live = True
+    b.setProperty("refraction", 0.0)
+    b._write_live_glass(b.settings())
+    assert json.loads(path.read_text())["look"]["bend"] == 0
+    b.shutdown()                           # unapplied: the desktop goes back to the saved look
+    assert json.loads(path.read_text())["look"]["bend"] > 0

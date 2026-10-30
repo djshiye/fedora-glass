@@ -189,6 +189,7 @@ Item {
     // ================================================================ right: options
     Flickable {
         id: side
+        objectName: "options"
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -404,11 +405,78 @@ Item {
                         format: (v) => Math.round(v) + " px"
                         onMoved: (v) => Backend.panelMargin = v
                     }
-                    SwitchRow {
-                        label: "Blur behind app windows"
-                        caption: "Blur my Shell blurs the desktop behind translucent windows"
-                        checked: Backend.blurAppWindows
-                        onToggled: (on) => Backend.blurAppWindows = on
+                }
+            }
+
+            Card {
+                width: parent.width
+                height: implicitHeight
+                Column {
+                    width: parent.width
+                    spacing: 16
+                    SectionTitle { text: "Glass effects" }
+                    Text {
+                        objectName: "glassStatus"
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: Theme.textFaint
+                        font.pixelSize: Theme.fsSmall
+                        text: Backend.glassLive
+                              ? "Live: your desktop follows these as you change them."
+                              : "Drawn by Liquid Glass's own Shell extension. Apply, then log out once to start it."
+                    }
+                    LabeledSlider {
+                        label: "Bend"
+                        value: Backend.refraction
+                        onMoved: (v) => Backend.refraction = v
+                        tip: "How strongly the rim of the glass bends what's behind it"
+                    }
+                    LabeledSlider {
+                        label: "Rainbow edge"
+                        value: Backend.dispersion
+                        onMoved: (v) => Backend.dispersion = v
+                        tip: "Splits light into colours along the rim, like real glass"
+                    }
+                    LabeledSlider {
+                        label: "Colour through glass"
+                        value: Backend.vibrancy
+                        onMoved: (v) => Backend.vibrancy = v
+                        tip: "How vivid the wallpaper and windows look through the glass"
+                    }
+                    Column {
+                        width: parent.width
+                        spacing: 4
+                        SwitchRow {
+                            label: "Panel"
+                            caption: "Dash to Panel or the top bar"
+                            checked: Backend.glassPanel
+                            onToggled: (on) => Backend.glassPanel = on
+                        }
+                        SwitchRow {
+                            label: "Menus"
+                            caption: "Quick settings, calendar, ArcMenu and app menus"
+                            checked: Backend.glassMenus
+                            onToggled: (on) => Backend.glassMenus = on
+                        }
+                        SwitchRow {
+                            label: "App windows"
+                            caption: "Frosted wallpaper behind translucent windows"
+                            checked: Backend.blurAppWindows
+                            onToggled: (on) => Backend.blurAppWindows = on
+                        }
+                        SwitchRow {
+                            label: "Overview"
+                            caption: "Blurred wallpaper behind the Activities overview"
+                            checked: Backend.glassOverview
+                            onToggled: (on) => Backend.glassOverview = on
+                        }
+                        SwitchRow {
+                            label: "See windows through the glass"
+                            caption: "Off shows only the wallpaper behind the panel and menus, which is lighter on the GPU"
+                            enabled: Backend.glassPanel || Backend.glassMenus
+                            checked: Backend.glassSeeWindows
+                            onToggled: (on) => Backend.glassSeeWindows = on
+                        }
                     }
                 }
             }

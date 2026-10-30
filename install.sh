@@ -87,7 +87,9 @@ NoNewPrivileges=true
 WantedBy=graphical-session.target
 EOF
 systemctl --user daemon-reload 2>/dev/null || true
-systemctl --user enable --now liquid-glass-watch.service 2>/dev/null || true
+systemctl --user enable liquid-glass-watch.service 2>/dev/null || true
+# restart, not just start: after an upgrade the old watcher would keep running the old code
+systemctl --user restart liquid-glass-watch.service 2>/dev/null || true
 
 say "Done. Open Liquid Glass from the app grid, or run: liquid-glass"
 case ":$PATH:" in *":$bin:"*) ;; *) echo "(Add $bin to your PATH to use the liquid-glass command.)";; esac
