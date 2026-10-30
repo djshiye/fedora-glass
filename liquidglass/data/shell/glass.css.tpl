@@ -332,7 +332,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 
 /* ---------------------------------------------------------------- calendar, messages, notifications */
 .datemenu-popover {
-  border-radius: ${r_cal}px; }
+  border-radius: ${cal_r_cal}px; }
 .calendar, .datemenu-today-button {
   background-color: transparent;
   border-color: transparent;
@@ -377,7 +377,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${r}px;
+  border-radius: ${cal_r}px;
   box-shadow: none; }
 .message:hover, .events-button:hover, .world-clocks-button:hover, .weather-button:hover {
   color: ${fg};
@@ -422,10 +422,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border-color: transparent;
   box-shadow: none; }
 .notification-banner {
-  background-color: ${popover};
+  background-color: ${cal_popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  border-radius: ${r}px;
+  border-radius: ${cal_r}px;
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .url-highlighter {
   link-color: ${accent_text}; }
@@ -544,9 +544,9 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${edge};
   border-top-color: ${rim}; }
 .search-section-content {
-  border-radius: ${r_big}px; }
+  border-radius: ${ov_r_big}px; }
 .list-search-result, .search-provider-icon {
-  border-radius: ${r_item}px;
+  border-radius: ${ov_r_item}px;
   border-color: transparent; }
 .list-search-result:hover, .search-provider-icon:hover, .list-search-result:focus, .search-provider-icon:focus {
   color: ${fg};
@@ -574,10 +574,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card_active}; }
 .app-folder-dialog {
   color: ${fg};
-  background-color: ${dialog};
+  background-color: ${ov_dialog};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${r_folder}px;
+  border-radius: ${ov_r_folder}px;
   box-shadow: 0 24px 60px 0 ${shadow}; }
 .app-folder-dialog .folder-name-container .folder-name-entry,
 .app-folder-dialog .folder-name-container .folder-name-label {
@@ -585,7 +585,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .app-grid-running-dot, .app-well-app-running-dot {
   background-color: ${fg}; }
 #dash .dash-background {
-  background-color: ${chrome};
+  background-color: ${ov_chrome};
   border: 1px solid ${edge};
   border-top-color: ${rim};
   box-shadow: 0 10px 30px 0 ${shadow}; }
@@ -599,23 +599,23 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 #dash .dash-separator {
   background-color: ${divider}; }
 .workspace-thumbnails .workspace-thumbnail {
-  border-radius: ${r_small}px;
+  border-radius: ${ov_r_small}px;
   border: 1px solid ${edge};
   background-color: ${card}; }
 .workspace-thumbnail-indicator {
   border-color: ${accent};
-  border-radius: ${r_small}px; }
+  border-radius: ${ov_r_small}px; }
 .page-indicator, .page-indicator-icon {
   background-color: ${fg_faint}; }
 .dash-label, .window-caption, .screenshot-ui-tooltip {
   color: ${fg};
-  background-color: ${osd};
+  background-color: ${ov_osd};
   border: 1px solid ${edge};
   border-top-color: ${rim};
   border-radius: 999px;
   box-shadow: 0 4px 14px 0 ${shadow}; }
 .window-caption {
-  border-radius: ${r_item}px; }
+  border-radius: ${ov_r_item}px; }
 .select-area-rubberband {
   background-color: ${selection};
   border-color: ${accent}; }
@@ -701,10 +701,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   box-shadow: 0 10px 30px 0 ${shadow}; }
 .arcmenu-tooltip, #ArcMenu_Tooltip {
   color: ${fg};
-  background-color: ${osd};
+  background-color: ${arc_osd};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${r_item}px;
+  border-radius: ${arc_r_item}px;
   box-shadow: 0 4px 14px 0 ${shadow}; }
 .arcmenu-text-indicator {
   background-color: ${hover}; }

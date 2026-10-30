@@ -263,3 +263,35 @@ def test_live_glass_follows_sliders_and_falls_back_on_quit(make_backend, home):
     assert json.loads(path.read_text())["look"]["bend"] == 0
     b.shutdown()                           # unapplied: the desktop goes back to the saved look
     assert json.loads(path.read_text())["look"]["bend"] > 0
+
+
+def test_part_overrides(make_backend):
+    b = make_backend()
+    seen = []
+    b.settingsChanged.connect(lambda: seen.append(1))
+    assert b.hasPart("panel", "radius") is False
+    assert b.partValue("panel", "radius") == b.property("radius")              # follows the global value
+    assert b.partValue("panel", "reflections") == pytest.approx(b.property("highlight"))
+    b.setPart("panel", "radius", 4)
+    b.setPart("panel", "tint", "#ff0000")
+    b.setPart("nonsense", "radius", 4)                                          # ignored
+    b.setPart("panel", "bogus", 4)                                              # ignored
+    assert b.hasPart("panel", "radius") and b.partValue("panel", "radius") == 4
+    assert b.property("parts") == {"panel": {"radius": 4, "tint": "#ff0000"}}
+    assert len(seen) == 2
+    assert b.property("tokens")["panel_radius"] == 4 and b.property("tokens")["menu_radius"] == 18
+    assert b.property("tokens")["parts"]["panel"]["radius"] == 4
+    assert b.property("dirty") is True
+    b.clearPart("panel", "radius")
+    assert b.hasPart("panel", "radius") is False and b.hasPart("panel", "tint")
+    b.resetPart("panel")
+    assert b.property("parts") == {}
+    assert b.property("dirty") is False
+
+
+def test_bleed_property(make_backend):
+    b = make_backend()
+    assert b.property("bleed") == pytest.approx(0.6)
+    b.setProperty("bleed", 0.2)
+    assert b.settings().bleed == pytest.approx(0.2)
+    assert b.property("tokens")["bleed"] < 0.2 + 1e-9

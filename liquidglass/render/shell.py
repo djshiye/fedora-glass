@@ -21,13 +21,14 @@ _TEMPLATE = Path(__file__).resolve().parent.parent / "data/shell/glass.css.tpl"
 _NONE = "rgba(0,0,0,0)"
 
 
-def radii(t: Tokens) -> dict[str, int]:
+def radii(t: Tokens, r: int | None = None) -> dict[str, int]:
     """One radius scale shared by the CSS and the Dash to Panel / ArcMenu keys,
-    so the blur clip always matches the painted surface."""
-    r = t.radius
+    so the blur clip always matches the painted surface. `r` is the base radius
+    (the menus' by default); each part of the desktop gets its own scale."""
+    r = t.menu_radius if r is None else r
     return {
         "r": r,
-        "r_small": t.radius_small,
+        "r_small": max(4, round(r * 0.6)),
         "r_item": max(6, r - 4),
         "r_menu": r + 2,
         "r_sub": r + 6,
@@ -39,30 +40,65 @@ def radii(t: Tokens) -> dict[str, int]:
     }
 
 
-def _thin(c: Color, t: Tokens) -> Color:
+def _thin(c: Color, t: Tokens, frost: float | None = None) -> Color:
     """Shell surfaces sit on a real blur, so they can be more see-through than the
     blur-less GTK surfaces the tokens were tuned for. Near-opaque tokens (reduce
     transparency, solid presets) are left alone."""
     if c.a >= 0.95 or t.blur_radius == 0:
         return c
-    k = lerp(0.60, 1.0, t.frost) if t.dark else lerp(0.74, 1.0, t.frost)
+    f = t.frost if frost is None else frost
+    k = lerp(0.60, 1.0, f) if t.dark else lerp(0.74, 1.0, f)
     return c.with_alpha(max(0.0, c.a * k))
 
 
-def surfaces(t: Tokens) -> dict[str, Color]:
-    return {"popover": _thin(t.popover, t), "dialog": _thin(t.dialog, t),
-            "osd": _thin(t.osd, t), "chrome": t.chrome}
+def veil(t: Tokens, kind: str, frost: float | None = None) -> float:
+    """Alpha of a surface the extension draws glass behind. The extension already darkens,
+    frosts and reflects the backdrop itself, so the theme only lays a light veil on top
+    (kind is "menu" or "panel"). The glass layer is brightened/darkened to keep text readable
+    over this thin veil, see render/glass.py."""
+    f = t.frost if frost is None else frost
+    if kind == "panel":
+        return lerp(0.18, 0.45, f)
+    return lerp(0.16, 0.45, f) if t.dark else lerp(0.30, 0.60, f)
+
+
+# Which parts the extension draws glass behind as menus; the panel is the other one.
+MENU_PARTS = ("arcmenu", "quicksettings", "calendar")
+
+
+def surfaces(t: Tokens, part: str | None = None) -> dict[str, Color]:
+    """Popover, dialog, osd and chrome as the Shell paints them. `part` picks one part's look
+    (quick settings by default, with the panel's chrome)."""
+    name = part or "quicksettings"
+    look = t.parts[name]
+    f = look["frost"]
+    out = {k: look[k] for k in ("popover", "dialog", "osd")}
+    chrome = look["chrome"] if part else t.chrome
+    if name in MENU_PARTS and t.glass_menu_edges:
+        v = veil(t, "menu", f)
+        for k, extra in (("popover", 0.0), ("dialog", 0.04), ("osd", 0.0)):
+            if out[k].a < 0.95:
+                out[k] = out[k].with_alpha(min(out[k].a, v + extra))
+    else:
+        out = {k: _thin(c, t, f) for k, c in out.items()}
+    if (part is None or part == "panel") and t.glass_panel_edges and chrome.a < 0.95:
+        chrome = chrome.with_alpha(min(chrome.a, veil(t, "panel", t.parts["panel"]["frost"])))
+    out["chrome"] = chrome
+    return out
 
 
 def values(t: Tokens) -> dict[str, str]:
     """Every placeholder of the CSS template, derived from tokens only."""
     surf = surfaces(t)
+    arc, cal, ovw = surfaces(t, "arcmenu"), surfaces(t, "calendar"), surfaces(t, "overview")
     ink = WHITE if t.dark else BLACK
     if t.dark:
-        ctrl = (ink.with_alpha(0.17), ink.with_alpha(0.06))
-        hov = (ink.with_alpha(0.24), ink.with_alpha(0.11))
-        press = (ink.with_alpha(0.08), ink.with_alpha(0.20))
-        field, field_hover = BLACK.with_alpha(0.22), BLACK.with_alpha(0.30)
+        # Translucent, so the glass shows through buttons instead of grey slabs.
+        ctrl = (ink.with_alpha(0.14), ink.with_alpha(0.10))
+        hov = (ink.with_alpha(0.20), ink.with_alpha(0.15))
+        press = (ink.with_alpha(0.08), ink.with_alpha(0.12))
+        # Fields stay mostly opaque, so text behind the glass never shows through them.
+        field, field_hover = t.popover.with_alpha(0.62), t.popover.with_alpha(0.72)
         field_shadow = BLACK.with_alpha(0.35)
         switch_off, switch_hover = ink.with_alpha(0.20), ink.with_alpha(0.28)
         track = ink.with_alpha(0.16)
@@ -72,7 +108,7 @@ def values(t: Tokens) -> dict[str, str]:
         ctrl = (WHITE.with_alpha(0.80), WHITE.with_alpha(0.42))
         hov = (WHITE.with_alpha(0.92), WHITE.with_alpha(0.58))
         press = (WHITE.with_alpha(0.40), WHITE.with_alpha(0.62))
-        field, field_hover = WHITE.with_alpha(0.55), WHITE.with_alpha(0.70)
+        field, field_hover = WHITE.with_alpha(0.62), WHITE.with_alpha(0.75)
         field_shadow = BLACK.with_alpha(0.10)
         switch_off, switch_hover = ink.with_alpha(0.18), ink.with_alpha(0.26)
         track = ink.with_alpha(0.14)
@@ -112,6 +148,10 @@ def values(t: Tokens) -> dict[str, str]:
         "track": track.css, "scroll": scroll.css, "scroll_hover": scroll_hover.css,
     }
     v.update({k: str(n) for k, n in radii(t).items()})
+    # The calendar, overview and ArcMenu sections of the template use their own part's look.
+    for prefix, part, surf_p in (("cal_", "calendar", cal), ("ov_", "overview", ovw), ("arc_", "arcmenu", arc)):
+        v.update({prefix + k: str(n) for k, n in radii(t, t.parts[part]["radius"]).items()})
+        v.update({prefix + k: c.css for k, c in surf_p.items()})
     return v
 
 
@@ -139,7 +179,7 @@ def render_css(t: Tokens) -> str:
 def dtp_values(t: Tokens) -> dict[str, str]:
     """gsettings text per Dash to Panel key. Layout keys (position, sizes) are never touched."""
     floating = t.panel_floating
-    bg = t.chrome
+    bg = surfaces(t)["chrome"]
     m = t.panel_margin if floating else 0
     return {
         "trans-use-custom-bg": "true",
@@ -168,15 +208,15 @@ def dtp_values(t: Tokens) -> dict[str, str]:
 
 def _dtp_radius(t: Tokens) -> int:
     """Dash to Panel stores the radius in steps of 4 px (0..5), not pixels."""
-    return min(5, round(t.radius / 4))
+    return min(5, round(t.panel_radius / 4))
 
 
 # ---- ArcMenu -----------------------------------------------------------------------------------
 def arcmenu_values(t: Tokens) -> dict[str, str]:
     """gsettings text per ArcMenu key (colours are CSS strings; (bs)/(bi) are enable flags + value)."""
-    r = radii(t)
+    r = radii(t, t.parts["arcmenu"]["radius"])
     ink = WHITE if t.dark else BLACK
-    bg = surfaces(t)["popover"]
+    bg = surfaces(t, "arcmenu")["popover"]
     fg = t.fg
     hover = ink.with_alpha(0.10 if t.dark else 0.08)
     active = t.accent.with_alpha(0.85)

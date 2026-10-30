@@ -115,7 +115,7 @@ def vscode_theme(t: Tokens) -> dict:
     n = p.named()
     bg = _o(t.view)
     side = _o(t.window.mix(BLACK if t.dark else WHITE, 0.0))
-    chrome = _o(t.chrome)
+    chrome = _o(t.window_chrome)
     ink = p.fg
     dim = p.dim
     edge = t.divider.hex8
@@ -162,7 +162,7 @@ def vscode_theme(t: Tokens) -> dict:
         "tab.activeBackground": bg.hex6, "tab.inactiveBackground": chrome.hex6,
         "tab.activeForeground": ink.hex6, "tab.inactiveForeground": dim.hex6,
         "tab.border": "#00000000", "tab.activeBorderTop": acc.hex6,
-        "tab.hoverBackground": _o(t.chrome.mix(ink, 0.06)).hex6,
+        "tab.hoverBackground": _o(t.window_chrome.mix(ink, 0.06)).hex6,
         "activityBar.background": chrome.hex6, "activityBar.foreground": ink.hex6,
         "activityBar.inactiveForeground": dim.hex6, "activityBar.border": edge,
         "activityBarBadge.background": acc.hex6, "activityBarBadge.foreground": t.accent_fg.hex6,
@@ -190,7 +190,7 @@ def vscode_theme(t: Tokens) -> dict:
         "panelTitle.activeBorder": acc.hex6,
         "button.background": t.accent.with_alpha(1).hex6, "button.foreground": t.accent_fg.hex6,
         "button.hoverBackground": _o(t.accent.mix(WHITE, 0.12)).hex6,
-        "button.secondaryBackground": _o(t.chrome.mix(ink, 0.10)).hex6,
+        "button.secondaryBackground": _o(t.window_chrome.mix(ink, 0.10)).hex6,
         "button.secondaryForeground": ink.hex6,
         "input.background": chrome.hex6, "input.foreground": ink.hex6, "input.border": edge,
         "input.placeholderForeground": dim.hex6, "inputOption.activeBorder": acc.hex6,
@@ -322,7 +322,7 @@ DISCORD_THEME_FILE = "liquid-glass.theme.css"
 
 def _discord_vars(t: Tokens) -> str:
     base = t.window
-    chrome = t.chrome
+    chrome = t.window_chrome
     view = t.view
     rows = {
         "--lg-window": base.css, "--lg-chrome": chrome.css, "--lg-view": view.css,
@@ -449,7 +449,7 @@ def obsidian_manifest() -> str:
 def _obsidian_vars(t: Tokens) -> str:
     rows = {
         "--background-primary": _o(t.view).css, "--background-primary-alt": _o(t.window).css,
-        "--background-secondary": _o(t.chrome).css, "--background-secondary-alt": _o(t.window).css,
+        "--background-secondary": _o(t.window_chrome).css, "--background-secondary-alt": _o(t.window).css,
         "--background-modifier-hover": t.hover.css, "--background-modifier-active-hover": t.active.css,
         "--background-modifier-border": t.edge.css, "--background-modifier-border-hover": t.edge.css,
         "--background-modifier-form-field": t.card.css, "--background-modifier-box-shadow": t.shadow.css,
@@ -457,10 +457,10 @@ def _obsidian_vars(t: Tokens) -> str:
         "--text-accent": t.accent_text.css, "--text-accent-hover": t.accent_text.css,
         "--text-on-accent": t.accent_fg.css, "--text-selection": t.selection.css,
         "--interactive-accent": t.accent.css, "--interactive-accent-hover": t.accent.css,
-        "--interactive-normal": _o(t.chrome.mix(t.fg, 0.10)).css,
-        "--interactive-hover": _o(t.chrome.mix(t.fg, 0.16)).css,
+        "--interactive-normal": _o(t.window_chrome.mix(t.fg, 0.10)).css,
+        "--interactive-hover": _o(t.window_chrome.mix(t.fg, 0.16)).css,
         "--color-red": t.destructive.css, "--color-green": t.success.css, "--color-yellow": t.warning.css,
-        "--titlebar-background": _o(t.chrome).css, "--titlebar-background-focused": _o(t.chrome).css,
+        "--titlebar-background": _o(t.window_chrome).css, "--titlebar-background-focused": _o(t.window_chrome).css,
         "--tab-background-active": _o(t.view).css,
     }
     return "\n".join(f"  {k}: {v};" for k, v in rows.items())
@@ -512,7 +512,7 @@ def _hsl_h(c: Color) -> int:
 def _palette_colors(t: Tokens) -> dict[str, str]:
     win, base = _o(t.window), _o(t.view)
     # Qt stylesheets and palettes cannot do glass; these are the opaque equivalents.
-    btn = _o(t.chrome.mix(t.fg, 0.08))
+    btn = _o(t.window_chrome.mix(t.fg, 0.08))
     return {
         "Window": win.hex6, "WindowText": t.fg.hex6, "Base": base.hex6,
         "AlternateBase": _o(base.mix(t.fg, 0.04)).hex6, "Text": t.fg.hex6,
@@ -527,11 +527,12 @@ def qt_qss(t: Tokens) -> str:
     """Widget style sheet shared by the Qt apps we theme through QSS. Opaque colours only:
     Qt's rgba() takes 0..255 alphas, and these windows cannot be translucent anyway."""
     win, base = _o(t.window), _o(t.view)
-    chrome = _o(t.chrome)
-    btn = _o(t.chrome.mix(t.fg, 0.08))
-    btn_h = _o(t.chrome.mix(t.fg, 0.15))
+    chrome = _o(t.window_chrome)
+    btn = _o(t.window_chrome.mix(t.fg, 0.08))
+    btn_h = _o(t.window_chrome.mix(t.fg, 0.15))
     edge = _o(win.mix(t.fg, 0.14))
-    r, rs = t.radius, t.radius_small
+    r = t.window_radius
+    rs = max(4, round(r * 0.6))
     dim = _o(t.fg.mix(win, 0.35))
     return f"""/* Liquid Glass */
 QWidget {{ color: {t.fg.hex6}; }}
@@ -615,7 +616,7 @@ def _rgb(c: Color) -> list[int]:
 
 
 def chromium_manifest(t: Tokens) -> str:
-    frame, tool = _o(t.window), _o(t.view.mix(t.chrome, 0.5))
+    frame, tool = _o(t.window), _o(t.view.mix(t.window_chrome, 0.5))
     colors = {
         "frame": _rgb(frame), "frame_inactive": _rgb(_o(frame.mix(t.fg, 0.04))),
         "frame_incognito": _rgb(_o(frame.mix(BLACK, 0.2))),

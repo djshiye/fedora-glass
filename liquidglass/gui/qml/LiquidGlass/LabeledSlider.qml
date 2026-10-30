@@ -28,7 +28,7 @@ Item {
         font.features: { "tnum": 1 }
     }
     HoverHandler { id: hover }
-    LgToolTip { shown: root.tip.length > 0 && hover.hovered; text: root.tip }
+    LgToolTip { shown: (hover.hovered || slider.visualFocus) && !slider.pressed; text: root.tip }
     LgSlider {
         id: slider
         y: 26

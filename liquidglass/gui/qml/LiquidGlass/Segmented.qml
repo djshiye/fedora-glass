@@ -14,6 +14,8 @@ FocusScope {
     readonly property color _textDim: onWallpaper ? Qt.rgba(0.96, 0.96, 0.98, 0.7) : Theme.textDim
     readonly property bool _dark: onWallpaper || Theme.dark
     signal activated(var value)
+    property bool _byMouse: false         // focus came from a click, so no tip is pinned to the item
+    onActiveFocusChanged: if (!activeFocus) _byMouse = false
 
     readonly property int count: model.length
     readonly property int currentIndex: {
@@ -27,8 +29,8 @@ FocusScope {
     implicitWidth: 240
     activeFocusOnTab: true
 
-    Keys.onLeftPressed: if (currentIndex > 0) activated(model[currentIndex - 1].value)
-    Keys.onRightPressed: if (currentIndex < count - 1) activated(model[currentIndex + 1].value)
+    Keys.onLeftPressed: { _byMouse = false; if (currentIndex > 0) activated(model[currentIndex - 1].value) }
+    Keys.onRightPressed: { _byMouse = false; if (currentIndex < count - 1) activated(model[currentIndex + 1].value) }
 
     Rectangle {
         id: track
@@ -75,7 +77,7 @@ FocusScope {
                 width: (root.width - 6) / Math.max(1, root.count)
                 height: parent.height
 
-                LgToolTip { shown: hover.hovered; text: seg.modelData.tip || "" }
+                LgToolTip { shown: hover.hovered || (root.activeFocus && !root._byMouse && seg.selected); text: seg.modelData.tip || "" }
 
                 Row {
                     anchors.centerIn: parent
@@ -98,7 +100,7 @@ FocusScope {
                     }
                 }
                 HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: { root.forceActiveFocus(); root.activated(seg.modelData.value) } }
+                TapHandler { onTapped: { root._byMouse = true; root.forceActiveFocus(); root.activated(seg.modelData.value) } }
             }
         }
     }

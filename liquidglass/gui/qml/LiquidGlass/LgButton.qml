@@ -70,12 +70,6 @@ C.Button {
         border.color: Theme.border
         Behavior on color { ColorAnimation { duration: Theme.fast } }
 
-        RimLight {
-            visible: control._primary || control.kind === "secondary"
-            radius: height / 2
-            rim: control._primary ? Qt.rgba(1, 1, 1, 0.35) : Theme.rim
-            edge: control._primary ? "transparent" : Theme.border
-        }
         FocusRing { target: control; radius: height / 2 }
     }
 }

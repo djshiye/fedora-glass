@@ -8,6 +8,7 @@ import GLib from 'gi://GLib';
 import {DEFAULT_LOOK} from './glass.js';
 
 const MAX_BYTES = 64 * 1024;
+const PARTS = ['panel', 'arcmenu', 'quicksettings', 'calendar'];
 
 export const DEFAULTS = Object.freeze({
     panel: {enabled: true, behind: 'windows', look: {}},
@@ -28,8 +29,11 @@ function cleanLook(raw, base) {
     const ranges = {
         blur: [0, 100], refraction: [0, 80], bend: [0, 80], depth: [0, 1], dispersion: [0, 1],
         saturation: [0, 3], brightness: [0, 2], highlight: [0, 1], lightAngle: [-360, 360],
-        falloff: [0.25, 8], shadow: [0, 1],
+        shadow: [0, 1], bleed: [0, 1], adapt: [0, 1],
     };
+    // edgeLight is the newer name for highlight.
+    if (typeof raw.highlight !== 'number' && typeof raw.edgeLight === 'number')
+        raw = {...raw, highlight: raw.edgeLight};
     for (const [k, [lo, hi]] of Object.entries(ranges))
         out[k] = num(raw[k], base[k], lo, hi);
     if (Array.isArray(raw.tint) && raw.tint.length === 4)
@@ -73,6 +77,15 @@ export function parse(text) {
         cfg[name] = cleanSurface(raw[name], DEFAULTS[name]);
         if (cfg[name].look)
             cfg[name].look = cleanLook(cfg[name].look, look);
+    }
+    // Each part of the Shell can have its own look; missing parts follow the panel or menus.
+    cfg.parts = {};
+    const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};
+    for (const name of PARTS) {
+        const base = name === 'panel' ? cfg.panel : cfg.menus;
+        const part = parts[name];
+        cfg.parts[name] = part && typeof part === 'object' && part.look && typeof part.look === 'object'
+            ? {...base, look: cleanLook(part.look, base.look)} : base;
     }
     return cfg;
 }

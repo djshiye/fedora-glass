@@ -279,8 +279,8 @@ def _indicator_box(sh: Sheet, p: Palette, kind: str, prefix: str) -> None:
 def build_svg(t: Tokens) -> str:
     sh = Sheet()
     p = Palette(t)
-    R = _clamp(t.radius * 0.45, 4, 10)       # buttons, entries, tabs
-    RM = _clamp(t.radius * 0.5, 4, 10)       # menus
+    R = _clamp(t.window_radius * 0.45, 4, 10)       # buttons, entries, tabs
+    RM = _clamp(t.window_radius * 0.5, 4, 10)       # menus
     RI = 4                                   # list selections, menu items
     RG = 4                                   # generic frames, group boxes
     PR = PROGRESS // 2                       # progress bars are pills
@@ -413,8 +413,8 @@ def build_config(t: Tokens) -> str:
     base = t.view.with_alpha(1)
     fg = _hex(t.fg)
     dim = _hex(_opaque(t.fg_faint, surface))
-    R = _clamp(t.radius * 0.45, 4, 10)
-    RM = _clamp(t.radius * 0.5, 4, 10)
+    R = _clamp(t.window_radius * 0.45, 4, 10)
+    RM = _clamp(t.window_radius * 0.5, 4, 10)
     RI = 4
     RG = 4
     # Qt draws no backdrop blur here, so keep enough body behind the text:

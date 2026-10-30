@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from liquidglass import palette
+from liquidglass.color import Color
 from liquidglass.engine import Engine
 from liquidglass.render import glass as rg
 from liquidglass.render import shell as rs
@@ -297,3 +298,51 @@ def test_glass_surfaces_drop_the_drawn_outline():
     assert rs.dtp_values(off)["trans-use-border"] == "true"
     no_ext = palette.build(Settings(targets={"glass": False}), dark=True)
     assert on.edge.css in block(rs.render_css(no_ext), ".quick-settings")
+
+
+# ---- per-part rendering and the light veil on glass-drawn surfaces -----------------------
+def test_parts_reach_the_shell_css_and_gsettings():
+    t = palette.build(Settings(radius=18, parts={
+        "arcmenu": {"radius": 6}, "quicksettings": {"radius": 24}, "calendar": {"radius": 10},
+        "panel": {"radius": 0}}), dark=True)
+    css = rs.render_css(t)
+    assert f"border-radius: {rs.radii(t)['r_big']}px" in css            # quick settings: 48
+    assert f"border-radius: {rs.radii(t, 10)['r_cal']}px" in css        # calendar
+    assert "${" not in css
+    arc = rs.arcmenu_values(t)
+    assert arc["menu-border-radius"] == str(rs.radii(t, 6)["r_menu"])
+    assert rs.dtp_values(t)["global-border-radius"] == "0"
+    assert rs.arcmenu_values(palette.build(Settings(), dark=True))["menu-border-radius"] == "20"
+
+
+def test_glass_config_has_parts_and_bleed():
+    s = Settings(parts={"panel": {"refraction": 0.0, "tint": "#102030"}})
+    cfg = rg.config(s, palette.build(s, dark=True))
+    assert cfg["look"]["bleed"] > 0
+    assert set(cfg["parts"]) == {"panel", "arcmenu", "quicksettings", "calendar", "overview"}
+    assert cfg["parts"]["panel"]["look"]["bend"] == 0 < cfg["parts"]["calendar"]["look"]["bend"]
+    assert cfg["parts"]["panel"]["tint"][:3] == pytest.approx([0x10 / 255, 0x20 / 255, 0x30 / 255])
+    for k in ("blur", "refraction", "bend", "bleed", "highlight"):
+        assert k in cfg["parts"]["arcmenu"]["look"]
+    assert cfg["menus"]["look"]["brightness"] < 1 and "panel" in cfg and "overview" in cfg
+
+
+def test_veil_is_light_and_text_stays_readable():
+    """The extension darkens the backdrop (brightness in glass.py), then the theme lays a
+    thin veil. Assumed backdrop: an average photo (50% grey) scaled by that brightness."""
+    for dark in (True, False):
+        for f in (0.0, 0.45, 1.0):
+            t = palette.build(Settings(frost=f), dark=dark)
+            assert t.glass_menu_edges and t.glass_panel_edges
+            surf = rs.surfaces(t)
+            assert surf["popover"].a == pytest.approx(rs.veil(t, "menu"), abs=1e-6)
+            assert surf["chrome"].a == pytest.approx(rs.veil(t, "panel"), abs=1e-6)
+            assert surf["popover"].a <= 0.62 and surf["chrome"].a <= 0.45
+            b = rg._brightness(t, f)
+            assert (b < 1) if dark else (b >= 1)
+            grey = Color(*(min(1.0, 0.5 * b),) * 3)
+            for name in ("popover", "dialog", "osd", "chrome"):
+                over = grey.mix(surf[name].with_alpha(1), surf[name].a)
+                assert t.fg.contrast(over) >= 4.5, (name, dark, f)
+    solid = palette.build(Settings(frost=1.0, opacity=0.95), dark=True)
+    assert rs.surfaces(solid)["popover"].a >= 0.95                      # solid presets are left alone

@@ -13,7 +13,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
-import {GlassPane} from './glass.js';
+import {GlassPane, moving, stopMoving} from './glass.js';
 
 const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
 const MOVES = ['notify::allocation', 'notify::visible', 'notify::opacity', 'notify::translation-x',
@@ -26,6 +26,15 @@ function radiiOf(actor) {
     } catch {
         return [0, 0, 0, 0];   // not styled yet
     }
+}
+
+/** Which sides of a surface at stage rectangle (x, y, w, h) lie on its monitor's edge. */
+function screenEdges(actor, x, y, w, h) {
+    const m = Main.layoutManager.findMonitorForActor(actor);
+    if (!m)
+        return [false, false, false, false];
+    const near = (a, b) => Math.abs(a - b) < 1.5;
+    return [near(x, m.x), near(y, m.y), near(x + w, m.x + m.width), near(y + h, m.y + m.height)];
 }
 
 /**
@@ -109,6 +118,17 @@ class Signals {
     }
 }
 
+// What to copy for the content's light: the anchor, or, when it is an empty
+// wrapper (quick settings sits in a 0×0 widget), its child that holds the target.
+function glowSource(anchor, target) {
+    if (anchor.width > 1 && anchor.height > 1)
+        return anchor;
+    let a = target;
+    while (a && a.get_parent() !== anchor)
+        a = a.get_parent();
+    return a ?? anchor;
+}
+
 /**
  * A pane that sits right below `anchor` (a child of a free-layout container
  * such as the Shell's UI group) and copies the on-screen rectangle, corner
@@ -143,8 +163,10 @@ class Follower {
                 this.queue();
         };
         windowWatch.current?.listeners.add(this._onWindows);
+        // glass, then the content's light, then the content: the glow sits behind
+        // icons and toggles, never on top of them.
         anchor.get_parent().insert_child_below(this.pane, anchor);
-        anchor.get_parent().insert_child_above(this.top, anchor);
+        anchor.get_parent().insert_child_below(this.top, anchor);
         this.update(settings);
     }
 
@@ -178,10 +200,10 @@ class Follower {
             hide();
             return;
         }
-        if (pane.get_next_sibling() !== anchor)
-            parent.set_child_below_sibling(pane, anchor);
-        if (top.get_previous_sibling() !== anchor)
-            parent.set_child_above_sibling(top, anchor);
+        if (top.get_next_sibling() !== anchor)
+            parent.set_child_below_sibling(top, anchor);
+        if (pane.get_next_sibling() !== top)
+            parent.set_child_below_sibling(pane, top);
 
         const [sx, sy] = target.get_transformed_position();
         // Size from the allocation, which is what is painted: width/height (and so
@@ -203,6 +225,14 @@ class Follower {
         const p = pane.pad;
         const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
+        // The light the content casts into the glass comes from the content itself.
+        // Both panes are the anchor's siblings; never clone an actor into itself.
+        const glow = glowSource(anchor, target);
+        const nested = top.contains(glow) || glow.contains(top) || glow.contains(pane);
+        top.setSources(nested ? [] : [glow]);
+        const edges = screenEdges(target, sx, sy, w, h);
+        pane.setEdges(edges);
+        top.setEdges(edges);
         pane.place(lx, ly, w, h, radii, sx, sy);
         top.place(lx, ly, w, h, radii, sx, sy);
         pane.show();
@@ -282,14 +312,14 @@ class Panels {
         this._followers.forEach(f => f.destroy());
         this._followers = [];
         for (const [target, anchor] of this._panels()) {
-            this._followers.push(new Follower(target, anchor, this.cfg.panel,
+            this._followers.push(new Follower(target, anchor, this.cfg.parts.panel,
                 f => (this._followers = this._followers.filter(x => x !== f))));
         }
     }
 
     update(cfg) {
         this.cfg = cfg;
-        this._followers.forEach(f => f.update(cfg.panel));
+        this._followers.forEach(f => f.update(cfg.parts.panel));
     }
 
     sync() {
@@ -307,6 +337,18 @@ class Panels {
 }
 
 // ---- popup menus, notification banners, OSD and the window switcher ----------------
+// Which part of the Shell a menu belongs to, for its own look.
+function partOf(bp) {
+    const sa = Main.panel.statusArea;
+    if (bp === sa.quickSettings?.menu?.actor)
+        return 'quicksettings';
+    if (bp === sa.dateMenu?.menu?.actor)
+        return 'calendar';
+    if (bp.has_style_class_name?.('arcmenu-menu'))
+        return 'arcmenu';
+    return 'quicksettings';      // app menus and the rest look like quick settings
+}
+
 class Popups {
     constructor(cfg) {
         this.cfg = cfg;
@@ -334,8 +376,8 @@ class Popups {
         // Banners come and go inside the message tray.
         const tray = Main.messageTray, bin = tray?._bannerBin;
         if (bin) {
-            this._signals.on(bin, 'child-added', (_b, banner) => this._follow(banner, tray));
-            bin.get_children().forEach(b => this._follow(b, tray));
+            this._signals.on(bin, 'child-added', (_b, banner) => this._follow(banner, tray, 'calendar'));
+            bin.get_children().forEach(b => this._follow(b, tray, 'calendar'));
         }
     }
 
@@ -346,31 +388,36 @@ class Popups {
         const bp = child instanceof BoxPointer ? child
             : child.get_children?.().find(c => c instanceof BoxPointer) ?? null;
         if (bp) {
-            this._follow(bp.bin?.get_child?.(), child);
+            this._follow(bp.bin?.get_child?.(), child, partOf(bp));
             return;
         }
         // Volume and brightness pop-ups.
         const osd = child.get_children?.().find(c => c.has_style_class_name?.('osd-window'));
         if (osd) {
-            this._follow(osd, child);
+            this._follow(osd, child, 'quicksettings');
             return;
         }
         // Alt+Tab and friends.
         if (child._switcherList)
-            this._follow(child._switcherList, child);
+            this._follow(child._switcherList, child, 'quicksettings');
     }
 
-    _follow(surface, anchor) {
+    _follow(surface, anchor, part = 'menus') {
         if (!surface || this._followers.has(surface))
             return;
-        const f = new Follower(surface, anchor, this.cfg.menus, () => this._followers.delete(surface));
+        const f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
+        f.part = part;
         this._followers.set(surface, f);
+    }
+
+    _settings(part) {
+        return this.cfg.parts[part] ?? this.cfg.menus;
     }
 
     update(cfg) {
         this.cfg = cfg;
         for (const f of this._followers.values())
-            f.update(cfg.menus);
+            f.update(this._settings(f.part));
     }
 
     sync() {
@@ -525,6 +572,9 @@ export class GlassManager {
         // Behind the panel and menus is the overview while it is open, the windows otherwise.
         for (const s of ['showing', 'shown', 'hiding', 'hidden'])
             this._signals.on(Main.overview, s, () => this._parts.forEach(p => p.sync?.()));
+        // A window dragged or resized behind the glass re-renders it every frame.
+        this._signals.on(global.display, 'grab-op-begin', () => moving(true));
+        this._signals.on(global.display, 'grab-op-end', () => moving(false));
     }
 
     update(cfg) {
@@ -534,6 +584,7 @@ export class GlassManager {
 
     destroy() {
         this._signals.clear();
+        stopMoving();
         this._parts.forEach(p => p.destroy());
         this._parts = [];
         windowWatch.current?.destroy();
