@@ -229,14 +229,16 @@ void main() {
         cogl_color_out = vec4(0.0);
         return;
     }
+    // Outside the pane: only its soft contact shadow, cast away from the light.
+    // It also lies under the edge's partly covered pixels, so the rounded edge
+    // stays anti-aliased against the shadow.
+    float s = 0.0;
+    if (shadow > 0.0 && pad > 1.0 && sd > -0.5) {
+        float ds = sdRoundRect(cc + L * (pad * 0.25), hh, r);
+        s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
+        s = shadow * s * s;
+    }
     if (sd > 0.5) {
-        // Outside the pane: only its soft contact shadow, cast away from the light.
-        float s = 0.0;
-        if (shadow > 0.0 && pad > 1.0) {
-            float ds = sdRoundRect(cc + L * (pad * 0.25), hh, r);
-            s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
-            s = shadow * s * s;
-        }
         cogl_color_out = vec4(0.0, 0.0, 0.0, s) * cogl_color_in.a;
         return;
     }
@@ -363,6 +365,9 @@ void main() {
         float wet = smoothstep(2.4 + 3.5 * near, 0.8, inside) * smoothstep(0.0, 0.6, inside);
         float a = clamp((F * 1.9 + wet * (0.3 + 1.2 * spec)) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe + 2.0 * spec),
                         0.0, 0.92);
+        // Fade in from the flat top: no hard line where the bevel starts, which a
+        // press would tilt into stair-steps.
+        a *= smoothstep(0.0, 0.25, x);
         // Restraint: the reflection may light the edge only a little above the glass
         // itself, so a bright backdrop gives no brighter a line than a dark one.
         vec3 base = col.rgb / max(col.a, 1e-3);
@@ -372,7 +377,7 @@ void main() {
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
-    cogl_color_out = col * cov * cogl_color_in.a;
+    cogl_color_out = (col * cov + vec4(0.0, 0.0, 0.0, s) * (1.0 - cov)) * cogl_color_in.a;
 }
 `;
 
@@ -667,6 +672,9 @@ class LiquidGlassPane extends Clutter.Actor {
             refr_amt: Math.max(0, L.bend) * (1 + 0.3 * m.press),
             depth: Math.max(0, Math.min(1, L.depth + 0.25 * m.press)),
         });
+        // All of the pane shows the new shape in the same frame, not only the part
+        // the stage happens to redraw (around a pressed button, say).
+        this.queue_redraw();
     }
 
     _applyShape() {
