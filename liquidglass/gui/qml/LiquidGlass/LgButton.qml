@@ -8,6 +8,7 @@ C.Button {
     property string kind: "secondary"
     property string iconName: ""
     property string tip: ""
+    property bool tipBelow: false       // show the tooltip under the button, off the text above it
     property bool busy: false
 
     readonly property bool _primary: kind === "primary" || kind === "destructive"
@@ -24,7 +25,7 @@ C.Button {
     opacity: enabled ? 1 : 0.45
     Behavior on opacity { NumberAnimation { duration: Theme.fast } }
 
-    LgToolTip { shown: control.tip.length > 0 && control.hovered && !control.pressed; text: control.tip }
+    LgToolTip { shown: control.tip.length > 0 && control.hovered && !control.pressed; text: control.tip; below: control.tipBelow }
 
     HoverHandler { cursorShape: control.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
 

@@ -59,6 +59,7 @@ Card {
                     kind: "secondary"
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
+                    tipBelow: true
                     text: "Restart Files"
                     iconName: "refresh"
                     tip: "Closes all open Files windows so Files starts fresh with the new bars. Terminal is left alone."
@@ -128,6 +129,7 @@ Card {
                     kind: termCol.chosen ? "flat" : "secondary"
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
+                    tipBelow: true
                     text: termCol.chosen ? "Keep my colours" : "Use Liquid Glass terminal colours"
                     tip: termCol.chosen
                          ? "Leaves Terminal on " + termCol.palName + ". Its top bar stays solid."
