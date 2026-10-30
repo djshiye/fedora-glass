@@ -95,6 +95,7 @@ function run(anim, label) {
     check(warnings.length === 1, `stacked: warns about the one it left (${warnings.length})`);
     anim.addAnimation({}, 'dance');
     check(theirs === 1 && anim._animations.dance.length === 1, 'stacked: their wrapper and Dash to Panel still run');
+    check(quiet.size === 0, `stacked: ours left in the chain is inert after undo (${quiet.size} quieted)`);
 }
 
 // Not an animator we know: leave it alone.

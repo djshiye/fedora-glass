@@ -14,6 +14,7 @@ export function wrapAnimator(anim, quiet, unquiet, warn = () => {}) {
     if (METHODS.some(m => typeof anim[m] !== 'function') || !Array.isArray(dancers()))
         return null;
     const dancing = target => dancers().some(p => p.target === target);
+    let live = true;   // false once undone: a wrapper left in someone's chain only passes calls on
     const saved = {};
     const wrappers = {};
     for (const m of METHODS) {
@@ -22,12 +23,12 @@ export function wrapAnimator(anim, quiet, unquiet, warn = () => {}) {
     }
     wrappers.addAnimation = function (target, name) {
         saved.addAnimation.fn.call(this, target, name);
-        if (name === 'dance' && dancing(target))
+        if (live && name === 'dance' && dancing(target))
             quiet(target);
     };
     wrappers.removeAnimation = function (target, name) {
         saved.removeAnimation.fn.call(this, target, name);
-        if (name === 'dance' && !dancing(target))
+        if (live && name === 'dance' && !dancing(target))
             unquiet(target);
     };
     for (const m of METHODS)
@@ -35,11 +36,12 @@ export function wrapAnimator(anim, quiet, unquiet, warn = () => {}) {
     dancers().forEach(p => quiet(p.target));
 
     return () => {
+        live = false;
         dancers().forEach(p => unquiet(p.target));
         for (const m of METHODS) {
             if (anim[m] !== wrappers[m]) {
                 // Someone wrapped on top of ours: taking ours out would drop theirs.
-                // Ours stays under theirs and still calls the original.
+                // Ours stays under theirs, inert, and only calls the original.
                 warn(`Dash to Panel's ${m} was wrapped again after Liquid Glass; leaving it as it is`);
                 continue;
             }
