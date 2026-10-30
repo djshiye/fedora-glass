@@ -642,6 +642,8 @@ Item {
 
             HeaderBarCard { width: parent.width }
 
+            LockScreenCard { width: parent.width }
+
             Card {
                 width: parent.width
                 height: implicitHeight
@@ -738,6 +740,8 @@ Item {
                     }
                 }
             }
+
+            MotionCard { width: parent.width }
 
             Card {
                 width: parent.width

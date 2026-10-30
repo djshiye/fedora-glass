@@ -92,6 +92,10 @@ PRESET
 - Keep theme files safe when ~/.config/gtk-4.0 or gtk-3.0 is linked into a theme
 - Notice and one-click Re-apply when another app replaces the GTK look
 - Keep window glass while a window briefly has no monitor
+- Animation picker: choose minimize, open, close, launch bounce and panel hover
+  animations, each with Intensity and Speed
+- Glass lock screen with a slide-up sheet, adjustable in the app
+- Stop idle panel repaints while an app is asking for attention
 
 * Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.2.1-1
 - Fix GNOME Shell crashing when a window is closed with window glass on

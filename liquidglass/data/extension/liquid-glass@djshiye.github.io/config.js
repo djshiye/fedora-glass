@@ -6,6 +6,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 import {DEFAULT_LOOK} from './glass.js';
+import {cleanMotion} from './curves.js';
 
 const MAX_BYTES = 64 * 1024;
 const PARTS = ['panel', 'arcmenu', 'quicksettings', 'calendar'];
@@ -18,6 +19,10 @@ export const DEFAULTS = Object.freeze({
         look: {refraction: 14, bend: 16, dispersion: 0.2, depth: 0.1, highlight: 0.45, bleed: 0, blur: 30}},
     overview: {enabled: true, blur: 40, brightness: 0.7},
     desktop: {startOnDesktop: false, overviewOff: false},
+    // The glass lock screen: frost, darkening and tint of the sheet, the password card,
+    // GNOME's clock look and place, and how the sheet slides away on unlock.
+    lock: {enabled: true, blur: 60, dim: 0.72, tint: [0, 0, 0, 0.12], card: true,
+        clockStyle: 'bold', clockPosition: 'gnome', slide: 'spring', slideMs: 450, bounce: 0.2},
     look: {...DEFAULT_LOOK},
 });
 
@@ -32,7 +37,8 @@ function cleanLook(raw, base) {
     const ranges = {
         blur: [0, 100], refraction: [0, 80], bend: [0, 80], depth: [0, 1], dispersion: [0, 1],
         saturation: [0, 3], brightness: [0, 2], highlight: [0, 1], lightAngle: [-360, 360],
-        shadow: [0, 1], bleed: [0, 1], adapt: [0, 1], lift: [0, 1], hairline: [0, 0.3], pointerLight: [0, 1], motion: [0, 1],
+        shadow: [0, 1], bleed: [0, 1], adapt: [0, 1], lift: [0, 1], hairline: [0, 0.3], ceiling: [0, 1], solid: [0, 1],
+        pointerLight: [0, 1], motion: [0, 1],
     };
     // edgeLight is the newer name for highlight.
     if (typeof raw.highlight !== 'number' && typeof raw.edgeLight === 'number')
@@ -67,6 +73,28 @@ function cleanSurface(raw, def) {
     return out;
 }
 
+const CHOICES = {clockStyle: ['gnome', 'bold', 'thin'], clockPosition: ['gnome', 'top', 'middle'],
+    slide: ['gnome', 'smooth', 'spring']};
+
+function cleanLock(raw) {
+    const def = DEFAULTS.lock;
+    const out = {...def};
+    if (!raw || typeof raw !== 'object')
+        return out;
+    for (const k of ['enabled', 'card'])
+        out[k] = typeof raw[k] === 'boolean' ? raw[k] : def[k];
+    // Never a sharp copy of the wallpaper behind the password, and never black.
+    out.blur = num(raw.blur, def.blur, 10, 100);
+    out.dim = num(raw.dim, def.dim, 0.35, 1);
+    out.slideMs = num(raw.slideMs, def.slideMs, 150, 1500);
+    out.bounce = num(raw.bounce, def.bounce, 0, 1);
+    if (Array.isArray(raw.tint) && raw.tint.length === 4)
+        out.tint = raw.tint.map((v, i) => num(v, def.tint[i], 0, 1)).map((v, i) => (i === 3 ? Math.min(v, 0.6) : v));
+    for (const [k, list] of Object.entries(CHOICES))
+        out[k] = list.includes(raw[k]) ? raw[k] : def[k];
+    return out;
+}
+
 export function parse(text) {
     let raw = {};
     try {
@@ -90,6 +118,9 @@ export function parse(text) {
     // Terminal windows can have their own look; it starts from the app windows' one.
     const tl = raw.windows && typeof raw.windows === 'object' ? raw.windows.terminalLook : null;
     cfg.windows.terminalLook = tl && typeof tl === 'object' ? cleanLook({...cfg.windows.look, ...tl}, cfg.windows.look) : null;
+    // Window and panel animations: unknown names fall back to the defaults, numbers are clamped.
+    cfg.animations = cleanMotion(raw.animations);
+    cfg.lock = cleanLock(raw.lock);
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};

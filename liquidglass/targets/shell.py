@@ -147,7 +147,15 @@ class DashToPanel(Target):
         return _need_extension(env, DASH_TO_PANEL, "Dash to Panel", "gnome-shell-extension-dash-to-panel")
 
     def plan(self, ctx: Context) -> list[Action]:
-        return _gset(self.SCHEMA, rs.dtp_values(ctx.tokens))
+        acts = _gset(self.SCHEMA, rs.dtp_values(ctx.tokens))
+        # Its own hover animation and ours would both move the icons. Only switched off when
+        # the user asks in the Motion card; Restore original (or turning that back) brings theirs back.
+        s = ctx.settings
+        if s.motion_dtp_hover_off and s.motion_for("hover")["preset"] != "off":
+            acts.append(GSet(self.SCHEMA, "animate-appicon-hover", "false", keep_user_change=True))
+        else:
+            acts.append(GReset(self.SCHEMA, "animate-appicon-hover"))
+        return acts
 
 
 @dataclass

@@ -26,6 +26,26 @@ PANEL_STYLES = ("floating", "docked")
 HEADER_MIN, HEADER_MAX = 36, 64
 HEADER_OPACITY_MIN = 0.10  # never fully clear, so titles stay readable
 
+# Window and panel animations: which one plays for each event, how lively it is
+# (intensity 0..1) and how fast (speed 0.5..2). The extension's curves.js holds the
+# same lists. "gnome" leaves an event to GNOME's own animation; "off" makes it instant.
+MOTION_EVENTS = ("open", "minimize", "close", "launch", "hover")
+MOTION_PRESETS = {
+    "open": ("gnome", "spring", "bounce", "jelly", "genie", "scalefade", "off"),
+    "minimize": ("gnome", "spring", "bounce", "jelly", "genie", "scalefade", "off"),
+    "close": ("gnome", "scalefade", "spring", "genie", "off"),
+    "launch": ("bounce", "spring", "jelly", "off"),
+    "hover": ("spring", "bounce", "jelly", "scalefade", "off"),
+}
+MOTION_DEFAULTS = {
+    "open": {"preset": "spring", "intensity": 0.5, "speed": 1.0},
+    "minimize": {"preset": "genie", "intensity": 0.5, "speed": 1.0},
+    "close": {"preset": "scalefade", "intensity": 0.5, "speed": 1.0},
+    "launch": {"preset": "bounce", "intensity": 0.5, "speed": 1.0},
+    "hover": {"preset": "spring", "intensity": 0.5, "speed": 1.0},
+}
+SPEED_MIN, SPEED_MAX = 0.5, 2.0
+
 # The parts of the desktop that can differ from the global look, and the
 # values each may override (a missing key follows the global setting).
 PARTS = ("panel", "arcmenu", "quicksettings", "calendar", "overview", "windows", "terminal")
@@ -88,6 +108,29 @@ class Settings:
     # user opts in: then Ptyxis follows GNOME's style; off again brings their own value back.
     terminal_follows_style: bool = False
 
+    # Animations, per event: {"open": {"preset": "spring", "intensity": 0.5, "speed": 1.0}, ...}.
+    # A missing event or key uses MOTION_DEFAULTS.
+    motion: dict[str, dict] = field(default_factory=dict)
+    # Dash to Panel's own "Animate hovering app icons" is switched off so ours can run.
+    # Only when the user asks; Restore original brings their setting back.
+    motion_dtp_hover_off: bool = False
+
+    # The glass lock screen, drawn by the same Shell extension. Only the wallpaper shows
+    # through it; GNOME's own clock, password prompt and notifications stay as they are.
+    lock_glass: bool = True
+    lock_blur: int = 60                 # px of frost on the sheet, 10..100
+    lock_dim: float = 0.28              # 0..0.65, how much darker the sheet is than the wallpaper
+    lock_tint: float = 0.2              # 0..1, how much of the glass tint colours the sheet
+    lock_card: bool = True              # a glass card behind the password prompt
+    lock_clock: str = "bold"            # gnome, bold or thin
+    lock_clock_position: str = "gnome"  # gnome (upper third), top or middle
+    lock_slide: str = "spring"          # how the sheet leaves on unlock: gnome, smooth or spring
+    lock_slide_ms: int = 450            # 250..1200
+    lock_bounce: float = 0.2            # 0..1, spring only
+
+    def motion_for(self, event: str) -> dict:
+        return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
+
     def target_enabled(self, target_id: str) -> bool:
         return self.targets.get(target_id, True)
 
@@ -126,12 +169,26 @@ class Settings:
         if not _is_hex(s.tint):
             s.tint = Settings.tint
         s.parts = _clean_parts(s.parts)
+        s.motion = _clean_motion(s.motion)
         s.targets = {str(k): bool(v) for k, v in dict(s.targets).items()}
         s.header_height = _int(s.header_height, HEADER_MIN, HEADER_MAX, Settings.header_height)
+        s.lock_glass, s.lock_card = bool(s.lock_glass), bool(s.lock_card)
+        s.lock_blur = _int(s.lock_blur, 10, 100, Settings.lock_blur)
+        s.lock_dim = min(0.65, _clamp(float(s.lock_dim), Settings.lock_dim))
+        s.lock_tint = _clamp(float(s.lock_tint), Settings.lock_tint)
+        s.lock_slide_ms = _int(s.lock_slide_ms, 250, 1200, Settings.lock_slide_ms)
+        s.lock_bounce = _clamp(float(s.lock_bounce), Settings.lock_bounce)
+        for k, choices in LOCK_CHOICES.items():
+            if getattr(s, k) not in choices:
+                setattr(s, k, getattr(Settings, k))
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
         return s
+
+
+LOCK_CHOICES = {"lock_clock": ("gnome", "bold", "thin"), "lock_clock_position": ("gnome", "top", "middle"),
+                "lock_slide": ("gnome", "smooth", "spring")}
 
 
 def _clean_parts(raw: object) -> dict[str, dict]:
@@ -165,6 +222,31 @@ def _clean_parts(raw: object) -> dict[str, dict]:
                     clean[key] = _clamp(f)
         if clean:
             out[part] = clean
+    return out
+
+
+def _clean_motion(raw: object) -> dict[str, dict]:
+    """Keep only known events and preset names, with intensity and speed clamped.
+    Values equal to the default are kept too, so a choice survives a change of default."""
+    out: dict[str, dict] = {}
+    if not isinstance(raw, dict):
+        return out
+    for ev in MOTION_EVENTS:
+        src = raw.get(ev)
+        if not isinstance(src, dict):
+            continue
+        clean: dict[str, object] = {}
+        if src.get("preset") in MOTION_PRESETS[ev]:
+            clean["preset"] = src["preset"]
+        for key, lo, hi in (("intensity", 0.0, 1.0), ("speed", SPEED_MIN, SPEED_MAX)):
+            try:
+                f = float(src[key])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if math.isfinite(f):
+                clean[key] = round(min(hi, max(lo, f)), 3)
+        if clean:
+            out[ev] = clean
     return out
 
 
