@@ -378,7 +378,7 @@ def test_veil_is_light_and_text_stays_readable():
 
 def test_every_extension_module_is_installed():
     # A module left out of FILES would be missing from the installed extension, and it would not load.
-    assert {p.name for p in rg.SOURCE.iterdir() if p.suffix in (".js", ".json")} == set(rg.FILES)
+    assert {p.name for p in rg.SOURCE.iterdir() if p.suffix in (".js", ".json", ".css")} == set(rg.FILES)
 
 
 def test_menus_never_wait_long_for_their_glass():

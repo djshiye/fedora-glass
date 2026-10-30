@@ -182,7 +182,6 @@ $hdr_btn_hover, $hdr_btn_checked {
   color: var(--headerbar-fg-color);
   transition-duration: 120ms;
 }
-$hdr_btn_checked { color: var(--accent-color); }
 $hdr_btn_active {
   background-color: var(--lg-tile-press);
   background-image: none;

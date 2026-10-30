@@ -145,11 +145,9 @@ class WindowGlass {
         const {pane, rim} = this;
         if (!pane || !rim)
             return;
-        if (gone(this.win)) {
-            this.destroy();
-            return;
-        }
-        if (!this._wanted()) {
+        // A closing window drops its glass on 'unmanaging'; one that has briefly lost
+        // its monitor (a screen unplugged) just shows none until it has one again.
+        if (gone(this.win) || !this._wanted()) {
             for (const p of [pane, rim]) {
                 p.hide();
                 p.setSources([]);

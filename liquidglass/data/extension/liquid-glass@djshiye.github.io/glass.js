@@ -74,6 +74,9 @@ uniform float milk_b;
 uniform float light_glass;       // 1 for light glass (it has a milk), 0 for dark
 uniform float hair;              // 0..0.3, light glass: a thin dark contact line at its edge
 uniform float bleed;             // strength of the content's colour in the glass
+uniform float solid;             // 1: the glass fills its pane fully (a full-screen sheet)
+uniform float ceil_y;            // 0 = off; else the brightest the glass may get (linear Y),
+                                 // so white text on it stays readable over any backdrop
 uniform float edge_l;            // 1 where that side touches the screen edge
 uniform float edge_t;
 uniform float edge_r;
@@ -349,6 +352,11 @@ void main() {
         col = at(px);
     }
 
+    // A full-screen sheet has nothing behind it to show: where the blur thinned the
+    // copy at the screen's edge, take its colour at full strength.
+    if (solid > 0.5)
+        col = vec4(col.rgb / max(col.a, 1e-3), 1.0);
+
     // Vibrancy and brightness (premultiplied colour).
     col.rgb = min(vivid(col.rgb, saturation) * brightness, vec3(col.a));
 
@@ -385,6 +393,20 @@ void main() {
         float gap = max(dot(milk, Y) - dot(col.rgb / max(col.a, 1e-3), Y), 0.0);
         vec3 up = col.rgb + vec3(gap * m) * col.a;
         col.rgb = min(mix(up, milk * col.a, 0.3 * m), vec3(col.a));
+    }
+
+    // A ceiling on brightness, for glass that carries white text over any backdrop
+    // (the lock screen). Dark backdrops pass unchanged; brighter ones ease into
+    // the ceiling in their own colour, so a white wallpaper gives a calm grey.
+    if (ceil_y > 0.0) {
+        vec3 st = col.rgb / max(col.a, 1e-3);
+        float Yl = dot(pow(max(st, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722));
+        float knee = 0.6 * ceil_y;
+        if (Yl > knee) {
+            float room = ceil_y - knee;
+            float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
+            col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+        }
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge
@@ -491,6 +513,8 @@ export const DEFAULT_LOOK = Object.freeze({
     highlight: 0.55,    // 0..1, edge reflections
     lightAngle: -125,   // degrees, -90 = from the top: where the reflections are strongest
     bleed: 0.6,         // 0..1, how much the content's colours light up the glass
+    ceiling: 0,         // 0 = off; else the brightest the glass may get (linear Y, 0..1)
+    solid: 0,           // 1: fill the pane fully, for a full-screen sheet
     pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
     motion: 1,          // 0 or 1: press and open springs
     adapt: 0.35,        // 0..1, how much the glass adjusts to what's behind it
@@ -772,6 +796,8 @@ class LiquidGlassPane extends Clutter.Actor {
             brightness: Math.max(0, Math.min(2, L.brightness)),
             tint_r: tr, tint_g: tg, tint_b: tb, tint_a: Math.max(0, Math.min(1, ta)),
             hl: Math.max(0, Math.min(1, L.highlight)),
+            solid: L.solid > 0.5 ? 1 : 0,
+            ceil_y: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.ceiling)),
             hl_x: Math.cos(a), hl_y: Math.sin(a),
             env_reach: ENV_REACH,
             margin: blur * 0.5,
