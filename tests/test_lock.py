@@ -115,3 +115,11 @@ def test_unlock_defaults_are_quick():
     assert (Settings.lock_slide_ms, Settings.lock_bounce) == (450, 0.2)
     js = (EXT / "config.js").read_text()
     assert "slideMs: 450, bounce: 0.2}" in js
+
+
+def test_loading_the_lock_stylesheet_cannot_call_itself():
+    # load_stylesheet makes the theme context emit 'changed', which calls _loadStyle again.
+    js = (EXT / "lock.js").read_text()
+    body = js[js.index("    _loadStyle() {"):js.index("    _unloadStyle() {")]
+    assert "theme === this._theme" in body and "this._loading" in body
+    assert body.index("theme === this._theme") < body.index("load_stylesheet(")

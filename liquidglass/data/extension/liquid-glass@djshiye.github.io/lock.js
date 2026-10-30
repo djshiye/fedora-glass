@@ -99,12 +99,21 @@ export class LockGlass {
     }
 
     _loadStyle() {
-        this._unloadStyle();
-        if (this._ended || !this.cfg.enabled)
-            return;
+        // Loading a stylesheet itself makes the theme context say it changed: only act
+        // when the theme really is another one, or this would call itself forever.
         const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
-        if (theme?.load_stylesheet(STYLESHEET))
-            this._theme = theme;
+        if (this._loading || theme === this._theme)
+            return;
+        this._unloadStyle();
+        if (this._ended || !this.cfg.enabled || !theme)
+            return;
+        this._loading = true;
+        try {
+            if (theme.load_stylesheet(STYLESHEET))
+                this._theme = theme;
+        } finally {
+            this._loading = false;
+        }
     }
 
     _unloadStyle() {
