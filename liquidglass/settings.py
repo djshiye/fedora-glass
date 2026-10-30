@@ -22,6 +22,9 @@ GNOME_ACCENTS = {
 
 SCHEMES = ("auto", "dark", "light")
 PANEL_STYLES = ("floating", "docked")
+# Header bar height limits: below 36 px the buttons no longer fit, above 64 px it is wasted space.
+HEADER_MIN, HEADER_MAX = 36, 64
+HEADER_OPACITY_MIN = 0.10  # never fully clear, so titles stay readable
 
 # The parts of the desktop that can differ from the global look, and the
 # values each may override (a missing key follows the global setting).
@@ -69,6 +72,10 @@ class Settings:
     # Target id -> enabled. Missing ids default to enabled.
     targets: dict[str, bool] = field(default_factory=dict)
 
+    # Window header bars in GTK 3, GTK 4 and libadwaita apps.
+    header_height: int = 47                 # px; 47 is GNOME's own height
+    header_opacity: float | None = None     # how solid, 0..1; None = the same glass as the window
+
     def target_enabled(self, target_id: str) -> bool:
         return self.targets.get(target_id, True)
 
@@ -105,6 +112,10 @@ class Settings:
             s.tint = Settings.tint
         s.parts = _clean_parts(s.parts)
         s.targets = {str(k): bool(v) for k, v in dict(s.targets).items()}
+        s.header_height = _int(s.header_height, HEADER_MIN, HEADER_MAX, Settings.header_height)
+        if s.header_opacity is not None:
+            h = float(s.header_opacity)
+            s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
         return s
 
 

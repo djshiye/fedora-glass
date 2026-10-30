@@ -295,3 +295,16 @@ def test_bleed_property(make_backend):
     b.setProperty("bleed", 0.2)
     assert b.settings().bleed == pytest.approx(0.2)
     assert b.property("tokens")["bleed"] < 0.2 + 1e-9
+
+
+def test_header_bar_properties(make_backend):
+    b = make_backend()
+    assert b.property("headerHeight") == 47 and b.property("headerOpacity") == -1
+    b.setProperty("headerHeight", 40.6)
+    b.setProperty("headerOpacity", 0.3)
+    s = b.settings()
+    assert (s.header_height, s.header_opacity) == (41, pytest.approx(0.3))
+    b.setProperty("headerHeight", 500)
+    b.setProperty("headerOpacity", -1)
+    s = b.settings()
+    assert (s.header_height, s.header_opacity) == (64, None)

@@ -331,6 +331,8 @@ class Backend(QObject):
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)
     glassSeeWindows = _p("glass_see_windows", bool)
+    headerHeight = _p("header_height", int)
+    headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
     del _p
 
     # ---- per-part overrides ------------------------------------------------------
