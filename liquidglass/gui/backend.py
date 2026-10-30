@@ -146,6 +146,7 @@ class Backend(QObject):
         # offer to restart Files (it keeps running with the old style sheet).
         self._header_note = ""
         self._terminal_pal = ""
+        self._motion_state = {"animations": True, "dtpHover": False}
         # The glass extension follows its config file live, so once it runs the
         # desktop can follow the sliders before Apply.
         self._glass_live = False
@@ -343,7 +344,48 @@ class Backend(QObject):
     terminalColors = _p("terminal_colors", bool)
     startOnDesktop = _p("start_on_desktop", bool)
     overviewOff = _p("overview_off", bool)
+    motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
     del _p
+
+    # ---- animations ----------------------------------------------------------------
+    # Per event (open, minimize, close, launch, hover): {"preset", "intensity", "speed"}.
+    @Property("QVariantMap", notify=settingsChanged)
+    def motion(self) -> dict:
+        return {ev: self._s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
+
+    @Property("QVariantMap", constant=True)
+    def motionPresets(self) -> dict:
+        return {ev: list(p) for ev, p in settings_mod.MOTION_PRESETS.items()}
+
+    @Property("QVariantMap", constant=True)
+    def motionDefaults(self) -> dict:
+        return {ev: dict(v) for ev, v in settings_mod.MOTION_DEFAULTS.items()}
+
+    @Slot(str, str, "QVariant")
+    def setMotion(self, event: str, key: str, value: Any) -> None:
+        if event not in settings_mod.MOTION_EVENTS or key not in ("preset", "intensity", "speed"):
+            return
+        motion = {ev: dict(v) for ev, v in self._s.motion.items()}
+        motion.setdefault(event, {})[key] = value
+        self._set("motion", settings_mod._clean_motion(motion))
+
+    @Slot()
+    def resetMotion(self) -> None:
+        self._set("motion", {})
+
+    @Property(bool, notify=settingsChanged)
+    def motionIsDefault(self) -> bool:
+        return all(self._s.motion_for(ev) == settings_mod.MOTION_DEFAULTS[ev] for ev in settings_mod.MOTION_EVENTS)
+
+    @Property(bool, notify=targetsChanged)
+    def systemAnimations(self) -> bool:
+        """GNOME's Reduce animation is off (animations play)."""
+        return bool(self._motion_state.get("animations", True))
+
+    @Property(bool, notify=targetsChanged)
+    def dtpHoverAnimates(self) -> bool:
+        """Dash to Panel's own "Animate hovering app icons" is on, as the desktop has it now."""
+        return bool(self._motion_state.get("dtpHover", False))
 
     # ---- per-part overrides ------------------------------------------------------
     # A part (panel, arcmenu, ...) can override tint, tint_strength, radius, frost, refraction,
@@ -570,7 +612,8 @@ class Backend(QObject):
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
                             "available": available, "detail": detail})
-            return out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine)
+            return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
+                    self._motion_env(engine))
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -582,6 +625,22 @@ class Backend(QObject):
             return "glass" in Backup(engine.env).targets_with_changes() and GlassEffects.running(engine.env)
         except Exception:
             return False
+
+    @staticmethod
+    def _motion_env(engine: Any) -> dict:
+        """What the Motion card needs to say: whether GNOME's animations are on at all, and
+        whether Dash to Panel animates its icons on hover itself (ours then stands down there)."""
+        env = engine.env
+        out = {"animations": True, "dtpHover": False}
+        try:
+            v = env.gsettings_get("org.gnome.desktop.interface", "enable-animations")
+            out["animations"] = v != "false"
+            from ..targets.shell import DashToPanel
+            if env.extension_path("dash-to-panel@jderose9.github.com") is not None:
+                out["dtpHover"] = env.gsettings_get(DashToPanel.SCHEMA, "animate-appicon-hover") == "true"
+        except Exception:
+            pass
+        return out
 
     @staticmethod
     def _terminal_palette(engine: Any) -> str:
@@ -600,7 +659,7 @@ class Backend(QObject):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
         else:
-            self._targets, self._has_backup, self._glass_live, self._terminal_pal = out
+            self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._motion_state = out
         self._targets_ready = True
         self.targetsChanged.emit()
 

@@ -350,3 +350,19 @@ def test_terminal_palette_is_reported_not_changed(make_backend, home, monkeypatc
     assert b.property("terminalColors") is False
     b.setProperty("terminalColors", True)
     assert b.settings().terminal_colors is True
+
+
+def test_motion_picker(make_backend):
+    b = make_backend()
+    assert b.motionIsDefault and b.motion["open"]["preset"] == "spring"
+    assert "genie" in b.motionPresets["minimize"] and "bounce" not in b.motionPresets["close"]
+    b.setMotion("open", "preset", "jelly")
+    b.setMotion("open", "intensity", 0.8)
+    b.setMotion("open", "speed", 5.0)          # clamped
+    b.setMotion("close", "preset", "bounce")   # not offered for close: ignored
+    b.setMotion("bogus", "preset", "spring")
+    assert b.motion["open"] == {"preset": "jelly", "intensity": 0.8, "speed": 2.0}
+    assert b.motion["close"]["preset"] == "scalefade"
+    assert b.dirty and not b.motionIsDefault
+    b.resetMotion()
+    assert b.motionIsDefault

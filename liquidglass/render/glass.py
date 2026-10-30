@@ -13,12 +13,13 @@ from pathlib import Path
 
 from ..color import lerp
 from ..palette import Tokens
-from ..settings import Settings
+from ..settings import MOTION_EVENTS, Settings
 
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
-         "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js", "prefs.js")
+         "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js", "animations.js",
+         "curves.js", "prefs.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -112,6 +113,8 @@ def config(s: Settings, t: Tokens) -> dict:
         "parts": parts,
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
+        # How windows open, minimize and close, and how the panel responds (see curves.js).
+        "animations": {ev: s.motion_for(ev) for ev in MOTION_EVENTS},
     }
 
 

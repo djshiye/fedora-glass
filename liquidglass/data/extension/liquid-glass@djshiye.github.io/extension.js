@@ -4,6 +4,7 @@
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+import {Animations} from './animations.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {GlassManager} from './surfaces.js';
@@ -13,12 +14,17 @@ export default class LiquidGlassExtension extends Extension {
         this._config = new Config(cfg => {
             this._manager?.update(cfg);
             this._desktop?.update(cfg);
+            this._animations?.update(cfg);
         });
         this._desktop = new DesktopBehaviour(this._config.value);
         this._manager = new GlassManager(this._config.value);
+        this._animations = new Animations(this._config.value);
     }
 
     disable() {
+        // Windows and icons mid-animation land at once, and GNOME's own animations come back.
+        this._animations?.destroy();
+        this._animations = null;
         this._desktop?.destroy();
         this._desktop = null;
         this._config?.destroy();
