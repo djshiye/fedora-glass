@@ -34,7 +34,9 @@ const CLOCK_STYLES = {
 // keeps the white clock readable on any wallpaper: at most linear Y 0.13, which
 // is 5.8:1 against white.
 const SHEET_CEILING = 0.13;
-const CARD_CEILING = 0.17;      // a little lighter, still 4.8:1 for the name and messages
+// The card sits a little deeper than the sheet on bright wallpapers (6.6:1), so the
+// name, the messages and GNOME's lighter password field on it stay readable too.
+const CARD_CEILING = 0.11;
 
 function sheetLook(c) {
     return {blur: c.blur, refraction: 34, bend: 40, depth: 0.2, dispersion: 0.25, saturation: 1.35,
