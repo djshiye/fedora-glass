@@ -84,8 +84,50 @@ vec3 vivid(vec3 c, float k) {
     return max(mix(vec3(l), c, k), 0.0);
 }
 
+// Fine material grain: interleaved gradient noise, a blue-noise-like dither
+// with no clumps, so big blurred gradients never band. -0.5..0.5.
 float grain(vec2 p) {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+    return fract(52.9829189 * fract(dot(floor(p), vec2(0.06711056, 0.00583715)))) - 0.5;
+}
+
+// A normal jitter of a few thousandths: invisible as such, it only keeps the
+// lens from looking machined.
+vec2 jitter(vec2 p) {
+    return vec2(grain(p), grain(p.yx + 17.0)) * 0.006;
+}
+
+// Caustic: the rounded edge focuses light onto the backdrop on the side away
+// from the light, a soft band of the backdrop's own light. The lift is even in
+// lightness (L*), so every shaded side reads the same; over black there is
+// nothing to lift. c is a straight (not premultiplied) colour.
+vec3 caustic(vec3 c, vec2 n, float x, vec2 h) {
+    float facing = smoothstep(-0.25, 0.35, dot(-n, LIGHT));
+    // Strongest just inside the edge, fading evenly to nothing across the bevel:
+    // light gathered at the rim, not a band with an inner edge. x: 1 at the
+    // edge, 0 where the flat top begins.
+    float gather = x * smoothstep(1.0, 0.88, x);
+    float wide = smoothstep(30.0, 80.0, min(h.x, h.y));   // 0 on a thin bar, 1 on a menu
+    float dL = 15.0 * facing * gather * mix(0.85, 1.0, wide);
+    vec3 lin = pow(max(c, vec3(0.0)), vec3(2.2));
+    float Y = max(dot(lin, vec3(0.2126, 0.7152, 0.0722)), 1e-6);
+    // Gathered light is never more saturated than the light around it: ease the
+    // glass's colour a little towards its own grey where the light gathers (same
+    // lightness, same hue), which also leaves vivid colours room to brighten.
+    // A thin bar is nearly all edge, so it eases less.
+    lin = mix(vec3(Y), lin, 1.0 - 0.25 * mix(0.6, 1.0, wide) * facing * gather);
+    float Ls = 116.0 * pow(Y, 1.0 / 3.0) - 16.0;
+    float Ln = Ls + dL * smoothstep(0.0, 20.0, Ls);
+    float Yn = pow((Ln + 16.0) / 116.0, 3.0);
+    // Brighter in the backdrop's own hue, as far as its fullest channel allows;
+    // past that a little of the light comes in whiter on soft colours only, so a
+    // vivid colour never turns pale or dusty: there the lift stays short instead.
+    float mc = max(lin.r, max(lin.g, lin.b));
+    vec3 up = lin * min(Yn / Y, 1.0 / max(mc, 1e-6));
+    float left = Yn - dot(up, vec3(0.2126, 0.7152, 0.0722));
+    float room = dot(vec3(1.0) - up, vec3(0.2126, 0.7152, 0.0722));
+    float soft = min(lin.r, min(lin.g, lin.b)) / max(mc, 1e-6);   // 1 grey, 0 vivid
+    up += (vec3(1.0) - up) * clamp(left / max(room, 1e-4), 0.0, 0.08 * soft * soft);
+    return pow(up, vec3(1.0 / 2.2));
 }
 
 // The content's light: each coloured icon lights the glass around it, and light
@@ -133,7 +175,7 @@ void main() {
         slope = x / max(z, 0.06);
     }
     vec2 dome = depth * 0.25 * p / max(c.x, c.y);
-    vec3 N = normalize(vec3(n * slope + dome, 1.0));
+    vec3 N = normalize(vec3(n * slope + dome + jitter(px0), 1.0));
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);
 
@@ -164,6 +206,7 @@ void main() {
         }
         vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
         col.rgb *= exp(-vec3(0.006, 0.0025, 0.004) * min(th / max(-Rt.z, 0.2) - th, 40.0));
+        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, x, c) * col.a, vec3(col.a));
         col = over(col, tint, 1.0);
     }
     if (mode > 0.5 && mode < 1.5) {

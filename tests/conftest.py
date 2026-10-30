@@ -37,6 +37,10 @@ class FakeEnv(Env):
     def which(self, name):
         return f"/usr/bin/{name}"
 
+    def extension_dirs(self):
+        # Only the fake home: extensions installed on the machine running the tests don't count.
+        return [self.data / "gnome-shell/extensions"]
+
     def run(self, argv, timeout=30):
         self.commands.append(list(argv))
         return RunResult(0, "", "")

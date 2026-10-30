@@ -38,6 +38,7 @@ def _brightness(t: Tokens, f: float) -> float:
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
 # text and want more.
+CONTACT_SHADOW = {"panel": 0.2, "arcmenu": 0.28, "quicksettings": 0.28, "calendar": 0.28}
 FROST_SCALE = {"panel": 0.35, "arcmenu": 1.2, "quicksettings": 1.2, "calendar": 1.2, "overview": 1.0}
 
 
@@ -45,7 +46,9 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     p = t.parts[name]
     look = {"blur": round(p["blur"] * FROST_SCALE.get(name, 1.0)), "refraction": p["lens_width"], "bend": p["lens_bend"],
             # A thin bar holds its icons close to both edges, so the same glow reads stronger there.
-            "bleed": round(p["bleed"] * (0.7 if name == "panel" else 1.0), 3), "highlight": p["glare"]}
+            "bleed": round(p["bleed"] * (0.7 if name == "panel" else 1.0), 3), "highlight": p["glare"],
+            # A soft contact shadow, cast away from the light (it follows the pointer light).
+            "shadow": CONTACT_SHADOW.get(name, 0.0)}
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
