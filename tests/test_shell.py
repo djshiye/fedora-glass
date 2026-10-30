@@ -376,9 +376,14 @@ def test_veil_is_light_and_text_stays_readable():
     assert rs.surfaces(solid)["popover"].a >= 0.95                      # solid presets are left alone
 
 
+def test_every_extension_module_is_installed():
+    # A module left out of FILES would be missing from the installed extension, and it would not load.
+    assert {p.name for p in rg.SOURCE.iterdir() if p.suffix in (".js", ".json")} == set(rg.FILES)
+
+
 def test_menus_never_wait_long_for_their_glass():
     # A menu is held invisible until its glass paints; that hold must always end on its own.
-    js = (Path(rg.__file__).parent.parent / "data/extension/liquid-glass@djshiye.github.io/surfaces.js").read_text()
+    js = "".join((rg.SOURCE / f).read_text() for f in ("common.js", "follower.js"))
     limit = int(re.search(r"const HOLD_MAX_MS = (\d+);", js).group(1))
     assert limit <= 100
     hold = js[js.index("    _hold() {"):js.index("    _release() {")]

@@ -758,7 +758,7 @@ class LiquidGlassPane extends Clutter.Actor {
     }
 
     // Pointer light, parallax, press and open: set by the motion controller in
-    // surfaces.js. Only lens uniforms change, so the blur is not re-run.
+    // motion.js. Only lens uniforms change, so the blur is not re-run.
     setMotion(m) {
         Object.assign(this._motion, m);
         this._applyMotion();
