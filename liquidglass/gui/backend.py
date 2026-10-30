@@ -115,6 +115,7 @@ class Backend(QObject):
     applyFinished = Signal("QVariantList")
     revertFinished = Signal("QVariantList")
     failed = Signal(str)
+    headerNoteChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -141,6 +142,10 @@ class Backend(QObject):
         self._task_busy = False
         self._monitor: QProcess | None = None
         self._pending_apply = False
+        # Set when the last Apply or Restore changed the header bars, so the card can
+        # offer to restart Files (it keeps running with the old style sheet).
+        self._header_note = ""
+        self._terminal_pal = ""
         # The glass extension follows its config file live, so once it runs the
         # desktop can follow the sliders before Apply.
         self._glass_live = False
@@ -333,6 +338,7 @@ class Backend(QObject):
     glassSeeWindows = _p("glass_see_windows", bool)
     headerHeight = _p("header_height", int)
     headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
+    terminalColors = _p("terminal_colors", bool)
     del _p
 
     # ---- per-part overrides ------------------------------------------------------
@@ -560,7 +566,7 @@ class Backend(QObject):
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
                             "available": available, "detail": detail})
-            return out, self._backup_exists(engine), self._glass_running(engine)
+            return out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine)
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -573,12 +579,24 @@ class Backend(QObject):
         except Exception:
             return False
 
+    @staticmethod
+    def _terminal_palette(engine: Any) -> str:
+        """The palette Ptyxis opens with, or "" when there is no Ptyxis profile to change."""
+        try:
+            from ..targets.terminal import Ptyxis
+            t = next((t for t in engine.targets if isinstance(t, Ptyxis)), None)
+            if t is None or not t.detect(engine.env).available:
+                return ""
+            return t.palette_in_use(engine.env) or ""
+        except Exception:
+            return ""
+
     def _targets_done(self, out: Any) -> None:
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
         else:
-            self._targets, self._has_backup, self._glass_live = out
+            self._targets, self._has_backup, self._glass_live, self._terminal_pal = out
         self._targets_ready = True
         self.targetsChanged.emit()
 
@@ -671,6 +689,7 @@ class Backend(QObject):
             self._pending_apply = True
             return
         s = self._s.normalized()
+        header_changed = _header_key(s) != _header_key(self._saved)
         try:
             settings_mod.save(s, self._path)
         except OSError as e:
@@ -700,6 +719,8 @@ class Backend(QObject):
             results, self._has_backup = out
             self.targetsChanged.emit()
             self.refreshTargets()          # the glass may be live now, and notes change
+            if header_changed:
+                self._set_header_note("pending")
             self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
                                       "message": r.message} for r in results])
         self._run("apply", job, done)
@@ -709,6 +730,7 @@ class Backend(QObject):
         # From here on the extension's config is the engine's to remove; stop writing it.
         self._live_timer.stop()
         self._glass_live = False
+        header_changed = _header_key(self._saved) != _header_key(Settings())
 
         def job(report):
             engine = self._engine_obj()
@@ -723,8 +745,48 @@ class Backend(QObject):
             problems, self._has_backup = out
             self._glass_live = False
             self.targetsChanged.emit()
+            if header_changed:
+                self._set_header_note("pending")
             self.revertFinished.emit(problems)
         self._run("revert", job, done)
+
+    # ---- header bars: Files keeps the old style sheet until it restarts -------------
+    def _set_header_note(self, state: str) -> None:
+        if state != self._header_note:
+            self._header_note = state
+            self.headerNoteChanged.emit()
+
+    @Property(str, notify=headerNoteChanged)
+    def headerNote(self) -> str:
+        """Empty (nothing to say), "pending" (Files still shows the old bars) or "restarted"."""
+        return self._header_note
+
+    @Property(str, notify=targetsChanged)
+    def terminalPalette(self) -> str:
+        """The colour palette Terminal (Ptyxis) uses now, "" if there is no profile."""
+        return self._terminal_pal
+
+    @Property(str, constant=True)
+    def liquidGlassPalette(self) -> str:
+        from ..render.terminal import PTYXIS_PALETTE_NAME
+        return PTYXIS_PALETTE_NAME
+
+    @Property(bool, constant=True)
+    def canRestartFiles(self) -> bool:
+        return bool(self._env.which("nautilus"))
+
+    @Slot(result=bool)
+    def restartFiles(self) -> bool:
+        """Quit Files (`nautilus -q`) so it starts with the new header bars next time.
+
+        Only ever on the user's click: open Files windows close. Terminal is never touched,
+        since quitting it would end running shells."""
+        path = self._env.which("nautilus")
+        if not path or not QProcess.startDetached(path, ["-q"]):
+            self.failed.emit("Could not restart Files. Close all Files windows and log out and back in instead.")
+            return False
+        self._set_header_note("restarted")
+        return True
 
     @Slot(result=bool)
     def waitIdle(self) -> bool:
@@ -743,6 +805,12 @@ class Backend(QObject):
 
     def settings_dict(self) -> dict:
         return asdict(self._s)
+
+
+def _header_key(s: Settings) -> tuple:
+    """What the header bar style sheet depends on, to tell when Apply changed it."""
+    s = s.normalized()
+    return (s.header_height, None if s.reduce_transparency else s.header_opacity)
 
 
 def _tilde(text: str, home: str) -> str:

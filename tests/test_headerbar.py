@@ -124,3 +124,8 @@ def test_ptyxis_palette_carries_titlebar(fake_env):
     for line in pal.splitlines():
         if line.startswith("TitlebarBackground="):
             assert len(line.split("=")[1]) == 9   # #rrggbbaa
+
+
+def test_terminal_colors_are_opt_in(tmp_path):
+    assert Settings().terminal_colors is False
+    assert Settings(terminal_colors=1).normalized().terminal_colors is True

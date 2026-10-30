@@ -308,3 +308,45 @@ def test_header_bar_properties(make_backend):
     b.setProperty("headerOpacity", -1)
     s = b.settings()
     assert (s.header_height, s.header_opacity) == (64, None)
+
+
+def test_restart_files_only_after_header_change_and_only_on_click(make_backend, monkeypatch):
+    from liquidglass.gui import backend as be
+
+    started = []
+    monkeypatch.setattr(be.QProcess, "startDetached", lambda prog, args: started.append([prog, *args]) or True)
+    b = make_backend(start=True)
+    assert b.waitIdle()
+    b.setProperty("frost", 0.8)
+    b.apply()
+    assert b.waitIdle()
+    assert b.property("headerNote") == ""          # nothing about header bars changed
+
+    b.setProperty("headerHeight", 40)
+    b.apply()
+    assert b.waitIdle()
+    assert b.property("headerNote") == "pending"
+    assert started == [], "Apply must never quit Files by itself"
+
+    assert b.restartFiles() is False                # Files isn't installed in the fake env
+    monkeypatch.setattr(b._env, "which", lambda name: "/usr/bin/nautilus" if name == "nautilus" else None)
+    assert b.restartFiles() is True
+    assert started == [["/usr/bin/nautilus", "-q"]]   # fixed command, never Terminal
+    assert b.property("headerNote") == "restarted"
+
+
+def test_terminal_palette_is_reported_not_changed(make_backend, home, monkeypatch):
+    from liquidglass.targets.base import Detection
+    from liquidglass.targets.terminal import Ptyxis
+
+    gs = {("org.gnome.Ptyxis", None): {"profile-uuids": "['aaaabbbbcccc']", "default-profile-uuid": "'aaaabbbbcccc'"},
+          ("org.gnome.Ptyxis.Profile", "/org/gnome/Ptyxis/Profiles/aaaabbbbcccc/"): {"palette": "'gooey'"}}
+    monkeypatch.setattr(Ptyxis, "detect", lambda self, env: Detection(True))
+    monkeypatch.setattr(FakeEnv, "gsettings_get", lambda self, schema, key, path=None: gs.get((schema, path), {}).get(key))
+    b = make_backend(targets=[Ptyxis()], start=True)
+    assert b.waitIdle()
+    assert b.property("terminalPalette") == "gooey"
+    assert b.property("liquidGlassPalette") == "Liquid Glass"
+    assert b.property("terminalColors") is False
+    b.setProperty("terminalColors", True)
+    assert b.settings().terminal_colors is True
