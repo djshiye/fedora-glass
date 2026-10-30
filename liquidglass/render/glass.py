@@ -18,7 +18,8 @@ from ..settings import Settings
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
-         "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js", "prefs.js")
+         "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js", "prefs.js",
+         "dtpquiet.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
