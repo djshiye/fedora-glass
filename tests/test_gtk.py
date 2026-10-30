@@ -243,3 +243,11 @@ def test_unfocused_bars_fade_once_to_65_percent():
     assert ":backdrop { color: color-mix" not in css
     gtk3_css = gtk3.render(toks(True, 0.4))
     assert "alpha(@headerbar_fg_color, 0.65)" in gtk3_css
+
+
+def test_files_path_bar_is_one_field_with_flat_segments():
+    geo = gtk4._geometry(toks(True, 0.4))
+    assert _specificity(geo["path_btn"]) > _specificity(geo["glass_btn"])
+    assert _specificity(geo["path_btn_hover"]) > _specificity(geo["glass_btn"] + ":hover")
+    css = gtk4.render(toks(True, 0.4))
+    assert ".nautilus-pathbar .path-bar-box { background: none" in css

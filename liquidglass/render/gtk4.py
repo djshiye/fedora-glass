@@ -137,6 +137,8 @@ def header_buttons(state: str = "", child: str = "") -> str:
 
 def _geometry(t: Tokens) -> dict[str, str]:
     r = t.window_radius
+    glass = ("button:not(.flat):not(.suggested-action):not(.destructive-action)"
+             ":not(.opaque):not(.osd):not(.close):not(.minimize):not(.maximize):not(.chip):not(.swatch)")
     return {
         "radius": f"{r}px",
         "radius_small": f"{max(4, round(r * 0.6))}px",
@@ -144,13 +146,14 @@ def _geometry(t: Tokens) -> dict[str, str]:
         "radius_popover": f"{t.menu_radius}px",
         "radius_menu_item": f"{max(6, round(r * 0.5))}px",
         "radius_window": f"{max(8, r)}px",
-        "glass_btn": "button:not(.flat):not(.suggested-action):not(.destructive-action)"
-                     ":not(.opaque):not(.osd):not(.close):not(.minimize):not(.maximize):not(.chip):not(.swatch)",
+        "glass_btn": glass,
+        # Files' folder segments: as strong as $glass_btn plus two classes, so they stay flat.
+        "path_btn": f".nautilus-pathbar {glass}.nautilus-path-button",
+        "path_btn_hover": f".nautilus-pathbar {glass}.nautilus-path-button:hover:not(.current-dir)",
         "hdr_btn": header_buttons(),
         "hdr_btn_hover": header_buttons(":hover"),
         "hdr_btn_active": header_buttons(":active"),
         "hdr_btn_checked": header_buttons(":checked"),
-        "hdr_btn_backdrop": header_buttons(":backdrop"),
         "hdr_btn_icon": header_buttons(child=" image"),
         "hdr_btn_icon_active": header_buttons(":active", " image"),
     }

@@ -400,9 +400,19 @@ toggle-group button:checked, toggle-group > toggle:checked {
 }
 
 /* ---- Nautilus ---------------------------------------------------------------------- */
-.path-bar-box, pathbar { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
+/* Files' path bar is one glass field: the location and the ⋮ menu share one fill. */
+.nautilus-pathbar, pathbar { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
+.path-bar-box { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
+.nautilus-pathbar > menubutton > button { margin: 3px; }
+.nautilus-pathbar .path-bar-box { background: none; box-shadow: none; padding: 0; }
+.nautilus-pathbar > scrolledwindow:dir(ltr) undershoot.left { border-radius: 999px 0 0 999px; }
+.nautilus-pathbar > scrolledwindow:dir(rtl) undershoot.right { border-radius: 0 999px 999px 0; }
 .path-bar-box button, pathbar button { border-radius: 999px; background: transparent; box-shadow: none; min-height: 28px; }
 .path-bar-box button.current-dir, pathbar button:checked, .path-bar-box button:checked { background-color: var(--lg-glass-hi); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge); }
+/* Folder segments sit flat inside the field (Files marks the current one in bold);
+   hovering a parent folder lifts the same glass tile as header buttons. */
+$path_btn { background: none; box-shadow: none; border-radius: 999px; }
+$path_btn_hover { background-color: var(--lg-tile); box-shadow: inset 0 1px 0 var(--lg-rim); }
 NautilusViewCell, .nautilus-grid-view > child { border-radius: $radius_card; }
 .nautilus-window .view, window.nautilus .view { background-color: var(--view-bg-color); }
 .floating-bar, .nautilus-floating-bar { border-radius: 999px; background-color: var(--popover-bg-color); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 4px 14px 0 var(--lg-shadow); }
