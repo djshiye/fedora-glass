@@ -31,6 +31,11 @@ function isMaximized(w) {
     return !!(w.maximized_horizontally && w.maximized_vertically);
 }
 
+// An unmanaged window (closing, its actor still animating) has no monitor left.
+function gone(win) {
+    return !win || win.get_monitor() < 0;
+}
+
 class WindowGlass {
     constructor(actor, owner) {
         this.actor = actor;
@@ -66,6 +71,9 @@ class WindowGlass {
             'notify::maximized-horizontally', 'notify::maximized-vertically', 'notify::wm-class'])
             this._signals.on(this.win, s, () => this.queue());
         this._signals.on(actor, 'destroy', () => this.destroy());
+        // A closing window's actor outlives it while the close animation plays, but
+        // Mutter asserts if the window is asked about its monitor once unmanaged.
+        this._signals.on(this.win, 'unmanaging', () => this.destroy());
         for (const k of ['pane', 'rim']) {
             this._signals.on(this[k], 'destroy', () => {
                 this[k] = null;
@@ -114,7 +122,7 @@ class WindowGlass {
             if (actor === this.actor)
                 break;     // bottom first: everything after this is above it
             const win = actor.meta_window;
-            if (!actor.visible || !win || win.minimized || !win.located_on_workspace(ws))
+            if (!actor.visible || !win || gone(win) || win.minimized || !win.located_on_workspace(ws))
                 continue;
             const r = win.get_buffer_rect();
             if (r.x < x + w && r.x + r.width > x && r.y < y + h && r.y + r.height > y)
@@ -137,6 +145,10 @@ class WindowGlass {
         const {pane, rim} = this;
         if (!pane || !rim)
             return;
+        if (gone(this.win)) {
+            this.destroy();
+            return;
+        }
         if (!this._wanted()) {
             for (const p of [pane, rim]) {
                 p.hide();
