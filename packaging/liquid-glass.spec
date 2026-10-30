@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.1.0
+Version:        1.2.0
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -84,5 +84,13 @@ PRESET
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.2.0-1
+- Glass that reflects real pixels and takes colour from what it holds, with per-part controls
+- Window header bars: height slider and see-through glass
+- No glare, one even hairline, light that follows the pointer
+- Caustic, contact shadow, parallax, press give and fine grain
+- Start on the desktop, and an option to turn off the overview
+- App windows: a real glass edge and a rim that mirrors the surroundings
+
 * Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.1.0-1
 - Own glass engine with physically based optics; no Blur my Shell needed
