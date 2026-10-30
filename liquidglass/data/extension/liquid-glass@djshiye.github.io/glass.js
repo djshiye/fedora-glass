@@ -402,8 +402,13 @@ const GlassEffect = GObject.registerClass(
 class LiquidGlassEffect extends Clutter.ShaderEffect {
     _init() {
         super._init();
-        this.set_shader_source(SHADER);
         this._frame = '';
+    }
+
+    // One shader per class, not per pane: Cogl caches programs by snippet, so a
+    // per-instance set_shader_source() compiles and keeps a new one for every pane.
+    vfunc_get_static_shader_source() {
+        return SHADER;
     }
 
     vfunc_paint_target(node, paintContext) {
