@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.2.1
+Version:        1.3.0
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -84,6 +84,15 @@ PRESET
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.3.0-1
+- Unified, flat window header bars for GTK 4, libadwaita and GTK 3 apps
+- GTK 3 styling now works on top of any theme, including Orchis, without adw-gtk3
+- Polished light mode glass with a fine dark hairline on the panel
+- Glass Calculator keypad
+- Keep theme files safe when ~/.config/gtk-4.0 or gtk-3.0 is linked into a theme
+- Notice and one-click Re-apply when another app replaces the GTK look
+- Keep window glass while a window briefly has no monitor
+
 * Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.2.1-1
 - Fix GNOME Shell crashing when a window is closed with window glass on
 

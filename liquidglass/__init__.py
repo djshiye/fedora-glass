@@ -1,5 +1,5 @@
 """Liquid Glass: a glass theme for Fedora GNOME and the apps around it."""
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 APP_ID = "io.github.djshiye.LiquidGlass"
 THEME_NAME = "LiquidGlass"
