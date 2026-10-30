@@ -211,7 +211,8 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
         blur = 0
 
     accent_fg = WHITE if accent.contrast(WHITE) >= accent.contrast(BLACK) * 0.6 else BLACK
-    term = s.terminal_opacity if s.terminal_opacity is not None else lerp(0.72, 0.90, parts["terminal"]["frost"])
+    # 88% solid at the default frost: a little glass shows, text stays readable on any wallpaper.
+    term = s.terminal_opacity if s.terminal_opacity is not None else lerp(0.84, 0.94, parts["terminal"]["frost"])
     if s.reduce_transparency:
         term = 1.0
 
