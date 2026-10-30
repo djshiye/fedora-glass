@@ -175,15 +175,34 @@ vec2 dent(vec2 dp, float s, float t) {
 // same on every shaded side, short sides and end caps included, over dark
 // backdrops and bright ones; over black there is nothing to lift. c is a
 // straight (not premultiplied) colour.
-vec3 caustic(vec3 c, vec2 n, vec2 L, float crest, vec2 h) {
-    float facing = smoothstep(0.05, 0.45, dot(-n, L));
-    float dL = 12.5 * facing * sqrt(crest) * mix(0.85, 1.0, smoothstep(30.0, 80.0, min(h.x, h.y)));
+vec3 caustic(vec3 c, vec2 n, vec2 L, float x, vec2 h) {
+    float facing = smoothstep(-0.25, 0.35, dot(-n, L));
+    // Strongest just inside the edge, fading evenly to nothing across the bevel:
+    // light gathered at the rim, not a band with an inner edge. x: 1 at the
+    // edge, 0 where the flat top begins.
+    float gather = x * smoothstep(1.0, 0.88, x);
+    float wide = smoothstep(30.0, 80.0, min(h.x, h.y));   // 0 on a thin bar, 1 on a menu
+    float dL = 15.0 * facing * gather * mix(0.85, 1.0, wide);
     vec3 lin = pow(max(c, vec3(0.0)), vec3(2.2));
     float Y = max(dot(lin, vec3(0.2126, 0.7152, 0.0722)), 1e-6);
+    // Gathered light is never more saturated than the light around it: ease the
+    // glass's colour a little towards its own grey where the light gathers (same
+    // lightness, same hue), which also leaves vivid colours room to brighten.
+    // A thin bar is nearly all edge, so it eases less.
+    lin = mix(vec3(Y), lin, 1.0 - 0.25 * mix(0.6, 1.0, wide) * facing * gather);
     float Ls = 116.0 * pow(Y, 1.0 / 3.0) - 16.0;
     float Ln = Ls + dL * smoothstep(0.0, 20.0, Ls);
     float Yn = pow((Ln + 16.0) / 116.0, 3.0);
-    return pow(lin * (Yn / Y), vec3(1.0 / 2.2));
+    // Brighter in the backdrop's own hue, as far as its fullest channel allows;
+    // past that a little of the light comes in whiter on soft colours only, so a
+    // vivid colour never turns pale or dusty: there the lift stays short instead.
+    float mc = max(lin.r, max(lin.g, lin.b));
+    vec3 up = lin * min(Yn / Y, 1.0 / max(mc, 1e-6));
+    float left = Yn - dot(up, vec3(0.2126, 0.7152, 0.0722));
+    float room = dot(vec3(1.0) - up, vec3(0.2126, 0.7152, 0.0722));
+    float soft = min(lin.r, min(lin.g, lin.b)) / max(mc, 1e-6);   // 1 grey, 0 vivid
+    up += (vec3(1.0) - up) * clamp(left / max(room, 1e-4), 0.0, 0.08 * soft * soft);
+    return pow(up, vec3(1.0 / 2.2));
 }
 
 vec3 vivid(vec3 c, float k) {
@@ -349,7 +368,7 @@ void main() {
         vec3 base = col.rgb / max(col.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
-        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, crest, h) * col.a, vec3(col.a));
+        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, x, h) * col.a, vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
