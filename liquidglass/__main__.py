@@ -76,15 +76,35 @@ def cmd_revert(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def _take_all(q: queue.Queue) -> set:
+    """Wait for one item, then take every other one already waiting, so a quick
+    run of switches makes one apply instead of one each."""
+    got = {q.get()}
+    while True:
+        try:
+            got.add(q.get_nowait())
+        except queue.Empty:
+            return got
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
     switch only needs the parts that can't switch by themselves (Shell theme,
     GTK 3, terminal, Qt); High Contrast changes every part (glass goes opaque)."""
     keys = (("org.gnome.desktop.interface", "color-scheme"), ("org.gnome.desktop.a11y.interface", "high-contrast"))
+    procs: list[subprocess.Popen] = []
+
+    def stop_all() -> None:
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+            p.wait()
+
     try:
-        procs = [subprocess.Popen(["gsettings", "monitor", schema, key], stdout=subprocess.PIPE, text=True)
-                 for schema, key in keys]
+        for schema, key in keys:
+            procs.append(subprocess.Popen(["gsettings", "monitor", schema, key], stdout=subprocess.PIPE, text=True))
     except OSError as e:
+        stop_all()              # never leave the first monitor running on its own
         print(f"gsettings not available: {e}", file=sys.stderr)
         return 1
     eng = _engine()
@@ -99,18 +119,20 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     for i, p in enumerate(procs):
         threading.Thread(target=follow, args=(i, p), daemon=True).start()
-    running = len(procs)
-    while running:
-        i = changes.get()
-        if i is None:
-            running -= 1
-            continue
-        s = settings_mod.load()
-        contrast = i == 1
-        # After Restore original, stay out of the way.
-        if eng.is_applied() and (contrast or s.scheme == "auto"):
-            eng.apply(s, only=None if contrast else only)
-    return max(p.wait() for p in procs)
+    try:
+        while True:
+            got = _take_all(changes)
+            if None in got:
+                # Half a watcher would miss switches: stop, and let the user service start a fresh one.
+                print("liquid-glass watch: a gsettings monitor stopped", file=sys.stderr)
+                return 1
+            s = settings_mod.load()
+            contrast = 1 in got
+            # After Restore original, stay out of the way.
+            if eng.is_applied() and (contrast or s.scheme == "auto"):
+                eng.apply(s, only=None if contrast else only)
+    finally:
+        stop_all()
 
 
 def cmd_gui(args: argparse.Namespace) -> int:
