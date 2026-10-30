@@ -104,9 +104,12 @@ headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutto
 headerbar .linked:not(.vertical) > button:not(.suggested-action):not(.destructive-action),
 .titlebar .linked:not(.vertical) > button:not(.suggested-action):not(.destructive-action) {
   border-radius: 8px;
+  border: none;
   background-color: transparent;
   background-image: none;
   box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
   color: alpha(@headerbar_fg_color, 0.85);
   transition: background-color 200ms ease-out, box-shadow 200ms ease-out;
 }
@@ -134,7 +137,11 @@ headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutto
 /* Window controls: flat glyphs, the same tile on hover, Close turns soft red. */
 .titlebutton, headerbar .titlebutton, .titlebar .titlebutton {
   border-radius: 8px; padding: 4px; min-height: 16px; min-width: 16px;
+  /* Other GTK 3 themes (Orchis, for one) paint window buttons with coloured dots,
+     image assets and a transparent glyph: reset all of it so only our look shows. */
+  border: none; animation: none;
   background-color: transparent; background-image: none; box-shadow: none;
+  text-shadow: none; -gtk-icon-shadow: none;
   color: alpha(@headerbar_fg_color, 0.85);
 }
 headerbar .titlebutton:backdrop, .titlebar .titlebutton:backdrop { color: alpha(@headerbar_fg_color, 0.65); }
