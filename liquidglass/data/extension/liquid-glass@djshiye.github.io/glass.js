@@ -22,6 +22,7 @@
 
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
@@ -48,6 +49,11 @@ uniform float hl;                // strength of the edge reflections
 uniform float hl_x;              // where the light rests (only shapes the reflections)
 uniform float hl_y;
 uniform float env_reach;         // px, how far beyond the edge the rim sees
+uniform float cheap;             // 1 while something moves behind: fewer taps
+uniform float valid_x0;          // the part of the texture that is on screen
+uniform float valid_y0;
+uniform float valid_x1;
+uniform float valid_y1;
 uniform float margin;            // px at the texture's border that the blur has darkened
 uniform float adapt;             // 0..1, how much the glass adjusts to its backdrop
 uniform float bleed;             // strength of the content's colour in the glass
@@ -103,7 +109,11 @@ float cauchy(float um, float B) {
 vec3 env(vec2 p) {
     float sp = env_reach * 0.3;
     // Stay clear of the border, where the blur has pulled in nothing from outside.
-    p = clamp(p, vec2(margin + sp), vec2(width, height) - vec2(margin + sp));
+    // and off the screen, where there is nothing to see.
+    p = clamp(p, max(vec2(margin + sp), vec2(valid_x0, valid_y0) + sp),
+              min(vec2(width, height) - vec2(margin + sp), vec2(valid_x1, valid_y1) - sp));
+    if (cheap > 0.5)
+        return at(p).rgb;
     return at(p).rgb * 0.4
         + (at(p + vec2(sp, 0.0)).rgb + at(p - vec2(sp, 0.0)).rgb
          + at(p + vec2(0.0, sp)).rgb + at(p - vec2(0.0, sp)).rgb) * 0.15;
@@ -181,7 +191,7 @@ void main() {
         vec4 g = at(px);
         float gl = dot(g.rgb, vec3(0.213, 0.715, 0.072));
         // Coloured icons bleed; white text mostly doesn't, or the glass turns milky.
-        vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 2.6;
+        vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 3.0;
         vec3 glow = chroma * 1.1 + g.rgb * 0.08;
         if (inside < bevel + 4.0) {
             // Content near the edge, mirrored into it by reflection inside the glass.
@@ -191,14 +201,14 @@ void main() {
             glow += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bevel, 1.0)) * 1.2;
         }
         // Additive light: no alpha, so nothing under it is dimmed.
-        glow = vec3(1.0) - exp(-glow * bleed * 2.6);          // soft-clip, so bright icons can't blow out
+        glow = vec3(1.0) - exp(-glow * bleed * 4.6);   // it sits under the theme's veil          // soft-clip, so bright icons can't blow out
         cogl_color_out = vec4(glow, 0.0) * cov * cogl_color_in.a;
         return;
     }
 
     vec4 col;
     if (th > 0.01) {
-        if (dispersion > 0.001 && slope > 0.02) {
+        if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5) {
             // Five wavelengths, each refracted by its own index, then mixed back to RGB.
             float B = 0.08 * dispersion;   // crown glass is ~0.004, dense flint ~0.015: exaggerated, as Apple does
             vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
@@ -314,6 +324,33 @@ const LAYERS = {full: 0, glass: 1, reflections: 2};
 const ENV_REACH = 32;   // px the rim sees beyond the edge
 const GLOW_BLUR = 30;   // px the content's light spreads
 
+// While a window is dragged or resized, every pane re-renders each frame, so they
+// all drop to fewer taps until shortly after it settles. A still frame looks the same.
+const panes = new Set();
+let cheapTimer = 0;
+
+export function moving(on) {
+    if (cheapTimer) {
+        GLib.source_remove(cheapTimer);
+        cheapTimer = 0;
+    }
+    if (on) {
+        panes.forEach(p => p._setCheap(true));
+        return;
+    }
+    cheapTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+        cheapTimer = 0;
+        panes.forEach(p => p._setCheap(false));
+        return GLib.SOURCE_REMOVE;
+    });
+}
+
+export function stopMoving() {
+    if (cheapTimer)
+        GLib.source_remove(cheapTimer);
+    cheapTimer = 0;
+}
+
 export const GlassPane = GObject.registerClass(
 class LiquidGlassPane extends Clutter.Actor {
     _init(layer = 'full') {
@@ -341,7 +378,12 @@ class LiquidGlassPane extends Clutter.Actor {
         this._edges = '';
         this.setEdges([false, false, false, false]);
         this._applyLook();
-        this.connect('destroy', () => this._clones.clear());
+        this._cheap = false;
+        panes.add(this);
+        this.connect('destroy', () => {
+            panes.delete(this);
+            this._clones.clear();
+        });
     }
 
     get pad() {
@@ -397,6 +439,13 @@ class LiquidGlassPane extends Clutter.Actor {
         this._glass.setFloats({edge_l: l, edge_t: t, edge_r: r, edge_b: b});
     }
 
+    _setCheap(on) {
+        if (on === this._cheap)
+            return;
+        this._cheap = on;
+        this._glass.setFloats({cheap: on ? 1 : 0});
+    }
+
     setLook(look) {
         this._look = {...DEFAULT_LOOK, ...look};
         this._applyLook();
@@ -416,6 +465,11 @@ class LiquidGlassPane extends Clutter.Actor {
         this._size = [Math.max(1, Math.round(w + 2 * p)), Math.max(1, Math.round(h + 2 * p))];
         this.set_size(...this._size);
         this._stage = [Math.round(sx - p), Math.round(sy - p)];
+        const [W, H] = global.stage.get_size();
+        this._glass.setFloats({
+            valid_x0: Math.max(0, -this._stage[0]), valid_y0: Math.max(0, -this._stage[1]),
+            valid_x1: Math.min(this._size[0], W - this._stage[0]), valid_y1: Math.min(this._size[1], H - this._stage[1]),
+        });
         this._syncClones();
         this._applyShape();
     }
@@ -467,6 +521,7 @@ class LiquidGlassPane extends Clutter.Actor {
             bleed: this._layer === LAYERS.reflections ? Math.max(0, Math.min(1, L.bleed)) : 0,
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             mode: this._layer,
+            cheap: this._cheap ? 1 : 0,
         });
         this._applyShape();
     }

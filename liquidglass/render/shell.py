@@ -93,9 +93,10 @@ def values(t: Tokens) -> dict[str, str]:
     arc, cal, ovw = surfaces(t, "arcmenu"), surfaces(t, "calendar"), surfaces(t, "overview")
     ink = WHITE if t.dark else BLACK
     if t.dark:
-        ctrl = (ink.with_alpha(0.17), ink.with_alpha(0.06))
-        hov = (ink.with_alpha(0.24), ink.with_alpha(0.11))
-        press = (ink.with_alpha(0.08), ink.with_alpha(0.20))
+        # Translucent, so the glass shows through buttons instead of grey slabs.
+        ctrl = (ink.with_alpha(0.14), ink.with_alpha(0.10))
+        hov = (ink.with_alpha(0.20), ink.with_alpha(0.15))
+        press = (ink.with_alpha(0.08), ink.with_alpha(0.12))
         # Fields stay mostly opaque, so text behind the glass never shows through them.
         field, field_hover = t.popover.with_alpha(0.62), t.popover.with_alpha(0.72)
         field_shadow = BLACK.with_alpha(0.35)

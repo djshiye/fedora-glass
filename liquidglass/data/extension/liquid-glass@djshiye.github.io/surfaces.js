@@ -13,7 +13,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
-import {GlassPane} from './glass.js';
+import {GlassPane, moving, stopMoving} from './glass.js';
 
 const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
 const MOVES = ['notify::allocation', 'notify::visible', 'notify::opacity', 'notify::translation-x',
@@ -163,8 +163,10 @@ class Follower {
                 this.queue();
         };
         windowWatch.current?.listeners.add(this._onWindows);
+        // glass, then the content's light, then the content: the glow sits behind
+        // icons and toggles, never on top of them.
         anchor.get_parent().insert_child_below(this.pane, anchor);
-        anchor.get_parent().insert_child_above(this.top, anchor);
+        anchor.get_parent().insert_child_below(this.top, anchor);
         this.update(settings);
     }
 
@@ -198,10 +200,10 @@ class Follower {
             hide();
             return;
         }
-        if (pane.get_next_sibling() !== anchor)
-            parent.set_child_below_sibling(pane, anchor);
-        if (top.get_previous_sibling() !== anchor)
-            parent.set_child_above_sibling(top, anchor);
+        if (top.get_next_sibling() !== anchor)
+            parent.set_child_below_sibling(top, anchor);
+        if (pane.get_next_sibling() !== top)
+            parent.set_child_below_sibling(pane, top);
 
         const [sx, sy] = target.get_transformed_position();
         // Size from the allocation, which is what is painted: width/height (and so
@@ -570,6 +572,9 @@ export class GlassManager {
         // Behind the panel and menus is the overview while it is open, the windows otherwise.
         for (const s of ['showing', 'shown', 'hiding', 'hidden'])
             this._signals.on(Main.overview, s, () => this._parts.forEach(p => p.sync?.()));
+        // A window dragged or resized behind the glass re-renders it every frame.
+        this._signals.on(global.display, 'grab-op-begin', () => moving(true));
+        this._signals.on(global.display, 'grab-op-end', () => moving(false));
     }
 
     update(cfg) {
@@ -579,6 +584,7 @@ export class GlassManager {
 
     destroy() {
         this._signals.clear();
+        stopMoving();
         this._parts.forEach(p => p.destroy());
         this._parts = [];
         windowWatch.current?.destroy();
