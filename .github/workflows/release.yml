@@ -1,0 +1,50 @@
+# Builds the RPM when a version tag (v1.2.3) is pushed and attaches it to a
+# GitHub release, so it installs with:
+#   sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/liquid-glass.noarch.rpm
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the release and upload the RPM; nothing else
+
+jobs:
+  rpm:
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Tools
+        run: dnf install -y --setopt=install_weak_deps=False rpm-build systemd-rpm-macros git gh python3-pytest python3-gobject
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Tag matches the spec
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          spec="$(rpmspec -q --qf '%{version}\n' --srpm packaging/liquid-glass.spec)"
+          test "$ver" = "$spec" || { echo "tag $ver but spec says $spec"; exit 1; }
+          echo "VER=$ver" >> "$GITHUB_ENV"
+
+      - name: Tests
+        run: python3 -m pytest -q tests
+
+      - name: Build
+        run: |
+          git config --global --add safe.directory "$PWD"
+          mkdir -p ~/rpmbuild/SOURCES
+          git archive --format=tar.gz --prefix="fedora-liquid-glass-$VER/" -o ~/rpmbuild/SOURCES/fedora-liquid-glass-$VER.tar.gz HEAD
+          rpmbuild -bb packaging/liquid-glass.spec
+          mkdir out
+          cp ~/rpmbuild/RPMS/noarch/liquid-glass-$VER-*.noarch.rpm out/
+          # A fixed name too, so .../releases/latest/download/liquid-glass.noarch.rpm always works.
+          cp out/liquid-glass-$VER-*.noarch.rpm out/liquid-glass.noarch.rpm
+          (cd out && sha256sum *.rpm > SHA256SUMS)
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" \
+            --title "Liquid Glass $VER" --notes "Install: sudo dnf install https://github.com/$GITHUB_REPOSITORY/releases/latest/download/liquid-glass.noarch.rpm"
