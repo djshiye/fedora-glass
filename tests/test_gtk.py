@@ -144,21 +144,29 @@ def test_gtk4_target_writes_both_files(fake_env):
     assert all("@media (prefers-color-scheme: dark)" in a.content for a in acts)
 
 
-def test_gtk3_needs_adw_gtk3(fake_env):
+def test_gtk3_works_without_adw_gtk3(fake_env):
+    """Without adw-gtk3 the user's GTK 3 theme (Orchis, say) stays and our sheet goes on top."""
     t = by_id("gtk3")
-    det = t.detect(fake_env)
-    assert not det.available and "dnf install adw-gtk3-theme" in det.detail
-    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
     assert t.detect(fake_env).available
+    ctx = ctx_for(fake_env)
+    acts = t.plan(ctx)
+    assert not [a for a in acts if isinstance(a, GSet)], "the gtk-theme must stay the user's"
+    w = next(a for a in acts if isinstance(a, WriteFile))
+    assert w.path == fake_env.config / "gtk-3.0/gtk.css" and "headerbar" in w.content
+    assert t.live_notes(ctx) == ["Some GTK 3 details need adw-gtk3: sudo dnf install adw-gtk3-theme"]
+    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
+    assert t.live_notes(ctx) == []
+    assert any(isinstance(a, GSet) for a in t.plan(ctx))
 
 
 def test_gtk3_also_found_in_dot_themes(fake_env):
     (fake_env.home / ".themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
-    assert by_id("gtk3").detect(fake_env).available
+    assert "adw-gtk3 found" in by_id("gtk3").detect(fake_env).detail
 
 
 @pytest.mark.parametrize("dark,theme", [(True, "'adw-gtk3-dark'"), (False, "'adw-gtk3'")])
 def test_gtk3_plan(fake_env, dark, theme):
+    (fake_env.data / "themes/adw-gtk3/gtk-3.0").mkdir(parents=True)
     acts = by_id("gtk3").plan(ctx_for(fake_env, dark=dark))
     gset = next(a for a in acts if isinstance(a, GSet))
     assert (gset.schema, gset.key, gset.value) == ("org.gnome.desktop.interface", "gtk-theme", theme)
