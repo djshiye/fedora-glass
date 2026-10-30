@@ -58,6 +58,7 @@ uniform float hl_y;
 uniform float ptr_x;              // the pointer, in px on this pane
 uniform float ptr_y;
 uniform float ptr_k;              // 0..1, how strongly the rim near it lights up
+uniform float press;              // 0..1, held down at the pointer
 uniform float env_reach;         // px, how far beyond the edge the rim sees
 uniform float cheap;             // 1 while something moves behind: fewer taps
 uniform float valid_x0;          // the part of the texture that is on screen
@@ -147,20 +148,36 @@ vec2 jitter(vec2 p) {
 // while it is near, so the shadow, caustic and reflections answer to one light.
 vec2 lightDir(vec2 toPtr) {
     vec2 Lp = toPtr / max(length(toPtr), 1.0);
-    return normalize(mix(vec2(hl_x, hl_y), Lp, 0.6 * ptr_k) + vec2(1e-4));
+    return normalize(mix(vec2(hl_x, hl_y), Lp, ptr_k) + vec2(1e-4));
 }
 
 // As if your head moved in front of real glass: with the pointer near, the
-// reflections slide across the rim the other way (parallax, no added light).
+// reflections slide along the rim with you, as in a real mirror (parallax, no
+// added light).
 vec2 parallax(vec2 toPtr, vec2 h) {
-    return -clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0) * env_reach * 0.5 * ptr_k;
+    return -clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0) * env_reach * 2.0 * ptr_k;
+}
+
+// Pressed, the glass gives under the finger: around the press point the rim
+// rounds off wider and steeper, so it bends and mirrors more of the real
+// backdrop there. 0..1. A big pane gives over a wider area than a thin bar.
+float touch(vec2 dp, float s) {
+    return press * exp(-dot(dp, dp) / (2.0 * s * s));
+}
+
+// The dip a press leaves: the top tilts in towards the finger, so the backdrop
+// around it is drawn in like under a lens.
+vec2 dent(vec2 dp, float s, float t) {
+    return -dp / s * 0.45 * t;
 }
 
 // Caustic: the rounded edge focuses light onto the backdrop on the side away
 // from the light, so the shaded rim gets a soft band of the backdrop's own
-// light, a little brighter (nothing over black). Returns the gain.
-float caustic(vec2 n, vec2 L, float crest) {
-    return 1.0 + 0.25 * pow(max(dot(-n, L), 0.0), 2.0) * crest;
+// light, clearly brighter (nothing over black). A thin bar gathers its light
+// over less glass, so its band is a little softer. Returns the gain.
+float caustic(vec2 n, vec2 L, float crest, vec2 h) {
+    float k = 0.6 * mix(0.65, 1.0, smoothstep(30.0, 80.0, min(h.x, h.y)));
+    return 1.0 + k * max(dot(-n, L), 0.0) * crest;
 }
 
 vec3 vivid(vec3 c, float k) {
@@ -191,7 +208,7 @@ void main() {
         // Outside the pane: only its soft contact shadow, cast away from the light.
         float s = 0.0;
         if (shadow > 0.0 && pad > 1.0) {
-            float ds = sdRoundRect(cc + L * (pad * 0.2), hh, r);
+            float ds = sdRoundRect(cc + L * (pad * 0.25), hh, r);
             s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
             s = shadow * s * s;
         }
@@ -207,9 +224,12 @@ void main() {
     // The glass: a slab refr_amt thick lying on the backdrop, its top edge
     // rounded off over the bevel in a quarter ellipse. A thin bar gets a thin
     // bevel, so a panel is not all rim.
-    float th = refr_amt;
+    vec2 dp = px - vec2(ptr_x, ptr_y);
+    float give = max(90.0, 0.6 * min(h.x, h.y));   // px, how wide a press reaches
+    float tch = touch(dp, give);
+    float th = refr_amt * (1.0 + tch);
     float slope = 0.0;
-    float bevel = min(refr_h, 0.35 * min(h.x, h.y));
+    float bevel = min(refr_h, 0.35 * min(h.x, h.y)) * (1.0 + 0.6 * tch);
     float x = 0.0;
     if (bevel > 0.0 && inside < bevel) {
         x = 1.0 - inside / bevel;                   // 1 at the edge, 0 on the flat top
@@ -217,7 +237,7 @@ void main() {
         slope = x / max(z, 0.06);                   // -dz/dr of the rounded edge, outward
     }
     vec2 dome = depth * 0.25 * c / max(h.x, h.y);  // a gently domed top
-    vec3 N = normalize(vec3(n * slope + dome + jitter(px), 1.0));
+    vec3 N = normalize(vec3(n * slope + dome + dent(dp, give, tch) + jitter(px), 1.0));
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);              // peaks halfway down the rounded edge
 
@@ -321,15 +341,16 @@ void main() {
         float lobe = pow(max(dot(n, L), 0.0), 8.0) * crest;
         // The same light, reflected inside, comes out faintly at the opposite edge.
         lobe += pow(max(dot(-n, L), 0.0), 8.0) * crest * 0.3;
-        // The last few px of the rounded edge are near grazing: a thin wet band
-        // that mirrors the surroundings almost fully.
-        // The same hairline on every surface, thin bars included.
-        float wet = smoothstep(2.4, 0.8, inside) * smoothstep(0.0, 0.6, inside);
         // Near the pointer the rim catches more of the same reflection: a gain on
         // what it really mirrors, in the backdrop's own colours, never added light.
         // Over a black backdrop there is nothing to brighten.
-        vec2 dp = px - vec2(ptr_x, ptr_y);
-        float spec = ptr_k * exp(-dot(dp, dp) / 64800.0);       // sigma 180 px
+        float near = ptr_k * exp(-dot(dp, dp) / 64800.0);       // sigma 180 px
+        float spec = near + tch;
+        // The last few px of the rounded edge are near grazing: a thin wet band
+        // that mirrors the surroundings almost fully. The same hairline on every
+        // surface, thin bars included; seen from close by (the pointer near) the
+        // grazing band reaches further in, so what it mirrors can be seen slide.
+        float wet = smoothstep(2.4 + 3.5 * near, 0.8, inside) * smoothstep(0.0, 0.6, inside);
         float a = clamp((F * 1.9 + wet * (0.3 + 1.2 * spec)) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe + 2.0 * spec),
                         0.0, 0.92);
         // Restraint: the reflection may light the edge only a little above the glass
@@ -337,7 +358,7 @@ void main() {
         vec3 base = col.rgb / max(col.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
-        col.rgb = min(col.rgb * caustic(n, L, crest), vec3(col.a));
+        col.rgb = min(col.rgb * caustic(n, L, crest, h), vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
@@ -678,9 +699,11 @@ class LiquidGlassPane extends Clutter.Actor {
         const [ox, oy] = this._stage ?? [0, 0];
         this._glass.setFloats({
             ptr_x: m.sx - ox, ptr_y: m.sy - oy, ptr_k: Math.max(0, Math.min(1, m.k)),
+            press: Math.max(0, Math.min(1, m.press)),
             refr_h: Math.max(0, L.refraction) * Math.max(0, m.open),
-            refr_amt: Math.max(0, L.bend) * (1 + 0.15 * m.press),
-            depth: Math.max(0, Math.min(1, L.depth + 0.1 * m.press)),
+            // Pressed, the slab gives: a deeper bend and a fuller dome you can see.
+            refr_amt: Math.max(0, L.bend) * (1 + 0.3 * m.press),
+            depth: Math.max(0, Math.min(1, L.depth + 0.25 * m.press)),
         });
     }
 
