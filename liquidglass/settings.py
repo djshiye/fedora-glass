@@ -88,6 +88,19 @@ class Settings:
     # user opts in: then Ptyxis follows GNOME's style; off again brings their own value back.
     terminal_follows_style: bool = False
 
+    # The glass lock screen, drawn by the same Shell extension. Only the wallpaper shows
+    # through it; GNOME's own clock, password prompt and notifications stay as they are.
+    lock_glass: bool = True
+    lock_blur: int = 60                 # px of frost on the sheet, 10..100
+    lock_dim: float = 0.28              # 0..0.65, how much darker the sheet is than the wallpaper
+    lock_tint: float = 0.2              # 0..1, how much of the glass tint colours the sheet
+    lock_card: bool = True              # a glass card behind the password prompt
+    lock_clock: str = "bold"            # gnome, bold or thin
+    lock_clock_position: str = "gnome"  # gnome (upper third), top or middle
+    lock_slide: str = "spring"          # how the sheet leaves on unlock: gnome, smooth or spring
+    lock_slide_ms: int = 600            # 250..1200
+    lock_bounce: float = 0.35           # 0..1, spring only
+
     def target_enabled(self, target_id: str) -> bool:
         return self.targets.get(target_id, True)
 
@@ -128,10 +141,23 @@ class Settings:
         s.parts = _clean_parts(s.parts)
         s.targets = {str(k): bool(v) for k, v in dict(s.targets).items()}
         s.header_height = _int(s.header_height, HEADER_MIN, HEADER_MAX, Settings.header_height)
+        s.lock_glass, s.lock_card = bool(s.lock_glass), bool(s.lock_card)
+        s.lock_blur = _int(s.lock_blur, 10, 100, Settings.lock_blur)
+        s.lock_dim = min(0.65, _clamp(float(s.lock_dim), Settings.lock_dim))
+        s.lock_tint = _clamp(float(s.lock_tint), Settings.lock_tint)
+        s.lock_slide_ms = _int(s.lock_slide_ms, 250, 1200, Settings.lock_slide_ms)
+        s.lock_bounce = _clamp(float(s.lock_bounce), Settings.lock_bounce)
+        for k, choices in LOCK_CHOICES.items():
+            if getattr(s, k) not in choices:
+                setattr(s, k, getattr(Settings, k))
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
         return s
+
+
+LOCK_CHOICES = {"lock_clock": ("gnome", "bold", "thin"), "lock_clock_position": ("gnome", "top", "middle"),
+                "lock_slide": ("gnome", "smooth", "spring")}
 
 
 def _clean_parts(raw: object) -> dict[str, dict]:
