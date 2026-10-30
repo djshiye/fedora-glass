@@ -129,8 +129,36 @@ vec3 env(vec2 p) {
 }
 
 // 1/255 dither: no banding in big soft gradients, and a hint of grain.
+// Fine material grain: interleaved gradient noise, a blue-noise-like dither
+// with no clumps, so big blurred gradients never band. -0.5..0.5.
 float grain(vec2 p) {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+    return fract(52.9829189 * fract(dot(floor(p), vec2(0.06711056, 0.00583715)))) - 0.5;
+}
+
+// A normal jitter of a few thousandths: invisible as such, it only keeps the
+// lens from looking machined.
+vec2 jitter(vec2 p) {
+    return vec2(grain(p), grain(p.yx + 17.0)) * 0.006;
+}
+
+// Where the light comes from: the room's light, turned towards the pointer
+// while it is near, so the shadow, caustic and reflections answer to one light.
+vec2 lightDir(vec2 toPtr) {
+    vec2 Lp = toPtr / max(length(toPtr), 1.0);
+    return normalize(mix(vec2(hl_x, hl_y), Lp, 0.6 * ptr_k) + vec2(1e-4));
+}
+
+// As if your head moved in front of real glass: with the pointer near, the
+// reflections slide across the rim the other way (parallax, no added light).
+vec2 parallax(vec2 toPtr, vec2 h) {
+    return -clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0) * env_reach * 0.5 * ptr_k;
+}
+
+// Caustic: the rounded edge focuses light onto the backdrop on the side away
+// from the light, so the shaded rim gets a soft band of the backdrop's own
+// light, a little brighter (nothing over black). Returns the gain.
+float caustic(vec2 n, vec2 L, float crest) {
+    return 1.0 + 0.25 * pow(max(dot(-n, L), 0.0), 2.0) * crest;
 }
 
 vec3 vivid(vec3 c, float k) {
@@ -150,16 +178,18 @@ void main() {
     vec2 cc = c + (lo - hi) * 0.5;
     float r = min(radiusAt(c), min(h.x, h.y));
     float sd = sdRoundRect(cc, hh, r);
+    vec2 toPtr = vec2(ptr_x, ptr_y) - size * 0.5;
+    vec2 L = lightDir(toPtr);
 
     if (sd > 0.5 && mode > 1.5) {
         cogl_color_out = vec4(0.0);
         return;
     }
     if (sd > 0.5) {
-        // Outside the pane: only its soft shadow, a little below it.
+        // Outside the pane: only its soft contact shadow, cast away from the light.
         float s = 0.0;
         if (shadow > 0.0 && pad > 1.0) {
-            float ds = sdRoundRect(cc - vec2(0.0, pad * 0.2), hh, r);
+            float ds = sdRoundRect(cc + L * (pad * 0.2), hh, r);
             s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
             s = shadow * s * s;
         }
@@ -185,7 +215,7 @@ void main() {
         slope = x / max(z, 0.06);                   // -dz/dr of the rounded edge, outward
     }
     vec2 dome = depth * 0.25 * c / max(h.x, h.y);  // a gently domed top
-    vec3 N = normalize(vec3(n * slope + dome, 1.0));
+    vec3 N = normalize(vec3(n * slope + dome + jitter(px), 1.0));
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);              // peaks halfway down the rounded edge
 
@@ -270,8 +300,7 @@ void main() {
     if (hl > 0.0 && slope > 0.0) {
         vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
         vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
-        vec3 seen = vivid(env(px + dir * env_reach * length(Rf.xy)), 1.4);
-        vec2 L = vec2(hl_x, hl_y);
+        vec3 seen = vivid(env(px + dir * env_reach * length(Rf.xy) + parallax(toPtr, h)), 1.4);
         float lobe = pow(max(dot(n, L), 0.0), 8.0) * crest;
         // The same light, reflected inside, comes out faintly at the opposite edge.
         lobe += pow(max(dot(-n, L), 0.0), 8.0) * crest * 0.3;
@@ -291,6 +320,7 @@ void main() {
         vec3 base = col.rgb / max(col.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
+        col.rgb = min(col.rgb * caustic(n, L, crest), vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 

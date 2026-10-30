@@ -380,6 +380,10 @@ class Follower {
 // before the next redraw, and steps go on only while a spring is still moving.
 const followers = new Set();
 const motion = {current: null};
+const PRESS_SCALE = 0.985;  // a pressed button or menu item, at the bottom of its give
+// What gives under a press: panel buttons, Dash to Panel app icons, menu items, toggles.
+const PRESSABLE = ['panel-button', 'overview-tile', 'show-apps', 'popup-menu-item', 'arcmenu-menu-item',
+    'quick-toggle', 'quick-menu-toggle', 'icon-button', 'button'];
 const REACH = 220;          // px around a pane where the pointer lights its rim
 
 class Motion {
@@ -425,6 +429,7 @@ class Motion {
     event(event) {
         const type = event.type();
         if (type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) {
+            this._pressItem(event.get_source());
             const [x, y] = event.get_coords();
             for (const f of followers) {
                 const r = f.rect;
@@ -436,8 +441,59 @@ class Motion {
                    type === Clutter.EventType.TOUCH_CANCEL) {
             for (const st of this._state.values())
                 st.pressT = 0;
+            if (this._item)
+                this._item.to = 1;
             this._kick();
         }
+    }
+
+    // The button or menu item under a press gives a little, like the glass under it.
+    _pressItem(source) {
+        if (!this._animate)
+            return;
+        let a = source;
+        while (a && !(a.reactive && PRESSABLE.some(c => a.has_style_class_name?.(c))))
+            a = a.get_parent();
+        if (!a || !followers.size || ![...followers].some(f => f.anchor.contains(a)))
+            return;   // only on glass surfaces
+        if (this._item?.actor !== a) {
+            this._settleItem();
+            const id = a.connect('destroy', () => {
+                if (this._item?.actor === a)
+                    this._item = null;
+            });
+            a.set_pivot_point(0.5, 0.5);
+            this._item = {actor: a, id, s: 1, v: 0, to: 1};
+        }
+        this._item.to = PRESS_SCALE;
+    }
+
+    _settleItem() {
+        const it = this._item;
+        this._item = null;
+        if (!it)
+            return;
+        try {
+            it.actor.set_scale(1, 1);
+            it.actor.disconnect(it.id);
+        } catch {}   // already gone
+    }
+
+    _stepItem(dt) {
+        const it = this._item;
+        if (!it)
+            return false;
+        if (!this._animate) {
+            this._settleItem();
+            return false;
+        }
+        [it.s, it.v] = spring(it.s, it.v, it.to, 1370, 44, dt);
+        if (it.to === 1 && Math.abs(1 - it.s) + Math.abs(it.v) < 1e-4) {
+            this._settleItem();
+            return false;
+        }
+        it.actor.set_scale(it.s, it.s);
+        return true;
     }
 
     opened(f) {
@@ -519,6 +575,8 @@ class Motion {
             if (now_.some((v, i) => (i > 1 || lit) && Math.abs(v - prev[i]) > (i < 2 ? 0.25 : 1e-3)))
                 f.setMotion({sx: st.x ?? 0, sy: st.y ?? 0, k: st.k, press: st.press, open: st.open});
         }
+        if (this._stepItem(dt))
+            moving = true;
         if (moving)
             this._kick();
         else
@@ -532,6 +590,7 @@ class Motion {
         global.stage.disconnect(this._stage);
         this._cursor.disconnect(this._cursorId);
         this._settings.disconnect(this._animId);
+        this._settleItem();
         for (const f of followers)
             f.setMotion({k: 0, press: 0, open: 1});
         this._state.clear();
@@ -862,6 +921,7 @@ export class GlassManager {
         this.cfg = cfg;
         windowWatch.current = new WindowWatch();
         motion.current = new Motion();
+        this._motion = motion.current;   // reachable from Looking Glass, for testing
         this._parts = [new Panels(cfg), new Popups(cfg), new Windows(cfg), new OverviewBackdrop(cfg)];
         this._signals = new Signals();
         // Behind the panel and menus is the overview while it is open, the windows otherwise.
