@@ -563,6 +563,30 @@ export function moving(on) {
     });
 }
 
+// Windows mid-animation (opening, minimizing, closing): panes that show them behind
+// glass stop copying them until they land, then copy them once more. Otherwise every
+// frame of the animation re-renders the glass of every window above them.
+const frozen = new Set();
+let freezing = true;
+
+// For QA: compare with and without the freeze in one session.
+export function qaFreeze(on) {
+    freezing = Boolean(on);
+}
+
+export function freezeSource(actor) {
+    if (!freezing || frozen.has(actor))
+        return;
+    frozen.add(actor);
+    panes.forEach(p => p._clones.has(actor) && p._syncClones());
+}
+
+export function thawSource(actor) {
+    if (!frozen.delete(actor))
+        return;
+    panes.forEach(p => p._clones.has(actor) && p._syncClones());
+}
+
 export function stopMoving() {
     if (cheapTimer)
         GLib.source_remove(cheapTimer);
@@ -650,7 +674,7 @@ class LiquidGlassPane extends Clutter.Actor {
                 // wallpaper around it, and its blur and rim would read black there.
                 // Redraw the whole pane whenever a window behind changes.
                 if (GObject.signal_lookup('damaged', src.constructor.$gtype))
-                    ids.push(src.connect('damaged', () => this.queueFull()));
+                    ids.push(src.connect('damaged', () => frozen.has(src) || this.queueFull()));
                 // A source made in the same frame (the wallpaper, right after the
                 // extension is turned on) has no place yet: copy it once it has one.
                 if (!src.meta_window)
@@ -725,7 +749,9 @@ class LiquidGlassPane extends Clutter.Actor {
 
     _syncClones() {
         for (const [src, clone] of this._clones) {
-            if (!src.get_stage()) {
+            if (!src.get_stage() || frozen.has(src)) {
+                if (clone.visible)
+                    this.queueFull();
                 clone.hide();
                 continue;
             }

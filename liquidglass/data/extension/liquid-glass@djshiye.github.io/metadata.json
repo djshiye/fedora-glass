@@ -2,7 +2,7 @@
   "uuid": "liquid-glass@djshiye.github.io",
   "name": "Liquid Glass",
   "description": "Real Liquid Glass behind the panel, Dash to Panel, menus, quick settings, ArcMenu, app windows, the overview and the lock screen: refraction, blur, rim light and dispersion. Set it up in the Liquid Glass app.",
-  "shell-version": ["48", "49", "50"],
+  "shell-version": ["50"],
   "url": "https://github.com/djshiye/fedora-liquid-glass",
   "version-name": "1.2.1",
   "session-modes": ["user", "unlock-dialog"]

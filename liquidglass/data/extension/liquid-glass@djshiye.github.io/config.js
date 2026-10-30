@@ -6,6 +6,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 import {DEFAULT_LOOK} from './glass.js';
+import {cleanMotion} from './curves.js';
 
 const MAX_BYTES = 64 * 1024;
 const PARTS = ['panel', 'arcmenu', 'quicksettings', 'calendar'];
@@ -117,6 +118,8 @@ export function parse(text) {
     // Terminal windows can have their own look; it starts from the app windows' one.
     const tl = raw.windows && typeof raw.windows === 'object' ? raw.windows.terminalLook : null;
     cfg.windows.terminalLook = tl && typeof tl === 'object' ? cleanLook({...cfg.windows.look, ...tl}, cfg.windows.look) : null;
+    // Window and panel animations: unknown names fall back to the defaults, numbers are clamped.
+    cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};

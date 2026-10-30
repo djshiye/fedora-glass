@@ -11,6 +11,7 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+import {Animations} from './animations.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
@@ -23,6 +24,7 @@ export default class LiquidGlassExtension extends Extension {
             this._manager?.update(cfg);
             this._desktop?.update(cfg);
             this._lock?.update(cfg);
+            this._animations?.update(cfg);
         });
         this._modeId = Main.sessionMode.connect('updated', () => this._sync());
         this._sync();
@@ -58,10 +60,19 @@ export default class LiquidGlassExtension extends Extension {
             }
             this._desktop = new DesktopBehaviour(cfg);
             this._manager = new GlassManager(cfg);
+            this._animations = new Animations(cfg);
         }
     }
 
     _stopSession() {
+        // First, so windows and icons mid-animation land at once and GNOME's own
+        // window animations are back before the lock screen comes up.
+        try {
+            this._animations?.destroy();
+        } catch (e) {
+            logError(e, 'Liquid Glass: turning the animations off');   // the rest still turns off
+        }
+        this._animations = null;
         this._desktop?.destroy();
         this._desktop = null;
         this._manager?.destroy();
