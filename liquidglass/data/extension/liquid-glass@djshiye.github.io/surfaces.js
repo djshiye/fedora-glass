@@ -213,7 +213,9 @@ class Follower {
         const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
         // The light the content casts into the glass comes from the content itself.
-        top.setSources([anchor]);
+        // Both panes are the anchor's siblings; never clone an actor into itself.
+        const nested = top.contains(anchor) || anchor.contains(top) || anchor.contains(pane);
+        top.setSources(nested ? [] : [anchor]);
         const edges = screenEdges(target, sx, sy, w, h);
         pane.setEdges(edges);
         top.setEdges(edges);
@@ -330,7 +332,7 @@ function partOf(bp) {
         return 'calendar';
     if (bp.has_style_class_name?.('arcmenu-menu'))
         return 'arcmenu';
-    return 'menus';
+    return 'quicksettings';      // app menus and the rest look like quick settings
 }
 
 class Popups {
@@ -360,8 +362,8 @@ class Popups {
         // Banners come and go inside the message tray.
         const tray = Main.messageTray, bin = tray?._bannerBin;
         if (bin) {
-            this._signals.on(bin, 'child-added', (_b, banner) => this._follow(banner, tray));
-            bin.get_children().forEach(b => this._follow(b, tray));
+            this._signals.on(bin, 'child-added', (_b, banner) => this._follow(banner, tray, 'calendar'));
+            bin.get_children().forEach(b => this._follow(b, tray, 'calendar'));
         }
     }
 
@@ -378,12 +380,12 @@ class Popups {
         // Volume and brightness pop-ups.
         const osd = child.get_children?.().find(c => c.has_style_class_name?.('osd-window'));
         if (osd) {
-            this._follow(osd, child);
+            this._follow(osd, child, 'quicksettings');
             return;
         }
         // Alt+Tab and friends.
         if (child._switcherList)
-            this._follow(child._switcherList, child);
+            this._follow(child._switcherList, child, 'quicksettings');
     }
 
     _follow(surface, anchor, part = 'menus') {
