@@ -304,7 +304,6 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
         super._init();
         this.set_shader_source(SHADER);
         this._frame = '';
-        this.onPaint = null;
     }
 
     vfunc_paint_target(node, paintContext) {
@@ -323,9 +322,6 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
             }
         }
         super.vfunc_paint_target(node, paintContext);
-        const done = this.onPaint;
-        this.onPaint = null;
-        done?.();
     }
 
     setFloats(values) {
@@ -580,12 +576,6 @@ class LiquidGlassPane extends Clutter.Actor {
     setMotion(m) {
         Object.assign(this._motion, m);
         this._applyMotion();
-    }
-
-    /** Calls fn once, right after the pane next paints. */
-    onNextPaint(fn) {
-        this._glass.onPaint = fn;
-        this._glass.queue_repaint();
     }
 
     _applyMotion() {

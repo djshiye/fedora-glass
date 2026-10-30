@@ -161,7 +161,7 @@ class Follower {
         for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
             MOVES.forEach(s => this._signals.on(a, s, () => this.queue()));
         this._signals.on(target, 'style-changed', () => this.queue());
-        // Never show a surface before its glass: hold it until the pane has painted.
+        // Never show a surface before its glass: hold it until the pane is up.
         this._signals.on(target, 'notify::mapped', () => (target.mapped ? this._hold() : this._release()));
         // An open menu holds a grab, so presses reach it but not the stage.
         this._signals.on(anchor, 'captured-event', (_a, event) => {
@@ -195,8 +195,8 @@ class Follower {
             return;
         this._held = this.target.opacity;
         this.target.opacity = 0;
-        // Whatever happens, never leave a menu invisible: if the glass has not
-        // painted after HOLD_MAX_MS, show the menu anyway. On a slow machine a
+        // Whatever happens, never leave a menu invisible: if its glass is not up
+        // after HOLD_MAX_MS, show the menu anyway. On a slow machine a
         // frame can take longer than that, so give the glass one frame at least.
         let frames = 0, expired = false;
         const giveUp = () => {
@@ -272,6 +272,11 @@ class Follower {
         if (pane.get_next_sibling() !== top)
             parent.set_child_below_sibling(pane, top);
 
+        // A menu that is appearing starts condensing now, so that its first frame
+        // already has the starting size.
+        const appearing = !pane.visible;
+        if (appearing)
+            motion.current?.opened(this);
         const [sx, sy] = target.get_transformed_position();
         // Size from the allocation, which is what is painted: width/height (and so
         // get_transformed_size()) fall back to the preferred size while a relayout is
@@ -285,10 +290,16 @@ class Follower {
             hide();
             return;
         }
-        let opacity = 1;
+        // Glass is never half there: a fading menu (GNOME fades pop-ups as they open
+        // and close) fades its content over complete glass, which goes only at the end.
+        let shown = true;
         for (let a = target; a && a !== parent; a = a.get_parent())
-            opacity *= (a === target && this._held !== null ? this._held : a.opacity) / 255;
-        pane.opacity = top.opacity = Math.round(opacity * 255);
+            shown &&= (a === target && this._held !== null ? this._held : a.opacity) > 0;
+        if (!shown) {
+            hide();
+            return;
+        }
+        pane.opacity = top.opacity = 255;
         const p = pane.pad;
         const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
@@ -302,22 +313,12 @@ class Follower {
         top.setEdges(edges);
         pane.place(lx, ly, w, h, radii, sx, sy);
         top.place(lx, ly, w, h, radii, sx, sy);
-        const appearing = !pane.visible;
         this.rect = [sx, sy, w, h];
         pane.show();
         top.show();
-        if (appearing)
-            motion.current?.opened(this);
-        if (this._held !== null) {
-            // Show the surface on the frame after its glass first paints.
-            pane.onNextPaint(() => {
-                const laters = global.compositor.get_laters();
-                laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
-                    this._release();
-                    return GLib.SOURCE_REMOVE;
-                });
-            });
-        }
+        // The glass is placed and shown before this frame paints: the surface may
+        // show in the same frame, over glass that is already complete.
+        this._release();
     }
 
     setMotion(m) {
