@@ -123,3 +123,11 @@ def test_loading_the_lock_stylesheet_cannot_call_itself():
     body = js[js.index("    _loadStyle() {"):js.index("    _unloadStyle() {")]
     assert "theme === this._theme" in body and "this._loading" in body
     assert body.index("theme === this._theme") < body.index("load_stylesheet(")
+
+
+def test_lock_stylesheet_never_stays_after_unlock():
+    js = (EXT / "lock.js").read_text()
+    body = js[js.index("    _loadStyle() {"):js.index("    _unloadStyle() {")]
+    assert "!Main.sessionMode.isLocked" in body
+    unlocking = js[js.index("    unlocking() {"):js.index("    _shapeSlide() {")]
+    assert "this._unloadStyle()" in unlocking

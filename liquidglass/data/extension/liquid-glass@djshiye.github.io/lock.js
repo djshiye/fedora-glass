@@ -105,7 +105,9 @@ export class LockGlass {
         if (this._loading || theme === this._theme)
             return;
         this._unloadStyle();
-        if (this._ended || !this.cfg.enabled || !theme)
+        // Only into the theme of the locked screen: as it unlocks, GNOME puts the user's
+        // theme back, and that one must never keep this stylesheet.
+        if (this._ended || !this.cfg.enabled || !theme || !Main.sessionMode.isLocked)
             return;
         this._loading = true;
         try {
@@ -254,6 +256,7 @@ export class LockGlass {
     /** The screen is unlocked: the sheet slides up into the desktop. */
     unlocking() {
         this._ended = true;
+        this._safe(() => this._unloadStyle());
         if (!this._dialog) {
             this.destroy();
             return;
