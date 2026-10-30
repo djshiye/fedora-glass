@@ -62,8 +62,12 @@ with a rounded edge. The shader follows real optics:
 - **Reflection:** the glass reflects about 4% of light head-on and almost all of it at grazing
   angles (Fresnel). The edge mirrors what really lies beyond it, the wallpaper and your windows, so
   it changes as they move. No outline or glow is drawn on.
-- **Colour bleed:** icons and text light up the glass around them, and their light comes out again
-  at the nearest edge, so a blue icon tints the glass near it.
+- **Colour bleed:** coloured icons light up the glass around them, and their light comes out again
+  at the nearest edge, so a blue icon tints the glass near it. White and grey text cast nothing, so
+  the glass never turns milky.
+- **Light that follows you:** the edge light turns towards the pointer when it comes near, and
+  menus settle with a small spring as they open. Both stop when you stop, so idle glass costs
+  nothing, and **Reduce animation** turns both off.
 - **Absorption:** light slanting through the edge crosses more glass, so the edge is a shade darker
   and greener (Beer-Lambert).
 

@@ -681,6 +681,19 @@ Item {
                         onMoved: (v) => Backend.bleed = v
                         tip: "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
                     }
+                    LabeledSlider {
+                        label: "Light follows pointer"
+                        value: Backend.pointerLight
+                        onMoved: (v) => Backend.pointerLight = v
+                        tip: "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
+                    }
+                    SwitchRow {
+                        label: "Liquid motion"
+                        caption: "Glass gives a little when pressed and settles as menus open"
+                        tip: "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
+                        checked: Backend.liquidMotion
+                        onToggled: (on) => Backend.liquidMotion = on
+                    }
                     Column {
                         width: parent.width
                         spacing: 4

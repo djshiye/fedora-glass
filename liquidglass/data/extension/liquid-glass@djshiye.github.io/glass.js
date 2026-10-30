@@ -31,6 +31,12 @@ uniform sampler2D tex;
 uniform float width;
 uniform float height;
 uniform float pad;
+// The offscreen texture can be a few px larger than the pane (the blur below
+// rounds its frame out); tex_* is its size and org_* where the pane starts in it.
+uniform float tex_w;
+uniform float tex_h;
+uniform float org_x;
+uniform float org_y;
 uniform float r_tl;
 uniform float r_tr;
 uniform float r_br;
@@ -48,6 +54,9 @@ uniform float tint_a;
 uniform float hl;                // strength of the edge reflections
 uniform float hl_x;              // where the light rests (only shapes the reflections)
 uniform float hl_y;
+uniform float ptr_x;              // the pointer, in px on this pane
+uniform float ptr_y;
+uniform float ptr_k;              // 0..1, how strongly the rim near it lights up
 uniform float env_reach;         // px, how far beyond the edge the rim sees
 uniform float cheap;             // 1 while something moves behind: fewer taps
 uniform float valid_x0;          // the part of the texture that is on screen
@@ -89,7 +98,7 @@ vec2 gradRoundRect(vec2 p, vec2 h, float r) {
 
 vec4 at(vec2 px) {
     vec2 size = vec2(width, height);
-    return texture2D(tex, clamp(px, vec2(0.5), size - vec2(0.5)) / size);
+    return texture2D(tex, (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h));
 }
 
 // Where a view ray, refracted into glass of index n at normal N, meets the
@@ -131,7 +140,7 @@ vec3 vivid(vec3 c, float k) {
 
 void main() {
     vec2 size = vec2(width, height);
-    vec2 px = cogl_tex_coord_in[0].st * size;
+    vec2 px = cogl_tex_coord_in[0].st * vec2(tex_w, tex_h) - vec2(org_x, org_y);
     vec2 c = px - size * 0.5;
     vec2 h = max(size * 0.5 - vec2(pad), vec2(1.0));
     // Push sides that touch the screen edge far out, so they get no rim.
@@ -184,25 +193,26 @@ void main() {
         // The surface's own light. tex holds a blurred copy of its content.
         // Light from each icon scatters into the glass around it, and light that
         // reflects inside the glass comes out at the nearest rim, mirrored there.
-        if (bleed <= 0.0) {
-            cogl_color_out = vec4(0.0);
-            return;
-        }
         vec4 g = at(px);
-        float gl = dot(g.rgb, vec3(0.213, 0.715, 0.072));
-        // Coloured icons bleed; white text mostly doesn't, or the glass turns milky.
-        vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 3.0;
-        vec3 glow = chroma * 1.1 + g.rgb * 0.08;
+        // Only colour bleeds: white and grey text and icons cast nothing, or the
+        // glass turns milky. What is left after taking out the grey is the colour.
+        vec3 glow = (g.rgb - vec3(min(g.r, min(g.g, g.b)))) * 2.6;
+        // The surface's light, caught inside the glass, leaves at the very edge: a
+        // one px hairline in the surface's own colour, equally faint on every surface
+        // (a fixed step in display values is a fixed step in lightness).
+        float hair = smoothstep(2.2, 0.9, inside) * smoothstep(0.0, 0.6, inside);
+        float gm = max(g.r, max(g.g, g.b));
+        vec3 tone = mix(vec3(1.0), g.rgb / max(gm, 1e-3), 0.5 * step(0.01, gm));
+        vec3 edgeLight = tone * hair * 0.065;
         if (inside < bevel + 4.0) {
             // Content near the edge, mirrored into it by reflection inside the glass.
             vec4 m = at(px - n * (2.0 * inside + 6.0));
-            float ml = dot(m.rgb, vec3(0.213, 0.715, 0.072));
-            vec3 mc = max(m.rgb - vec3(ml * 0.6), 0.0) * 1.6 + vec3(ml) * 0.25;
+            vec3 mc = (m.rgb - vec3(min(m.r, min(m.g, m.b)))) * 1.6;
             glow += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bevel, 1.0)) * 1.2;
         }
         // Additive light: no alpha, so nothing under it is dimmed.
-        glow = vec3(1.0) - exp(-glow * bleed * 4.6);   // it sits under the theme's veil          // soft-clip, so bright icons can't blow out
-        cogl_color_out = vec4(glow, 0.0) * cov * cogl_color_in.a;
+        glow = vec3(1.0) - exp(-glow * bleed * 4.6);   // soft-clip; it sits under the theme's veil
+        cogl_color_out = vec4(glow + edgeLight, 0.0) * cov * cogl_color_in.a;
         return;
     }
 
@@ -249,9 +259,8 @@ void main() {
                       + at(size * 0.5 + vec2(-q.x, q.y)).rgb + at(size * 0.5 + q).rgb) * 0.25,
                        vec3(0.213, 0.715, 0.072));
         float bright = smoothstep(0.45, 0.85, bl) * adapt;
-        float dark = (1.0 - smoothstep(0.03, 0.18, bl)) * adapt;
         float shade = bright * (0.10 + 0.12 * (1.0 - smoothstep(0.0, 10.0, inside)));
-        col.rgb = col.rgb * (1.0 - shade) + vec3(0.04 * dark) * col.a;
+        col.rgb = col.rgb * (1.0 - shade);   // never lifted: over a dark backdrop that reads milky
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge
@@ -268,9 +277,20 @@ void main() {
         lobe += pow(max(dot(-n, L), 0.0), 8.0) * crest * 0.3;
         // The last few px of the rounded edge are near grazing: a thin wet band
         // that mirrors the surroundings almost fully.
-        float wet = smoothstep(5.0, 1.0, inside) * smoothstep(0.0, 0.8, inside);
-        float a = clamp((F * 1.9 + wet * 0.9) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92);
-        col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a * (1.4 + 1.5 * lobe), vec3(col.a));
+        // The same hairline on every surface, thin bars included.
+        float wet = smoothstep(2.4, 0.8, inside) * smoothstep(0.0, 0.6, inside);
+        // Near the pointer the rim catches more of the same reflection: a gain on
+        // what it really mirrors, in the backdrop's own colours, never added light.
+        // Over a black backdrop there is nothing to brighten.
+        vec2 dp = px - vec2(ptr_x, ptr_y);
+        float spec = ptr_k * exp(-dot(dp, dp) / 64800.0);       // sigma 180 px
+        float a = clamp((F * 1.9 + wet * (0.3 + 1.2 * spec)) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe + 2.0 * spec),
+                        0.0, 0.92);
+        // Restraint: the reflection may light the edge only a little above the glass
+        // itself, so a bright backdrop gives no brighter a line than a dark one.
+        vec3 base = col.rgb / max(col.a, 1e-3);
+        seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
+        col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
     }
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
@@ -283,6 +303,25 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
     _init() {
         super._init();
         this.set_shader_source(SHADER);
+        this._frame = '';
+    }
+
+    vfunc_paint_target(node, paintContext) {
+        // Map the texture onto the pane exactly, or every edge is smeared out by a px or two.
+        const t = this.get_texture();
+        const a = this.get_actor();
+        if (t && a) {
+            const [w, h] = [t.get_width(), t.get_height()];
+            const key = `${w}x${h}/${a.width}x${a.height}`;
+            if (key !== this._frame) {
+                this._frame = key;
+                // Clutter grows an effect's frame by 2 px at the top left and 1 px at the bottom right.
+                const ox = Math.ceil((w - a.width) / 2), oy = Math.ceil((h - a.height) / 2);
+                for (const [k, v] of Object.entries({tex_w: w, tex_h: h, org_x: ox, org_y: oy}))
+                    this.set_uniform_value(k, v + 1e-6);
+            }
+        }
+        super.vfunc_paint_target(node, paintContext);
     }
 
     setFloats(values) {
@@ -305,6 +344,8 @@ export const DEFAULT_LOOK = Object.freeze({
     highlight: 0.55,    // 0..1, edge reflections
     lightAngle: -125,   // degrees, -90 = from the top: where the reflections are strongest
     bleed: 0.6,         // 0..1, how much the content's colours light up the glass
+    pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
+    motion: 1,          // 0 or 1: press and open springs
     adapt: 0.35,        // 0..1, how much the glass adjusts to what's behind it
     shadow: 0,          // 0..1, drawn by the pane itself
 });
@@ -377,8 +418,9 @@ class LiquidGlassPane extends Clutter.Actor {
         this._placed = '';
         this._edges = '';
         this.setEdges([false, false, false, false]);
-        this._applyLook();
         this._cheap = false;
+        this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1};
+        this._applyLook();
         panes.add(this);
         this.connect('destroy', () => {
             panes.delete(this);
@@ -472,6 +514,8 @@ class LiquidGlassPane extends Clutter.Actor {
         });
         this._syncClones();
         this._applyShape();
+        if (this._motion.k > 0)
+            this._applyMotion();   // the pointer is held in this pane's own px
     }
 
     _syncClones() {
@@ -497,7 +541,7 @@ class LiquidGlassPane extends Clutter.Actor {
         const L = this._look;
         const top = this._layer === LAYERS.reflections;
         // The reflections layer blurs a copy of the content into a glow map.
-        const blur = top ? (L.bleed > 0 ? GLOW_BLUR : 0) : Math.max(0, Math.min(100, L.blur));
+        const blur = top ? GLOW_BLUR : Math.max(0, Math.min(100, L.blur));
         this._blur.radius = blur;
         this._blur.enabled = blur > 0.5;
         // Room around the surface for the blur and the edge reflections to see past
@@ -523,7 +567,26 @@ class LiquidGlassPane extends Clutter.Actor {
             mode: this._layer,
             cheap: this._cheap ? 1 : 0,
         });
+        this._applyMotion();
         this._applyShape();
+    }
+
+    // Pointer light, parallax, press and open: set by the motion controller in
+    // surfaces.js. Only lens uniforms change, so the blur is not re-run.
+    setMotion(m) {
+        Object.assign(this._motion, m);
+        this._applyMotion();
+    }
+
+    _applyMotion() {
+        const L = this._look, m = this._motion;
+        const [ox, oy] = this._stage ?? [0, 0];
+        this._glass.setFloats({
+            ptr_x: m.sx - ox, ptr_y: m.sy - oy, ptr_k: Math.max(0, Math.min(1, m.k)),
+            refr_h: Math.max(0, L.refraction) * Math.max(0, m.open),
+            refr_amt: Math.max(0, L.bend) * (1 + 0.15 * m.press),
+            depth: Math.max(0, Math.min(1, L.depth + 0.1 * m.press)),
+        });
     }
 
     _applyShape() {
