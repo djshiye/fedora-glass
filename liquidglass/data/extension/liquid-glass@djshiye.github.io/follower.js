@@ -31,7 +31,16 @@ export class Follower {
         this._closing = false;
         this._faded = false;
         followers.add(this);
+        try {
+            this._build(target, anchor, settings);
+        } catch (e) {
+            // Half-built: take it all down again, which also shows the target.
+            this.destroy();
+            throw e;
+        }
+    }
 
+    _build(target, anchor, settings) {
         for (let a = target; a && a !== anchor.get_parent(); a = a.get_parent())
             MOVES.forEach(s => this._signals.on(a, s, () => this.queue()));
         this._signals.on(target, 'style-changed', () => this.queue());
