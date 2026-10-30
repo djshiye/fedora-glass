@@ -145,7 +145,7 @@ vec2 jitter(vec2 p) {
 // while it is near, so the shadow, caustic and reflections answer to one light.
 vec2 lightDir(vec2 toPtr) {
     vec2 Lp = toPtr / max(length(toPtr), 1.0);
-    return normalize(mix(vec2(hl_x, hl_y), Lp, 0.6 * ptr_k) + vec2(1e-4));
+    return normalize(mix(vec2(hl_x, hl_y), Lp, ptr_k) + vec2(1e-4));
 }
 
 // As if your head moved in front of real glass: with the pointer near, the
@@ -189,7 +189,7 @@ void main() {
         // Outside the pane: only its soft contact shadow, cast away from the light.
         float s = 0.0;
         if (shadow > 0.0 && pad > 1.0) {
-            float ds = sdRoundRect(cc + L * (pad * 0.2), hh, r);
+            float ds = sdRoundRect(cc + L * (pad * 0.25), hh, r);
             s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
             s = shadow * s * s;
         }

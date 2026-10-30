@@ -38,7 +38,7 @@ def _brightness(t: Tokens, f: float) -> float:
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
 # text and want more.
-CONTACT_SHADOW = {"panel": 0.16, "arcmenu": 0.22, "quicksettings": 0.22, "calendar": 0.22}
+CONTACT_SHADOW = {"panel": 0.2, "arcmenu": 0.28, "quicksettings": 0.28, "calendar": 0.28}
 FROST_SCALE = {"panel": 0.35, "arcmenu": 1.2, "quicksettings": 1.2, "calendar": 1.2, "overview": 1.0}
 
 

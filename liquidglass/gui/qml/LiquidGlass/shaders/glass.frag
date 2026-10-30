@@ -84,8 +84,22 @@ vec3 vivid(vec3 c, float k) {
     return max(mix(vec3(l), c, k), 0.0);
 }
 
+// Fine material grain: interleaved gradient noise, a blue-noise-like dither
+// with no clumps, so big blurred gradients never band. -0.5..0.5.
 float grain(vec2 p) {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+    return fract(52.9829189 * fract(dot(floor(p), vec2(0.06711056, 0.00583715)))) - 0.5;
+}
+
+// A normal jitter of a few thousandths: invisible as such, it only keeps the
+// lens from looking machined.
+vec2 jitter(vec2 p) {
+    return vec2(grain(p), grain(p.yx + 17.0)) * 0.006;
+}
+
+// Caustic: the rounded edge focuses light onto the backdrop on the side away
+// from the light, a soft band of the backdrop's own light. Returns the gain.
+float caustic(vec2 n, float crest) {
+    return 1.0 + 0.25 * pow(max(dot(-n, LIGHT), 0.0), 2.0) * crest;
 }
 
 // The content's light: each coloured icon lights the glass around it, and light
@@ -133,7 +147,7 @@ void main() {
         slope = x / max(z, 0.06);
     }
     vec2 dome = depth * 0.25 * p / max(c.x, c.y);
-    vec3 N = normalize(vec3(n * slope + dome, 1.0));
+    vec3 N = normalize(vec3(n * slope + dome + jitter(px0), 1.0));
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);
 
@@ -164,6 +178,7 @@ void main() {
         }
         vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
         col.rgb *= exp(-vec3(0.006, 0.0025, 0.004) * min(th / max(-Rt.z, 0.2) - th, 40.0));
+        col.rgb = min(col.rgb * caustic(n, crest), vec3(col.a));
         col = over(col, tint, 1.0);
     }
     if (mode > 0.5 && mode < 1.5) {
