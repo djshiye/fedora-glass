@@ -192,6 +192,34 @@ def test_glass_config_follows_frost_and_settings(fake_env):
     assert "steam" in cfg["windows"]["skip"]
 
 
+def test_window_glass_has_a_lens_and_no_bleed(fake_env):
+    cfg = rg.config(Settings(), context(fake_env).tokens)
+    win = cfg["windows"]
+    assert win["behind"] == "windows"
+    assert win["look"]["refraction"] > 0 and win["look"]["bend"] > 0 and win["look"]["highlight"] > 0
+    assert win["look"]["bleed"] == 0 and win["terminalLook"]["bleed"] == 0
+    # Windows get a narrower lens than the menus, and their own part controls drive it.
+    assert win["look"]["refraction"] < cfg["parts"]["quicksettings"]["look"]["refraction"]
+    s = Settings(parts={"windows": {"refraction": 0.0, "reflections": 0.0}, "terminal": {"reflections": 1.0}})
+    own = rg.config(s, context(fake_env, parts=s.parts).tokens)["windows"]
+    assert own["look"]["bend"] == 0 and own["look"]["highlight"] == 0
+    assert own["terminalLook"]["highlight"] > win["terminalLook"]["highlight"]
+    seen = rg.config(Settings(glass_see_windows=False), context(fake_env, glass_see_windows=False).tokens)
+    assert seen["windows"]["behind"] == "wallpaper"
+
+
+def test_content_views_let_a_little_glass_through():
+    from liquidglass.render.gtk4 import view_color
+    for dark in (True, False):
+        for f in (0.0, 0.45, 1.0):
+            t = palette.build(Settings(frost=f), dark=dark)
+            layer = view_color(t)
+            total = 1 - (1 - t.window.a) * (1 - layer.a)        # the view on the window background
+            assert total == pytest.approx(t.view.a, abs=2e-3) and 0.85 <= total <= 0.94
+    calm = palette.build(Settings(reduce_transparency=True), dark=True)
+    assert 1 - (1 - calm.window.a) * (1 - view_color(calm).a) >= 0.97 - 1e-3
+
+
 def test_dash_to_panel_floating_and_docked(fake_env):
     install(fake_env, ts.DASH_TO_PANEL)
     def values(style):

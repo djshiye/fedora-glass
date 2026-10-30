@@ -24,6 +24,7 @@ import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
 const SHADER = `
@@ -72,7 +73,8 @@ uniform float edge_t;
 uniform float edge_r;
 uniform float edge_b;
 uniform float shadow;
-uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = the surface's own light
+uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = the surface's own light,
+                                 // 3 = the rim over an app window
 
 const float IOR = 1.5;           // crown glass at 550 nm
 const float F0 = 0.04;           // ((IOR - 1) / (IOR + 1))^2, head-on reflectance
@@ -268,6 +270,21 @@ void main() {
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);              // peaks halfway down the rounded edge
 
+    if (mode > 2.5) {
+        // The rim over an app window. Only its outermost px, where a window draws no
+        // content, mirror what lies just beyond the edge: the real wallpaper and
+        // windows, in their own colours. Everything further in stays the app's own.
+        float band = smoothstep(2.8, 1.2, inside);
+        if (band <= 0.0 || hl <= 0.0) {
+            cogl_color_out = vec4(0.0);
+            return;
+        }
+        vec3 seen = vivid(env(px + n * env_reach * 0.6), 1.3);
+        float lobe = pow(max(dot(n, L), 0.0), 8.0) + 0.3 * pow(max(dot(-n, L), 0.0), 8.0);
+        float a = clamp(band * min(1.0, hl * 2.2) * (0.45 + 0.6 * lobe), 0.0, 0.8);
+        cogl_color_out = vec4(min(seen * (1.0 + 0.3 * lobe), vec3(1.0)) * a, a) * cov * cogl_color_in.a;
+        return;
+    }
     if (mode > 1.5) {
         // The surface's own light. tex holds a blurred copy of its content.
         // Light from each icon scatters into the glass around it, and light that
@@ -407,6 +424,21 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
         super.vfunc_paint_target(node, paintContext);
     }
 
+    vfunc_paint(node, paintContext, flags) {
+        // Re-rendered for a change in part of it, the pane only gets that part's
+        // wallpaper (Mutter paints the wallpaper only inside the frame's redraw
+        // area). Its blur and rim reach past that part, and the copy is kept and
+        // shown again later, so re-render all of it once more, in full.
+        if (flags & Clutter.EffectPaintFlags.ACTOR_DIRTY) {
+            this.renders = (this.renders ?? 0) + 1;    // read by the QA tools
+            if (this._full)
+                this._full = false;
+            else
+                this.get_actor()?.queueFull?.();
+        }
+        super.vfunc_paint(node, paintContext, flags);
+    }
+
     setFloats(values) {
         // A whole number would reach GL as an int uniform; nudge it to a float.
         for (const [name, v] of Object.entries(values))
@@ -443,8 +475,11 @@ export const DEFAULT_LOOK = Object.freeze({
  * own content (a menu, the panel), the owner adds a second pane, 'reflections',
  * just above the surface, whose source is that content: it draws the light the
  * icons and text cast into the glass, without dimming them.
+ *
+ * layer 'rim' sits over an app window and draws only the outermost px of its
+ * edge reflection, where the window has no content.
  */
-const LAYERS = {full: 0, glass: 1, reflections: 2};
+const LAYERS = {full: 0, glass: 1, reflections: 2, rim: 3};
 const ENV_REACH = 32;   // px the rim sees beyond the edge
 const GLOW_BLUR = 30;   // px the content's light spreads
 
@@ -505,7 +540,11 @@ class LiquidGlassPane extends Clutter.Actor {
         this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1};
         this._applyLook();
         panes.add(this);
+        this._fullLater = 0;
         this.connect('destroy', () => {
+            if (this._fullLater)
+                global.compositor.get_laters().remove(this._fullLater);
+            this._fullLater = 0;
             panes.delete(this);
             this._clones.clear();
         });
@@ -513,6 +552,18 @@ class LiquidGlassPane extends Clutter.Actor {
 
     get pad() {
         return this._pad;
+    }
+
+    /** Redraw all of the pane (see LiquidGlassEffect.vfunc_paint), before the next frame. */
+    queueFull() {
+        if (this._fullLater)
+            return;
+        this._fullLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._fullLater = 0;
+            this._glass._full = true;
+            this.queue_redraw();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     setSources(actors) {
@@ -529,18 +580,30 @@ class LiquidGlassPane extends Clutter.Actor {
             if (!clone) {
                 clone = new Clutter.Clone({source: src});
                 // A clone outlives its source, so a source that goes away takes its copy with it.
-                const id = src.connect('destroy', () => {
+                const ids = [src.connect('destroy', () => {
                     if (this._clones.get(src) === clone) {
                         this._clones.delete(src);
                         clone.destroy();
                     }
-                });
+                })];
+                // The wallpaper paints only inside the frame's redraw area, so a pane
+                // re-rendered for a small change in a window behind would lose the
+                // wallpaper around it, and its blur and rim would read black there.
+                // Redraw the whole pane whenever a window behind changes.
+                if (GObject.signal_lookup('damaged', src.constructor.$gtype))
+                    ids.push(src.connect('damaged', () => this.queueFull()));
+                // A source made in the same frame (the wallpaper, right after the
+                // extension is turned on) has no place yet: copy it once it has one.
+                if (!src.meta_window)
+                    ids.push(src.connect('notify::allocation', () => this._stage && this._syncClones()));
                 clone.connect('destroy', () => {
                     if (this._clones.get(src) === clone)
                         this._clones.delete(src);
-                    try {
-                        src.disconnect(id);
-                    } catch {}   // the source is already gone
+                    for (const id of ids) {
+                        try {
+                            src.disconnect(id);
+                        } catch {}   // the source is already gone
+                    }
                 });
                 this._clones.set(src, clone);
                 this.add_child(clone);
@@ -614,9 +677,15 @@ class LiquidGlassPane extends Clutter.Actor {
                 clone.hide();   // not allocated yet
                 continue;
             }
-            clone.set_position(Math.round(bx - this._stage[0]), Math.round(by - this._stage[1]));
-            clone.set_size(r ? r.width : src.width, r ? r.height : src.height);
+            const [cx, cy] = [Math.round(bx - this._stage[0]), Math.round(by - this._stage[1])];
+            const [cw, ch] = [r ? r.width : src.width, r ? r.height : src.height];
+            // Moved behind the pane: redraw all of it, for the same reason as 'damaged' above.
+            const moved = clone.x !== cx || clone.y !== cy || clone.width !== cw || clone.height !== ch || !clone.visible;
+            clone.set_position(cx, cy);
+            clone.set_size(cw, ch);
             clone.show();
+            if (moved)
+                this.queueFull();
         }
     }
 
@@ -624,7 +693,8 @@ class LiquidGlassPane extends Clutter.Actor {
         const L = this._look;
         const top = this._layer === LAYERS.reflections;
         // The reflections layer blurs a copy of the content into a glow map.
-        const blur = top ? GLOW_BLUR : Math.max(0, Math.min(100, L.blur));
+        // The rim over a window mirrors the backdrop sharp: it needs no blur of its own.
+        const blur = top ? GLOW_BLUR : this._layer === LAYERS.rim ? 0 : Math.max(0, Math.min(100, L.blur));
         this._blur.radius = blur;
         this._blur.enabled = blur > 0.5;
         // Room around the surface for the blur and the edge reflections to see past

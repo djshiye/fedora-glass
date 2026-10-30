@@ -13,7 +13,7 @@ from string import Template
 
 from ..color import Color
 from ..palette import Tokens
-from .gtk4 import _geometry, adwaita_colors, glass_colors
+from .gtk4 import _geometry, adwaita_colors, glass_colors, view_color
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk3.css.tpl"
 HEADER = "/* Liquid Glass for GTK 3 (adw-gtk3). Generated, edits are overwritten. */\n"
@@ -31,7 +31,7 @@ def named_colors(t: Tokens) -> dict[str, Color]:
         "headerbar_bg_color": t.window, "headerbar_backdrop_color": t.window,
         # GTK 3 era names some apps still use
         "theme_bg_color": t.window, "theme_fg_color": t.fg,
-        "theme_base_color": t.view, "theme_text_color": t.fg,
+        "theme_base_color": view_color(t), "theme_text_color": t.fg,
         "theme_selected_bg_color": t.accent, "theme_selected_fg_color": t.accent_fg,
     })
     return colors

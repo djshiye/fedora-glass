@@ -15,23 +15,18 @@ label.dim-label, .dim-label { opacity: 0.55; }
 treeview.view { background-color: var(--view-bg-color); }
 treeview.view header button { background-color: transparent; border-radius: 0; box-shadow: none; background-image: none; }
 
-/* ---- windows: rim light on top, faint glass edge, deep soft shadow ------- */
+/* ---- windows: deep soft shadow. The edge and its reflections are real glass,
+   drawn by the Shell behind the window, so nothing here paints light. ---- */
 window.csd {
   border-radius: $radius_window;
   outline: none;
-  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 160px);
   box-shadow:
-    inset 0 1px 0 var(--lg-rim),
-    inset 0 14px 22px -16px var(--lg-rim),
-    inset 0 0 0 1px var(--lg-edge),
     0 0 0 1px rgba(0, 0, 0, 0.30),
     0 18px 48px 4px var(--lg-deep-shadow),
     0 4px 12px 0 var(--lg-shadow);
 }
 window.csd:backdrop {
   box-shadow:
-    inset 0 1px 0 var(--lg-edge),
-    inset 0 0 0 1px var(--lg-edge),
     0 0 0 1px rgba(0, 0, 0, 0.22),
     0 8px 28px 2px var(--lg-shadow);
 }
@@ -52,6 +47,9 @@ headerbar {
 }
 headerbar:backdrop { background-color: transparent; }
 headerbar.flat, toolbarview.flat > headerbar { box-shadow: none; }
+/* One hairline under the top bar: a header bar inside it draws none of its own,
+   or the two lines, a few px apart, read as stripes. */
+.top-bar headerbar { box-shadow: none; }
 .top-bar, tabbar .box { background-color: transparent; box-shadow: inset 0 -1px 0 var(--lg-divider); }
 .titlebar { background-color: transparent; border-radius: 0; }
 searchbar > revealer > box, actionbar > revealer > box {
@@ -63,10 +61,10 @@ searchbar > revealer > box { box-shadow: inset 0 -1px 0 var(--lg-divider); }
 /* ---- sidebars (Nautilus, Settings-style split views) -------------------- */
 .sidebar-pane, .navigation-sidebar-pane {
   background-color: var(--lg-chrome);
-  box-shadow: inset -1px 0 0 var(--lg-divider), inset 0 1px 0 var(--lg-rim);
+  box-shadow: inset -1px 0 0 var(--lg-divider);
 }
 .sidebar-pane:backdrop { background-color: var(--lg-chrome); }
-.sidebar-pane:dir(rtl) { box-shadow: inset 1px 0 0 var(--lg-divider), inset 0 1px 0 var(--lg-rim); }
+.sidebar-pane:dir(rtl) { box-shadow: inset 1px 0 0 var(--lg-divider); }
 .sidebar-pane headerbar, .sidebar-pane .top-bar { box-shadow: none; }
 .navigation-sidebar { background: transparent; }
 .navigation-sidebar > row, .navigation-sidebar > row.activatable {
@@ -347,8 +345,8 @@ NautilusViewCell, .nautilus-grid-view > child { border-radius: $radius_card; }
 .nautilus-grid-view > child:selected { background-color: var(--lg-selection); box-shadow: inset 0 1px 0 var(--lg-rim); }
 
 /* ---- Ptyxis: chrome only, the terminal surface keeps its own colours/opacity ---- */
-revealer.top-bar > windowhandle, headerbar > windowhandle { box-shadow: inset 0 1px 0 var(--lg-rim); }
-revealer.top-bar > windowhandle { box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 -1px 0 var(--lg-divider); }
+/* The top edge's light is the Shell's real reflection; no painted line here. */
+revealer.top-bar > windowhandle { box-shadow: inset 0 -1px 0 var(--lg-divider); }
 
 /* ---- misc --------------------------------------------------------------------------- */
 *:focus-visible { outline-color: color-mix(in srgb, var(--lg-accent-text) 70%, transparent); }

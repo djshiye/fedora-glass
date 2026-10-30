@@ -34,6 +34,14 @@ def bar_color(t: Tokens) -> Color:
     return t.window_chrome.with_alpha(max(0.0, t.window_chrome.a - t.window.a * 0.6))
 
 
+def view_color(t: Tokens) -> Color:
+    """Content views (the Files grid, text areas) sit on the window's own background, so
+    they are painted only as solid as the rest needs: the two together come to the view
+    token's alpha, and a little of the frosted glass below shows through."""
+    a = 1.0 - (1.0 - t.view.a) / max(1.0 - t.window.a, 1e-3)
+    return t.view.with_alpha(round(min(1.0, max(0.0, a)), 3))
+
+
 def adwaita_colors(t: Tokens) -> dict[str, Color]:
     """Every colour libadwaita 1.9 (and adw-gtk3) derives its look from, by token name."""
     clear = Color(0, 0, 0, 0)
@@ -43,7 +51,7 @@ def adwaita_colors(t: Tokens) -> dict[str, Color]:
     secondary = t.window_chrome.with_alpha(t.window_chrome.a * 0.7)
     return {
         "window-bg-color": t.window, "window-fg-color": t.fg,
-        "view-bg-color": t.view, "view-fg-color": t.fg,
+        "view-bg-color": view_color(t), "view-fg-color": t.fg,
         # Header bars are part of the window glass, so they add no surface of their own.
         "headerbar-bg-color": clear, "headerbar-fg-color": t.fg,
         "headerbar-backdrop-color": clear, "headerbar-border-color": t.fg,

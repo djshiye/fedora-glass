@@ -57,6 +57,15 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     return {"look": look, "tint": [c.r, c.g, c.b, 0]}      # the Shell theme paints the fill
 
 
+def _window_look(t: Tokens, name: str) -> dict:
+    """App windows: the menus' lens, a little narrower and thinner, since a window is
+    big and holds text near its edge. No colour bleed: content stays as the app draws it."""
+    p = t.parts[name]
+    return {"blur": max(24, p["blur"]), "refraction": round(p["lens_width"] * 0.85, 1),
+            "bend": round(p["lens_bend"] * 0.6, 1), "dispersion": round(t.dispersion * 0.6, 3),
+            "depth": 0.1, "highlight": p["glare"], "bleed": 0, "shadow": 0}
+
+
 def config(s: Settings, t: Tokens) -> dict:
     s = s.normalized()
     off = s.reduce_transparency
@@ -92,10 +101,11 @@ def config(s: Settings, t: Tokens) -> dict:
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
-        # Windows paint their own rim; behind them the glass is plain frost.
-        "windows": {"enabled": t.blur_app_windows, "radius": max(8, t.window_radius), "skip": list(WINDOW_SKIP),
-                    "look": {"blur": max(24, t.window_blur), "refraction": 0, "bend": 0, "highlight": 0,
-                             "bleed": t.parts["windows"]["bleed"]}},
+        # Behind app windows: a lens along the edge and a rim that mirrors the real
+        # surroundings, under the window's own background. Terminals have their own look.
+        "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": max(8, t.window_radius),
+                    "skip": list(WINDOW_SKIP), "look": _window_look(t, "windows"),
+                    "terminalLook": _window_look(t, "terminal")},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,

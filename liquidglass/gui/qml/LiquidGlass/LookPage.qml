@@ -395,7 +395,9 @@ Item {
                 readonly property bool any: Object.keys(own).length > 0
                 // Which settings make sense for the chosen part.
                 readonly property bool hasRadius: part !== "terminal"
-                readonly property bool hasLens: part === "panel" || part === "arcmenu" || part === "quicksettings" || part === "calendar"
+                readonly property bool hasLens: part !== "overview"
+                // App windows keep their content as the app draws it: no colour bleed there.
+                readonly property bool hasBleed: hasLens && part !== "windows" && part !== "terminal"
                 function val(key) { return own[key] !== undefined ? own[key] : -1 }
                 function setOrClear(key, v) { v < 0 ? Backend.clearPart(part, key) : Backend.setPart(part, key, v) }
 
@@ -582,7 +584,7 @@ Item {
                         onChanged: (v) => partsCard.setOrClear("refraction", v)
                     }
                     OverrideSlider {
-                        visible: partsCard.hasLens
+                        visible: partsCard.hasBleed
                         label: "Colour bleed"
                         autoText: "Global"
                         autoTip: "Follows Colour bleed in the Glass effects card"
