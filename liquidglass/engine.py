@@ -257,7 +257,7 @@ class Backup:
                 return
             # Something else replaced what we wrote (a theme update relinking gtk.css):
             # that is the user's look now, so Revert should bring that back, not the old one.
-            self._forget_file(key, old)
+            # The old copy goes only once the new original is safely stored (below).
         entry: dict = {"target": target}
         if path.is_dir() and not path.is_symlink():
             # A folder is never ours to replace (and revert must never delete it).
@@ -270,7 +270,9 @@ class Backup:
             os.chmod(self.root, 0o700)
             digest = hashlib.sha256(key.encode()).hexdigest()[:16]
             copy = store / f"{digest}-{path.name}"
-            shutil.copy2(path, copy)
+            fresh = copy.with_name(copy.name + ".new")
+            shutil.copy2(path, fresh)
+            os.replace(fresh, copy)       # never a moment without a stored original
             entry.update(kind="file", copy=str(copy), mode=path.stat().st_mode & 0o777)
         else:
             # Folders this write will create, so revert can take them away again.
@@ -279,6 +281,8 @@ class Backup:
                 new_dirs.append(str(d))
                 d = d.parent
             entry.update(kind="missing", new_dirs=new_dirs)
+        if old is not None and old.get("copy") and old["copy"] != entry.get("copy"):
+            self._forget_file(key, old)
         self.data["files"][key] = entry
 
     def record_gsetting(self, target: str, env: Env, g: GSet) -> bool:

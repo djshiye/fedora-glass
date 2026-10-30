@@ -251,7 +251,7 @@ Window {
                 x: 14
                 anchors.verticalCenter: parent.verticalCenter
                 name: "info"
-                color: Theme.accentText
+                color: Theme.warn
                 size: 18
             }
             Text {
@@ -269,7 +269,7 @@ Window {
                 anchors.right: parent.right
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                kind: "secondary"
+                kind: "primary"
                 implicitHeight: 32
                 leftPadding: 14; rightPadding: 14
                 text: "Re-apply"
@@ -364,7 +364,10 @@ Window {
                     onClicked: Backend.requestPlan()
                 }
                 LgButton {
-                    kind: "primary"
+                    id: applyButton
+                    objectName: "applyButton"
+                    // While the Re-apply banner shows, it is the one call to action.
+                    kind: lostBanner.shown ? "secondary" : "primary"
                     text: "Apply"
                     iconName: "check"
                     leftPadding: 18

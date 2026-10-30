@@ -247,3 +247,18 @@ def test_an_apply_killed_before_saving_keeps_the_true_original(fake_env):
     Engine(fake_env, targets=[gtk4()]).apply(Settings(frost=0.5))
     assert Engine(fake_env, targets=[gtk4()]).revert() == []
     assert (d / "gtk.css").read_text() == "/* the user's own */"
+
+
+def test_a_replaced_file_swaps_its_backup_in_one_step(fake_env):
+    """Another app overwrites our gtk.css with its own; Re-apply keeps that as the original,
+    replacing the stored copy in place, and Revert brings it back."""
+    d = fake_env.config / "gtk-4.0"
+    d.mkdir(parents=True)
+    (d / "gtk.css").write_text("/* the user's own */")
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    (d / "gtk.css").write_text("/* another app's */")
+    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    store = Backup(fake_env).root / "files"
+    assert [p.name for p in store.iterdir() if p.name.endswith(".new")] == []
+    assert Engine(fake_env, targets=[gtk4()]).revert() == []
+    assert (d / "gtk.css").read_text() == "/* another app's */"
