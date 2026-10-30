@@ -20,7 +20,7 @@ Card {
             font.pixelSize: Theme.fsSmall
             text: "The bar along the top of Files, Terminal, Settings and other GNOME apps. Apps opened after Apply show the change."
         }
-        // After Apply: Files and Terminal keep running in the background with the old bars.
+        // After Apply: open apps keep the old bars, and Files keeps running in the background.
         Rectangle {
             objectName: "headerNote"
             visible: Backend.headerNote !== ""
@@ -48,8 +48,8 @@ Card {
                         color: Theme.textDim
                         font.pixelSize: Theme.fsSmall
                         lineHeight: 1.15
-                        text: noteCol.done ? "Files shows the new bars the next time you open it. Terminal does after your next login."
-                                           : "Files and Terminal pick this up when reopened. Terminal keeps running until your next login."
+                        text: noteCol.done ? "Files shows the new bars the next time you open it. Terminal does once all its windows are closed."
+                                           : "Open apps keep the old bars until reopened. Terminal updates once all its windows are closed. Files keeps running in the background, so restart it here."
                     }
                 }
                 LgButton {

@@ -22,9 +22,9 @@ Ptyxis paints its window and top bar from its own style sheet, which outranks
 ours, so its bar gets the same glass through the palette's TitlebarBackground
 (see ptyxis_titlebar). Its height follows the header bar rules like any app.
 
-Running apps keep the style sheet they started with: Files and Terminal stay
-running in the background after their last window closes, so changes show
-once they are fully quit and reopened.
+Running apps keep the style sheet they started with. Terminal quits a few
+seconds after its last window closes; Files stays running in the background,
+so it shows changes only once it is quit (`nautilus -q`) and reopened.
 """
 
 from __future__ import annotations
