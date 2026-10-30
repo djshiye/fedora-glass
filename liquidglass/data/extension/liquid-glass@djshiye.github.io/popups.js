@@ -90,8 +90,10 @@ export class Popups {
                 if (!surface.mapped)
                     return;
                 this._stopWaiting(surface);
-                // It is about to be seen: hold it back until its glass is up.
-                this._makeFollower(surface, anchor, part)._hold();
+                // It is about to be seen: hold it back until its glass is up. The hold
+                // gives up after HOLD_MAX_MS, and if the glass cannot be built at all
+                // the menu shows as it is, without glass.
+                this._makeFollower(surface, anchor, part)?._hold();
             }),
             surface.connect('destroy', () => this._stopWaiting(surface)),
         ];
@@ -107,7 +109,13 @@ export class Popups {
     }
 
     _makeFollower(surface, anchor, part) {
-        const f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
+        let f;
+        try {
+            f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
+        } catch (e) {
+            console.error(`Liquid Glass: menu shown without glass: ${e}`);
+            return null;
+        }
         f.part = part;
         f.condense = true;
         this._followers.set(surface, f);
