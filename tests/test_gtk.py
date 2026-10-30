@@ -227,6 +227,8 @@ def test_header_buttons_are_flat_and_outrank_glass_pills():
     rest = css.split(geo["hdr_btn"] + " {", 1)[1].split("}", 1)[0]
     assert "background-color: transparent" in rest and "box-shadow: none" in rest
     assert "border-radius: 8px" in rest
+    # Flat but clearly enabled: 90% of the title's colour, not a disabled-looking grey.
+    assert "color: color-mix(in srgb, currentColor 90%, transparent)" in rest
 
 
 def test_window_controls_are_flat_and_close_is_red_only_on_hover():
@@ -242,6 +244,7 @@ def test_gtk3_header_buttons_are_flat(dark):
     assert ".titlebutton, headerbar .titlebutton { border-radius: 999px" not in css
     assert "headerbar .titlebutton.close:hover" in css and "@lg_close" in css
     assert "@lg_tile" in css and "@lg_tile_press" in css
+    assert "color: alpha(@headerbar_fg_color, 0.9);" in css
 
 
 def test_unfocused_bars_fade_once_to_65_percent():

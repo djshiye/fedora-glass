@@ -110,7 +110,7 @@ headerbar .linked:not(.vertical) > button:not(.suggested-action):not(.destructiv
   box-shadow: none;
   text-shadow: none;
   -gtk-icon-shadow: none;
-  color: alpha(@headerbar_fg_color, 0.85);
+  color: alpha(@headerbar_fg_color, 0.9);
   transition: background-color 200ms ease-out, box-shadow 200ms ease-out;
 }
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):backdrop,
@@ -142,7 +142,7 @@ headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutto
   border: none; animation: none;
   background-color: transparent; background-image: none; box-shadow: none;
   text-shadow: none; -gtk-icon-shadow: none;
-  color: alpha(@headerbar_fg_color, 0.85);
+  color: alpha(@headerbar_fg_color, 0.9);
 }
 headerbar .titlebutton:backdrop, .titlebar .titlebutton:backdrop { color: alpha(@headerbar_fg_color, 0.65); }
 headerbar .titlebutton:hover, .titlebar .titlebutton:hover {

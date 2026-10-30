@@ -172,7 +172,7 @@ $hdr_btn {
   background-color: transparent;
   background-image: none;
   box-shadow: none;
-  color: color-mix(in srgb, currentColor 85%, transparent);
+  color: color-mix(in srgb, currentColor 90%, transparent);
   transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
 }
 $hdr_btn_hover, $hdr_btn_checked {
@@ -197,7 +197,7 @@ windowcontrols > button {
   border-radius: 8px;
   background-color: transparent;
   box-shadow: none;
-  color: color-mix(in srgb, var(--headerbar-fg-color) 85%, transparent);
+  color: color-mix(in srgb, var(--headerbar-fg-color) 90%, transparent);
   transition: background-color 200ms ease-out, box-shadow 200ms ease-out, color 200ms ease-out;
 }
 windowcontrols > button > image, windowcontrols > button:hover > image, windowcontrols > button:active > image {
@@ -217,7 +217,7 @@ windowcontrols > button:active > image { -gtk-icon-transform: scale(0.94); }
 windowcontrols > button.close:hover, windowcontrols > button.close:active { background-color: var(--lg-close); box-shadow: none; color: white; }
 
 /* Unfocused windows: libadwaita fades the whole bar to 50%, which on top of the
-   icons' own 85% nearly hides them. Fade bars to 65% instead (titles, icons and
+   icons' own 90% nearly hides them. Fade bars to 65% instead (titles, icons and
    text buttons alike), keeping libadwaita's rule that nested bars fade only once. */
 headerbar:backdrop > windowhandle,
 toolbarview > .top-bar:backdrop > windowhandle, toolbarview > .bottom-bar:backdrop > windowhandle,
