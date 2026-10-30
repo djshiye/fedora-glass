@@ -10,7 +10,7 @@ from ..env import Env
 from ..render import apps as ra
 from ..render import headerbar
 from ..render import terminal as rt
-from .base import Action, Context, Detection, GSet, Target, WriteFile
+from .base import Action, Context, Detection, GReset, GSet, Target, WriteFile
 
 _UUID = re.compile(r"'([^']+)'")
 
@@ -82,6 +82,11 @@ class Ptyxis(Target):
             if ctx.settings.terminal_colors:
                 acts.append(GSet("org.gnome.Ptyxis.Profile", "palette", f"'{rt.PTYXIS_PALETTE_NAME}'", path))
             acts.append(GSet("org.gnome.Ptyxis.Profile", "opacity", f"{opacity}", path))
+        # Ptyxis's own style switch, only when the user asks; a value they pick later is kept.
+        if ctx.settings.terminal_follows_style:
+            acts.append(GSet("org.gnome.Ptyxis", "interface-style", "'system'", keep_user_change=True))
+        else:
+            acts.append(GReset("org.gnome.Ptyxis", "interface-style"))
         return acts
 
 

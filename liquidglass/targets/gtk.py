@@ -8,7 +8,7 @@ from ..env import Env
 from ..render import gtk3, gtk4, headerbar
 from .base import Action, Context, FlatpakOverride, Detection, GSet, Target, WriteFile
 
-GTK3_INSTALL = "Install adw-gtk3: sudo dnf install adw-gtk3-theme"
+GTK3_PARTIAL = "Some GTK 3 details need adw-gtk3: sudo dnf install adw-gtk3-theme"
 
 
 class Gtk4(Target):
@@ -40,26 +40,33 @@ def find_adw_gtk3(env: Env) -> Path | None:
 
 
 class Gtk3(Target):
+    """GTK 3 apps. With adw-gtk3 installed the whole theme is recoloured to glass (it draws
+    every widget from libadwaita's named colours). On any other GTK 3 theme (Orchis, say)
+    the user's theme stays and the same style sheet goes on top: header bars, window
+    buttons, buttons, sidebars and menus get the glass look, and the rest stays the theme's."""
+
     def __init__(self) -> None:
         super().__init__(
             id="gtk3", name="GTK 3 apps", group="Desktop",
-            summary="Glass for older GTK 3 apps, built on the adw-gtk3 theme. "
+            summary="Glass for older GTK 3 apps, on top of your GTK 3 theme. "
                     "GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme.",
-            notes=["Needs the adw-gtk3 theme: sudo dnf install adw-gtk3-theme"],
         )
 
     def detect(self, env: Env) -> Detection:
         found = find_adw_gtk3(env)
         if found is None:
-            return Detection(False, GTK3_INSTALL)
+            return Detection(True, "On your current GTK 3 theme")
         return Detection(True, f"adw-gtk3 found in {found.parent}")
+
+    def live_notes(self, ctx: Context) -> list[str]:
+        return [] if find_adw_gtk3(ctx.env) else [GTK3_PARTIAL]
 
     def plan(self, ctx: Context) -> list[Action]:
         t = ctx.tokens
-        return [
-            GSet("org.gnome.desktop.interface", "gtk-theme", f"'{gtk3.theme_name(t)}'"),
-            WriteFile(ctx.env.config / "gtk-3.0/gtk.css", gtk3.render(t) + headerbar.gtk3_css(ctx.settings, t)),
-        ]
+        css = WriteFile(ctx.env.config / "gtk-3.0/gtk.css", gtk3.render(t) + headerbar.gtk3_css(ctx.settings, t))
+        if find_adw_gtk3(ctx.env) is None:
+            return [css]            # the user's own GTK 3 theme stays selected
+        return [GSet("org.gnome.desktop.interface", "gtk-theme", f"'{gtk3.theme_name(t)}'"), css]
 
 
 class Flatpak(Target):

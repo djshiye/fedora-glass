@@ -67,6 +67,12 @@ uniform float valid_x1;
 uniform float valid_y1;
 uniform float margin;            // px at the texture's border that the blur has darkened
 uniform float adapt;             // 0..1, how much the glass adjusts to its backdrop
+uniform float lift;              // 0..1, light glass: how much its milk thickens over a dark backdrop
+uniform float milk_r;            // the light glass's own body colour
+uniform float milk_g;
+uniform float milk_b;
+uniform float light_glass;       // 1 for light glass (it has a milk), 0 for dark
+uniform float hair;              // 0..0.3, light glass: a thin dark contact line at its edge
 uniform float bleed;             // strength of the content's colour in the glass
 uniform float edge_l;            // 1 where that side touches the screen edge
 uniform float edge_t;
@@ -306,6 +312,16 @@ void main() {
             vec3 mc = (m.rgb - vec3(min(m.r, min(m.g, m.b)))) * 1.6;
             glow += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bevel, 1.0)) * 1.2;
         }
+        if (light_glass > 0.5) {
+            // Light glass is already near white: added light would only clip, and a
+            // blue icon would leave a pale cyan halo. There the colour tints the
+            // milk instead, like a coloured light seen through frosted glass.
+            float k = max(glow.r, max(glow.g, glow.b));
+            vec3 hue = glow / max(k, 1e-3);
+            float a = (1.0 - exp(-k * bleed * 4.6)) * 0.42;
+            cogl_color_out = vec4(hue * a, a) * cov * cogl_color_in.a;
+            return;
+        }
         // Additive light: no alpha, so nothing under it is dimmed.
         glow = vec3(1.0) - exp(-glow * bleed * 4.6);   // soft-clip; it sits under the theme's veil
         cogl_color_out = vec4(glow + edgeLight, 0.0) * cov * cogl_color_in.a;
@@ -348,15 +364,27 @@ void main() {
     col = t + col * (1.0 - t.a);
 
     // Adapt to the backdrop: over bright things the glass shades itself a little
-    // so text stays readable, over dark ones it lifts so it's still visible.
-    if (adapt > 0.0) {
+    // so text stays readable. Dark glass is never lifted: over a dark backdrop
+    // that reads milky.
+    if (adapt > 0.0 || lift > 0.0) {
         vec2 q = h * 0.5;
         float bl = dot((at(size * 0.5 + vec2(-q.x, -q.y)).rgb + at(size * 0.5 + vec2(q.x, -q.y)).rgb
                       + at(size * 0.5 + vec2(-q.x, q.y)).rgb + at(size * 0.5 + q).rgb) * 0.25,
                        vec3(0.213, 0.715, 0.072));
         float bright = smoothstep(0.45, 0.85, bl) * adapt;
         float shade = bright * (0.10 + 0.12 * (1.0 - smoothstep(0.0, 10.0, inside)));
-        col.rgb = col.rgb * (1.0 - shade);   // never lifted: over a dark backdrop that reads milky
+        col.rgb = col.rgb * (1.0 - shade);
+        // Light glass is milky by nature. Over a dark backdrop its milk thickens, the
+        // way frosted glass looks whiter in front of something dark, so it stays light
+        // glass and dark text on it stays readable. It raises lightness evenly and
+        // keeps the backdrop's colour (only a little of the milk's own tint comes
+        // with it): no glow, no brighter edge. Over a bright backdrop it stays thin.
+        float m = lift * (1.0 - smoothstep(0.06, 0.5, bl));
+        vec3 milk = vec3(milk_r, milk_g, milk_b);
+        const vec3 Y = vec3(0.2126, 0.7152, 0.0722);
+        float gap = max(dot(milk, Y) - dot(col.rgb / max(col.a, 1e-3), Y), 0.0);
+        vec3 up = col.rgb + vec3(gap * m) * col.a;
+        col.rgb = min(mix(up, milk * col.a, 0.3 * m), vec3(col.a));
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge
@@ -392,6 +420,10 @@ void main() {
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
         col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, x, h) * col.a, vec3(col.a));
     }
+    // Light glass over a light backdrop has no edge of its own, so a bar can keep
+    // a thin dark contact line: darker, never lit. Sides on the screen edge have none.
+    if (hair > 0.0)
+        col.rgb *= 1.0 - hair * smoothstep(1.6, 0.6, inside) * smoothstep(0.0, 0.4, inside);
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
     cogl_color_out = (col * cov + vec4(0.0, 0.0, 0.0, s) * (1.0 - cov)) * cogl_color_in.a;
@@ -462,6 +494,9 @@ export const DEFAULT_LOOK = Object.freeze({
     pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
     motion: 1,          // 0 or 1: press and open springs
     adapt: 0.35,        // 0..1, how much the glass adjusts to what's behind it
+    lift: 0,            // 0..1, light glass: its milk thickens over a dark backdrop
+    milk: [0.96, 0.965, 0.98], // the light glass's own body colour, rgb 0..1
+    hairline: 0,        // 0..0.3, light glass: a thin dark line at its edge
     shadow: 0,          // 0..1, drawn by the pane itself
 });
 
@@ -715,6 +750,11 @@ class LiquidGlassPane extends Clutter.Actor {
             env_reach: ENV_REACH,
             margin: blur * 0.5,
             adapt: Math.max(0, Math.min(1, L.adapt)),
+            // The content's light layer and a window's rim have no body: they never thicken.
+            lift: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.lift)),
+            milk_r: L.milk[0], milk_g: L.milk[1], milk_b: L.milk[2],
+            light_glass: L.lift > 0 ? 1 : 0,
+            hair: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.3, L.hairline)),
             bleed: this._layer === LAYERS.reflections ? Math.max(0, Math.min(1, L.bleed)) : 0,
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             mode: this._layer,

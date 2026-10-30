@@ -97,7 +97,62 @@ button.destructive-action { background-color: @destructive_bg_color; color: @des
 .linked > button:not(:first-child):not(:last-child) { border-radius: 0; }
 .linked:not(.vertical) > button:first-child:not(:last-child) { border-radius: 999px 0 0 999px; }
 .linked:not(.vertical) > button:last-child:not(:first-child) { border-radius: 0 999px 999px 0; }
-.titlebutton, headerbar .titlebutton { border-radius: 999px; padding: 4px; min-height: 16px; min-width: 16px; }
+
+/* ---- header bar buttons: flat icons on one glass bar (same look as GTK 4) ---------------------- */
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton),
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton),
+headerbar .linked:not(.vertical) > button:not(.suggested-action):not(.destructive-action),
+.titlebar .linked:not(.vertical) > button:not(.suggested-action):not(.destructive-action) {
+  border-radius: 8px;
+  border: none;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+  color: alpha(@headerbar_fg_color, 0.9);
+  transition: background-color 200ms ease-out, box-shadow 200ms ease-out;
+}
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):backdrop,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):backdrop { color: alpha(@headerbar_fg_color, 0.65); }
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):hover,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):hover,
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked {
+  background-color: @lg_tile;
+  box-shadow: inset 0 1px 0 @lg_rim;
+  color: @headerbar_fg_color;
+  transition-duration: 120ms;
+}
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):checked { color: @accent_color; }
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active {
+  background-color: @lg_tile_press;
+  box-shadow: inset 0 1px 2px 0 @lg_shadow;
+}
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active image,
+.titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):active image { -gtk-icon-transform: scale(0.94); }
+
+/* Window controls: flat glyphs, the same tile on hover, Close turns soft red. */
+.titlebutton, headerbar .titlebutton, .titlebar .titlebutton {
+  border-radius: 8px; padding: 4px; min-height: 16px; min-width: 16px;
+  /* Other GTK 3 themes (Orchis, for one) paint window buttons with coloured dots,
+     image assets and a transparent glyph: reset all of it so only our look shows. */
+  border: none; animation: none;
+  background-color: transparent; background-image: none; box-shadow: none;
+  text-shadow: none; -gtk-icon-shadow: none;
+  color: alpha(@headerbar_fg_color, 0.9);
+}
+headerbar .titlebutton:backdrop, .titlebar .titlebutton:backdrop { color: alpha(@headerbar_fg_color, 0.65); }
+headerbar .titlebutton:hover, .titlebar .titlebutton:hover {
+  background-color: @lg_tile;
+  box-shadow: inset 0 1px 0 @lg_rim;
+  color: @headerbar_fg_color;
+}
+headerbar .titlebutton:active, .titlebar .titlebutton:active { background-color: @lg_tile_press; }
+headerbar .titlebutton.close:hover, .titlebar .titlebutton.close:hover,
+headerbar .titlebutton.close:active, .titlebar .titlebutton.close:active { background-color: @lg_close; box-shadow: none; color: white; }
 
 /* ---- entries ----------------------------------------------------------------------------------- */
 entry, spinbutton {
@@ -202,7 +257,10 @@ infobar > revealer > box, infobar { background-color: alpha(@accent_bg_color, 0.
 /* ---- tabs ------------------------------------------------------------------------------------------------------------ */
 notebook > header { background-color: transparent; box-shadow: inset 0 -1px 0 @lg_divider; border: none; }
 notebook > header > tabs > tab { border-radius: $radius_menu_item $radius_menu_item 0 0; border: none; background-image: none; }
-notebook > header > tabs > tab:checked { background-color: @lg_glass_hi; box-shadow: inset 0 1px 0 @lg_rim; }
+notebook > header > tabs > tab { color: @theme_fg_color; }
+notebook > header > tabs > tab:hover { background-color: @lg_hover; }
+/* The open tab: full-strength text and an accent line, so it reads in light and dark alike. */
+notebook > header > tabs > tab:checked { color: @theme_fg_color; background-color: @lg_glass_hi; box-shadow: inset 0 1px 0 @lg_rim, inset 0 -2px 0 @lg_accent; }
 notebook > stack { background-color: @view_bg_color; }
 stackswitcher button { border-radius: 999px; }
 

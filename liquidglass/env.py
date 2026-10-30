@@ -120,6 +120,11 @@ class Env:
         v = self.gsettings_get("org.gnome.desktop.interface", "color-scheme") or ""
         return "dark" in v
 
+    def high_contrast(self) -> bool:
+        """GNOME's High Contrast switch (Accessibility). Glass goes opaque while it is on."""
+        v = self.gsettings_get("org.gnome.desktop.a11y.interface", "high-contrast") or ""
+        return v.strip() == "true"
+
     def system_accent(self) -> str | None:
         v = self.gsettings_get("org.gnome.desktop.interface", "accent-color")
         return v.strip("'") if v else None

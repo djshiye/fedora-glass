@@ -366,3 +366,23 @@ def test_motion_picker(make_backend):
     assert b.dirty and not b.motionIsDefault
     b.resetMotion()
     assert b.motionIsDefault
+
+
+def test_replaced_files_show_a_reapply_note(make_backend, home):
+    """A theme update relinking a file Apply wrote is reported once, in plain words; the
+    app never fights it in the background."""
+    b = make_backend(start=True)
+    assert b.waitIdle()
+    b.apply()
+    assert b.waitIdle()
+    assert b.property("lostNote") == ""
+    out = home / "out/alpha.css"
+    out.unlink()
+    out.symlink_to(home / "elsewhere.css")
+    b.refreshTargets()
+    assert b.waitIdle()
+    assert b.property("lostNote") == "Another app replaced the Liquid Glass look for Alpha. Apply again to bring it back."
+    assert out.is_symlink()                     # only reported, nothing rewritten
+    b.apply()
+    assert b.waitIdle()
+    assert b.property("lostNote") == ""
