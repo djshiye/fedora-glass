@@ -70,7 +70,7 @@ def _hue_of(c: Color) -> float:
 
 def derive(t: Tokens) -> TermPalette:
     dark = t.dark
-    bg = t.view.with_alpha(1.0)
+    bg = t.parts["terminal"]["view"].with_alpha(1.0)
     fg = t.fg.with_alpha(1.0)
     accent = t.accent.with_alpha(1.0)
     acc_h = _hue_of(accent)

@@ -8,6 +8,7 @@ FocusScope {
     id: root
     property real value: 0.45
     property var ticks: []          // [{ value, label }] preset positions
+    property string tip: "The main control. Left is clear, bright liquid glass that bends what is behind it. Right is thick, milky frost that blurs it and keeps text easy to read."
     signal moved(real value)
 
     implicitHeight: 72
@@ -186,6 +187,9 @@ FocusScope {
             anchors.right: parent.right
         }
     }
+
+    HoverHandler { id: rowHover }
+    LgToolTip { shown: (rowHover.hovered || slider.visualFocus) && !slider.pressed; text: root.tip }
 
     // Programmatic preview of the held state (screenshots).
     property alias held: slider.g

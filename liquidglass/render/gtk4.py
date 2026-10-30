@@ -31,7 +31,7 @@ def dialog_color(t: Tokens) -> Color:
 
 def bar_color(t: Tokens) -> Color:
     """Search and action bars sit on the window, so they only add a little to its alpha."""
-    return t.chrome.with_alpha(max(0.0, t.chrome.a - t.window.a * 0.6))
+    return t.window_chrome.with_alpha(max(0.0, t.window_chrome.a - t.window.a * 0.6))
 
 
 def adwaita_colors(t: Tokens) -> dict[str, Color]:
@@ -39,8 +39,8 @@ def adwaita_colors(t: Tokens) -> dict[str, Color]:
     clear = Color(0, 0, 0, 0)
     ink, white = Color(0.07, 0.07, 0.09), Color(1, 1, 1)
     on_status = ink if t.dark else white
-    sidebar = t.chrome
-    secondary = t.chrome.with_alpha(t.chrome.a * 0.7)
+    sidebar = t.window_chrome
+    secondary = t.window_chrome.with_alpha(t.window_chrome.a * 0.7)
     return {
         "window-bg-color": t.window, "window-fg-color": t.fg,
         "view-bg-color": t.view, "view-fg-color": t.fg,
@@ -78,7 +78,7 @@ def glass_colors(t: Tokens) -> dict[str, Color]:
         "lg-fg-dim": t.fg_dim, "lg-fg-faint": t.fg_faint,
         "lg-accent": t.accent, "lg-accent-text": t.accent_text,
         "lg-selection": t.selection,
-        "lg-chrome": t.chrome, "lg-bar": bar_color(t),
+        "lg-chrome": t.window_chrome, "lg-bar": bar_color(t),
         "lg-glass": t.fg.with_alpha(0.10 if t.dark else 0.07),
         "lg-glass-hi": t.fg.with_alpha(0.16 if t.dark else 0.11),
         "lg-sheen-top": Color(1, 1, 1, 0.16 if t.dark else 0.55),
@@ -107,12 +107,12 @@ def named_colors(t: Tokens) -> str:
 
 
 def _geometry(t: Tokens) -> dict[str, str]:
-    r = t.radius
+    r = t.window_radius
     return {
         "radius": f"{r}px",
-        "radius_small": f"{t.radius_small}px",
+        "radius_small": f"{max(4, round(r * 0.6))}px",
         "radius_card": f"{max(6, round(r * 0.75))}px",
-        "radius_popover": f"{r}px",
+        "radius_popover": f"{t.menu_radius}px",
         "radius_menu_item": f"{max(6, round(r * 0.5))}px",
         "radius_window": f"{max(8, r)}px",
         "glass_btn": "button:not(.flat):not(.suggested-action):not(.destructive-action)"

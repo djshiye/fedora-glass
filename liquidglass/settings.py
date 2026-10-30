@@ -23,6 +23,11 @@ GNOME_ACCENTS = {
 SCHEMES = ("auto", "dark", "light")
 PANEL_STYLES = ("floating", "docked")
 
+# The parts of the desktop that can differ from the global look, and the
+# values each may override (a missing key follows the global setting).
+PARTS = ("panel", "arcmenu", "quicksettings", "calendar", "overview", "windows", "terminal")
+PART_KEYS = ("tint", "tint_strength", "radius", "frost", "refraction", "bleed", "reflections")
+
 
 @dataclass
 class Settings:
@@ -32,7 +37,7 @@ class Settings:
     scheme: str = "auto"            # auto follows GNOME's dark/light style
     accent: str = "system"          # "system", a GNOME accent name, or "#rrggbb"
     tint: str = "#8fa8c8"           # colour the glass leans towards
-    tint_strength: float = 0.15     # 0..1
+    tint_strength: float = 0.06     # 0..1
     radius: int = 18                # base corner radius in px
     highlight: float = 0.7          # specular rim light strength, 0..1
     # Fine-tune overrides; None means "follow the frost slider".
@@ -48,11 +53,18 @@ class Settings:
     # The Liquid Glass Shell extension: the lens along the edge of the panel and menus.
     refraction: float = 0.6         # 0..1, how strongly the rim bends what's behind
     dispersion: float = 0.3         # 0..1, rainbow split along the rim
-    vibrancy: float = 0.5           # 0..1, how much colour shows through
+    vibrancy: float = 0.85          # 0..1, how much colour shows through
+    bleed: float = 0.6              # 0..1, how much icon and text colours light up the glass around them
     glass_panel: bool = True
     glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu
     glass_overview: bool = True     # blurred wallpaper behind the overview
     glass_see_windows: bool = True  # panel and menus show the windows behind them, not just the wallpaper
+
+    # Per-part overrides: {"panel": {"tint": "#rrggbb", "radius": 12}, ...}.
+    # Parts: panel, arcmenu, quicksettings, calendar (and notifications), overview (dash and
+    # overview), windows, terminal. Keys: tint, tint_strength (0..1), radius (0..32 px),
+    # frost (0..1), refraction (0..1), bleed (0..1), reflections (0..1, edge reflections).
+    parts: dict[str, dict] = field(default_factory=dict)
 
     # Target id -> enabled. Missing ids default to enabled.
     targets: dict[str, bool] = field(default_factory=dict)
@@ -69,6 +81,7 @@ class Settings:
         s.refraction = _clamp(float(s.refraction))
         s.dispersion = _clamp(float(s.dispersion))
         s.vibrancy = _clamp(float(s.vibrancy))
+        s.bleed = _clamp(float(s.bleed), Settings.bleed)
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
@@ -90,8 +103,43 @@ class Settings:
             s.accent = "system"
         if not _is_hex(s.tint):
             s.tint = Settings.tint
+        s.parts = _clean_parts(s.parts)
         s.targets = {str(k): bool(v) for k, v in dict(s.targets).items()}
         return s
+
+
+def _clean_parts(raw: object) -> dict[str, dict]:
+    """Keep only known parts and keys, with every value clamped; bad values are dropped
+    (so that key follows the global setting again)."""
+    out: dict[str, dict] = {}
+    if not isinstance(raw, dict):
+        return out
+    for part in PARTS:
+        src = raw.get(part)
+        if not isinstance(src, dict):
+            continue
+        clean: dict[str, object] = {}
+        for key in PART_KEYS:
+            v = src.get(key)
+            if v is None:
+                continue
+            if key == "tint":
+                if _is_hex(v):
+                    clean[key] = v
+            elif key == "radius":
+                r = _int(v, 0, 32, -1)
+                if r >= 0:
+                    clean[key] = r
+            else:
+                try:
+                    f = float(v)  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(f):
+                    clean[key] = _clamp(f)
+        if clean:
+            out[part] = clean
+    return out
 
 
 def _clamp(x: float, default: float = 0.5) -> float:
@@ -116,11 +164,11 @@ def _is_hex(v: object) -> bool:
 
 # ---- presets ----------------------------------------------------------
 PRESETS: dict[str, dict] = {
-    "Liquid": {"frost": 0.0, "highlight": 0.9, "tint_strength": 0.08},
-    "Clear": {"frost": 0.25, "highlight": 0.8, "tint_strength": 0.12},
-    "Balanced": {"frost": 0.45, "highlight": 0.7, "tint_strength": 0.15},
-    "Frosted": {"frost": 0.8, "highlight": 0.45, "tint_strength": 0.18},
-    "Solid": {"frost": 1.0, "highlight": 0.3, "tint_strength": 0.2, "opacity": 0.92},
+    "Liquid": {"frost": 0.0, "highlight": 0.9, "tint_strength": 0.04},
+    "Clear": {"frost": 0.25, "highlight": 0.8, "tint_strength": 0.05},
+    "Balanced": {"frost": 0.45, "highlight": 0.7, "tint_strength": 0.06},
+    "Frosted": {"frost": 0.8, "highlight": 0.45, "tint_strength": 0.09},
+    "Solid": {"frost": 1.0, "highlight": 0.3, "tint_strength": 0.1, "opacity": 0.92},
 }
 
 

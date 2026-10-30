@@ -1,13 +1,14 @@
 #version 440
-// Liquid Glass surface, with the same physical optics as the Shell extension
-// (glass.js): a glass slab whose top edge rounds off in a quarter circle, after
-// Kyant's AndroidLiquidGlass (Apache License 2.0). View rays are refracted by
-// Snell's law (IOR 1.5) through the slab to the backdrop; the index follows
-// Cauchy's equation at five wavelengths for dispersion; Fresnel (Schlick)
-// weights the reflection of a studio in front of the screen (a bright soft
-// box top left, a dim ceiling, a dark floor); Beer-Lambert absorption darkens
-// and greens the slanting paths through the edge. `source` is the (already
-// blurred) backdrop lying exactly under the item.
+// Liquid Glass surface, with the same optics as the Shell extension (glass.js):
+// a glass slab whose top edge rounds off in a quarter circle, after Kyant's
+// AndroidLiquidGlass (Apache License 2.0). View rays are refracted by Snell's
+// law (IOR 1.5) through the slab to the backdrop; the index follows Cauchy's
+// equation at five wavelengths for dispersion; Beer-Lambert absorption darkens
+// and greens the slanting paths through the edge. Nothing is painted on: the
+// edge reflects the real backdrop beyond it (weighted by Fresnel), and the
+// content's own colours bleed into the glass around it.
+// `source` is the (already blurred) backdrop under the item plus `pad` px on
+// every side; `content` is a blurred copy of what the item holds.
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
@@ -20,14 +21,17 @@ layout(std140, binding = 0) uniform buf {
     float magnify;     // >1 magnifies the backdrop like a lens
     float fringe;      // dispersion, 0..1
     float rimWidth;    // unused: the optics draw the edge
-    float sheen;       // soft top-down gloss, 0..1
+    float sheen;       // unused: no painted light
     vec4 tint;
-    vec4 rim;
+    vec4 rim;          // alpha: strength of the edge reflections
     vec4 edge;         // unused: the optics draw the edge
-    float mode;        // 0 = everything, 1 = body only, 2 = rim and edge only
+    float mode;        // 0 = everything, 1 = body only, 2 = edge and bleed only, 3 = bleed only
     float depth;       // 0..1, how domed the top is
+    float bleed;       // 0..1, how much the content's colours light up the glass
+    float pad;         // px of backdrop around the item in `source`
 };
 layout(binding = 1) uniform sampler2D source;
+layout(binding = 2) uniform sampler2D content;
 
 float sdRoundRect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + vec2(r);
@@ -50,6 +54,12 @@ vec4 over(vec4 dst, vec4 c, float k) {
 
 const float IOR = 1.5;
 const float F0 = 0.04;
+const vec2 LIGHT = vec2(-0.5574, -0.8302);   // the room is brighter top left
+const float REACH = 48.0;                    // px the edge sees beyond itself
+
+vec4 at(vec2 p) {
+    return texture(source, (p + vec2(pad)) / (size + vec2(2.0 * pad)));
+}
 
 vec2 throughGlass(vec3 N, float n, float th) {
     vec3 R = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / n);
@@ -60,25 +70,42 @@ float cauchy(float um, float B) {
     return IOR + B * (1.0 / (um * um) - 1.0 / 0.3025);
 }
 
-const vec2 LIGHT = vec2(-0.5574, -0.8302);   // from the top left
-
-vec3 softbox(vec3 R) {
-    vec3 K = normalize(vec3(LIGHT, 0.45));
-    return vec3(1.0, 0.98, 0.95) * 18.0 * smoothstep(0.88, 0.991, dot(R, K));
+vec3 env(vec2 p) {
+    float sp = REACH * 0.3;
+    return at(p).rgb * 0.4
+        + (at(p + vec2(sp, 0.0)).rgb + at(p - vec2(sp, 0.0)).rgb
+         + at(p + vec2(0.0, sp)).rgb + at(p - vec2(0.0, sp)).rgb) * 0.15;
 }
 
-vec3 studio(vec3 R) {
-    if (R.z < 0.0)
-        return vec3(0.22);
-    float up = clamp(-R.y, 0.0, 1.0);
-    float room = 0.06 + 0.5 * up * up;
-    float bounce = 0.7 * smoothstep(0.75, 0.97, dot(R, normalize(vec3(-LIGHT, 0.45))));
-    return vec3(0.92, 0.96, 1.0) * (room + bounce) + softbox(R);
+vec3 vivid(vec3 c, float k) {
+    float l = dot(c, vec3(0.213, 0.715, 0.072));
+    return max(mix(vec3(l), c, k), 0.0);
+}
+
+float grain(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+}
+
+// The content's light: each icon lights the glass around it, and light caught
+// inside the glass comes out at the nearest edge, mirrored there.
+vec3 glow(vec2 px, vec2 n, float inside, float bev, float F, float crest) {
+    vec4 g = texture(content, px / size);
+    float gl = dot(g.rgb, vec3(0.213, 0.715, 0.072));
+    vec3 chroma = max(g.rgb - vec3(gl * 0.8), 0.0) * 2.2;
+    vec3 c = chroma * 1.1 + g.rgb * 0.08;
+    if (inside < bev + 4.0) {
+        vec4 m = texture(content, (px - n * (2.0 * inside + 6.0)) / size);
+        float ml = dot(m.rgb, vec3(0.213, 0.715, 0.072));
+        vec3 mc = max(m.rgb - vec3(ml * 0.6), 0.0) * 1.6 + vec3(ml) * 0.25;
+        c += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bev, 1.0)) * 1.2;
+    }
+    return vec3(1.0) - exp(-c * bleed * 1.6);
 }
 
 void main() {
     vec2 c = size * 0.5;
-    vec2 p = qt_TexCoord0 * size - c;
+    vec2 px0 = qt_TexCoord0 * size;
+    vec2 p = px0 - c;
     float r = min(radius, min(c.x, c.y));
     float d = sdRoundRect(p, c, r);
     float cov = clamp(0.5 - d, 0.0, 1.0);
@@ -91,60 +118,78 @@ void main() {
     vec2 n = gradRoundRect(p, c, gr);
     float inside = -d;
 
+    // A thin bar gets a thin bevel, so a panel is not all rim.
     float th = refraction;
     float slope = 0.0;
-    float bev = min(bezel, min(c.x, c.y));
+    float x = 0.0;
+    float bev = min(bezel, 0.35 * min(size.x, size.y));
     if (bev > 0.0 && inside < bev) {
-        float x = 1.0 - inside / bev;
+        x = 1.0 - inside / bev;
         float z = sqrt(max(1.0 - x * x, 0.0));
         slope = x / max(z, 0.06);
     }
     vec2 dome = depth * 0.25 * p / max(c.x, c.y);
     vec3 N = normalize(vec3(n * slope + dome, 1.0));
+    float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
+    float crest = 4.0 * x * (1.0 - x);
+
+    if (mode > 2.5) {
+        vec3 b = bleed > 0.0 ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
+        fragColor = vec4(b, 0.0) * cov * qt_Opacity;     // added light: nothing under it dims
+        return;
+    }
 
     vec2 px = c + p / max(magnify, 0.01);
-    vec4 s = vec4(0.0);
+    vec4 col = vec4(0.0);
     if (mode < 1.5) {
         if (th > 0.01 && fringe > 0.001 && slope > 0.02) {
             float B = 0.08 * fringe;
-            vec4 s450 = texture(source, (px + throughGlass(N, cauchy(0.45, B), th)) / size);
-            vec4 s500 = texture(source, (px + throughGlass(N, cauchy(0.50, B), th)) / size);
-            vec4 s550 = texture(source, (px + throughGlass(N, IOR, th)) / size);
-            vec4 s600 = texture(source, (px + throughGlass(N, cauchy(0.60, B), th)) / size);
-            vec4 s650 = texture(source, (px + throughGlass(N, cauchy(0.65, B), th)) / size);
-            s.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
-            s.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
-            s.b = (s450.b + 0.4 * s500.b) / 1.4;
-            s.a = (s450.a + s500.a + s550.a + s600.a + s650.a) / 5.0;
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
+            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th));
+            vec4 s550 = at(px + throughGlass(N, IOR, th));
+            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th));
+            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th));
+            col.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
+            col.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
+            col.b = (s450.b + 0.4 * s500.b) / 1.4;
+            col.a = (s450.a + s500.a + s550.a + s600.a + s650.a) / 5.0;
         } else if (th > 0.01) {
-            s = texture(source, (px + throughGlass(N, IOR, th)) / size);
+            col = at(px + throughGlass(N, IOR, th));
         } else {
-            s = texture(source, px / size);
+            col = at(px);
         }
         vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
-        s.rgb *= exp(-vec3(0.018, 0.008, 0.012) * (th / max(-Rt.z, 0.2) - th));
-    }
-
-    vec4 col = s;
-    if (mode < 1.5) {
+        col.rgb *= exp(-vec3(0.018, 0.008, 0.012) * (th / max(-Rt.z, 0.2) - th));
         col = over(col, tint, 1.0);
-        float gloss = sheen * smoothstep(0.55, 0.0, qt_TexCoord0.y) * 0.16;
-        col = over(col, vec4(1.0), gloss);
     }
     if (mode > 0.5 && mode < 1.5) {
+        col.rgb += vec3(grain(px0) / 255.0) * col.a;
         fragColor = col * cov * qt_Opacity;
         return;
     }
 
-    // Reflections of a studio in front of the screen, weighted by Fresnel; the
-    // rim colour's alpha is their strength. No drawn outline: the edge is lit
-    // where it faces the light and shaded where it faces the floor.
+    // Reflection of the real surroundings: a ray mirrored off the rounded edge
+    // leaves outwards, so the edge shows the backdrop beyond it, in its own
+    // colours, brighter where the edge faces the brighter side of the room.
     float hl = rim.a;
-    float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
-    vec3 refl = studio(reflect(vec3(0.0, 0.0, -1.0), N)) * F;
-    refl += softbox(reflect(vec3(0.0, 0.0, -1.0), vec3(-N.xy, N.z))) * (1.0 - F) * 0.05;
-    float a = clamp(F * hl, 0.0, 1.0);
-    col = vec4(min(col.rgb * (1.0 - a) + refl * hl, vec3(1.0)), col.a * (1.0 - a) + a);
-
+    vec3 seen = vec3(0.0);
+    float a = 0.0;
+    if (hl > 0.0 && slope > 0.0) {
+        vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
+        vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
+        seen = vivid(env(px0 + dir * REACH * length(Rf.xy)), 1.4);
+        float lobe = pow(max(dot(n, LIGHT), 0.0), 8.0) * crest;
+        lobe += pow(max(dot(-n, LIGHT), 0.0), 8.0) * crest * 0.3;
+        a = clamp(F * hl * 1.9 * (1.0 + 2.5 * lobe), 0.0, 1.0);
+        seen *= 1.0 + 1.5 * lobe;
+    }
+    vec3 b = (mode > 1.5 && bleed > 0.0) ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
+    if (mode > 1.5) {
+        // Over the content: the reflection blends in, the bleed adds light.
+        fragColor = vec4(min(seen * a, vec3(1.0)) + b, a) * cov * qt_Opacity;
+        return;
+    }
+    col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
+    col.rgb += vec3(grain(px0) / 255.0) * col.a;
     fragColor = col * cov * qt_Opacity;
 }

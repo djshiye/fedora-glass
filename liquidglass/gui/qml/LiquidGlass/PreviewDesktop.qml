@@ -34,6 +34,9 @@ Item {
     readonly property real saturation: reduceTransparency ? 0 : Math.min(1, root.vivid)
     readonly property bool windowsBlur: t.blur_app_windows !== undefined ? t.blur_app_windows : true
     readonly property real r: t.radius !== undefined ? t.radius : 18
+    readonly property real rPanel: part("panel", "radius", r)
+    readonly property real rMenu: part("arcmenu", "radius", r)
+    readonly property real rWin: part("windows", "radius", r)
     readonly property real rs: t.radius_small !== undefined ? t.radius_small : 10
     readonly property color fg: t.fg || "white"
     readonly property color fgDim: t.fg_dim || "white"
@@ -43,15 +46,25 @@ Item {
 
     function withAlpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
+    // The look of one part (panel, arcmenu, windows, ...): its own tint, roundness, frost and
+    // lens when the user set them, the global ones otherwise. See Tokens.parts.
+    function part(name, key, fallback) {
+        const p = t.parts ? t.parts[name] : undefined
+        return p && p[key] !== undefined ? p[key] : fallback
+    }
+    readonly property real bleedGlobal: t.bleed !== undefined ? t.bleed : 0.6
+
     // Reusable recipes so every glass surface reads its numbers from one place.
     component ShellGlass: GlassSurface {
-        blurRadius: root.blurPx
+        property string part: ""
+        blurRadius: part ? root.part(part, "blur", t.blur_radius || 0) * root.s : root.blurPx
         brightness: root.brightness
         saturation: root.saturation
-        refraction: root.refraction
-        bezel: root.bezel
+        refraction: root.reduceTransparency ? 0 : (part ? root.part(part, "lens_bend", 0) * root.s : root.refraction)
+        bezel: part ? Math.max(4, root.part(part, "lens_width", 0) * root.s) : root.bezel
         fringe: root.fringe
-        sheen: root.sheen
+        bleed: part ? root.part(part, "bleed", root.bleedGlobal) : root.bleedGlobal
+        sheen: part && t.glare > 0 ? Math.min(1, root.sheen * root.part(part, "glare", t.glare) / t.glare) : root.sheen
         rim: root.t.highlight || "transparent"
         edge: root.t.edge || "transparent"
         rimWidth: Math.max(0.8, root.u(1.6))
@@ -61,12 +74,13 @@ Item {
     }
     // Behind app windows the extension draws plain frost; the window paints its own rim.
     component WindowGlass: ShellGlass {
-        blurRadius: root.windowsBlur ? Math.max(root.blurPx, root.u(24)) : 0
+        part: "windows"
+        blurRadius: root.windowsBlur ? Math.max(root.part("windows", "blur", t.blur_radius || 0) * root.s, root.u(24)) : 0
         refraction: 0
         fringe: 0
         saturation: root.windowsBlur ? root.saturation : 0
         brightness: root.windowsBlur ? root.brightness : 0
-        radius: root.r
+        radius: root.rWin
         rimOnTop: true
         shadowBlur: root.u(64)
         shadowY: root.u(18)
@@ -145,17 +159,17 @@ Item {
                 Rectangle {     // sidebar pane
                     width: files.side
                     height: parent.height
-                    color: root.t.chrome || "transparent"
-                    topLeftRadius: root.r
-                    bottomLeftRadius: root.r
+                    color: root.part("windows", "chrome", "transparent")
+                    topLeftRadius: root.rWin
+                    bottomLeftRadius: root.rWin
                 }
                 Rectangle {     // content pane
                     x: files.side
                     width: parent.width - files.side
                     height: parent.height
-                    color: root.t.view || "transparent"
-                    topRightRadius: root.r
-                    bottomRightRadius: root.r
+                    color: root.part("windows", "view", "transparent")
+                    topRightRadius: root.rWin
+                    bottomRightRadius: root.rWin
                 }
                 Rectangle {
                     x: files.side; width: 1; height: parent.height
@@ -301,6 +315,8 @@ Item {
         // ---------------------------------------------------------------- Ptyxis
         WindowGlass {
             id: term
+            part: "terminal"
+            radius: root.rWin
             backdrop: belowTerminal
             x: root.u(900); y: root.u(330)
             width: root.u(880); height: root.u(540)
@@ -309,13 +325,13 @@ Item {
 
             Rectangle {
                 width: parent.width; height: term.head
-                color: root.t.chrome || "transparent"
-                topLeftRadius: root.r; topRightRadius: root.r
+                color: root.part("terminal", "chrome", "transparent")
+                topLeftRadius: root.rWin; topRightRadius: root.rWin
             }
             Rectangle {
                 y: term.head; width: parent.width; height: parent.height - term.head
-                color: root.t.view ? root.withAlpha(root.t.view, root.t.terminal_opacity) : "transparent"
-                bottomLeftRadius: root.r; bottomRightRadius: root.r
+                color: root.t.parts ? root.withAlpha(root.part("terminal", "view", "transparent"), root.t.terminal_opacity) : "transparent"
+                bottomLeftRadius: root.rWin; bottomRightRadius: root.rWin
             }
             Rectangle { y: term.head; width: parent.width; height: 1; color: root.t.divider || "transparent" }
 
@@ -385,13 +401,14 @@ Item {
 
     ShellGlass {
         id: panel
+        part: "panel"
         backdrop: desk
         x: root.u(root.margin)
         width: root.width - 2 * root.u(root.margin)
         height: root.u(root.panelH)
         y: root.height - height - root.u(root.margin)
-        radius: root.floating ? Math.min(height / 2, root.u(root.r + 6)) : 0
-        tint: root.t.chrome || "transparent"
+        radius: root.floating ? Math.min(height / 2, root.u(root.rPanel + 6)) : 0
+        tint: root.part("panel", "chrome", "transparent")
         shadowColor: root.floating ? (root.t.shadow || "transparent") : "transparent"
         shadowBlur: root.u(30)
         shadowY: root.u(6)
@@ -462,14 +479,15 @@ Item {
     // ---------------------------------------------------------------- ArcMenu
     ShellGlass {
         id: menu
+        part: "arcmenu"
         backdrop: desk
         visible: root.menuProgress > 0.01
         opacity: root.menuProgress
         width: root.u(640); height: root.u(600)
         x: root.u(Math.max(8, root.margin))
         y: panel.y - height - root.u(10) + root.u(16) * (1 - root.menuProgress)
-        radius: root.r + root.u(4)
-        tint: root.t.popover || "transparent"
+        radius: root.rMenu + root.u(4)
+        tint: root.part("arcmenu", "popover", "transparent")
         shadowBlur: root.u(50)
         shadowY: root.u(14)
 
@@ -480,7 +498,9 @@ Item {
             x: menu.pad; y: menu.pad
             width: menu.width - 2 * menu.pad; height: root.u(40)
             radius: height / 2
-            color: root.t.card || "transparent"
+            // Mostly opaque, as in the Shell, so the window behind never shows through.
+            color: root.t.popover ? Qt.rgba(root.t.popover.r, root.t.popover.g, root.t.popover.b, 0.62)
+                                  : "transparent"
             border.width: Math.max(1, root.u(1))
             border.color: root.t.edge || "transparent"
             Row {

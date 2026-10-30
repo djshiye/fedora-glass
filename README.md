@@ -60,8 +60,10 @@ with a rounded edge. The shader follows real optics:
 - **Dispersion:** each colour bends slightly differently, so the edge splits light into a faint
   rainbow.
 - **Reflection:** the glass reflects about 4% of light head-on and almost all of it at grazing
-  angles (Fresnel). It mirrors a lit room, so edges catch a highlight on the lit side and go dark
-  on the other side, with no drawn outline.
+  angles (Fresnel). The edge mirrors what really lies beyond it, the wallpaper and your windows, so
+  it changes as they move. No outline or glow is drawn on.
+- **Colour bleed:** icons and text light up the glass around them, and their light comes out again
+  at the nearest edge, so a blue icon tints the glass near it.
 - **Absorption:** light slanting through the edge crosses more glass, so the edge is a shade darker
   and greener (Beer-Lambert).
 

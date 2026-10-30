@@ -45,7 +45,12 @@ Colours are `#RRGGBBAA`. Numbers are plain JSON numbers. New keys may appear in 
 | `accent`, `accent_fg`, `accent_text` | accent fill, text on accent, accent used as text on glass |
 | `selection` | selection wash |
 | `destructive`, `success`, `warning` | status colours |
-| `radius`, `radius_small` | corner radii in px |
+| `radius`, `radius_small` | corner radii in px (the global setting) |
+| `panel_radius`, `menu_radius`, `window_radius` | corner radius of the panel, the menus (quick settings) and app windows; equal to `radius` unless the user set one for that part |
+| `panel_blur`, `menu_blur`, `window_blur` | blur radius in px behind each of those parts |
+| `window_chrome` | sidebars and bars inside app windows (`chrome` is the panel's surface, `popover`, `dialog` and `osd` the quick settings', `window` and `view` the app windows') |
+| `parts` | every part's look as an object, keyed `panel`, `arcmenu`, `quicksettings`, `calendar`, `overview`, `windows`, `terminal`. Each holds the colours `window`, `chrome`, `view`, `popover`, `dialog`, `osd`, `tint` (the tint colour, alpha 0) and the numbers `frost`, `radius`, `blur`, `lens_width`, `lens_bend`, `bleed`, `glare` |
+| `bleed` | how much the colours of icons and text light up the glass around them, 0..1 (0 with reduced transparency) |
 | `blur_radius`, `blur_brightness` | the blur behind glass |
 | `lens_width`, `lens_bend`, `dispersion`, `vibrancy`, `glare` | the glass lens: rounded-edge width and slab thickness in px, rainbow edge 0..1, colour boost (1 = none), rim highlight 0..1 |
 | `glass_panel_edges`, `glass_menu_edges` | true when the Liquid Glass extension draws the panel's or the menus' edges, so a theme should leave them without a border line |

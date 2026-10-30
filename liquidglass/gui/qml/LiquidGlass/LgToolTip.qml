@@ -2,35 +2,46 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 
 // Tooltip on dark glass, for any control: LgToolTip { shown: hovered; text: "…" }
+// Appears after a short pause, stays while `shown` is true (no timeout), wraps at
+// 300 px and is kept inside the window.
 C.ToolTip {
     id: tip
     property bool shown: false
+    property bool below: false          // under the control instead of above it
     visible: shown && text.length > 0
-    delay: 600
-    timeout: 6000
+    delay: 400
+    timeout: 0
     padding: 0
-    margins: 8
-    topPadding: 7
-    bottomPadding: 7
+    margins: 10                         // the popup never gets closer than this to the window edge
+    topPadding: 8
+    bottomPadding: 8
     leftPadding: 12
     rightPadding: 12
-    y: -implicitHeight - 8
+    y: below ? (parent ? parent.height + 8 : 0) : -implicitHeight - 8
     x: parent ? (parent.width - implicitWidth) / 2 : 0
+    closePolicy: C.Popup.NoAutoClose
 
     enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.fast } }
     exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
 
-    contentItem: Text {
-        text: tip.text
-        color: "#f4f5f9"
-        font.pixelSize: 13
-        wrapMode: Text.WordWrap
-        width: Math.min(implicitWidth, 320)
+    contentItem: Item {
+        implicitWidth: Math.min(measure.advanceWidth, 300)
+        implicitHeight: label.implicitHeight
+        Text {
+            id: label
+            width: parent.width
+            text: tip.text
+            color: "#f4f5f9"
+            font.pixelSize: 13
+            lineHeight: 1.12
+            wrapMode: Text.Wrap
+        }
+        TextMetrics { id: measure; text: tip.text; font.pixelSize: 13 }
     }
     background: Rectangle {
         radius: 10
-        color: Qt.rgba(0.09, 0.095, 0.12, 0.94)
+        color: Qt.rgba(0.09, 0.095, 0.12, 0.96)
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.10)
+        border.color: Qt.rgba(1, 1, 1, 0.12)
     }
 }

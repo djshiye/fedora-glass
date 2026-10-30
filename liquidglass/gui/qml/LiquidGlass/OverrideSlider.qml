@@ -12,6 +12,10 @@ Item {
     property real to: 1
     property real stepSize: 0.01
     property var format: (v) => Math.round(v * 100) + "%"
+    property string tip: ""
+    property string autoText: "Auto"    // the chip's label ("Global" for per-part values)
+    property string autoTip: "Follows the Liquid to Frosted slider"
+    property string resetTip: "Go back to following the Liquid to Frosted slider"
     signal changed(real value)
 
     readonly property bool isAuto: value < 0
@@ -52,12 +56,14 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             implicitHeight: 28
-            text: "Auto"
+            text: root.autoText
             selected: root.isAuto
-            tip: root.isAuto ? "Follows the Liquid ↔ Frosted slider" : "Go back to following the Liquid ↔ Frosted slider"
+            tip: root.isAuto ? root.autoTip : root.resetTip
             onClicked: root.changed(root.isAuto ? root.autoValue : -1)
         }
     }
+    HoverHandler { id: hover }
+    LgToolTip { shown: (hover.hovered || slider.visualFocus) && !slider.pressed && !autoChip.hovered; text: root.tip }
     LgSlider {
         id: slider
         y: head.height + 6

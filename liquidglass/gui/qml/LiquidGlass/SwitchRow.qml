@@ -6,6 +6,7 @@ Item {
     property string label: ""
     property string caption: ""
     property bool checked: false
+    property string tip: ""
     signal toggled(bool on)
     width: parent ? parent.width : 300
     implicitHeight: Math.max(44, labels.implicitHeight + 8)
@@ -25,6 +26,8 @@ Item {
             wrapMode: Text.WordWrap
         }
     }
+    HoverHandler { id: hover }
+    LgToolTip { shown: hover.hovered || sw.visualFocus; text: root.tip; below: true }
     TapHandler { enabled: root.enabled; onTapped: root.toggled(!root.checked) }
     LgSwitch {
         id: sw

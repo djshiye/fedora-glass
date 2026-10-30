@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+
+import pytest
 from dataclasses import dataclass
 
 from liquidglass import palette, settings
@@ -283,3 +285,69 @@ def test_revert_removes_folders_it_created_but_keeps_ones_in_use(fake_env):
     assert not (fake_env.data / "gnome-shell/extensions/x@y").exists()
     assert (fake_env.data / "gnome-shell/extensions/mine.txt").is_file()   # not empty: kept
     assert existing.is_dir()
+
+
+# ---- per-part overrides -------------------------------------------------------------
+def test_parts_are_cleaned():
+    s = Settings(parts={
+        "panel": {"tint": "#ff0000", "radius": 99, "frost": float("nan"), "bogus": 1, "bleed": "x"},
+        "nonsense": {"radius": 4}, "windows": "not a dict", "terminal": {"tint": "red"},
+        "calendar": {"refraction": 3, "reflections": -2},
+    }).normalized()
+    assert s.parts == {"panel": {"tint": "#ff0000", "radius": 32},
+                       "calendar": {"refraction": 1.0, "reflections": 0.0}}
+
+
+def test_old_files_without_parts_still_load(tmp_path):
+    p = tmp_path / "settings.json"
+    p.write_text('{"frost": 0.3, "radius": 12}')
+    s = settings.load(p)
+    assert s.parts == {} and s.frost == 0.3
+    p.write_text('{"parts": [1, 2]}')
+    assert settings.load(p).parts == {}
+
+
+def test_parts_follow_global_until_overridden():
+    base = palette.build(Settings(), dark=True)
+    for name in settings.PARTS:
+        assert base.parts[name]["radius"] == base.radius
+        assert base.parts[name]["blur"] == base.blur_radius
+    assert (base.panel_radius, base.menu_radius, base.window_radius) == (18, 18, 18)
+
+    t = palette.build(Settings(parts={
+        "panel": {"radius": 4, "frost": 1.0, "tint": "#ff0000", "tint_strength": 1.0},
+        "quicksettings": {"radius": 30}, "windows": {"radius": 10, "frost": 0.0},
+    }), dark=True)
+    assert (t.panel_radius, t.menu_radius, t.window_radius) == (4, 30, 10)
+    assert t.panel_blur > t.blur_radius > t.window_blur
+    assert t.chrome.r > base.chrome.r and t.chrome.a > base.chrome.a        # red, frostier panel
+    assert t.popover == base.popover and t.parts["arcmenu"]["popover"] == base.popover
+    assert t.window.a < base.window.a                                        # clearer windows
+    assert t.radius == 18                                                    # the global value is untouched
+
+
+def test_part_lens_and_bleed():
+    t = palette.build(Settings(parts={"calendar": {"refraction": 0.0, "bleed": 1.0, "reflections": 0.0}}), dark=True)
+    cal, qs = t.parts["calendar"], t.parts["quicksettings"]
+    assert cal["lens_bend"] == 0 and qs["lens_bend"] > 0
+    assert cal["bleed"] > qs["bleed"] and cal["glare"] == 0 < qs["glare"]
+
+
+def test_bleed_token():
+    assert palette.build(Settings(), dark=True).bleed == pytest.approx(0.6 * (1 - 0.4 * 0.45), abs=1e-3)
+    assert palette.build(Settings(bleed=0), dark=True).bleed == 0
+    assert palette.build(Settings(reduce_transparency=True), dark=True).bleed == 0
+    assert palette.build(Settings(bleed=0.1), dark=True).bleed < palette.build(Settings(bleed=0.9), dark=True).bleed
+    assert Settings(bleed=9).normalized().bleed == 1.0
+
+
+def test_default_look_is_clear_and_vivid():
+    t = palette.build(Settings(), dark=True)
+    assert t.vibrancy == pytest.approx(1.7, abs=0.03)
+    assert Settings().tint_strength == 0.06
+
+
+def test_tokens_json_exports_parts():
+    out = json.loads(palette.build(Settings(), dark=True).to_json())
+    assert out["parts"]["panel"]["chrome"].startswith("#") and out["bleed"] > 0
+    assert out["panel_radius"] == 18

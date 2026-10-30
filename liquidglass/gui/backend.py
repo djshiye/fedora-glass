@@ -37,9 +37,17 @@ def qcolor(c: Color) -> QColor:
     return QColor.fromRgbF(c.r, c.g, c.b, c.a)
 
 
+def _qvalue(v: Any) -> Any:
+    if isinstance(v, Color):
+        return qcolor(v)
+    if isinstance(v, dict):
+        return {k: _qvalue(x) for k, x in v.items()}
+    return v
+
+
 def tokens_map(t: palette.Tokens) -> dict[str, Any]:
     """Tokens as QML sees them: colours become QColor, the rest stays as is."""
-    return {k: qcolor(v) if isinstance(v, Color) else v for k, v in t.__dict__.items()}
+    return {k: _qvalue(v) for k, v in t.__dict__.items()}
 
 
 class _Task(QThread):
@@ -318,11 +326,58 @@ class Backend(QObject):
     refraction = _p("refraction", float)
     dispersion = _p("dispersion", float)
     vibrancy = _p("vibrancy", float)
+    bleed = _p("bleed", float)
     glassPanel = _p("glass_panel", bool)
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)
     glassSeeWindows = _p("glass_see_windows", bool)
     del _p
+
+    # ---- per-part overrides ------------------------------------------------------
+    # A part (panel, arcmenu, ...) can override tint, tint_strength, radius, frost, refraction,
+    # bleed and reflections; a key it doesn't set follows the global setting.
+    @Property("QStringList", constant=True)
+    def partNames(self) -> list[str]:
+        return list(settings_mod.PARTS)
+
+    @Property("QVariantMap", notify=settingsChanged)
+    def parts(self) -> dict:
+        return {k: dict(v) for k, v in self._s.parts.items()}
+
+    @Slot(str, str, result=bool)
+    def hasPart(self, part: str, key: str) -> bool:
+        return key in self._s.parts.get(part, {})
+
+    @Slot(str, str, result="QVariant")
+    def partValue(self, part: str, key: str) -> Any:
+        """The part's own value, or the global one when it follows the global setting."""
+        own = self._s.parts.get(part, {})
+        if key in own:
+            return own[key]
+        return getattr(self._s, "highlight" if key == "reflections" else key)
+
+    @Slot(str, str, "QVariant")
+    def setPart(self, part: str, key: str, value: Any) -> None:
+        if part not in settings_mod.PARTS or key not in settings_mod.PART_KEYS:
+            return
+        parts = {p: dict(v) for p, v in self._s.parts.items()}
+        parts.setdefault(part, {})[key] = value
+        self._set_parts(parts)
+
+    @Slot(str, str)
+    def clearPart(self, part: str, key: str) -> None:
+        parts = {p: dict(v) for p, v in self._s.parts.items()}
+        parts.get(part, {}).pop(key, None)
+        self._set_parts(parts)
+
+    @Slot(str)
+    def resetPart(self, part: str) -> None:
+        parts = {p: dict(v) for p, v in self._s.parts.items()}
+        parts.pop(part, None)
+        self._set_parts(parts)
+
+    def _set_parts(self, parts: dict) -> None:
+        self._set("parts", parts)
 
     @Property(bool, notify=targetsChanged)
     def glassLive(self) -> bool:

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..color import lerp
 from ..palette import Tokens
 from ..settings import Settings
 
@@ -29,6 +30,27 @@ def extension_files() -> dict[str, str]:
     return {name: (SOURCE / name).read_text(encoding="utf-8") for name in FILES}
 
 
+def _brightness(t: Tokens, f: float) -> float:
+    """The extension darkens (or, in light mode, lifts) the glass behind a thin theme veil,
+    so text keeps its contrast without the theme painting an 85% opaque fill."""
+    return round(lerp(0.62, 0.72, f) if t.dark else lerp(1.08, 1.0, f), 3)
+
+
+# Frost per part: a thin bar shows the lens best with a light blur, menus hold
+# text and want more.
+FROST_SCALE = {"panel": 0.35, "arcmenu": 0.75, "quicksettings": 0.75, "calendar": 0.75, "overview": 1.0}
+
+
+def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
+    p = t.parts[name]
+    look = {"blur": round(p["blur"] * FROST_SCALE.get(name, 1.0)), "refraction": p["lens_width"], "bend": p["lens_bend"],
+            "bleed": p["bleed"], "highlight": p["glare"]}
+    if veiled:
+        look["brightness"] = _brightness(t, p["frost"])
+    c = p["tint"]
+    return {"look": look, "tint": [c.r, c.g, c.b, 0]}      # the Shell theme paints the fill
+
+
 def config(s: Settings, t: Tokens) -> dict:
     s = s.normalized()
     off = s.reduce_transparency
@@ -42,24 +64,33 @@ def config(s: Settings, t: Tokens) -> dict:
         "dispersion": t.dispersion,
         "saturation": t.vibrancy,
         "brightness": 1.0,
+        "bleed": t.bleed,              # how much content colours light up the glass
         "tint": [0, 0, 0, 0],          # the Shell theme paints the tint
         "highlight": t.glare,
         "lightAngle": -125,            # from the top left, as in the preview
         "falloff": 2.0,
         "shadow": 0,
     }
+    # Per part of the Shell: the same keys, with that part's own tint, frost, bend and so on.
+    veiled = {"panel": t.glass_panel_edges, "arcmenu": t.glass_menu_edges,
+              "quicksettings": t.glass_menu_edges, "calendar": t.glass_menu_edges, "overview": False}
+    parts = {name: _part_config(t, name, ok) for name, ok in veiled.items()}
+    menus_look = _part_config(t, "quicksettings", t.glass_menu_edges)["look"]
+    panel_look = _part_config(t, "panel", t.glass_panel_edges)["look"]
     return {
         "version": 1,
         "look": look,
-        # A thin bar shows the lens best with a lighter blur.
-        "panel": {"enabled": s.glass_panel and not off, "behind": behind,
-                  "look": {"blur": round(blur * 0.6)}},
-        "menus": {"enabled": s.glass_menus and not off, "behind": behind},
+        "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
+        "menus": {"enabled": s.glass_menus and not off, "behind": behind,
+                  "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
+                           **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Windows paint their own rim; behind them the glass is plain frost.
-        "windows": {"enabled": t.blur_app_windows, "radius": max(8, t.radius), "skip": list(WINDOW_SKIP),
-                    "look": {"blur": max(24, blur), "refraction": 0, "bend": 0, "highlight": 0}},
-        "overview": {"enabled": s.glass_overview and not off, "blur": max(30, blur),
+        "windows": {"enabled": t.blur_app_windows, "radius": max(8, t.window_radius), "skip": list(WINDOW_SKIP),
+                    "look": {"blur": max(24, t.window_blur), "refraction": 0, "bend": 0, "highlight": 0,
+                             "bleed": t.parts["windows"]["bleed"]}},
+        "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
+        "parts": parts,
     }
 
 

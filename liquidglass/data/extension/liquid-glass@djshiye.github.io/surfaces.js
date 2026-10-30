@@ -28,6 +28,15 @@ function radiiOf(actor) {
     }
 }
 
+/** Which sides of a surface at stage rectangle (x, y, w, h) lie on its monitor's edge. */
+function screenEdges(actor, x, y, w, h) {
+    const m = Main.layoutManager.findMonitorForActor(actor);
+    if (!m)
+        return [false, false, false, false];
+    const near = (a, b) => Math.abs(a - b) < 1.5;
+    return [near(x, m.x), near(y, m.y), near(x + w, m.x + m.width), near(y + h, m.y + m.height)];
+}
+
 /**
  * What a pane at stage rectangle (x, y, w, h) shows through: the wallpaper,
  * then the windows on the current workspace that overlap it, bottom first. A
@@ -203,6 +212,11 @@ class Follower {
         const p = pane.pad;
         const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
+        // The light the content casts into the glass comes from the content itself.
+        top.setSources([anchor]);
+        const edges = screenEdges(target, sx, sy, w, h);
+        pane.setEdges(edges);
+        top.setEdges(edges);
         pane.place(lx, ly, w, h, radii, sx, sy);
         top.place(lx, ly, w, h, radii, sx, sy);
         pane.show();
@@ -282,14 +296,14 @@ class Panels {
         this._followers.forEach(f => f.destroy());
         this._followers = [];
         for (const [target, anchor] of this._panels()) {
-            this._followers.push(new Follower(target, anchor, this.cfg.panel,
+            this._followers.push(new Follower(target, anchor, this.cfg.parts.panel,
                 f => (this._followers = this._followers.filter(x => x !== f))));
         }
     }
 
     update(cfg) {
         this.cfg = cfg;
-        this._followers.forEach(f => f.update(cfg.panel));
+        this._followers.forEach(f => f.update(cfg.parts.panel));
     }
 
     sync() {
@@ -307,6 +321,18 @@ class Panels {
 }
 
 // ---- popup menus, notification banners, OSD and the window switcher ----------------
+// Which part of the Shell a menu belongs to, for its own look.
+function partOf(bp) {
+    const sa = Main.panel.statusArea;
+    if (bp === sa.quickSettings?.menu?.actor)
+        return 'quicksettings';
+    if (bp === sa.dateMenu?.menu?.actor)
+        return 'calendar';
+    if (bp.has_style_class_name?.('arcmenu-menu'))
+        return 'arcmenu';
+    return 'menus';
+}
+
 class Popups {
     constructor(cfg) {
         this.cfg = cfg;
@@ -346,7 +372,7 @@ class Popups {
         const bp = child instanceof BoxPointer ? child
             : child.get_children?.().find(c => c instanceof BoxPointer) ?? null;
         if (bp) {
-            this._follow(bp.bin?.get_child?.(), child);
+            this._follow(bp.bin?.get_child?.(), child, partOf(bp));
             return;
         }
         // Volume and brightness pop-ups.
@@ -360,17 +386,22 @@ class Popups {
             this._follow(child._switcherList, child);
     }
 
-    _follow(surface, anchor) {
+    _follow(surface, anchor, part = 'menus') {
         if (!surface || this._followers.has(surface))
             return;
-        const f = new Follower(surface, anchor, this.cfg.menus, () => this._followers.delete(surface));
+        const f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
+        f.part = part;
         this._followers.set(surface, f);
+    }
+
+    _settings(part) {
+        return this.cfg.parts[part] ?? this.cfg.menus;
     }
 
     update(cfg) {
         this.cfg = cfg;
         for (const f of this._followers.values())
-            f.update(cfg.menus);
+            f.update(this._settings(f.part));
     }
 
     sync() {
