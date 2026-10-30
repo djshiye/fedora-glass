@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import configparser
 import contextlib
+import errno
 import fcntl
 import hashlib
 import io
@@ -325,7 +326,11 @@ class Backup:
             p.symlink_to(e["link"])
             del self.data["dirlinks"][key]
         except OSError as err:
-            return f"{p}: {err} (it was a link to {e['link']})"
+            owner = Path(e["link"]).parent.name or e["link"]
+            if err.errno in (errno.ENOTEMPTY, errno.EEXIST):
+                return (f"Kept your {p.name} folder because it has files you added. "
+                        f"Your link to {owner} was not restored.")
+            return f"Couldn't restore your {p.name} link to {owner}: {err.strerror or err}."
         return None
 
     def targets_with_changes(self) -> set[str]:
