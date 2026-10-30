@@ -42,7 +42,7 @@ export function sourcesFor(behind, x, y, w, h) {
     const ws = global.workspace_manager.get_active_workspace();
     for (const actor of global.get_window_actors()) {
         const win = actor.meta_window;
-        if (!actor.visible || !win || win.minimized || !win.located_on_workspace(ws))
+        if (!actor.visible || !win || win.get_monitor() < 0 || win.minimized || !win.located_on_workspace(ws))
             continue;
         const r = win.get_buffer_rect();
         if (r.x < x + w && r.x + r.width > x && r.y < y + h && r.y + r.height > y)
