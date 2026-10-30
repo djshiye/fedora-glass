@@ -138,5 +138,14 @@ Card {
                 }
             }
         }
+        SwitchRow {
+            objectName: "terminalFollowsStyle"
+            width: parent.width
+            label: "Terminal follows light and dark"
+            caption: "Terminal is dark on its own, even in light mode"
+            tip: "Terminal has its own light/dark setting, which starts out dark. Turn this on and Terminal follows GNOME's light or dark style like your other apps. Turn it off, or Restore original, and Terminal goes back to your own setting."
+            checked: Backend.terminalFollowsStyle
+            onToggled: (on) => Backend.terminalFollowsStyle = on
+        }
     }
 }

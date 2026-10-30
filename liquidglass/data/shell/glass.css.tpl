@@ -172,7 +172,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .dashtopanelMainPanel .dash-item-container .show-apps:hover {
   background-color: ${hover};
   border-radius: ${r_small}px; }
-.dashtopanelMainPanel .dash-item-container .show-apps .overview-icon {
+.dashtopanelMainPanel .dash-item-container .show-apps .overview-icon,
+.dashtopanelMainPanel .dash-item-container .show-apps .show-apps-icon {
   color: ${fg}; }
 #dashtopanelScrollview .overview-tile .favorite {
   background-color: ${selection}; }

@@ -57,13 +57,20 @@ CONTACT_SHADOW = {"panel": 0.2, "arcmenu": 0.28, "quicksettings": 0.28, "calenda
 FROST_SCALE = {"panel": 0.35, "arcmenu": 1.2, "quicksettings": 1.2, "calendar": 1.2, "overview": 1.0}
 
 
+def _shadow(t: Tokens, name: str) -> float:
+    """Light glass on a light wallpaper has little to set it apart, so the panel's
+    contact shadow is a little deeper there."""
+    v = CONTACT_SHADOW.get(name, 0.0)
+    return round(v * 1.6, 3) if name == "panel" and not t.dark else v
+
+
 def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     p = t.parts[name]
     look = {"blur": round(p["blur"] * FROST_SCALE.get(name, 1.0)), "refraction": p["lens_width"], "bend": p["lens_bend"],
             # A thin bar holds its icons close to both edges, so the same glow reads stronger there.
             "bleed": round(p["bleed"] * (0.7 if name == "panel" else 1.0), 3), "highlight": p["glare"],
             # A soft contact shadow, cast away from the light (it follows the pointer light).
-            "shadow": CONTACT_SHADOW.get(name, 0.0), **_milk(t, name)}
+            "shadow": _shadow(t, name), **_milk(t, name)}
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
