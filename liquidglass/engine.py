@@ -56,6 +56,13 @@ def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
         raise
 
 
+def _remove_empty(dirs: set[str]) -> None:
+    """Take away folders an Apply created, deepest first, and only while empty."""
+    for d in sorted(dirs, key=len, reverse=True):
+        with contextlib.suppress(OSError):
+            os.rmdir(d)
+
+
 def parse_strv(text: str | None) -> list[str]:
     """gsettings 'as' text ("['a', 'b']" or "@as []") to a list."""
     if not text:
@@ -75,7 +82,7 @@ def format_strv(items: list[str]) -> str:
 
 
 class Backup:
-    SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak")
+    SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak", "dirlinks")
 
     def __init__(self, env: Env):
         self.env = env
@@ -98,7 +105,62 @@ class Backup:
         atomic_write(self.manifest_path, json.dumps(self.data, indent=1).encode(), 0o600)
 
     # ---- recording ----------------------------------------------------------
+    def linked_folder(self, path: Path) -> Path | None:
+        """The first folder above `path` that is a symlink, looking only below the user's
+        config, data and state folders (those roots may be links on purpose: dotfiles,
+        Silverblue's /home). A theme installer often links ~/.config/gtk-4.0 into its own
+        theme folder, and writing through that link would overwrite the theme."""
+        roots = sorted((r for r in (self.env.config, self.env.data, self.env.state)
+                        if path.is_relative_to(r)), key=lambda r: len(r.parts), reverse=True)
+        if not roots:
+            return None
+        d = roots[0]
+        for part in path.parent.relative_to(roots[0]).parts:
+            d = d / part
+            if d.is_symlink():
+                return d
+        return None
+
+    def unlink_folder(self, target: str, folder: Path) -> None:
+        """Turn a linked folder into a real one, so writes land in the user's own config.
+
+        The new folder links back to every entry of the old target (assets, gtk-dark.css,
+        ...), so whatever the theme provided keeps working. Files an earlier version wrote
+        through the link are put back first, which repairs the theme folder."""
+        key = str(folder)
+        if key in self.data["dirlinks"] or self.env.dry_run:
+            return
+        inside = [k for k in self.data["files"] if Path(k).is_relative_to(folder)]
+        new_dirs: set[str] = set()
+        problems = [p for k in inside if (p := self._restore_file(k, self.data["files"][k], new_dirs))]
+        _remove_empty(new_dirs)
+        if problems:
+            raise OSError("; ".join(problems))
+        link = os.readlink(folder)
+        real = folder.resolve()
+        tmp = Path(tempfile.mkdtemp(dir=folder.parent, prefix=f".{folder.name}.", suffix=".lg-tmp"))
+        made = []
+        try:
+            if real.is_dir():
+                for entry in sorted(real.iterdir()):
+                    (tmp / entry.name).symlink_to(entry)
+                    made.append(entry.name)
+            os.chmod(tmp, 0o755)
+            # Record before swapping, so an interrupted Apply can still be reverted.
+            self.data["dirlinks"][key] = {"target": target, "link": link, "made": made}
+            self.save()
+            folder.unlink()
+            os.rename(tmp, folder)
+        except BaseException:
+            self.data["dirlinks"].pop(key, None)
+            if not folder.exists() and not folder.is_symlink():
+                folder.symlink_to(link)
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise
+
     def record_file(self, target: str, path: Path) -> None:
+        if (folder := self.linked_folder(path)) is not None:
+            self.unlink_folder(target, folder)
         key = str(path)
         if key in self.data["files"] or self.env.dry_run:
             return
@@ -170,34 +232,12 @@ class Backup:
         mine = lambda e: not target or e["target"] == target  # noqa: E731
         new_dirs: set[str] = set()
         for key, e in list(self.data["files"].items()):
-            if not mine(e):
-                continue
-            p = Path(key)
-            try:
-                if p.is_dir() and not p.is_symlink():
-                    # Not something we wrote: never delete a folder the user made there.
-                    if e["kind"] != "missing":
-                        raise IsADirectoryError("is now a folder, left as it is")
-                    del self.data["files"][key]
-                    continue
-                # Read the copy first, so a lost backup never costs the current file.
-                original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
-                if p.is_symlink() or p.exists():
-                    p.unlink()
-                if e["kind"] == "symlink":
-                    p.parent.mkdir(parents=True, exist_ok=True)
-                    p.symlink_to(e["link"])
-                elif original is not None:
-                    atomic_write(p, original, e.get("mode", 0o644))
-                    with contextlib.suppress(OSError):
-                        os.unlink(e["copy"])
-                new_dirs.update(e.get("new_dirs", []))
-                del self.data["files"][key]
-            except OSError as err:
-                problems.append(f"{p}: {err}")
-        for d in sorted(new_dirs, key=len, reverse=True):   # deepest first; only while empty
-            with contextlib.suppress(OSError):
-                os.rmdir(d)
+            if mine(e) and (problem := self._restore_file(key, e, new_dirs)):
+                problems.append(problem)
+        _remove_empty(new_dirs)
+        for key, e in list(self.data["dirlinks"].items()):
+            if mine(e) and (problem := self._restore_folder(key, e)):
+                problems.append(problem)
         for key, e in list(self.data["gsettings"].items()):
             if not mine(e):
                 continue
@@ -240,6 +280,53 @@ class Backup:
                 problems.append(f"{' '.join(e['undo'])}: {r.err.strip()}")
         self.save()
         return problems
+
+    def _restore_file(self, key: str, e: dict, new_dirs: set[str]) -> str | None:
+        """Put one recorded file back. Returns a problem, or None."""
+        p = Path(key)
+        try:
+            if p.is_dir() and not p.is_symlink():
+                # Not something we wrote: never delete a folder the user made there.
+                if e["kind"] != "missing":
+                    raise IsADirectoryError("is now a folder, left as it is")
+                del self.data["files"][key]
+                return None
+            # Read the copy first, so a lost backup never costs the current file.
+            original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
+            if p.is_symlink() or p.exists():
+                p.unlink()
+            if e["kind"] == "symlink":
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.symlink_to(e["link"])
+            elif original is not None:
+                atomic_write(p, original, e.get("mode", 0o644))
+                with contextlib.suppress(OSError):
+                    os.unlink(e["copy"])
+            new_dirs.update(e.get("new_dirs", []))
+            del self.data["files"][key]
+        except OSError as err:
+            return f"{p}: {err}"
+        return None
+
+    def _restore_folder(self, key: str, e: dict) -> str | None:
+        """Turn a folder we made back into the link it was. Anything the user has since
+        put in it stays, and then so does the folder."""
+        p = Path(key)
+        try:
+            if p.is_symlink():
+                del self.data["dirlinks"][key]      # already a link again
+                return None
+            if p.is_dir():
+                for name in e.get("made", []):
+                    q = p / name
+                    if q.is_symlink():
+                        q.unlink()
+                p.rmdir()                           # fails while the user's own files are in it
+            p.symlink_to(e["link"])
+            del self.data["dirlinks"][key]
+        except OSError as err:
+            return f"{p}: {err} (it was a link to {e['link']})"
+        return None
 
     def targets_with_changes(self) -> set[str]:
         return {e["target"] for section in self.data.values() for e in section.values()}
