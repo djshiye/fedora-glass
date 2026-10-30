@@ -896,8 +896,26 @@ class WindowGlass {
         this.rim = new GlassPane('rim');
         this._signals = new Signals();
         this._later = 0;
-        actor.insert_child_at_index(this.pane, 0);
-        actor.add_child(this.rim);
+        // Each pane sits in a holder that keeps its finished picture. A window's glass
+        // is big, and without it the lens would be drawn again for every frame that
+        // repaints the window (the overview opening, a workspace switch); with it, it
+        // is drawn again only when what is behind the window changes.
+        this._holders = [this.pane, this.rim].map(p => {
+            const h = new Clutter.Actor({name: 'liquid-glass-holder', reactive: false, visible: false,
+                offscreen_redirect: Clutter.OffscreenRedirect.ALWAYS});
+            h.add_child(p);
+            return h;
+        });
+        actor.insert_child_at_index(this._holders[0], 0);
+        // The rim only draws along the edge, so only four thin strips of its picture
+        // are shown (copies clipped to each side); the holder itself stays unseen.
+        actor.add_child(this._holders[1]);
+        this._holders[1].opacity = 0;
+        this._strips = [0, 1, 2, 3].map(() => {
+            const c = new Clutter.Clone({source: this._holders[1], name: 'liquid-glass-rim-strip', reactive: false});
+            actor.add_child(c);
+            return c;
+        });
         for (const s of ['position-changed', 'size-changed', 'notify::fullscreen', 'notify::minimized',
             'notify::maximized-horizontally', 'notify::maximized-vertically', 'notify::wm-class'])
             this._signals.on(this.win, s, () => this.queue());
@@ -978,6 +996,7 @@ class WindowGlass {
                 p.hide();
                 p.setSources([]);
             }
+            this._syncHolders();
             return;
         }
         const w = this.win;
@@ -1002,12 +1021,37 @@ class WindowGlass {
             rim.hide();
             rim.setSources([]);
         }
+        // Each holder spans its pane exactly; the pane sits at its top left.
+        const [hx, hy] = [frame.x - buf.x - p, frame.y - buf.y - p];
+        const [hw, hh] = [frame.width + 2 * p, frame.height + 2 * p];
+        this._holders.forEach(h => {
+            h.set_position(hx, hy);
+            h.set_size(hw, hh);
+        });
         for (const g of rimOn ? [pane, rim] : [pane]) {
             g.setSources(sources);
             g.setEdges(edges);
-            g.place(frame.x - buf.x, frame.y - buf.y, frame.width, frame.height, [r, r, r, r], frame.x, frame.y);
+            g.place(p, p, frame.width, frame.height, [r, r, r, r], frame.x, frame.y);
+            g.set_position(Math.round(p - g.pad), Math.round(p - g.pad));
             g.show();
         }
+        // Strips: top and bottom tall enough to hold the rounded corners.
+        const t = Math.ceil(Math.max(r, 3)) + 2, [W, H] = [frame.width, frame.height];
+        const clips = [[p - 2, p - 2, W + 4, t + 2], [p - 2, p + H - t, W + 4, t + 2],
+            [p - 2, p + t, 6, H - 2 * t], [p + W - 4, p + t, 6, H - 2 * t]];
+        this._strips.forEach((c, i) => {
+            c.set_position(hx, hy);
+            c.set_size(hw, hh);
+            c.set_clip(...clips[i]);
+        });
+        this._syncHolders();
+    }
+
+    // An empty holder would ask for a 0×0 picture: hide it with its pane.
+    _syncHolders() {
+        this._holders.forEach((h, i) => (h.visible = !!(i ? this.rim : this.pane)?.visible));
+        const rimShown = this._holders[1]?.visible ?? false;
+        this._strips.forEach(c => (c.visible = rimShown));
     }
 
     destroy() {
@@ -1019,6 +1063,12 @@ class WindowGlass {
         this.pane = this.rim = null;
         pane?.destroy();
         rim?.destroy();
+        for (const h of [...this._strips, ...this._holders]) {
+            try {
+                h.destroy();
+            } catch {}   // gone with the window
+        }
+        this._holders = this._strips = [];
         this.owner.forget(this.actor);
     }
 }
