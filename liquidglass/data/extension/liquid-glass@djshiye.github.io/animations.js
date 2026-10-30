@@ -376,8 +376,10 @@ class LiquidGlassGenie extends Clutter.ShaderEffect {
 });
 
 /**
- * The genie warp, drawn on a copy of the window over the panel: the window itself
- * stays in place, unseen, until the effect is over. p runs from p0 to p1.
+ * The genie warp, drawn on a copy of the window: the window itself stays in place,
+ * unseen, until the effect is over. p runs from p0 to p1. The copy sits just above
+ * the windows and under the panels, so it pours into and out of the icon from
+ * behind the panel, as the real window does, and nothing changes order at the end.
  */
 function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
     const win = {x: actor.x, y: actor.y, width: actor.width, height: actor.height};
@@ -391,7 +393,11 @@ function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
     const effect = new GenieEffect(local(win), local(iconRect), intensity);
     effect.setProgress(p0);
     holder.add_effect_with_name('liquid-glass-genie', effect);
-    Main.layoutManager.uiGroup.add_child(holder);
+    const ui = Main.layoutManager.uiGroup;
+    ui.add_child(holder);
+    const windows = global.window_group?.get_parent() === ui ? global.window_group : null;
+    if (windows)
+        ui.set_child_above_sibling(holder, windows);
     // Going in it speeds up a little towards the icon; coming out it slows as it lands.
     const ease = p1 > p0 ? u => Math.pow(u, 1.2) : C.easeOut;
     const fade = p1 > p0 ? 0.88 : 0.12;   // the last bit melts into the icon
