@@ -109,7 +109,7 @@ def test_ptyxis_opacity_follows_user_value_and_light_floor(fake_env):
     assert opacity(dark=True, terminal_opacity=0.5) == 0.5
     assert opacity(dark=False, terminal_opacity=0.5) == 0.5
     assert opacity(dark=False, frost=0.0) >= 0.85
-    assert opacity(dark=True, frost=0.0) == pytest.approx(0.72)
+    assert opacity(dark=True, frost=0.0) == pytest.approx(0.84)     # a little glass shows, text stays readable
 
 
 def test_gnome_terminal_plan(fake_env):
