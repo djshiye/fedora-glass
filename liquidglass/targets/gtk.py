@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..env import Env
-from ..render import gtk3, gtk4
+from ..render import gtk3, gtk4, headerbar
 from .base import Action, Context, FlatpakOverride, Detection, GSet, Target, WriteFile
 
 GTK3_INSTALL = "Install adw-gtk3: sudo dnf install adw-gtk3-theme"
@@ -21,7 +21,7 @@ class Gtk4(Target):
 
     def plan(self, ctx: Context) -> list[Action]:
         d = ctx.env.config / "gtk-4.0"
-        css = gtk4.render(ctx.dark, ctx.light)
+        css = gtk4.render(ctx.dark, ctx.light) + headerbar.gtk4_css(ctx.settings, ctx.dark, ctx.light)
         # Plain GTK 4 apps may read gtk-dark.css instead of gtk.css in dark mode, and
         # an old gtk-dark.css (often a link into another theme) must not linger.
         return [WriteFile(d / "gtk.css", css), WriteFile(d / "gtk-dark.css", css)]
@@ -58,7 +58,7 @@ class Gtk3(Target):
         t = ctx.tokens
         return [
             GSet("org.gnome.desktop.interface", "gtk-theme", f"'{gtk3.theme_name(t)}'"),
-            WriteFile(ctx.env.config / "gtk-3.0/gtk.css", gtk3.render(t)),
+            WriteFile(ctx.env.config / "gtk-3.0/gtk.css", gtk3.render(t) + headerbar.gtk3_css(ctx.settings, t)),
         ]
 
 

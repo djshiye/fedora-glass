@@ -10,6 +10,7 @@ Expander 1.0 Expander.qml
 FocusRing 1.0 FocusRing.qml
 FrostSlider 1.0 FrostSlider.qml
 GlassSurface 1.0 GlassSurface.qml
+HeaderBarCard 1.0 HeaderBarCard.qml
 Icon 1.0 Icon.qml
 LabeledSlider 1.0 LabeledSlider.qml
 LgButton 1.0 LgButton.qml

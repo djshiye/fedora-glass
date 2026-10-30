@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..env import Env
 from ..render import apps as ra
+from ..render import headerbar
 from ..render import terminal as rt
 from .base import Action, Context, Detection, GSet, Target, WriteFile
 
@@ -36,8 +37,9 @@ class Ptyxis(Target):
     id: str = "ptyxis"
     name: str = "Ptyxis"
     group: str = "Terminal"
-    summary: str = "Liquid Glass colour palette (light and dark) and window opacity on every profile."
+    summary: str = "Window opacity on every profile, and the Liquid Glass colour palette if you turn it on."
     notes: list[str] = field(default_factory=lambda: [
+        "Profiles keep their own colours unless you choose Liquid Glass terminal colours.",
         "Profiles are changed in place; reverting restores each profile's old palette and opacity.",
         "Ptyxis creates its first profile on first launch: open it once, then Apply again."])
 
@@ -58,12 +60,27 @@ class Ptyxis(Target):
                 out.append(u)
         return out
 
+    def palette_in_use(self, env: Env) -> str | None:
+        """The palette of the profile new Terminal windows open with, or None when Ptyxis
+        has no profile yet."""
+        default = _list_values(env.gsettings_get("org.gnome.Ptyxis", "default-profile-uuid"))
+        uuids = [u for u in default + self.profiles(env) if _safe_uuid(u)]
+        if not uuids:
+            return None
+        names = _list_values(env.gsettings_get("org.gnome.Ptyxis.Profile", "palette",
+                                               f"/org/gnome/Ptyxis/Profiles/{uuids[0]}/"))
+        return names[0] if names else None
+
     def plan(self, ctx: Context) -> list[Action]:
-        acts: list[Action] = [WriteFile(self.palette_path(ctx.env), rt.ptyxis_palette(ctx.dark, ctx.light))]
         opacity = window_opacity(ctx)
+        titlebar = {name: headerbar.ptyxis_titlebar(ctx.settings, t, opacity)
+                    for name, t in (("dark", ctx.dark), ("light", ctx.light))}
+        acts: list[Action] = [WriteFile(self.palette_path(ctx.env),
+                                        rt.ptyxis_palette(ctx.dark, ctx.light, titlebar))]
         for u in self.profiles(ctx.env):
             path = f"/org/gnome/Ptyxis/Profiles/{u}/"
-            acts.append(GSet("org.gnome.Ptyxis.Profile", "palette", f"'{rt.PTYXIS_PALETTE_NAME}'", path))
+            if ctx.settings.terminal_colors:
+                acts.append(GSet("org.gnome.Ptyxis.Profile", "palette", f"'{rt.PTYXIS_PALETTE_NAME}'", path))
             acts.append(GSet("org.gnome.Ptyxis.Profile", "opacity", f"{opacity}", path))
         return acts
 

@@ -53,6 +53,10 @@ Item {
         return p && p[key] !== undefined ? p[key] : fallback
     }
     readonly property real bleedGlobal: t.bleed !== undefined ? t.bleed : 0.6
+    // Window header bars: their height (47 px is GNOME's) and, when set, their own see-through glass.
+    readonly property real headH: u((Backend.headerHeight || 47) + 3)
+    readonly property bool headCustom: Backend.headerOpacity >= 0 && !reduceTransparency
+    function headerColor(c) { return headCustom ? withAlpha(c, Backend.headerOpacity) : c }
 
     // Reusable recipes so every glass surface reads its numbers from one place.
     component ShellGlass: GlassSurface {
@@ -154,7 +158,7 @@ Item {
                 tint: "transparent"
 
                 readonly property real side: root.u(250)
-                readonly property real head: root.u(50)
+                readonly property real head: root.headH
 
                 Rectangle {     // sidebar pane
                     width: files.side
@@ -163,12 +167,18 @@ Item {
                     topLeftRadius: root.rWin
                     bottomLeftRadius: root.rWin
                 }
-                Rectangle {     // content pane
+                Rectangle {     // content header bar
                     x: files.side
                     width: parent.width - files.side
-                    height: parent.height
-                    color: root.part("windows", "view", "transparent")
+                    height: files.head
+                    color: root.headerColor(root.part("windows", "view", "transparent"))
                     topRightRadius: root.rWin
+                }
+                Rectangle {     // content pane
+                    x: files.side; y: files.head
+                    width: parent.width - files.side
+                    height: parent.height - files.head
+                    color: root.part("windows", "view", "transparent")
                     bottomRightRadius: root.rWin
                 }
                 Rectangle {
@@ -321,7 +331,7 @@ Item {
             x: root.u(900); y: root.u(330)
             width: root.u(880); height: root.u(540)
             tint: "transparent"
-            readonly property real head: root.u(50)
+            readonly property real head: root.headH
 
             Rectangle {
                 width: parent.width; height: term.head

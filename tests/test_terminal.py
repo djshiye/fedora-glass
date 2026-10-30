@@ -98,7 +98,21 @@ def test_ptyxis_plan(fake_env):
     assert wf[0].path.parent.parts[-2:] == ("org.gnome.Ptyxis", "palettes")
     gs = [a for a in plan if isinstance(a, GSet)]
     assert {a.path for a in gs} == {"/org/gnome/Ptyxis/Profiles/76cf880fca2d7db1aa047b0c6a3ae60f/"}
-    assert {a.key: a.value for a in gs}["palette"] == "'Liquid Glass'"
+    # The user's own palette stays unless they opt in to the Liquid Glass colours.
+    assert "palette" not in {a.key for a in gs}
+    plan = tt.Ptyxis().plan(ctx_for(fake_env, dark=True, terminal_colors=True))
+    assert {a.key: a.value for a in plan if isinstance(a, GSet)}["palette"] == "'Liquid Glass'"
+
+
+def test_ptyxis_palette_in_use(fake_env):
+    t = tt.Ptyxis()
+    assert t.palette_in_use(fake_env) is None             # no profile yet
+    fake_env.gs[("org.gnome.Ptyxis", None)] = {"profile-uuids": "['aaaabbbbcccc', 'ddddeeeeffff']",
+                                               "default-profile-uuid": "'ddddeeeeffff'"}
+    fake_env.gs[("org.gnome.Ptyxis.Profile", "/org/gnome/Ptyxis/Profiles/ddddeeeeffff/")] = {"palette": "'gooey'"}
+    assert t.palette_in_use(fake_env) == "gooey"
+    fake_env.gs[("org.gnome.Ptyxis", None)]["default-profile-uuid"] = "'../../evil'"
+    assert t.palette_in_use(fake_env) is None             # first safe uuid has no palette set
 
 
 def test_ptyxis_opacity_follows_user_value_and_light_floor(fake_env):
