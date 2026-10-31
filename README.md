@@ -25,7 +25,8 @@ release tag of this repository on [Fedora COPR](https://copr.fedorainfracloud.or
 and signed there, and dnf checks the signature before it installs anything.
 
 **Installed it from the old download link?** Run only the first command above, then
-`sudo dnf upgrade`. dnf replaces your copy with the signed one from COPR and keeps your settings.
+`sudo dnf reinstall liquid-glass`. dnf swaps your copy for the signed one from COPR and keeps your
+settings. After that, `sudo dnf upgrade` brings each new version.
 
 If dnf says it doesn't know `copr`, run `sudo dnf install dnf5-plugins` first.
 

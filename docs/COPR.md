@@ -11,8 +11,8 @@ up to date.
 2. GitHub tells COPR that a tag was created (a repository webhook that sends only "Branch or tag
    creation" events).
 3. COPR clones this public repository at that tag and runs `.copr/Makefile`, which makes the source
-   package. It refuses to build unless the commit is exactly the tag `v<Version>` from the spec, so
-   nothing between releases can ship.
+   package. It refuses to build unless the commit is exactly the tag `v<Version>` from the spec and
+   is on `main`, so nothing between releases can ship.
 4. COPR builds the RPM from that source package, runs the same tests (`%check`), signs it with the
    project's own key and publishes it. `dnf` checks that signature before every install.
 
@@ -49,6 +49,16 @@ You need a free Fedora account: <https://accounts.fedoraproject.org> (**Create a
 2. Content type **application/json**. Secret: leave empty. SSL verification: on.
 3. **Let me select individual events**: tick only **Branch or tag creation**, untick **Pushes**.
 4. **Add webhook**.
+
+**Protect release tags** (this repository → **Settings → Rules → Rulesets → New ruleset → New tag
+ruleset**):
+
+1. Name `release tags`, Enforcement **Active**.
+2. Target tags: **Add target → Include by pattern** `v*`.
+3. Tick **Restrict updates** and **Restrict deletions**. Leave **Restrict creations** off, because
+   the Release workflow creates the tag.
+4. **Create**. A released tag can then never be moved to other code, so COPR always builds what
+   was released.
 
 Treat the webhook URL like a password: anyone with it can ask COPR to rebuild a tag that is already
 in this repository (nothing else). If it leaks, use **Regenerate** on the COPR Integrations page
