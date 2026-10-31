@@ -190,6 +190,9 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 /* @end */
 
 /* ---------------------------------------------------------------- popup menus */
+/* Big glass surfaces keep their box-shadow tight (0 2px 6px): St cuts a wide blur off
+   sharply, which shows as a hard line on a smooth wallpaper. Their soft, wide shadow
+   is drawn by the glass pane behind them instead. */
 .popup-menu {
   color: ${fg}; }
 .popup-menu-content, .candidate-popup-content {
@@ -198,7 +201,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
   border-radius: ${r_m}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .popup-menu-item {
   color: ${fg};
   border-radius: ${r_xs}px; }
@@ -250,7 +253,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
   border-radius: ${r_m}px;
-  box-shadow: 0 14px 40px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 /* GNOME's own shapes stay: round icon buttons and pill toggles in quick settings
    (the split halves of a toggle with a menu come from GNOME's sheet and win over this). */
 .icon-button, .quick-toggle, .quick-toggle-has-menu {
@@ -433,7 +436,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
   border-radius: ${cal_r_m}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .url-highlighter {
   link-color: ${accent_text}; }
 
@@ -444,20 +447,20 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${osd};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .workspace-switcher, .resize-popup, .screenshot-ui-panel, #LookingGlassDialog {
   color: ${fg};
   background-color: ${osd};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .switcher-list {
   color: ${fg};
   background-color: ${osd};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
   border-radius: ${r_m}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .osd-window .level {
   -barlevel-height: 6px;
   -barlevel-background-color: ${track};
@@ -597,7 +600,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${ov_chrome};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 #dash .dash-item-container .show-apps .overview-icon,
 #dash .dash-item-container .overview-tile .overview-icon {
   color: ${fg};
@@ -644,12 +647,12 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
   border-radius: ${r_m}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .popup-menu-content.wg-menu.wg-light {
   background-color: ${popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .wg-root, .wg-light .wg-root {
   color: ${fg}; }
 .wg-title, .wg-card-title, .wg-percent, .wg-pill-label, .wg-chip,
@@ -707,7 +710,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 /* ---------------------------------------------------------------- ArcMenu (surfaces; its own theme options colour the rest) */
 .arcmenu-menu .popup-menu-content {
   border-top-color: ${glass_rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .arcmenu-tooltip, #ArcMenu_Tooltip {
   color: ${fg};
   background-color: ${arc_osd};

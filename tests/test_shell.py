@@ -49,6 +49,27 @@ def test_css_never_asks_for_multiple_shadows(frost, dark):
             assert not (ch == "," and depth == 0), value
 
 
+GLASS_SURFACES = (".popup-menu-content", ".quick-settings", ".notification-banner", ".osd-window",
+                  ".switcher-list", ".arcmenu-menu .popup-menu-content")
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_glass_surfaces_keep_their_css_shadow_tight(dark):
+    """St cuts a wide box-shadow blur off sharply (a hard line on a smooth wallpaper,
+    seen above ArcMenu). The glass pane draws the wide soft shadow, so the CSS one on a
+    glass surface stays within 6 px blur and 2 px offset."""
+    css = re.sub(r"/\*.*?\*/", "", rs.render_css(tokens(0.5, dark)), flags=re.S)
+    seen = set()
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        sels = {x.strip() for x in m.group(1).split(",")}
+        hit = sels & set(GLASS_SURFACES)
+        sh = re.search(r"box-shadow:\s*(?!inset)(-?\d+)(?:px)?\s+(-?\d+)(?:px)?\s+(\d+)px", m.group(2))
+        if hit and sh:
+            seen |= hit
+            assert int(sh.group(2)) <= 2 and int(sh.group(3)) <= 6, f"{hit}: {sh.group(0)}"
+    assert {".popup-menu-content", ".quick-settings", ".notification-banner"} <= seen
+
+
 def test_css_uses_token_colours_and_radius():
     t = tokens(0.3, True, radius=22)
     css = rs.render_css(t)
