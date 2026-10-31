@@ -310,13 +310,15 @@ void main() {
         // a light: its colour stays inside its own edge, with no halo around it. Next
         // to such an area, colour still fills the blur both half way out and all the
         // way out along some direction; next to an icon, the far sample has left it.
+        // The 16 reads only matter where this pixel has colour to keep in, or near
+        // the rim where the mirrored term below also uses keepIn.
         float paint = 0.0;
-        for (int i = 0; i < 8; i++) {
+        float need = max(glow.r, max(glow.g, glow.b));
+        if (need > 0.004 || inside < bevel + 8.0) for (int i = 0; i < 8; i++) {
             vec2 d = vec2(cos(float(i) * 0.7853982), sin(float(i) * 0.7853982));
             // Samples past the pane's edge count as empty (at() would clamp them
             // back onto the edge, which in a thin panel is right next to the icon).
             vec2 p1 = px + d * 28.0, p2 = px + d * 56.0;
-            vec2 size = vec2(width, height);
             float in1 = step(0.0, p1.x) * step(0.0, p1.y) * step(p1.x, size.x) * step(p1.y, size.y);
             float in2 = step(0.0, p2.x) * step(0.0, p2.y) * step(p2.x, size.x) * step(p2.y, size.y);
             vec4 a1 = at(p1);
