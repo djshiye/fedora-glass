@@ -157,7 +157,7 @@ def config(s: Settings, t: Tokens) -> dict:
         # How windows open, minimize and close, and how the panel responds (see curves.js).
         "animations": {ev: s.motion_for(ev) for ev in MOTION_EVENTS},
         # One hover highlight that glides along the Dash to Panel taskbar (glide.js).
-        "glide": {"enabled": s.hover_glide, "color": t.hover.css, "radius": t.radius_small},
+        "glide": {"enabled": s.hover_glide, "color": t.hover.css, "radius": scale(t.panel_radius)["xs"]},
     }
 
 

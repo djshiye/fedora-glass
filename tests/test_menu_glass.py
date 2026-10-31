@@ -38,7 +38,10 @@ def test_glide_setting_reaches_the_extension():
     assert s.hover_glide is True
     t = build(s, dark=True)
     cfg = glass.config(s, t)
-    assert cfg["glide"] == {"enabled": True, "color": t.hover.css, "radius": cfg["glide"]["radius"]}
+    from liquidglass.render.shell import dtp_values
+    # The same tile as Dash to Panel's own hover highlight would have drawn.
+    assert cfg["glide"] == {"enabled": True, "color": t.hover.css,
+                            "radius": int(dtp_values(t)["highlight-appicon-hover-border-radius"])}
     assert "glide.js" in glass.FILES
     s.hover_glide = False
     assert glass.config(s, t)["glide"]["enabled"] is False
