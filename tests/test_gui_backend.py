@@ -232,6 +232,31 @@ def test_qml_loads(make_backend, home):
     assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
 
 
+def test_popups_compile_on_glass(make_backend, home):
+    """A tooltip, a dropdown and the colour picker (all on PopupGlass) compile."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlComponent, QQmlEngine, qmlRegisterSingletonInstance
+
+    from liquidglass.gui import app as gui_app
+    from liquidglass.gui.backend import Backend
+    b = make_backend()
+    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
+    engine = QQmlEngine()
+    engine.addImportPath(str(gui_app.QML_DIR))
+    comp = QQmlComponent(engine)
+    comp.setData(b"""
+import QtQuick
+import LiquidGlass
+Item {
+    width: 400; height: 300
+    LgDropdown { model: [{ value: "a", label: "A", tip: "first" }]; value: "a"; tip: "pick" }
+    LgToolTip { shown: true; text: "hello" }
+    ColorPicker { }
+}
+""", QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "popups.qml")))
+    assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
+
+
 def test_missing_icon_is_transparent_not_black(app):
     from PySide6.QtCore import QSize
     from liquidglass.gui.icons import IconProvider

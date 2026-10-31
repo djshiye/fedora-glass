@@ -44,6 +44,16 @@ QtObject {
     readonly property int fsHero: 26
     readonly property int gap: 8
 
+    // The window's content (header and pages, not the popup overlay): what
+    // popups capture to draw real glass. Set from Main.qml.
+    property Item backdrop: null
+
+    // Corner radii
+    readonly property int rXs: 8
+    readonly property int rS: 12
+    readonly property int rM: 16
+    readonly property int rL: 24
+
     readonly property int rCard: 20
     readonly property int rControl: 12
 

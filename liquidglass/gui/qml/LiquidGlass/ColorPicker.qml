@@ -31,11 +31,14 @@ C.Popup {
     }
     exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
 
-    background: Rectangle {
-        radius: 18
-        color: Theme.sheet
-        border.width: 1
-        border.color: Theme.borderHi
+    background: PopupGlass {
+        owner: pop
+        radius: Theme.rM
+        blurRadius: 40
+        tintAlphaDark: 0.90
+        tintAlphaLight: 0.92
+        shadowBlur: 26
+        shadowY: 8
     }
 
     contentItem: Column {

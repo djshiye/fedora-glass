@@ -34,6 +34,9 @@ Window {
     Shortcut { sequence: "Ctrl+1"; onActivated: win.pageIndex = 0 }
     Shortcut { sequence: "Ctrl+2"; onActivated: win.pageIndex = 1 }
 
+    // Popups (tooltips, dropdowns, colour pickers) capture this for their glass.
+    Binding { target: Theme; property: "backdrop"; value: frame }
+
     // ------------------------------------------------------------ shadow
     RectangularShadow {
         anchors.fill: frame

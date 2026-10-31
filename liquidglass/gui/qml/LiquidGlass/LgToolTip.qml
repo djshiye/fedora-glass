@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic as C
 
-// Tooltip on dark glass, for any control: LgToolTip { shown: hovered; text: "…" }
+// Tooltip on frosted glass, for any control: LgToolTip { shown: hovered; text: "…" }
 // Appears after a short pause, stays while `shown` is true (no timeout), wraps at
 // 300 px and is kept inside the window.
 C.ToolTip {
@@ -31,17 +31,21 @@ C.ToolTip {
             id: label
             width: parent.width
             text: tip.text
-            color: "#f4f5f9"
+            color: Theme.text
             font.pixelSize: 13
             lineHeight: 1.12
             wrapMode: Text.Wrap
         }
         TextMetrics { id: measure; text: tip.text; font.pixelSize: 13 }
     }
-    background: Rectangle {
-        radius: 10
-        color: Qt.rgba(0.09, 0.095, 0.12, 0.96)
-        border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.12)
+    // Heavy frost over a dark (or light) tint, so the text reads over anything.
+    background: PopupGlass {
+        owner: tip
+        radius: Theme.rS
+        blurRadius: 32
+        tintAlphaDark: 0.80
+        tintAlphaLight: 0.82
+        shadowBlur: 18
+        shadowY: 4
     }
 }

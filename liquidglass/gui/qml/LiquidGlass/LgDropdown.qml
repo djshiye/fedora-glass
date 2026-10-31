@@ -129,27 +129,16 @@ FocusScope {
         }
         exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
 
-        // Fully opaque: the list sits over card text and the preview, and any
-        // see-through here makes the rows hard to read.
-        background: Item {
-            // soft drop shadow: two faint rings, no effect layer needed
-            Rectangle {
-                x: -3; y: -1; width: parent.width + 6; height: parent.height + 8
-                radius: 17
-                color: Qt.rgba(0, 0, 0, Theme.dark ? 0.22 : 0.07)
-            }
-            Rectangle {
-                x: -1; y: 1; width: parent.width + 2; height: parent.height + 4
-                radius: 15
-                color: Qt.rgba(0, 0, 0, Theme.dark ? 0.30 : 0.09)
-            }
-            Rectangle {
-                anchors.fill: parent
-                radius: 14
-                color: Theme.dark ? Qt.rgba(0.105, 0.11, 0.135, 1) : Qt.rgba(0.985, 0.987, 0.993, 1)
-                border.width: 1
-                border.color: Theme.dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.12)
-            }
+        // Glass, but frosted hard (blur 40, tint 0.86 dark / 0.88 light): the list
+        // sits over card text and the preview, and the rows must stay readable.
+        background: PopupGlass {
+            owner: popup
+            radius: Theme.rM
+            blurRadius: 40
+            tintAlphaDark: 0.86
+            tintAlphaLight: 0.88
+            shadowBlur: 26
+            shadowY: 8
         }
 
         contentItem: FocusScope {
@@ -186,7 +175,7 @@ FocusScope {
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 10
+                        radius: Theme.rXs
                         color: row.lit ? (Theme.dark ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(0, 0, 0, 0.07)) : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.fast } }
                     }
