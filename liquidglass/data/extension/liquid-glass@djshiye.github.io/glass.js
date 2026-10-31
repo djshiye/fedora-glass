@@ -27,10 +27,10 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
+import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
 const SHADER = `
-uniform sampler2D tex;
 uniform float width;
 uniform float height;
 uniform float pad;
@@ -87,9 +87,10 @@ uniform float shadow;
 uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = the surface's own light,
                                  // 3 = the rim over an app window
 
-// setFloats() nudges whole numbers by 1e-6 so they reach GL as floats, so a
-// uniform set to 0 arrives as 0.000001: test "is it on" against OFF, never 0.0.
-// The same goes for values computed from uniforms (bevel comes from refr_h).
+// Uniforms arrive as typed floats (glsl.js), so a uniform set to 0 is 0. Still
+// test "is it on" against OFF, never 0.0, so a value that rounds to a hair above
+// 0 stays off too. The same goes for values computed from uniforms (bevel comes
+// from refr_h).
 const float OFF = 0.001;
 const float IOR = 1.5;           // crown glass at 550 nm
 const float F0 = 0.04;           // ((IOR - 1) / (IOR + 1))^2, head-on reflectance
@@ -116,7 +117,7 @@ vec2 gradRoundRect(vec2 p, vec2 h, float r) {
 
 vec4 at(vec2 px) {
     vec2 size = vec2(width, height);
-    return texture2D(tex, (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h));
+    return texture2D(cogl_sampler0, (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h));
 }
 
 // Where a view ray, refracted into glass of index n at normal N, meets the
@@ -481,12 +482,17 @@ void main() {
 }
 `;
 
+const GLASS = new Shader(SHADER);
+
 const GlassEffect = GObject.registerClass(
-class LiquidGlassEffect extends Clutter.ShaderEffect {
+class LiquidGlassEffect extends Shell.GLSLEffect {
     _init() {
         super._init();
-        this.set_shader_source(SHADER);
         this._frame = '';
+    }
+
+    vfunc_build_pipeline() {
+        GLASS.build(this);
     }
 
     vfunc_paint_target(node, paintContext) {
@@ -500,8 +506,7 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
                 this._frame = key;
                 // Clutter grows an effect's frame by 2 px at the top left and 1 px at the bottom right.
                 const ox = Math.ceil((w - a.width) / 2), oy = Math.ceil((h - a.height) / 2);
-                for (const [k, v] of Object.entries({tex_w: w, tex_h: h, org_x: ox, org_y: oy}))
-                    this.set_uniform_value(k, v + 1e-6);
+                GLASS.set(this, {tex_w: w, tex_h: h, org_x: ox, org_y: oy});
             }
         }
         super.vfunc_paint_target(node, paintContext);
@@ -538,9 +543,7 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
     }
 
     setFloats(values) {
-        // A whole number would reach GL as an int uniform; nudge it to a float.
-        for (const [name, v] of Object.entries(values))
-            this.set_uniform_value(name, Number.isInteger(v) ? v + 1e-6 : v);
+        GLASS.set(this, values);
         this.queue_repaint();
     }
 });

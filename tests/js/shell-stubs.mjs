@@ -8,6 +8,7 @@ const STUBS = {
         source_remove: id => globalThis.fake.timeouts.remove(id),
         get_monotonic_time: () => globalThis.fake.now?.() ?? 0,
     };`,
+    'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}};",
     'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
     'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},
         ActorBox: class { constructor(b) { Object.assign(this, b); } },

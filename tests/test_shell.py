@@ -589,9 +589,10 @@ def test_high_contrast_makes_every_surface_solid(fake_env):
 
 
 def test_shader_never_tests_a_uniform_against_exactly_zero():
-    """setFloats() nudges whole numbers by 1e-6 (so they reach GL as floats), so a uniform
-    set to 0 arrives as 0.000001 and `u > 0.0` is true. 1.3.0 shipped `ceil_y > 0.0`, which
-    turned every pane with no ceiling into a ceiling of 0.000001: black glass."""
+    """1.3.0 nudged whole numbers by 1e-6 (so they reached GL as floats), so a uniform set to
+    0 arrived as 0.000001 and `ceil_y > 0.0` turned every pane with no ceiling into a ceiling
+    of 0.000001: black glass. Uniforms are typed floats now (glsl.js), so 0 is 0, but on/off
+    tests still use OFF so a value a hair above 0 stays off."""
     src = (rg.SOURCE / "glass.js").read_text(encoding="utf-8")
     shader = re.search(r"const SHADER = `(.*?)`;", src, re.S).group(1)
     uniforms = set(re.findall(r"^uniform float (\w+);", shader, re.M))
