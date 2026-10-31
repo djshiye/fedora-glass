@@ -565,3 +565,14 @@ def test_high_contrast_makes_every_surface_solid(fake_env):
     # The user's own setting is left alone: switching High Contrast off brings the glass back.
     fake_env.gs[("org.gnome.desktop.a11y.interface", None)] = {"high-contrast": "false"}
     assert not Engine(fake_env).context(Settings()).settings.reduce_transparency
+
+
+def test_shader_never_tests_a_uniform_against_exactly_zero():
+    """setFloats() nudges whole numbers by 1e-6 (so they reach GL as floats), so a uniform
+    set to 0 arrives as 0.000001 and `u > 0.0` is true. 1.3.0 shipped `ceil_y > 0.0`, which
+    turned every pane with no ceiling into a ceiling of 0.000001: black glass."""
+    src = (rg.SOURCE / "glass.js").read_text(encoding="utf-8")
+    shader = re.search(r"const SHADER = `(.*?)`;", src, re.S).group(1)
+    uniforms = set(re.findall(r"^uniform float (\w+);", shader, re.M))
+    bad = [m.group(0) for m in re.finditer(r"\b(\w+)\s*(?:>|<=)\s*0\.0\b", shader) if m.group(1) in uniforms]
+    assert not bad, bad
