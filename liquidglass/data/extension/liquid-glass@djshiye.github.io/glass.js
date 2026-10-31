@@ -87,6 +87,7 @@ uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = th
 
 // setFloats() nudges whole numbers by 1e-6 so they reach GL as floats, so a
 // uniform set to 0 arrives as 0.000001: test "is it on" against OFF, never 0.0.
+// The same goes for values computed from uniforms (bevel comes from refr_h).
 const float OFF = 0.001;
 const float IOR = 1.5;           // crown glass at 550 nm
 const float F0 = 0.04;           // ((IOR - 1) / (IOR + 1))^2, head-on reflectance
@@ -272,7 +273,7 @@ void main() {
     float slope = 0.0;
     float bevel = min(refr_h, 0.35 * min(h.x, h.y)) * (1.0 + 0.6 * tch);
     float x = 0.0;
-    if (bevel > 0.0 && inside < bevel) {
+    if (bevel > OFF && inside < bevel) {
         x = 1.0 - inside / bevel;                   // 1 at the edge, 0 on the flat top
         float z = sqrt(max(1.0 - x * x, 0.0));
         slope = x / max(z, 0.06);                   // -dz/dr of the rounded edge, outward
