@@ -7,6 +7,7 @@ const STUBS = {
         source_remove: id => globalThis.fake.timeouts.remove(id),
         get_monotonic_time: () => 0,
     };`,
+    'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}};",
     'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
     'gi/Clutter': 'export default {EVENT_PROPAGATE: false};',
     'gi/Graphene': 'export default {Point3D: class {}};',

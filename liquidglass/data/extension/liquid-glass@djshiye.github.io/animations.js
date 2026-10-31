@@ -29,6 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
+import {Shader} from './glsl.js';
 import {freezeSource, thawSource} from './glass.js';
 
 const WM_SIGNALS = ['map', 'minimize', 'unminimize', 'destroy'];
@@ -277,7 +278,6 @@ function capped(fn, cap) {
 // icon travel first, and each row narrows towards the icon (curves.js genieWarp is
 // the same maths run forwards). Inverting it per pixel needs no mesh.
 const GENIE_SHADER = `
-uniform sampler2D tex;
 uniform float tex_w, tex_h, org_x, org_y;
 uniform float win_x, win_y, win_w, win_h, ico_x, ico_y, ico_w, ico_h;
 uniform float progress, pinch, vertical, toward;
@@ -325,18 +325,20 @@ void main() {
         return;
     }
     vec2 src = v ? vec2(b, wa0 + along * wal) : vec2(wa0 + along * wal, b);
-    vec4 c = texture2D(tex, (src + vec2(org_x, org_y)) / vec2(tex_w, tex_h));
+    vec4 c = texture2D(cogl_sampler0, (src + vec2(org_x, org_y)) / vec2(tex_w, tex_h));
     cogl_color_out = c * clamp(edge + 1.0, 0.0, 1.0) * cogl_color_in.a;
 }
 `;
 
+const GENIE = new Shader(GENIE_SHADER);
+
 const GenieEffect = GObject.registerClass(
-class LiquidGlassGenie extends Clutter.ShaderEffect {
+class LiquidGlassGenie extends Shell.GLSLEffect {
     _init(win, icon, intensity) {
         super._init();
-        // Per instance: a static (per-class) shader shares its uniforms between
-        // copies on GNOME 50, so two overlapping minimizes would cross-wire.
-        this.set_shader_source(GENIE_SHADER);
+        // One program for all copies, but each copy has its own uniforms (a
+        // Shell.GLSLEffect copies the class pipeline per instance), so two
+        // overlapping minimizes do not cross-wire.
         this._frame = '';
         const vertical = Math.abs(icon.y + icon.height / 2 - win.y - win.height / 2) >=
             Math.abs(icon.x + icon.width / 2 - win.x - win.width / 2);
@@ -347,10 +349,12 @@ class LiquidGlassGenie extends Clutter.ShaderEffect {
             pinch: C.geniePinch(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
     }
 
+    vfunc_build_pipeline() {
+        GENIE.build(this);
+    }
+
     _set(values) {
-        // A whole number would reach GL as an int uniform; nudge it to a float.
-        for (const [k, v] of Object.entries(values))
-            this.set_uniform_value(k, Number.isInteger(v) ? v + 1e-6 : v);
+        GENIE.set(this, values);
     }
 
     setProgress(p) {
