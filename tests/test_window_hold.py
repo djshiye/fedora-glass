@@ -15,8 +15,9 @@ NODE = shutil.which("node")
 EXT = rg.SOURCE
 
 
-def test_hold_module_is_installed():
-    assert "hold.js" in rg.FILES and (EXT / "hold.js").is_file()
+def test_hold_modules_are_installed():
+    for f in ("hold.js", "holdstate.js"):
+        assert f in rg.FILES and (EXT / f).is_file()
 
 
 def test_glass_manager_starts_and_stops_the_hold():
@@ -31,13 +32,14 @@ def test_held_panes_skip_rerendering_and_catch_up_once():
     assert "flags & ~dirty" in src and "this._picture === size" in src
     # Our own window animations hold too, and the hold always ends.
     assert "holdPanes(actor);" in src and "releasePanes(actor);" in src
-    assert "HOLD_LIMIT_MS" in src and "releaseAllPanes()" in src
+    assert "new HoldState(" in src and "HOLD_LIMIT_MS" in (EXT / "holdstate.js").read_text()
 
 
 @pytest.mark.skipif(NODE is None, reason="needs Node.js")
 def test_window_animations_hold_and_release_the_glass():
     r = subprocess.run(
-        [NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/window-animation-hold.test.mjs"],
+        [NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/window-animation-hold.test.mjs",
+         "tests/js/hold-limit.test.mjs"],
         cwd=ROOT, capture_output=True, text=True, timeout=60,
     )
     assert r.returncode == 0, r.stdout + r.stderr

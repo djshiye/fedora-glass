@@ -25,6 +25,8 @@ export class WindowAnimationHold {
         this._animating = new Map();   // window actor -> its signal ids
         this._pending = new Set();
         this._later = 0;
+        // Not GNOME's own handlers, so animations.js never blocks these: they see every
+        // effect, whichever of GNOME or the Liquid Glass animations plays it.
         this._ids = Object.keys(EFFECTS).map(s => global.window_manager.connect(s, (_wm, actor) => this._event(actor)));
     }
 

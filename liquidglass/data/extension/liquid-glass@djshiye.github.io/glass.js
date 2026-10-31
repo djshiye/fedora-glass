@@ -27,6 +27,8 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
+import {HoldState} from './holdstate.js';
+
 const SHADER = `
 uniform sampler2D tex;
 uniform float width;
@@ -631,35 +633,40 @@ export function windowLanded(r) {
 // re-renders: each keeps its last picture, and one that went stale renders once
 // when the last of them ends. On software GL a window-sized pane takes 40-150 ms
 // to render, so re-rendering during the animation turned each such frame into a
-// stall. The hold has a time limit, so the glass never stays behind for long if
-// the end of an animation is missed.
-export const HOLD_LIMIT_MS = 1500;
-const holders = new Set();
+// stall. The hold has a hard time limit (holdstate.js), so the glass never stays
+// behind for long, however many animations follow each other.
 const CATCH_UP_STEP_MS = 100;   // the longest a pane waits for the one before it
-let held = false;
-let holdTimer = 0;
-let holding = true;
+let held = false;               // panes are held (also while catching up)
 let catchUp = null;
+const hold = new HoldState(startHold, letGo);
 
 // For QA: compare with and without the hold in one session.
 export function qaHold(on) {
-    holding = Boolean(on);
-    if (!holding)
+    hold.enabled = Boolean(on);
+    if (!hold.enabled)
         releaseAllPanes(true);
 }
 
-/** Hold the glass for `key` (a window or icon actor) until releasePanes(key). */
+/** Hold the glass for `key` (a window or icon actor) until releasePanes(key), at most HOLD_LIMIT_MS. */
 export function holdPanes(key) {
-    if (!holding)
-        return;
-    holders.add(key);
-    if (holdTimer)
-        GLib.source_remove(holdTimer);
-    holdTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, HOLD_LIMIT_MS, () => {
-        holdTimer = 0;
-        releaseAllPanes();
-        return GLib.SOURCE_REMOVE;
-    });
+    hold.hold(key);
+}
+
+export function releasePanes(key) {
+    hold.release(key);
+}
+
+/** Let the glass go now; with `now` (turning off), skip the one-per-frame catch-up. */
+export function releaseAllPanes(now = false) {
+    if (hold.held) {
+        hold.releaseAll(now);
+    } else if (now && held) {
+        stopCatchUp();
+        endHold();
+    }
+}
+
+function startHold() {
     stopCatchUp();
     held = true;
     for (const p of panes) {
@@ -668,24 +675,12 @@ export function holdPanes(key) {
     }
 }
 
-export function releasePanes(key) {
-    if (holders.delete(key) && !holders.size)
-        releaseAllPanes();
-}
-
 /**
- * Let the glass go. Panes that went stale render one per frame, so the frame
- * after an animation lands doesn't take all of their renders at once; with
- * `now` (turning off), all at once.
+ * Panes that went stale render one per frame, so the frame after an animation
+ * lands doesn't take all of their renders at once; with `now`, all at once.
  */
-export function releaseAllPanes(now = false) {
-    holders.clear();
-    if (holdTimer)
-        GLib.source_remove(holdTimer);
-    holdTimer = 0;
+function letGo(now) {
     stopCatchUp();
-    if (!held)
-        return;
     const stale = [...panes].filter(p => p._glass._stale);
     if (now || !stale.length) {
         endHold();
