@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..color import BLACK, WHITE, Color
 from ..palette import Tokens
+from ..radius import scale
 from .terminal import derive
 
 # ---- small text editors that keep the user's own lines ----------------------
@@ -338,7 +339,7 @@ def _discord_vars(t: Tokens) -> str:
 
 
 def discord_css(dark: Tokens, light: Tokens) -> str:
-    r, rs = dark.radius, dark.radius_small
+    sc = scale(dark.radius)
     return f"""/**
  * @name Liquid Glass
  * @description Translucent glass surfaces that follow the Liquid Glass settings.
@@ -354,8 +355,10 @@ def discord_css(dark: Tokens, light: Tokens) -> str:
 }}
 
 :root {{
-  --lg-radius: {r}px;
-  --lg-radius-small: {rs}px;
+  --lg-r-xs: {sc["xs"]}px;
+  --lg-r-s: {sc["s"]}px;
+  --lg-r-m: {sc["m"]}px;
+  --lg-r-l: {sc["l"]}px;
 }}
 
 /* Discord's own palette, mapped onto the glass surfaces (old and new variable names). */
@@ -421,20 +424,32 @@ html, body, #app-mount, .appAsidePanelWrapper_a3002d, .app_a3002d {{
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
 }}
 [class*="sidebar_"], [class*="membersWrap_"] {{
-  border-radius: var(--lg-radius);
+  border-radius: var(--lg-r-m);
 }}
 [class*="chat_"] > [class*="content_"] {{
-  border-radius: var(--lg-radius) 0 0 0;
+  border-radius: var(--lg-r-l) 0 0 0;
 }}
-[class*="channelTextArea_"], [class*="searchBar_"], [class*="searchBar__"] {{
-  border-radius: calc(var(--lg-radius) + 4px);
+[class*="channelTextArea_"] {{
+  border-radius: var(--lg-r-s);
+  box-shadow: inset 0 1px 0 var(--lg-rim);
+}}
+[class*="searchBar_"], [class*="searchBar__"] {{
+  border-radius: 999px;
   box-shadow: inset 0 1px 0 var(--lg-rim);
 }}
 [class*="button_"][class*="colorBrand"], [class*="lookFilled_"][class*="colorBrand"] {{
-  border-radius: 999px;
+  border-radius: var(--lg-r-s);
 }}
-[class*="layer_"] [class*="menu_"], [class*="popout_"], [class*="modal_"], [class*="tooltip_"] {{
-  border-radius: var(--lg-radius-small);
+[class*="layer_"] [class*="menu_"], [class*="popout_"] {{
+  border-radius: var(--lg-r-m);
+  box-shadow: inset 0 1px 0 var(--lg-rim), 0 12px 32px var(--lg-shadow);
+}}
+[class*="modal_"] {{
+  border-radius: var(--lg-r-l);
+  box-shadow: inset 0 1px 0 var(--lg-rim), 0 12px 32px var(--lg-shadow);
+}}
+[class*="tooltip_"] {{
+  border-radius: var(--lg-r-xs);
   box-shadow: inset 0 1px 0 var(--lg-rim), 0 12px 32px var(--lg-shadow);
 }}
 """
@@ -467,14 +482,15 @@ def _obsidian_vars(t: Tokens) -> str:
 
 
 def obsidian_css(dark: Tokens, light: Tokens) -> str:
+    sc = scale(dark.radius)
     return f"""/* Liquid Glass for Obsidian. Colours come from the Liquid Glass tokens. */
 body {{
-  --radius-s: {dark.radius_small}px;
-  --radius-m: {max(8, dark.radius // 2)}px;
-  --radius-l: {dark.radius}px;
-  --radius-xl: {dark.radius + 6}px;
-  --input-radius: 999px;
-  --button-radius: 999px;
+  --radius-s: {sc["xs"]}px;
+  --radius-m: {sc["s"]}px;
+  --radius-l: {sc["m"]}px;
+  --radius-xl: {sc["l"]}px;
+  --input-radius: {sc["s"]}px;
+  --button-radius: {sc["s"]}px;
   --accent-h: {_hsl_h(dark.accent)};
 }}
 .theme-dark {{
@@ -494,7 +510,12 @@ body {{
   border: 1px solid var(--background-modifier-border);
   box-shadow: inset 0 1px 0 var(--lg-rim), 0 12px 32px var(--background-modifier-box-shadow);
 }}
-button, input[type="text"], input[type="search"], .dropdown, select {{
+.modal {{ border-radius: var(--radius-xl); }}
+.tooltip {{ border-radius: var(--radius-s); }}
+button, input[type="text"], .dropdown, select {{
+  border-radius: var(--button-radius);
+}}
+input[type="search"] {{
   border-radius: 999px;
 }}
 .workspace-tab-header.is-active {{
@@ -531,48 +552,48 @@ def qt_qss(t: Tokens) -> str:
     btn = _o(t.window_chrome.mix(t.fg, 0.08))
     btn_h = _o(t.window_chrome.mix(t.fg, 0.15))
     edge = _o(win.mix(t.fg, 0.14))
-    r = t.window_radius
-    rs = max(4, round(r * 0.6))
+    sc = scale(t.window_radius)
+    xs, rs, rm = sc["xs"], sc["s"], sc["m"]     # menu items and tabs / buttons and fields / menus and panes
     dim = _o(t.fg.mix(win, 0.35))
     return f"""/* Liquid Glass */
 QWidget {{ color: {t.fg.hex6}; }}
 QMainWindow, QDialog {{ background: {win.hex6}; }}
 QMenuBar {{ background: {chrome.hex6}; }}
-QMenuBar::item {{ padding: 4px 10px; border-radius: {rs}px; background: transparent; }}
+QMenuBar::item {{ padding: 4px 10px; border-radius: {xs}px; background: transparent; }}
 QMenuBar::item:selected {{ background: {btn_h.hex6}; }}
-QMenu {{ background: {_o(t.popover).hex6}; border: 1px solid {edge.hex6}; border-radius: {rs}px; padding: 4px; }}
-QMenu::item {{ padding: 5px 20px; border-radius: {max(3, rs - 2)}px; }}
+QMenu {{ background: {_o(t.popover).hex6}; border: 1px solid {edge.hex6}; border-radius: {rm}px; padding: 4px; }}
+QMenu::item {{ padding: 5px 20px; border-radius: {xs}px; }}
 QMenu::item:selected {{ background: {t.accent.hex6}; color: {t.accent_fg.hex6}; }}
 QMenu::separator {{ height: 1px; background: {edge.hex6}; margin: 4px 8px; }}
 QToolBar, QStatusBar {{ background: {chrome.hex6}; border: none; }}
-QPushButton, QToolButton {{ background: {btn.hex6}; border: 1px solid {edge.hex6}; border-radius: {rs + 4}px; padding: 5px 14px; }}
+QPushButton, QToolButton {{ background: {btn.hex6}; border: 1px solid {edge.hex6}; border-radius: {rs}px; padding: 5px 14px; }}
 QToolButton {{ padding: 4px 8px; }}
 QPushButton:hover, QToolButton:hover {{ background: {btn_h.hex6}; }}
 QPushButton:pressed, QToolButton:pressed, QPushButton:default {{ background: {t.accent.hex6}; color: {t.accent_fg.hex6}; }}
 QPushButton:disabled, QToolButton:disabled {{ color: {dim.hex6}; }}
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit, QTextEdit {{
-  background: {base.hex6}; border: 1px solid {edge.hex6}; border-radius: {rs + 4}px; padding: 4px 8px;
+  background: {base.hex6}; border: 1px solid {edge.hex6}; border-radius: {rs}px; padding: 4px 8px;
   selection-background-color: {t.accent.hex6}; selection-color: {t.accent_fg.hex6}; }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 1px solid {t.accent.hex6}; }}
 QComboBox QAbstractItemView {{ background: {_o(t.popover).hex6}; border: 1px solid {edge.hex6}; selection-background-color: {t.accent.hex6}; selection-color: {t.accent_fg.hex6}; }}
 QAbstractItemView {{ background: {base.hex6}; alternate-background-color: {_o(base.mix(t.fg, 0.04)).hex6};
-  border: 1px solid {edge.hex6}; border-radius: {rs}px; selection-background-color: {t.accent.hex6}; selection-color: {t.accent_fg.hex6}; }}
+  border: 1px solid {edge.hex6}; border-radius: {rm}px; selection-background-color: {t.accent.hex6}; selection-color: {t.accent_fg.hex6}; }}
 QHeaderView::section {{ background: {chrome.hex6}; border: none; border-right: 1px solid {edge.hex6}; padding: 4px 8px; }}
-QTabWidget::pane {{ border: 1px solid {edge.hex6}; border-radius: {rs}px; top: -1px; }}
-QTabBar::tab {{ background: transparent; padding: 6px 14px; border-radius: {rs}px; margin: 2px; }}
+QTabWidget::pane {{ border: 1px solid {edge.hex6}; border-radius: {rm}px; top: -1px; }}
+QTabBar::tab {{ background: transparent; padding: 6px 14px; border-radius: {xs}px; margin: 2px; }}
 QTabBar::tab:selected {{ background: {t.accent.hex6}; color: {t.accent_fg.hex6}; }}
 QTabBar::tab:hover:!selected {{ background: {btn.hex6}; }}
-QGroupBox {{ border: 1px solid {edge.hex6}; border-radius: {rs}px; margin-top: 10px; padding-top: 8px; }}
+QGroupBox {{ border: 1px solid {edge.hex6}; border-radius: {rm}px; margin-top: 10px; padding-top: 8px; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; }}
-QProgressBar {{ background: {btn.hex6}; border: none; border-radius: {rs}px; text-align: center; }}
-QProgressBar::chunk {{ background: {t.accent.hex6}; border-radius: {rs}px; }}
+QProgressBar {{ background: {btn.hex6}; border: none; border-radius: {xs}px; text-align: center; }}
+QProgressBar::chunk {{ background: {t.accent.hex6}; border-radius: {xs}px; }}
 QScrollBar:vertical {{ background: transparent; width: 12px; margin: 2px; }}
 QScrollBar:horizontal {{ background: transparent; height: 12px; margin: 2px; }}
 QScrollBar::handle {{ background: {_o(win.mix(t.fg, 0.25)).hex6}; border-radius: 4px; min-height: 24px; min-width: 24px; }}
 QScrollBar::handle:hover {{ background: {_o(win.mix(t.fg, 0.4)).hex6}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QSplitter::handle {{ background: {edge.hex6}; }}
-QToolTip {{ background: {_o(t.popover).hex6}; color: {t.fg.hex6}; border: 1px solid {edge.hex6}; border-radius: {rs}px; padding: 4px; }}
+QToolTip {{ background: {_o(t.popover).hex6}; color: {t.fg.hex6}; border: 1px solid {edge.hex6}; border-radius: {xs}px; padding: 4px; }}
 """
 
 

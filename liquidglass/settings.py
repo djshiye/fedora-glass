@@ -107,6 +107,11 @@ class Settings:
     # Ptyxis has its own light/dark switch, set to dark out of the box. Off unless the
     # user opts in: then Ptyxis follows GNOME's style; off again brings their own value back.
     terminal_follows_style: bool = False
+    # Qt apps' own title bars have fixed colours that no theme can reach. On, native Qt
+    # apps start through XWayland when they can, so GNOME draws their title bar with
+    # the same glass header as GTK apps. Off unless the user opts in: it can make Qt
+    # apps a little soft with fractional scaling. Flatpak apps are left alone.
+    qt_gnome_titlebars: bool = False
 
     # Animations, per event: {"open": {"preset": "spring", "intensity": 0.5, "speed": 1.0}, ...}.
     # A missing event or key uses MOTION_DEFAULTS.
@@ -114,6 +119,9 @@ class Settings:
     # Dash to Panel's own "Animate hovering app icons" is switched off so ours can run.
     # Only when the user asks; Restore original brings their setting back.
     motion_dtp_hover_off: bool = False
+    # One hover highlight that glides from icon to icon along the Dash to Panel taskbar,
+    # in place of Dash to Panel's own highlight on each icon.
+    hover_glide: bool = True
 
     # The glass lock screen, drawn by the same Shell extension. Only the wallpaper shows
     # through it; GNOME's own clock, password prompt and notifications stay as they are.
@@ -146,10 +154,11 @@ class Settings:
         s.bleed = _clamp(float(s.bleed), Settings.bleed)
         s.pointer_light = _clamp(float(s.pointer_light), Settings.pointer_light)
         s.liquid_motion = bool(s.liquid_motion)
+        s.hover_glide = bool(s.hover_glide)
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
-                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "start_on_desktop",
+                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars", "start_on_desktop",
                   "overview_off"):
             setattr(s, k, bool(getattr(s, k)))
         if s.opacity is not None:

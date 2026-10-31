@@ -13,13 +13,14 @@ from pathlib import Path
 
 from ..color import Color, lerp
 from ..palette import Tokens
+from ..radius import scale
 from ..settings import MOTION_EVENTS, Settings
 
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
-         "animations.js", "curves.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "prefs.js")
+         "animations.js", "curves.js", "glide.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "prefs.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -154,7 +155,7 @@ def config(s: Settings, t: Tokens) -> dict:
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
-        "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": max(8, t.window_radius),
+        "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": scale(t.window_radius)["l"],   # the same as the GTK window corners
                     "skip": list(WINDOW_SKIP), "look": _window_look(t, "windows"),
                     "terminalLook": _window_look(t, "terminal")},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
@@ -165,6 +166,8 @@ def config(s: Settings, t: Tokens) -> dict:
         "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
         "animations": {ev: s.motion_for(ev) for ev in MOTION_EVENTS},
+        # One hover highlight that glides along the Dash to Panel taskbar (glide.js).
+        "glide": {"enabled": s.hover_glide, "color": t.hover.css, "radius": scale(t.panel_radius)["xs"]},
     }
 
 

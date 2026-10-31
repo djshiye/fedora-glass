@@ -55,3 +55,35 @@ def fake_env(tmp_path, monkeypatch):
         monkeypatch.setenv(var, str(home / sub))
     monkeypatch.setenv("HOME", str(home))
     return FakeEnv(home)
+
+
+@pytest.fixture(scope="session")
+def qml(tmp_path_factory):
+    """The one QML engine for the whole test run, with one Backend registered as the
+    singleton, as the app does. Registering the singleton a second time in one process
+    breaks Qt's type registry: the next engine then rejects QtQuick.Effects types
+    ("Cannot assign object of type QQuickRectangularShadow to list property data"). So
+    every QML test, in any file, takes this fixture and never registers its own."""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    QtGui = pytest.importorskip("PySide6.QtGui")
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlEngine, qmlRegisterSingletonInstance
+
+    from liquidglass.engine import Engine
+    from liquidglass.gui import app as gui_app
+    from liquidglass.gui.backend import Backend
+    QtGui.QGuiApplication.instance() or QtGui.QGuiApplication([])
+    home = tmp_path_factory.mktemp("qml-home")
+    mp = pytest.MonkeyPatch()
+    for key, sub in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"), ("XDG_DATA_HOME", "data")):
+        mp.setenv(key, str(home / sub))
+    env = FakeEnv(home)
+    b = Backend(env=env, engine_factory=lambda: Engine(env, []),
+                settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
+    mp.undo()        # a session fixture: don't leave its home for the tests after it
+    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
+    engine = QQmlEngine()
+    engine.addImportPath(str(gui_app.QML_DIR))
+    engine.rootContext().setContextProperty("appIconUrl", QUrl())
+    yield engine

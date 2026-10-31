@@ -121,6 +121,7 @@ export function parse(text) {
     // Window and panel animations: unknown names fall back to the defaults, numbers are clamped.
     cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);
+    cfg.glide = cleanGlide(raw.glide);
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};
@@ -131,6 +132,20 @@ export function parse(text) {
             ? {...base, look: cleanLook(part.look, base.look)} : base;
     }
     return cfg;
+}
+
+// The hover highlight that glides along the taskbar. The colour goes into a
+// style string, so only plain rgba()/hex colours get through.
+const GLIDE_COLOR = /^(#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/;
+
+export function cleanGlide(raw) {
+    const g = raw && typeof raw === 'object' ? raw : {};
+    const radius = Number.isFinite(g.radius) ? Math.round(Math.min(48, Math.max(0, g.radius))) : 8;
+    return {
+        enabled: g.enabled === true,
+        color: typeof g.color === 'string' && GLIDE_COLOR.test(g.color) ? g.color : 'rgba(255,255,255,0.08)',
+        radius,
+    };
 }
 
 export class Config {

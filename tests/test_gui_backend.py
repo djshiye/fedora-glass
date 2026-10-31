@@ -89,6 +89,7 @@ def make_backend(app, home):
     return make
 
 
+
 def test_property_round_trips(make_backend):
     b = make_backend()
     cases = {"frost": 0.8, "scheme": "light", "accent": "purple", "tint": "#112233",
@@ -216,19 +217,33 @@ def test_plan_apply_revert(make_backend, home):
     assert b.property("hasBackup") is False
 
 
-def test_qml_loads(make_backend, home):
+def test_qml_loads(qml):
     """The whole window compiles and every component resolves."""
     from PySide6.QtCore import QUrl
-    from PySide6.QtQml import QQmlComponent, QQmlEngine, qmlRegisterSingletonInstance
+    from PySide6.QtQml import QQmlComponent
 
     from liquidglass.gui import app as gui_app
-    from liquidglass.gui.backend import Backend
-    b = make_backend()
-    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
-    engine = QQmlEngine()
-    engine.addImportPath(str(gui_app.QML_DIR))
-    engine.rootContext().setContextProperty("appIconUrl", QUrl())
-    comp = QQmlComponent(engine, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
+    comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
+    assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
+
+
+def test_popups_compile_on_glass(qml):
+    """A tooltip, a dropdown and the colour picker (all on PopupGlass) compile."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlComponent
+
+    from liquidglass.gui import app as gui_app
+    comp = QQmlComponent(qml)
+    comp.setData(b"""
+import QtQuick
+import LiquidGlass
+Item {
+    width: 400; height: 300
+    LgDropdown { model: [{ value: "a", label: "A", tip: "first" }]; value: "a"; tip: "pick" }
+    LgToolTip { shown: true; text: "hello" }
+    ColorPicker { }
+}
+""", QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "popups.qml")))
     assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
 
 
@@ -386,3 +401,4 @@ def test_replaced_files_show_a_reapply_note(make_backend, home):
     b.apply()
     assert b.waitIdle()
     assert b.property("lostNote") == ""
+

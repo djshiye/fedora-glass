@@ -18,6 +18,7 @@ import json
 from dataclasses import dataclass
 
 from .color import BLACK, WHITE, Color, lerp
+from .radius import scale
 from .settings import GNOME_ACCENTS, PARTS, Settings
 
 
@@ -54,6 +55,8 @@ class Tokens:
     success: Color
     warning: Color
     # Geometry and effects
+    # `radius` is the base of the corner ladder (radius.scale); the *_radius fields below are
+    # the base of each part's own ladder. radius_small is the ladder's "s" step (buttons, fields).
     radius: int
     radius_small: int
     blur_radius: int     # blur behind glass, px
@@ -244,7 +247,7 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
         success=Color.hex("#4ad48a" if dark else "#1f9d55"),
         warning=Color.hex("#f5c04f" if dark else "#b87a00"),
         radius=s.radius,
-        radius_small=max(4, round(s.radius * 0.6)),
+        radius_small=scale(s.radius)["s"],       # the buttons/fields step of the one radius scale
         blur_radius=int(blur),
         panel_radius=panel["radius"],
         menu_radius=menus["radius"],

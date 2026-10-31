@@ -38,13 +38,13 @@ C.Popup {
             anchors.fill: parent
             anchors.margins: -1
             anchors.topMargin: 6
-            radius: 26
+            radius: Theme.rL + 2
             color: Qt.rgba(0, 0, 0, Theme.dark ? 0.35 : 0.10)
             opacity: 0.6
         }
         Rectangle {
             anchors.fill: parent
-            radius: 24
+            radius: Theme.rL
             color: Theme.sheet
         }
     }

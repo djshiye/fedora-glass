@@ -344,6 +344,7 @@ class Backend(QObject):
     headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
     terminalColors = _p("terminal_colors", bool)
     terminalFollowsStyle = _p("terminal_follows_style", bool)
+    qtGnomeTitlebars = _p("qt_gnome_titlebars", bool)
     lockGlass = _p("lock_glass", bool)
     lockBlur = _p("lock_blur", int)
     lockDim = _p("lock_dim", float)
@@ -357,6 +358,7 @@ class Backend(QObject):
     startOnDesktop = _p("start_on_desktop", bool)
     overviewOff = _p("overview_off", bool)
     motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
+    hoverGlide = _p("hover_glide", bool)
     del _p
 
     # ---- animations ----------------------------------------------------------------

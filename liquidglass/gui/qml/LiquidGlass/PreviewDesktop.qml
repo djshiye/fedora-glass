@@ -33,11 +33,14 @@ Item {
     readonly property real brightness: ((t.blur_brightness || 1) - 1) * 0.35
     readonly property real saturation: reduceTransparency ? 0 : Math.min(1, root.vivid)
     readonly property bool windowsBlur: t.blur_app_windows !== undefined ? t.blur_app_windows : true
+    // The same corner ladder as liquidglass/radius.py (8/12/16/24 at base 18, scaled with the base).
+    function lad(base, name) { return Math.round({xs: 8, s: 12, m: 16, l: 24}[name] * base / 18) }
     readonly property real r: t.radius !== undefined ? t.radius : 18
     readonly property real rPanel: part("panel", "radius", r)
     readonly property real rMenu: part("arcmenu", "radius", r)
-    readonly property real rWin: part("windows", "radius", r)
-    readonly property real rs: t.radius_small !== undefined ? t.radius_small : 10
+    readonly property real rWin: lad(part("windows", "radius", r), "l")
+    readonly property real rXs: lad(r, "xs")
+    readonly property real rS: lad(r, "s")
     readonly property color fg: t.fg || "white"
     readonly property color fgDim: t.fg_dim || "white"
     readonly property color fgFaint: t.fg_faint || "white"
@@ -211,7 +214,7 @@ Item {
                             required property var modelData
                             required property int index
                             width: parent.width; height: root.u(38)
-                            radius: root.rs
+                            radius: root.rXs
                             color: index === 2 ? (root.t.selection || "transparent") : "transparent"
                             Row {
                                 x: root.u(12); anchors.verticalCenter: parent.verticalCenter
@@ -241,7 +244,7 @@ Item {
                     Rectangle {     // path bar
                         x: root.u(96); anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - root.u(96) - root.u(170); height: root.u(34)
-                        radius: Math.min(height / 2, root.rs)
+                        radius: Math.min(height / 2, root.rS)
                         color: root.t.card || "transparent"
                         Row {
                             x: root.u(12); anchors.verticalCenter: parent.verticalCenter
@@ -417,7 +420,7 @@ Item {
         width: root.width - 2 * root.u(root.margin)
         height: root.u(root.panelH)
         y: root.height - height - root.u(root.margin)
-        radius: root.floating ? Math.min(height / 2, root.u(root.rPanel + 6)) : 0
+        radius: root.floating ? Math.min(height / 2, root.u(root.lad(root.rPanel, "l"))) : 0
         tint: root.part("panel", "chrome", "transparent")
         shadowColor: root.floating ? (root.t.shadow || "transparent") : "transparent"
         shadowBlur: root.u(30)
@@ -430,7 +433,7 @@ Item {
             id: menuButton
             x: root.u(6); anchors.verticalCenter: parent.verticalCenter
             width: root.u(44); height: root.u(40)
-            radius: Math.min(height / 2, root.rs)
+            radius: Math.min(height / 2, root.rS)
             color: root.showMenu ? (root.t.active || "transparent") : "transparent"
             Icon {
                 anchors.centerIn: parent
@@ -455,7 +458,7 @@ Item {
                     Rectangle {
                         anchors.centerIn: parent
                         width: root.u(44); height: root.u(40)
-                        radius: Math.min(height / 2, root.rs)
+                        radius: Math.min(height / 2, root.rXs)
                         color: root.dark ? "#ffffff" : "#000000"
                         opacity: focused ? 0.08 : 0
                     }
@@ -502,7 +505,7 @@ Item {
         width: root.u(640); height: root.u(600)
         x: root.u(Math.max(8, root.margin))
         y: panel.y - height - root.u(10) + root.u(16) * (1 - root.menuProgress)
-        radius: root.rMenu + root.u(4)
+        radius: root.lad(root.rMenu, "m")
         tint: root.part("arcmenu", "popover", "transparent")
         shadowBlur: root.u(50)
         shadowY: root.u(14)
@@ -546,7 +549,7 @@ Item {
                     required property var modelData
                     required property int index
                     width: parent.width; height: root.u(50)
-                    radius: root.rs
+                    radius: root.rXs
                     color: index === 1 ? (root.t.hover || "transparent") : "transparent"
                     Row {
                         x: root.u(10); anchors.verticalCenter: parent.verticalCenter

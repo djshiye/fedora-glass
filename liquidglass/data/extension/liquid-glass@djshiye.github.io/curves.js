@@ -321,3 +321,18 @@ export function union(a, b) {
     const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
     return {x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y};
 }
+
+/**
+ * One step of a damped spring towards `to` (stiffness k, damping c), integrated in
+ * 8 ms sub-steps so long frames stay stable. Used by the press and open springs
+ * (motion.js) and the gliding taskbar highlight (glide.js).
+ */
+export function springStep(x, v, to, k, c, dt) {
+    const steps = Math.max(1, Math.ceil(dt / 0.008));
+    const h = dt / steps;
+    for (let i = 0; i < steps; i++) {
+        v += (k * (to - x) - c * v) * h;
+        x += v * h;
+    }
+    return [x, v];
+}

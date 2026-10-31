@@ -26,7 +26,7 @@ Card {
             visible: Backend.headerNote !== ""
             width: parent.width
             height: noteCol.implicitHeight + 24
-            radius: 12
+            radius: Theme.rS
             color: Theme.well
             Column {
                 id: noteCol
@@ -99,7 +99,7 @@ Card {
             visible: own
             width: parent.width
             height: termCol.implicitHeight + 24
-            radius: 12
+            radius: Theme.rS
             color: Theme.well
             Column {
                 id: termCol
@@ -146,6 +146,39 @@ Card {
             tip: "Terminal has its own light/dark setting, which starts out dark. Turn this on and Terminal follows GNOME's light or dark style like your other apps. Turn it off, or Restore original, and Terminal goes back to your own setting."
             checked: Backend.terminalFollowsStyle
             onToggled: (on) => Backend.terminalFollowsStyle = on
+        }
+        SwitchRow {
+            objectName: "qtGnomeTitlebars"
+            width: parent.width
+            label: "Qt apps get the same title bar"
+            caption: "For apps like qBittorrent. Applies after you log out and back in"
+            tip: "Qt apps draw their own title bar in fixed colours that no theme can change. Turn this on and they open through GNOME's X11 support instead, so GNOME draws their title bar exactly like your other apps. Two trade-offs: through X11 an app is less sealed off than on Wayland, so other X11 apps can see what you type into it, and with fractional scaling (such as 125%) it can look slightly soft. Flatpak apps keep their own bar. Turn it off, or Restore original, to go back."
+            checked: Backend.qtGnomeTitlebars
+            onToggled: (on) => Backend.qtGnomeTitlebars = on
+        }
+        // While it is on, the trade-off stays in view, not only in the tooltip.
+        Rectangle {
+            objectName: "qtGnomeTitlebarsNote"
+            visible: Backend.qtGnomeTitlebars
+            width: parent.width
+            height: visible ? qtNote.implicitHeight + 20 : 0
+            radius: Theme.rS
+            color: Theme.alpha(Theme.warn, Theme.dark ? 0.10 : 0.12)
+            Row {
+                id: qtNote
+                x: 12; y: 10
+                width: parent.width - 24
+                spacing: 10
+                Icon { name: "alert"; color: Theme.warn; size: 18 }
+                Text {
+                    width: parent.width - 28
+                    wrapMode: Text.WordWrap
+                    color: Theme.text
+                    font.pixelSize: Theme.fsSmall
+                    lineHeight: 1.15
+                    text: "X11 keeps apps less separated: other X11 apps can see what you type in them. Leave this off if you use a Qt password manager such as KeePassXC."
+                }
+            }
         }
     }
 }

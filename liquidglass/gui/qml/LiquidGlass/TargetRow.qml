@@ -52,7 +52,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     height: 20
                     width: naLabel.implicitWidth + 16
-                    radius: 10
+                    radius: height / 2
                     color: Theme.well
                     Text { id: naLabel; anchors.centerIn: parent; text: "Not available"; color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
                 }
@@ -61,7 +61,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     height: 20
                     width: offLabel.implicitWidth + 16
-                    radius: 10
+                    radius: height / 2
                     color: Theme.alpha(Theme.warn, 0.16)
                     Text { id: offLabel; anchors.centerIn: parent; text: "Off"; color: Theme.warn; font.pixelSize: 11; font.weight: Font.DemiBold }
                 }
@@ -113,9 +113,9 @@ Item {
                     }
                 }
                 background: Rectangle {
-                    radius: 8
+                    radius: Theme.rXs
                     color: notesToggle.hovered ? Theme.hover : "transparent"
-                    FocusRing { target: notesToggle; radius: 10; gap: 1 }
+                    FocusRing { target: notesToggle; radius: Theme.rXs + 2; gap: 1 }
                 }
             }
             Column {
@@ -128,7 +128,7 @@ Item {
                         required property string modelData
                         width: parent.width
                         height: noteText.height + 16
-                        radius: 10
+                        radius: Theme.rS
                         color: Theme.well
                         Icon { x: 10; y: 9; name: "info"; size: 15; color: Theme.textDim }
                         TextEdit {      // selectable, so commands and theme strings can be copied

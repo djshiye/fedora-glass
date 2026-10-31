@@ -2,16 +2,26 @@
 // gi:// and resource:// imports, and the GPU glass itself, become the stubs below.
 const STUBS = {
     'gi/GLib': `export default {
-        PRIORITY_HIGH: 0, SOURCE_REMOVE: false,
+        PRIORITY_HIGH: 0, PRIORITY_DEFAULT: 0, PRIORITY_DEFAULT_IDLE: 0, SOURCE_REMOVE: false,
         timeout_add: (_p, ms, fn) => globalThis.fake.timeouts.add(ms, fn),
+        idle_add: (_p, fn) => globalThis.fake.timeouts.add(0, fn),
         source_remove: id => globalThis.fake.timeouts.remove(id),
-        get_monotonic_time: () => 0,
+        get_monotonic_time: () => globalThis.fake.now?.() ?? 0,
     };`,
     'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}};",
     'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
-    'gi/Clutter': 'export default {EVENT_PROPAGATE: false};',
+    'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},
+        ActorBox: class { constructor(b) { Object.assign(this, b); } },
+        Actor: globalThis.fake.Actor ?? class {}};`,
+    'gi/Shell': `export default {
+        AppSystem: {get_default: () => globalThis.fake.appSystem},
+        WindowTracker: {get_default: () => globalThis.fake.windowTracker},
+    };`,
     'gi/Graphene': 'export default {Point3D: class {}};',
-    'gi/St': 'export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3}};',
+    'gi/Gio': 'export default {};',
+    'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},
+        Settings: {get: () => globalThis.fake.stSettings},
+        Widget: globalThis.fake.Widget ?? class {}};`,
     'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
@@ -22,6 +32,7 @@ const STUBS = {
         setLook() { if (globalThis.fake.glassFails) throw new Error('forced test failure'); }
         setSources() {} setEdges() {} place() {} setMotion() {}
     }
+    export const DEFAULT_LOOK = {};
     export function windowLanded() {}
     export function holdPanes(key) { globalThis.fake.holds?.push(['hold', key]); }
     export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }`,
