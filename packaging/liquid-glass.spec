@@ -8,6 +8,9 @@ Source0:        %{url}/archive/v%{version}/fedora-liquid-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
+# For the tests in %check.
+BuildRequires:  python3-pytest
+BuildRequires:  python3-gobject
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
@@ -66,6 +69,10 @@ UNIT
 install -Dm644 /dev/stdin %{buildroot}%{_userpresetdir}/80-liquid-glass.preset <<'PRESET'
 enable liquid-glass-watch.service
 PRESET
+
+%check
+# The same tests a GitHub release runs: a build that fails them never reaches dnf.
+python3 -m pytest -q tests
 
 %post
 %systemd_user_post liquid-glass-watch.service
