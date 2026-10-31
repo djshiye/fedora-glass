@@ -154,6 +154,39 @@ for (const [p, I, icon] of [0.3, 0.6, 0.85].flatMap(p => [[p, 0.5, below], [p, 0
         }
     }
 }
+// A second, shorter monitor to the right (1280x800 at x 1600, its panel lower than the
+// first's): a window above its icon there pours into that icon and never leaves it.
+{
+    const mon = {x: 1600, y: 0, width: 1280, height: 800}, ico = {x: 1672, y: 744, width: 72, height: 48};
+    const icx = ico.x + ico.width / 2, icy = ico.y + ico.height / 2;
+    for (const w of [{x: 1650, y: 150, width: 800, height: 450}, {x: 1620, y: 60, width: 1200, height: 640},
+        {x: 2300, y: 100, width: 560, height: 500}, {x: 1610, y: 300, width: 400, height: 300}]) {
+        for (const I of [0, 0.5, 1]) {
+            for (const p of [0.6, 0.85]) {
+                // The tail: the twentieth of the window nearest the icon, its centre (the
+                // bottom when the icon is below it, the side facing it when it is beside it).
+                const [wcx, wcy] = [w.x + w.width / 2, w.y + w.height / 2];
+                const below = Math.abs(icy - wcy) >= Math.abs(icx - wcx);
+                const [sx, sy] = below ? [wcx, w.y + 0.95 * w.height]
+                    : [icx < wcx ? w.x + 0.05 * w.width : w.x + 0.95 * w.width, wcy];
+                const [tx, ty] = C.genieWarp(sx, sy, p, w, ico, I);
+                check(Math.abs(tx - icx) <= ico.width / 2 && Math.abs(ty - icy) <= ico.height / 2,
+                    `monitor 2 window at ${w.x} p=${p} I=${I}: the tail lands in the icon (${Math.round(tx)}, ${Math.round(ty)})`);
+            }
+            let out = 0;
+            for (let p = 0; p <= 1.0001; p += 0.05) {
+                for (let fx = 0; fx <= 1.0001; fx += 0.05) {
+                    for (let fy = 0; fy <= 1.0001; fy += 0.05) {
+                        const [x, y] = C.genieWarp(w.x + fx * w.width, w.y + fy * w.height, p, w, ico, I);
+                        if (x < mon.x - 1e-6 || x > mon.x + mon.width + 1e-6 || y < mon.y - 1e-6 || y > mon.y + mon.height + 1e-6)
+                            out++;
+                    }
+                }
+            }
+            check(out === 0, `monitor 2 window at ${w.x} I=${I}: no point leaves monitor 2 (${out} did)`);
+        }
+    }
+}
 // At the top the window is still full width at 0.3 (it narrows from the bottom up).
 check(near(C.genieWarp(win.x + win.width, win.y, 0.3, win, below)[0], win.x + win.width, 1e-6), 'genie: the far edge keeps its width early on');
 
