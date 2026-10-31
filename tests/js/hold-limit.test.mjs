@@ -1,5 +1,5 @@
-// The glass hold (holdstate.js) has a hard time limit: however the holds come,
-// the glass is let go within HOLD_LIMIT_MS of first being held.
+// The glass hold (holdstate.js): a hard time limit however the holds come, and a
+// catch-up that reaches every pane, the panel included, even under a stream of holds.
 import assert from 'node:assert/strict';
 import {test, beforeEach} from 'node:test';
 
@@ -12,7 +12,7 @@ class Clock {
     }
     add(ms, fn) {
         const id = this._next++;
-        this._due.set(id, {at: this.now + ms, fn});
+        this._due.set(id, {at: this.now + ms, every: ms, fn});
         return id;
     }
     remove(id) {
@@ -27,7 +27,7 @@ class Clock {
             this._due.delete(next[0]);
             this.now = next[1].at;
             if (next[1].fn())
-                this._due.set(next[0], {at: this.now + ms, fn: next[1].fn});
+                this._due.set(next[0], {...next[1], at: this.now + next[1].every});
         }
         this.now = end;
     }
@@ -38,71 +38,154 @@ class Clock {
 
 const clock = new Clock();
 globalThis.fake = {timeouts: clock};
-const {HoldState, HOLD_LIMIT_MS} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/holdstate.js');
+const {GlassHold, HOLD_LIMIT_MS, CATCH_UP_STEP_MS} =
+    await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/holdstate.js');
 
-let events, state;
-beforeEach(() => {
-    events = [];
-    state = new HoldState(() => events.push(['hold', clock.now]), now => events.push(['release', clock.now, now]));
-});
+const FRAME_MS = 60;   // software GL: a frame that renders glass is slow
 
-test('a key that is never released is let go at the limit', () => {
-    state.hold('stuck');
-    clock.advance(HOLD_LIMIT_MS - 1);
-    assert.equal(state.held, true);
-    clock.advance(1);
-    assert.equal(state.held, false);
-    assert.deepEqual(events, [['hold', 0], ['release', HOLD_LIMIT_MS, false]]);
-    assert.equal(clock.pending, 0);
-});
-
-test('a hold every 200 ms for 5 s never keeps the glass longer than the limit', () => {
-    const start = clock.now;
-    let n = 0;
-    for (let t = 0; t <= 5000; t += 200) {
-        state.hold(`effect ${n++}`);    // each short effect starts and never lands
-        clock.advance(200);
-    }
-    clock.advance(HOLD_LIMIT_MS);
-    // Held, let go, held again...: each stretch of hold is at most the limit long.
-    let since = null;
-    for (const [kind, at] of events) {
-        if (kind === 'hold') {
-            assert.equal(since, null, 'held twice without a release');
-            since = at;
-        } else {
-            assert.ok(at - since <= HOLD_LIMIT_MS, `held ${at - since} ms`);
-            since = null;
+// Fake panes: a held pane only goes stale; a pane that isn't held renders on the
+// next frame whenever something behind it changes.
+function setup(names = ['files', 'terminal', 'panel']) {
+    const panes = names.map((name, rank) => ({name, rank, stale: false, free: false, dirty: false, renders: 0,
+        renderedAt: [0]}));
+    const frames = new Map();
+    let nextFrame = 1;
+    const log = [];
+    const hold = new GlassHold({
+        panes: () => panes,
+        alive: p => panes.includes(p),
+        isStale: p => p.stale,
+        rank: p => p.rank,
+        keep: p => {
+            p.free = false;
+            log.push(['keep', p.name, clock.now]);
+        },
+        free: p => {
+            p.free = true;
+            p.stale = false;
+            p.dirty = true;
+            log.push(['free', p.name, clock.now]);
+        },
+        renders: p => p.renders,
+        afterFrame: fn => {
+            const id = nextFrame++;
+            frames.set(id, fn);
+            return id;
+        },
+        cancelFrame: id => frames.delete(id),
+        endAll: () => {
+            for (const p of panes) {
+                p.free = false;
+                if (p.stale) {
+                    p.stale = false;
+                    p.dirty = true;
+                }
+            }
+            log.push(['end', clock.now]);
+        },
+    });
+    const isHeld = p => hold.held && !p.free;
+    // Something behind every pane changes now and then.
+    const change = () => panes.forEach(p => (isHeld(p) ? (p.stale = true) : (p.dirty = true)));
+    // A frame: dirty panes that aren't held render.
+    clock.add(FRAME_MS, () => {
+        for (const p of panes) {
+            if (p.dirty && !isHeld(p)) {
+                p.dirty = false;
+                p.renders++;
+                p.renderedAt.push(clock.now);
+            }
         }
+        [...frames.values()].forEach(fn => fn());
+        return true;
+    });
+    return {panes, hold, log, change};
+}
+
+beforeEach(() => {
+    clock._due.clear();
+    clock.now = 0;
+});
+
+test('a key that is never released is let go at the limit and the panes catch up', () => {
+    const {panes, hold, change} = setup();
+    hold.hold('stuck');
+    change();
+    clock.advance(HOLD_LIMIT_MS - 1);
+    assert.equal(hold.holding, true);
+    assert.ok(panes.every(p => p.renders === 0), 'nothing renders while held');
+    clock.advance(1 + panes.length * CATCH_UP_STEP_MS);
+    assert.equal(hold.held, false);
+    assert.ok(panes.every(p => p.renders === 1), 'each pane renders once');
+});
+
+test('catch-up goes bottom window first, one pane per frame, panel last', () => {
+    const {panes, hold, log, change} = setup();
+    hold.hold('w');
+    change();
+    hold.release('w');
+    clock.advance(500);
+    assert.deepEqual(log.filter(e => e[0] === 'free').map(e => e[1]), ['files', 'terminal', 'panel']);
+    const at = panes.map(p => p.renderedAt[1]);
+    assert.ok(at[0] < at[1] && at[1] < at[2], `renders at ${at}`);
+    assert.equal(hold.held, false);
+});
+
+test('a hold every 200 ms for 5 s: every pane, panel included, keeps rendering', () => {
+    const {panes, hold, change} = setup(['files', 'terminal', 'editor', 'menu', 'panel']);
+    let n = 0;
+    const end = 5000;
+    clock.add(200, () => {
+        hold.hold(`effect ${n++}`);    // short effects that never report landing
+        return clock.now < end;
+    });
+    clock.add(50, () => {
+        change();
+        return clock.now < end + 3000;
+    });
+    clock.advance(end + 3000);
+    const bound = HOLD_LIMIT_MS + panes.length * CATCH_UP_STEP_MS + 2 * FRAME_MS;
+    for (const p of panes) {
+        const times = [...p.renderedAt, end + 3000];
+        for (let i = 1; i < times.length; i++)
+            assert.ok(times[i] - times[i - 1] <= bound, `${p.name} went ${times[i] - times[i - 1]} ms without rendering`);
+        assert.ok(p.renders >= 3, `${p.name} rendered ${p.renders} times`);
     }
-    assert.equal(since, null, 'still held at the end');
-    assert.ok(events.filter(e => e[0] === 'release').length >= 3, 'let go several times over 5 s');
-    assert.ok(events[1][1] - start <= HOLD_LIMIT_MS);
 });
 
-test('the last key released lets go at once and stops the limit', () => {
-    state.hold('a');
-    state.hold('b');
-    state.release('a');
-    assert.equal(state.held, true);
-    state.release('b');
-    assert.equal(state.held, false);
-    assert.equal(clock.pending, 0);
-    assert.deepEqual(events.map(e => e[0]), ['hold', 'release']);
-});
-
-test('turning off lets go now and forgets every key', () => {
-    state.hold('a');
-    state.releaseAll(true);
-    assert.deepEqual(events.at(-1), ['release', clock.now, true]);
-    state.release('a');    // a late release does nothing
-    assert.equal(events.length, 2);
-    assert.equal(clock.pending, 0);
+test('the last key released starts the catch-up; turning off lets go at once', () => {
+    const {panes, hold, log, change} = setup();
+    hold.hold('a');
+    hold.hold('b');
+    change();
+    hold.release('a');
+    assert.equal(hold.holding, true);
+    hold.release('b');
+    assert.equal(hold.holding, false);
+    assert.equal(hold.held, true, 'catching up');
+    hold.releaseAll(true);
+    assert.equal(hold.held, false);
+    assert.equal(log.at(-1)[0], 'end');
+    clock.advance(FRAME_MS);
+    assert.ok(panes.every(p => p.renders === 1));
 });
 
 test('disabled (QA), nothing is held', () => {
-    state.enabled = false;
-    state.hold('a');
-    assert.equal(state.held, false);
-    assert.deepEqual(events, []);
+    const {hold} = setup();
+    hold.enabled = false;
+    hold.hold('a');
+    assert.equal(hold.held, false);
+});
+
+test('manual steps (QA) let one pane go per step', () => {
+    const {hold, change} = setup();
+    hold.manual = true;
+    hold.hold('a');
+    change();
+    hold.release('a');
+    assert.equal(hold.step().name, 'files');
+    assert.equal(hold.step().name, 'terminal');
+    assert.equal(hold.step().name, 'panel');
+    assert.equal(hold.step(), null);
+    assert.equal(hold.held, false);
 });

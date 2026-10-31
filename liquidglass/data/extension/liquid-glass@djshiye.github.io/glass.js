@@ -27,7 +27,7 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
-import {HoldState} from './holdstate.js';
+import {GlassHold} from './holdstate.js';
 
 const SHADER = `
 uniform sampler2D tex;
@@ -492,7 +492,7 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
         // the right size shows it again instead of re-rendering: what changed
         // behind it is caught up in one render when the animation lands. The lens
         // still runs on the kept picture, so the pointer light and press stay live.
-        if ((flags & dirty) && held && !a?._free && this._picture === size) {
+        if ((flags & dirty) && hold.held && !a?._free && this._picture === size) {
             this._stale = true;
             this.held = (this.held ?? 0) + 1;    // read by the QA tools
             super.vfunc_paint(node, paintContext, flags & ~dirty);
@@ -634,16 +634,59 @@ export function windowLanded(r) {
 // to render, so re-rendering during the animation turned each such frame into a
 // stall. The hold has a hard time limit (holdstate.js), so the glass never stays
 // behind for long, however many animations follow each other.
-const CATCH_UP_STEP_MS = 100;   // the longest a pane waits for the one before it
-let held = false;               // panes are held (also while catching up)
-let catchUp = null;
-const hold = new HoldState(startHold, letGo);
+const hold = new GlassHold({
+    panes: () => panes,
+    alive: p => panes.has(p),
+    isStale: p => Boolean(p._glass._stale),
+    // Bottom window first; Shell surfaces (the panel, menus) sit above all windows.
+    rank: p => {
+        const order = global.get_window_actors();
+        let a = p;
+        while (a && !a.meta_window)
+            a = a.get_parent();
+        const i = a ? order.indexOf(a) : -1;
+        return i < 0 ? order.length : i;
+    },
+    keep: p => {
+        p._free = false;
+        p._syncClones();    // hides the copies of windows behind
+    },
+    free: p => {
+        p._free = true;
+        p._glass._stale = false;
+        p._syncClones();    // shows them again
+        p.queueFull();
+    },
+    renders: p => p._glass.renders ?? 0,
+    afterFrame: fn => global.stage.connect('after-paint', fn),
+    cancelFrame: id => global.stage.disconnect(id),
+    endAll: () => {
+        for (const p of panes) {
+            p._free = false;
+            p._syncClones();
+            if (p._glass._stale) {
+                p._glass._stale = false;
+                p.queueFull();
+            }
+        }
+    },
+});
 
 // For QA: compare with and without the hold in one session.
 export function qaHold(on) {
     hold.enabled = Boolean(on);
     if (!hold.enabled)
         releaseAllPanes(true);
+}
+
+// For QA frame strips: with steps on, the catch-up waits for qaCatchUpStep()
+// before each pane (the first included), so each step can be captured.
+export function qaCatchUp(steps) {
+    hold.manual = Boolean(steps);
+}
+
+export function qaCatchUpStep() {
+    return hold.step()?.name ?? 'done';
 }
 
 /** Hold the glass for `key` (a window actor) until releasePanes(key), at most HOLD_LIMIT_MS. */
@@ -655,133 +698,17 @@ export function releasePanes(key) {
     hold.release(key);
 }
 
-/** Let the glass go now; with `now` (turning off), skip the one-per-frame catch-up. */
+/** Let the glass go; with `now` (turning off), at once, without the one-per-frame catch-up. */
 export function releaseAllPanes(now = false) {
-    if (hold.held) {
-        hold.releaseAll(now);
-    } else if (now && held) {
-        stopCatchUp();
-        endHold();
-    }
-}
-
-function startHold() {
-    stopCatchUp();
-    held = true;
-    for (const p of panes) {
-        p._free = false;
-        p._syncClones();    // hides the copies of windows behind
-    }
-}
-
-/**
- * Panes that went stale render one per frame, so the frame after an animation
- * lands doesn't take all of their renders at once; with `now`, all at once.
- */
-function letGo(now) {
-    stopCatchUp();
-    const stale = [...panes].filter(p => p._glass._stale);
-    if (now || !stale.length) {
-        endHold();
-        return;
-    }
-    // Bottom window first: a window's glass shows the windows below it, glass included.
-    // Shell surfaces (the panel, menus) sit above all windows: last.
-    const order = global.get_window_actors();
-    const rank = p => {
-        let a = p;
-        while (a && !a.meta_window)
-            a = a.get_parent();
-        const i = a ? order.indexOf(a) : -1;
-        return i < 0 ? order.length : i;
-    };
-    stale.sort((a, b) => rank(a) - rank(b));
-    catchUp = {stale, pane: null, renders: 0, sig: 0, timer: 0};
-    if (!qaSteps)
-        catchUpNext();
-}
-
-// For QA frame strips: with steps on, the catch-up waits for qaCatchUpStep()
-// before each pane (the first included), so each step can be captured.
-let qaSteps = false;
-export function qaCatchUp(steps) {
-    qaSteps = Boolean(steps);
-}
-
-export function qaCatchUpStep() {
-    if (!catchUp)
-        return 'done';
-    catchUpNext();
-    return catchUp ? catchUp.pane?.name ?? '' : 'done';
+    hold.releaseAll(now);
 }
 
 export function panesHeld() {
-    return held;
+    return hold.held;
 }
 
-function endHold() {
-    held = false;
-    for (const p of panes) {
-        p._free = false;
-        p._syncClones();    // shows the copies again
-        if (p._glass._stale) {
-            p._glass._stale = false;
-            p.queueFull();
-        }
-    }
-}
 
-function stopCatchUp() {
-    if (!catchUp)
-        return;
-    if (catchUp.sig)
-        global.stage.disconnect(catchUp.sig);
-    if (catchUp.timer)
-        GLib.source_remove(catchUp.timer);
-    catchUp = null;
-}
 
-function catchUpNext() {
-    const c = catchUp;
-    while (c.stale.length && !panes.has(c.stale[0]))
-        c.stale.shift();   // destroyed meanwhile
-    const p = c.stale.shift();
-    if (!p) {
-        stopCatchUp();
-        endHold();
-        return;
-    }
-    p._free = true;
-    p._glass._stale = false;
-    p._syncClones();
-    p.queueFull();
-    c.pane = p;
-    c.renders = p._glass.renders ?? 0;
-    if (qaSteps)
-        return;
-    const next = () => {
-        if (catchUp !== c)
-            return;
-        if (c.sig)
-            global.stage.disconnect(c.sig);
-        c.sig = 0;
-        if (c.timer)
-            GLib.source_remove(c.timer);
-        c.timer = 0;
-        catchUpNext();
-    };
-    // On to the next pane once this one has rendered, or after a short wait (it may
-    // be off screen, and then it doesn't render).
-    c.sig = global.stage.connect('after-paint', () => {
-        if ((c.pane._glass.renders ?? 0) > c.renders)
-            next();
-    });
-    c.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, CATCH_UP_STEP_MS, () => {
-        c.timer = 0;
-        next();
-        return GLib.SOURCE_REMOVE;
-    });
-}
 
 export function stopMoving() {
     if (cheapTimer)
@@ -950,7 +877,7 @@ class LiquidGlassPane extends Clutter.Actor {
 
     /** Whether the pane is held and has a picture of its size to keep showing. */
     _kept() {
-        return held && !this._free && this._glass._picture === `${this.width}x${this.height}`;
+        return hold.held && !this._free && this._glass._picture === `${this.width}x${this.height}`;
     }
 
     _syncClones() {
