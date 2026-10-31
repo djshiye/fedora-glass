@@ -10,6 +10,7 @@ const STUBS = {
     };`,
     'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
     'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},
+        ActorBox: class { constructor(b) { Object.assign(this, b); } },
         Actor: globalThis.fake.Actor ?? class {}};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},

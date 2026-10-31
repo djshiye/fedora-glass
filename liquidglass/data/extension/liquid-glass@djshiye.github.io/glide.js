@@ -8,8 +8,10 @@
 // (the app does that), so there is never a second highlight.
 //
 // The tile is a child of the Dash to Panel panel actor, under its icons and over
-// its background. It never takes part in layout: it is placed with translations,
-// so moving it costs a redraw and nothing else. Nothing runs while the pointer is
+// its background. That panel lays out only its own children, so the tile gives
+// itself its allocation (a box at 0,0 of its size) and is moved with translations:
+// moving it costs a redraw and nothing else, and it stays shown at opacity 0 when
+// idle, so showing and hiding never asks the panel for a layout. Nothing runs while the pointer is
 // still: steps are scheduled before the next redraw only while a tile is moving.
 
 import Clutter from 'gi://Clutter';
@@ -70,11 +72,16 @@ class Tile {
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.START,
             opacity: 0,
-            visible: false,
         });
+        this.size = [0, 0];
+        this.allocLater = 0;
+        // Anything that asks for a new layout (a style change, a theme change)
+        // would leave it unallocated: give it its box again before the next frame.
+        this.relayoutId = this.actor.connect('queue-relayout', () => this.queueAllocate());
         this.restyle(look);
         // Under the icons (this.panel) and over the panel's own background.
         panel.insert_child_at_index(this.actor, 0);
+        this.allocate();
         this.pos = null;           // [x, y, w, h] now, in the panel's coordinates
         this.vel = [0, 0, 0, 0];
         this.goal = null;
@@ -88,6 +95,23 @@ class Tile {
 
     restyle(look) {
         this.actor.set_style(`background-color: ${look.color}; border-radius: ${look.radius}px;`);
+    }
+
+    allocate() {
+        if (this.gone)
+            return;
+        const [w, h] = this.size;
+        this.actor.allocate(new Clutter.ActorBox({x1: 0, y1: 0, x2: w, y2: h}));
+    }
+
+    queueAllocate() {
+        if (this.allocLater || this.gone)
+            return;
+        this.allocLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this.allocLater = 0;
+            this.allocate();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // Where the tile goes for `icon`, or null if that cannot be known now.
@@ -107,9 +131,15 @@ class Tile {
         if (this.leaveId)
             GLib.source_remove(this.leaveId);
         this.leaveId = 0;
+        if (this.allocLater)
+            global.compositor.get_laters().remove(this.allocLater);
+        this.allocLater = 0;
         if (this.goneId)
             this.panel.disconnect(this.goneId);
         this.goneId = 0;
+        if (this.relayoutId && !this.gone)
+            this.actor.disconnect(this.relayoutId);
+        this.relayoutId = 0;
         if (!this.gone)
             this.actor.destroy();
         this.gone = true;
@@ -246,7 +276,6 @@ export class HoverGlide {
             tile.vel = [0, 0, 0, 0];
         }
         tile.alphaTo = 1;
-        tile.actor.show();
         this._kick();
     }
 
@@ -330,18 +359,18 @@ export class HoverGlide {
         const a = tile.actor;
         if (tile.alpha <= 0 || !tile.pos) {
             a.opacity = 0;
-            a.hide();
             return;
         }
         const [x, y, w, h] = tile.pos.map(Math.round);
-        if (a.width !== w || a.height !== h)
-            a.set_size(w, h);
+        if (tile.size[0] !== w || tile.size[1] !== h) {
+            tile.size = [w, h];
+            tile.allocate();
+        }
         a.translation_x = x;
         a.translation_y = y;
         // Ease the fade so it reads as a soft arrival, not a linear ramp.
         const e = tile.alphaTo > 0 ? 1 - (1 - tile.alpha) ** 2 : tile.alpha ** 2;
         a.opacity = Math.round(255 * e);
-        a.show();
     }
 
     // Reduce animation, lock, or the extension going away: land at once.
@@ -385,7 +414,7 @@ export class HoverGlide {
             pos: t.pos?.map(v => Math.round(v * 10) / 10) ?? null,
             goal: t.goal?.map(Math.round) ?? null,
             alpha: Math.round(t.alpha * 100) / 100,
-            visible: t.actor.visible,
+            visible: t.actor.opacity > 0,
             moving: Boolean(this._later),
         }));
     }

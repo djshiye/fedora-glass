@@ -62,9 +62,10 @@ class Actor {
     transform_stage_point(x, y) {
         return [true, x - this.pos[0], y - this.pos[1]];
     }
-    set_size(w, h) {
-        this.width = w;
-        this.height = h;
+    allocate(box) {
+        this.width = box.x2 - box.x1;
+        this.height = box.y2 - box.y1;
+        this.allocated = true;
     }
     set_style(s) {
         this.style = s;
@@ -181,9 +182,15 @@ test('one tile per panel, under the icons, styled from the config', () => {
     g.update(LOOK);
     const tile = tileOf(panel);
     assert.ok(tile);
+    // A theme change asks for a new layout: the tile allocates itself again before the frame.
+    tile.allocated = false;
+    tile.emit('queue-relayout');
+    laters.run();
+    assert.ok(tile.allocated);
     assert.equal(panel.get_children()[0], tile);
     assert.match(tile.style, /background-color: rgba\(255,255,255,0.08\); border-radius: 8px;/);
-    assert.equal(tile.visible, false);
+    assert.equal(tile.opacity, 0, 'idle: shown at opacity 0, so it never asks for a layout');
+    assert.ok(tile.allocated, 'it gives itself an allocation');
     g.destroy();
     assert.equal(tileOf(panel), undefined);
 });
@@ -195,8 +202,9 @@ test('fades in on the first icon, glides to the next, fades out after leaving', 
     hover(icons[0], true);
     frames(1);
     const tile = tileOf(panel);
-    // Appears where the pointer is, not gliding in from elsewhere.
+    // Appears where the pointer is, not gliding in from elsewhere, at the icon's size.
     assert.equal(tile.translation_x, 4);
+    assert.deepEqual([tile.width, tile.height], [48, 40]);
     assert.ok(tile.opacity > 0 && tile.opacity < 255, 'fading in');
     frames(20);
     assert.equal(tile.opacity, 255);
@@ -219,7 +227,7 @@ test('fades in on the first icon, glides to the next, fades out after leaving', 
     frames(4);
     assert.ok(tile.opacity < 255);
     frames(40);
-    assert.equal(tile.visible, false);
+    assert.equal(tile.opacity, 0);
     assert.equal(laters.size, 0);
     g.destroy();
 });
