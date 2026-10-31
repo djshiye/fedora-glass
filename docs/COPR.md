@@ -69,3 +69,8 @@ and paste the new URL into the GitHub webhook.
 If a release's COPR build didn't start (the webhook was missing or failed), open the package on
 COPR, press **Rebuild**, and set **Committish** to the tag, for example `v1.3.1`. Building with an
 empty Committish fails on purpose, because `main` is not a release.
+
+Versions 1.3.1 and older have no `.copr/Makefile`, so they can't be built this way. For those, use
+**New build → From URLs** with the spec at that tag, for example
+`https://raw.githubusercontent.com/djshiye/fedora-liquid-glass/v1.3.1/packaging/liquid-glass.spec`.
+COPR then downloads the release tarball named in the spec.
