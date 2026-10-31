@@ -96,6 +96,8 @@ PRESET
   animations, each with Intensity and Speed
 - Glass lock screen with a slide-up sheet, adjustable in the app
 - Stop idle panel repaints while an app is asking for attention
+- Menus get their glass when first opened, and always show even if it fails
+- No stale bright patch in the panel glass after minimizing a window
 
 * Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.2.1-1
 - Fix GNOME Shell crashing when a window is closed with window glass on
