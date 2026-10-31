@@ -7,6 +7,7 @@ import St from 'gi://St';
 
 import {moving} from './glass.js';
 import {followers} from './common.js';
+import {springStep as spring} from './curves.js';
 
 // ---- motion: a light that follows the pointer, press and open springs --------------
 // Nothing runs while the pointer is still: a pointer event schedules one step
@@ -262,15 +263,4 @@ export class Motion {
             f.setMotion({k: 0, press: 0, open: 1});
         this._state.clear();
     }
-}
-
-// One step of a damped spring towards `to` (stiffness k, damping c).
-function spring(x, v, to, k, c, dt) {
-    const steps = Math.ceil(dt / 0.008);
-    const h = dt / steps;
-    for (let i = 0; i < steps; i++) {
-        v += (k * (to - x) - c * v) * h;
-        x += v * h;
-    }
-    return [x, v];
 }

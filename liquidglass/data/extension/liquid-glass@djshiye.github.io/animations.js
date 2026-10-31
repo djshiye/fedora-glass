@@ -30,6 +30,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as C from './curves.js';
 import {Signals} from './common.js';
 import {freezeSource, thawSource} from './glass.js';
+import {HoverGlide} from './glide.js';
 
 const WM_SIGNALS = ['map', 'minimize', 'unminimize', 'destroy'];
 // The parts of GNOME's window manager the window animations build on. They are
@@ -1110,6 +1111,7 @@ export class Animations {
         this.motion = cfg.animations;
         this.windows = new WindowAnimations(this);
         this.panel = new PanelAnimations(this);
+        this.glide = new HoverGlide();
         this._settings = St.Settings.get();
         // Reduce animation: everything lands where it is going, at once.
         this._animId = this._settings.connect('notify::enable-animations', () => {
@@ -1123,11 +1125,13 @@ export class Animations {
         this.motion = cfg.animations;
         this.windows.sync();
         this.panel.sync();
+        this.glide.update(cfg.glide);
     }
 
     finishAll() {
         this.windows.finishAll();
         this.panel.finishAll();
+        this.glide.settle();
         for (const actor of [...running.keys()])
             stop(actor, true);
     }
@@ -1142,6 +1146,7 @@ export class Animations {
                     this._settings.disconnect(this._animId);
                 this._animId = 0;
                 this.panel.destroy();
+                this.glide.destroy();
             } finally {
                 for (const actor of [...running.keys()])
                     stop(actor, true);

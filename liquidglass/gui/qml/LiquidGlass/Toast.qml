@@ -13,7 +13,7 @@ Rectangle {
     property bool shown: false
     width: Math.min(row.implicitWidth + 32, 640)
     height: 44
-    radius: 22
+    radius: Theme.rM
     color: Theme.sheet
     opacity: shown ? 1 : 0
     visible: opacity > 0

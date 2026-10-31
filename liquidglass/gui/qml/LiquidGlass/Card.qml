@@ -5,7 +5,7 @@ Rectangle {
     id: root
     property real padding: 20
     default property alias content: body.data
-    radius: Theme.rCard
+    radius: Theme.rM
     color: Theme.surface
     implicitHeight: body.childrenRect.height + 2 * padding
 

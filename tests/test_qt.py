@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import configparser
 import re
 import xml.etree.ElementTree as ET
@@ -191,3 +192,37 @@ def test_detect(fake_env, monkeypatch):
     monkeypatch.setattr(type(fake_env), "which", lambda self, name: None)
     d = t.detect(fake_env)
     assert not d.available and "dnf install kvantum" in d.detail
+
+
+def test_qt_title_bars_like_gnome_are_opt_in_and_fall_back_to_wayland(fake_env):
+    def env_file(**kw):
+        c = ctx(fake_env)
+        for k, v in kw.items():
+            setattr(c.settings, k, v)
+        (a,) = [a for a in qt.TARGETS[0].plan(c)
+                if isinstance(a, WriteFile) and a.path.name == "90-liquid-glass-qt.conf"]
+        return a.content
+    assert Settings().qt_gnome_titlebars is False
+    assert "QT_QPA_PLATFORM" not in env_file()
+    # XWayland first, Wayland if it is missing: never an app that cannot start.
+    assert env_file(qt_gnome_titlebars=True) == "QT_STYLE_OVERRIDE=kvantum\nQT_QPA_PLATFORM=xcb;wayland\n"
+    # Flatpak Qt apps are left alone: most can only use X11 when there is no Wayland.
+    (ov,) = [a for a in qt.TARGETS[0].plan(ctx(fake_env)) if isinstance(a, FlatpakOverride)]
+    assert all(k != "QT_QPA_PLATFORM" for k, _ in ov.env)
+
+
+def test_the_customizer_itself_stays_on_wayland():
+    src = (Path(__file__).resolve().parents[1] / "liquidglass/gui/app.py").read_text()
+    assert 'os.environ.get("QT_QPA_PLATFORM") == "xcb;wayland"' in src
+    assert 'os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"' in src
+
+
+def test_qt_title_bar_switch_names_the_x11_trade_off():
+    qml = (Path(__file__).resolve().parents[1] / "liquidglass/gui/qml/LiquidGlass/HeaderBarCard.qml").read_text()
+    tip = qml[qml.index('objectName: "qtGnomeTitlebars"'):]
+    assert "other X11 apps can see what you type" in tip and "fractional scaling" in tip
+    # Security council: the warning shows under the switch whenever it is on.
+    note = qml[qml.index('objectName: "qtGnomeTitlebarsNote"'):]
+    assert "visible: Backend.qtGnomeTitlebars" in note
+    assert ("X11 keeps apps less separated: other X11 apps can see what you type in them. "
+            "Leave this off if you use a Qt password manager such as KeePassXC.") in note

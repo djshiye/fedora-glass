@@ -14,7 +14,7 @@ stage {
 .calendar .calendar-month-header .pager-button {
   color: ${fg};
   border: 1px solid ${edge};
-  border-radius: 999px;
+  border-radius: ${r_s}px;
   box-shadow: inset 0 1px 0 0 ${rim};
   background-gradient-direction: vertical;
   background-gradient-start: ${ctrl_top};
@@ -64,7 +64,7 @@ stage {
 .message .message-header .message-close-button {
   color: ${fg};
   border: 1px solid ${edge};
-  border-radius: 999px;
+  border-radius: ${r_s}px;
   box-shadow: inset 0 1px 0 0 ${rim};
   background-gradient-direction: vertical;
   background-gradient-start: ${ctrl_top};
@@ -82,7 +82,7 @@ StEntry {
   color: ${fg_dim};
   background-color: ${field};
   border: 1px solid ${edge};
-  border-radius: 999px;
+  border-radius: ${r_s}px;
   box-shadow: inset 0 1px 2px 0 ${field_shadow}; }
 StEntry:hover {
   color: ${fg};
@@ -163,15 +163,15 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 #dashtopanelScrollview .overview-tile:hover .dtp-container,
 #dashtopanelScrollview .overview-tile:focus .dtp-container {
   background-color: ${hover};
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 #dashtopanelScrollview .overview-tile:active .dtp-container {
   background-color: ${active}; }
 #dashtopanelScrollview .overview-tile:hover .dtp-container > .dtp-dots-container,
 #dashtopanelScrollview .overview-tile:focus .dtp-container > .dtp-dots-container {
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 .dashtopanelMainPanel .dash-item-container .show-apps:hover {
   background-color: ${hover};
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 .dashtopanelMainPanel .dash-item-container .show-apps .overview-icon,
 .dashtopanelMainPanel .dash-item-container .show-apps .show-apps-icon {
   color: ${fg}; }
@@ -181,15 +181,18 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   color: ${accent_fg};
   background-color: ${accent}; }
 #dashtopanelThumbnailList .popup-menu-item {
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 #preview-menu .preview-header-box, #preview-menu .preview-container {
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 .showdesktop-button-dark-hovered, .showdesktop-button-light-hovered {
   background-color: ${hover}; }
 
 /* @end */
 
 /* ---------------------------------------------------------------- popup menus */
+/* Big glass surfaces keep their box-shadow tight (0 2px 6px): St cuts a wide blur off
+   sharply, which shows as a hard line on a smooth wallpaper. Their soft, wide shadow
+   is drawn by the glass pane behind them instead. */
 .popup-menu {
   color: ${fg}; }
 .popup-menu-content, .candidate-popup-content {
@@ -197,11 +200,11 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  border-radius: ${r_menu}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  border-radius: ${r_m}px;
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .popup-menu-item {
   color: ${fg};
-  border-radius: ${r_item}px; }
+  border-radius: ${r_xs}px; }
 .popup-menu-item:hover, .popup-menu-item:focus, .popup-menu-item:selected, .popup-menu-item:checked {
   color: ${fg};
   background-color: ${hover}; }
@@ -212,7 +215,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   color: ${fg_faint};
   background-color: transparent; }
 .popup-menu-item:checked {
-  border-radius: ${r_item}px !important; }
+  border-radius: ${r_xs}px !important; }
 .popup-inactive-menu-item {
   color: ${fg}; }
 .popup-inactive-menu-item:insensitive {
@@ -220,10 +223,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .popup-sub-menu {
   background-color: ${card};
   border: 1px solid ${edge};
-  border-radius: ${r_item}px;
+  border-radius: ${r_m}px;
   margin: 0 0 6px 0; }
 .popup-sub-menu .popup-menu-item {
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 .popup-sub-menu .popup-menu-item:hover, .popup-sub-menu .popup-menu-item:focus,
 .popup-sub-menu .popup-menu-item:selected, .popup-sub-menu .popup-menu-item:checked {
   color: ${fg};
@@ -234,9 +237,9 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   color: ${fg_faint};
   background-color: transparent; }
 .popup-sub-menu .popup-menu-item:last-child {
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 .popup-sub-menu .popup-menu-section:last-child .popup-menu-item:last-child {
-  border-radius: ${r_small}px; }
+  border-radius: ${r_xs}px; }
 .popup-separator-menu-item .popup-separator-menu-item-separator,
 .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
   background-color: ${divider}; }
@@ -249,8 +252,12 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  border-radius: ${r_big}px;
-  box-shadow: 0 14px 40px 0 ${shadow}; }
+  border-radius: ${r_m}px;
+  box-shadow: 0 2px 6px 0 ${shadow}; }
+/* GNOME's own shapes stay: round icon buttons and pill toggles in quick settings
+   (the split halves of a toggle with a menu come from GNOME's sheet and win over this). */
+.icon-button, .quick-toggle, .quick-toggle-has-menu {
+  border-radius: 999px; }
 .quick-toggle {
   color: ${fg};
   border: 1px solid ${edge};
@@ -311,7 +318,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${r_sub}px;
+  border-radius: ${r_m}px;
   box-shadow: none; }
 .quick-toggle-menu:hover, .quick-toggle-menu:active, .quick-toggle-menu:focus, .quick-toggle-menu:insensitive {
   color: ${fg};
@@ -333,7 +340,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 
 /* ---------------------------------------------------------------- calendar, messages, notifications */
 .datemenu-popover {
-  border-radius: ${cal_r_cal}px; }
+  border-radius: ${cal_r_m}px; }
 .calendar, .datemenu-today-button {
   background-color: transparent;
   border-color: transparent;
@@ -349,6 +356,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .calendar .calendar-day-heading, .calendar .calendar-day, .calendar .calendar-month-header .calendar-month-label {
   color: ${fg};
   background-color: transparent; }
+.calendar .calendar-day {
+  border-radius: ${cal_r_xs}px; }
 .calendar .calendar-day-heading {
   color: ${fg_dim}; }
 .calendar .calendar-day:hover, .calendar .calendar-month-header .calendar-month-label:hover {
@@ -378,7 +387,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${cal_r}px;
+  border-radius: ${cal_r_m}px;
   box-shadow: none; }
 .message:hover, .events-button:hover, .world-clocks-button:hover, .weather-button:hover {
   color: ${fg};
@@ -408,7 +417,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .message-media-control:active {
   background-color: ${active}; }
 .message-list-controls .message-list-clear-button {
-  border-radius: 999px; }
+  border-radius: ${cal_r_s}px; }
 /* Cards peeking out under a collapsed stack: the top card is see-through glass,
    so their text must not show through it. */
 .message:second-in-stack *, .message:lower-in-stack *,
@@ -426,38 +435,39 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${cal_popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  border-radius: ${cal_r}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  border-radius: ${cal_r_m}px;
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .url-highlighter {
   link-color: ${accent_text}; }
 
 /* ---------------------------------------------------------------- OSD, switchers */
 .osd-window {
   color: ${fg};
+  border-radius: ${r_m}px;
   background-color: ${osd};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .workspace-switcher, .resize-popup, .screenshot-ui-panel, #LookingGlassDialog {
   color: ${fg};
   background-color: ${osd};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .switcher-list {
   color: ${fg};
   background-color: ${osd};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  border-radius: ${r_osd}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  border-radius: ${r_m}px;
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .osd-window .level {
   -barlevel-height: 6px;
   -barlevel-background-color: ${track};
   -barlevel-active-background-color: ${fg};
   -barlevel-overdrive-color: ${destructive}; }
 .switcher-list .item-box {
-  border-radius: ${r_item}px; }
+  border-radius: ${r_xs}px; }
 .switcher-list .item-box:hover, .switcher-list .item-box:focus {
   background-color: ${hover}; }
 .switcher-list .item-box:selected, .switcher-list .item-box:highlighted, .switcher-list .item-box:checked {
@@ -477,7 +487,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .ws-switcher-indicator:active {
   background-color: ${fg}; }
 .screenshot-ui-panel {
-  border-radius: ${r_big}px; }
+  border-radius: ${r_l}px; }
 .osd-monitor-label, .osd-break-countdown-label {
   color: ${accent_fg}; }
 
@@ -487,12 +497,12 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${dialog};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${r_dialog}px;
+  border-radius: ${r_l}px;
   box-shadow: 0 24px 60px 0 ${shadow}; }
 .modal-dialog .modal-dialog-button-box .modal-dialog-button {
   color: ${fg};
   border: 1px solid ${edge};
-  border-radius: 999px;
+  border-radius: ${r_s}px;
   box-shadow: inset 0 1px 0 0 ${rim};
   background-gradient-direction: vertical;
   background-gradient-start: ${ctrl_top};
@@ -531,6 +541,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 
 /* ---------------------------------------------------------------- overview and app grid */
 .search-entry {
+  border-radius: 999px;
   margin-top: 12px;
   color: ${fg_dim};
   background-color: ${field};
@@ -545,9 +556,9 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${edge};
   border-top-color: ${rim}; }
 .search-section-content {
-  border-radius: ${ov_r_big}px; }
+  border-radius: ${ov_r_m}px; }
 .list-search-result, .search-provider-icon {
-  border-radius: ${ov_r_item}px;
+  border-radius: ${ov_r_xs}px;
   border-color: transparent; }
 .list-search-result:hover, .search-provider-icon:hover, .list-search-result:focus, .search-provider-icon:focus {
   color: ${fg};
@@ -578,7 +589,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${ov_dialog};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${ov_r_folder}px;
+  border-radius: ${ov_r_l}px;
   box-shadow: 0 24px 60px 0 ${shadow}; }
 .app-folder-dialog .folder-name-container .folder-name-entry,
 .app-folder-dialog .folder-name-container .folder-name-label {
@@ -589,7 +600,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${ov_chrome};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 #dash .dash-item-container .show-apps .overview-icon,
 #dash .dash-item-container .overview-tile .overview-icon {
   color: ${fg};
@@ -600,12 +611,12 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 #dash .dash-separator {
   background-color: ${divider}; }
 .workspace-thumbnails .workspace-thumbnail {
-  border-radius: ${ov_r_small}px;
+  border-radius: ${ov_r_xs}px;
   border: 1px solid ${edge};
   background-color: ${card}; }
 .workspace-thumbnail-indicator {
   border-color: ${accent};
-  border-radius: ${ov_r_small}px; }
+  border-radius: ${ov_r_xs}px; }
 .page-indicator, .page-indicator-icon {
   background-color: ${fg_faint}; }
 .dash-label, .window-caption, .screenshot-ui-tooltip {
@@ -613,10 +624,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${ov_osd};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: 999px;
+  border-radius: ${ov_r_xs}px;
   box-shadow: 0 4px 14px 0 ${shadow}; }
 .window-caption {
-  border-radius: ${ov_r_item}px; }
+  border-radius: ${ov_r_xs}px; }
 .select-area-rubberband {
   background-color: ${selection};
   border-color: ${accent}; }
@@ -626,7 +637,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   color: ${fg};
   background-color: ${field};
   border: 1px solid ${edge};
-  border-radius: 999px; }
+  border-radius: ${r_s}px; }
 
 /* ---------------------------------------------------------------- Wheelguard popup */
 /* @boost */
@@ -635,13 +646,13 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  border-radius: ${r_menu}px;
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  border-radius: ${r_m}px;
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .popup-menu-content.wg-menu.wg-light {
   background-color: ${popover};
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .wg-root, .wg-light .wg-root {
   color: ${fg}; }
 .wg-title, .wg-card-title, .wg-percent, .wg-pill-label, .wg-chip,
@@ -659,11 +670,11 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${r}px; }
+  border-radius: ${r_m}px; }
 .wg-seg, .wg-light .wg-seg {
   background-color: ${field};
   border: 1px solid ${edge};
-  border-radius: 999px; }
+  border-radius: ${r_s}px; }
 .wg-chip {
   border-radius: 999px; }
 .wg-pill {
@@ -690,7 +701,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .wg-chip.wg-chip-active, .wg-light .wg-chip.wg-chip-active, .wg-start-label {
   color: ${accent_fg}; }
 .wg-start {
-  border-radius: 999px; }
+  border-radius: ${r_s}px; }
 .wg-chip:focus {
   box-shadow: inset 0 0 0 2px ${focus_ring}; }
 
@@ -699,13 +710,13 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 /* ---------------------------------------------------------------- ArcMenu (surfaces; its own theme options colour the rest) */
 .arcmenu-menu .popup-menu-content {
   border-top-color: ${glass_rim};
-  box-shadow: 0 10px 30px 0 ${shadow}; }
+  box-shadow: 0 2px 6px 0 ${shadow}; }
 .arcmenu-tooltip, #ArcMenu_Tooltip {
   color: ${fg};
   background-color: ${arc_osd};
   border: 1px solid ${edge};
   border-top-color: ${rim};
-  border-radius: ${arc_r_item}px;
+  border-radius: ${arc_r_xs}px;
   box-shadow: 0 4px 14px 0 ${shadow}; }
 .arcmenu-text-indicator {
   background-color: ${hover}; }

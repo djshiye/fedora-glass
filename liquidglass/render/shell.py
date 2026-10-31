@@ -14,6 +14,7 @@ from string import Template
 
 from ..color import BLACK, WHITE, Color, lerp
 from ..palette import Tokens
+from ..radius import FULL, scale
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/shell/glass.css.tpl"
 
@@ -23,22 +24,11 @@ LIGHT_HAIRLINE = BLACK.with_alpha(0.11)
 
 
 def radii(t: Tokens, r: int | None = None) -> dict[str, int]:
-    """One radius scale shared by the CSS and the Dash to Panel / ArcMenu keys,
-    so the blur clip always matches the painted surface. `r` is the base radius
-    (the menus' by default); each part of the desktop gets its own scale."""
-    r = t.menu_radius if r is None else r
-    return {
-        "r": r,
-        "r_small": max(4, round(r * 0.6)),
-        "r_item": max(6, r - 4),
-        "r_menu": r + 2,
-        "r_sub": r + 6,
-        "r_big": min(48, r * 2),
-        "r_cal": min(48, round(r * 5 / 3)),
-        "r_osd": r + 10,
-        "r_dialog": r + 6,
-        "r_folder": min(64, r * 3),
-    }
+    """The corner ladder (radius.py) under the template's `r_*` names, shared by the CSS and the
+    Dash to Panel / ArcMenu keys so the blur clip always matches the painted surface. `r` is the
+    base radius (the menus' by default); each part of the desktop gets its own ladder."""
+    sc = scale(t.menu_radius if r is None else r)
+    return {"r_xs": sc["xs"], "r_s": sc["s"], "r_m": sc["m"], "r_l": sc["l"]}
 
 
 def _thin(c: Color, t: Tokens, frost: float | None = None) -> Color:
@@ -203,7 +193,7 @@ def dtp_values(t: Tokens) -> dict[str, str]:
         "panel-side-padding": "0",
         "highlight-appicon-hover-background-color": f"'{t.hover.css}'",
         "highlight-appicon-pressed-background-color": f"'{t.active.css}'",
-        "highlight-appicon-hover-border-radius": str(t.radius_small),
+        "highlight-appicon-hover-border-radius": str(scale(t.panel_radius)["xs"]),   # a hover tile
         # Running apps get a small dot, not a bar; the focused one a faint glass wash.
         "focus-highlight-color": f"'{(WHITE if t.dark else BLACK).hex6}'",
         "focus-highlight-opacity": "8",
@@ -221,8 +211,9 @@ def dtp_values(t: Tokens) -> dict[str, str]:
 
 
 def _dtp_radius(t: Tokens) -> int:
-    """Dash to Panel stores the radius in steps of 4 px (0..5), not pixels."""
-    return min(5, round(t.panel_radius / 4))
+    """Dash to Panel stores the radius in steps of 4 px (0..5), not pixels. The floating panel
+    is a large surface, so it takes the ladder's large step."""
+    return min(5, round(scale(t.panel_radius)["l"] / 4))
 
 
 # ---- ArcMenu -----------------------------------------------------------------------------------
@@ -240,20 +231,20 @@ def arcmenu_values(t: Tokens) -> dict[str, str]:
         "menu-foreground-color": f"'{fg.css}'",
         "menu-border-color": f"'{(_NONE if t.dark else LIGHT_HAIRLINE.css) if t.glass_menu_edges else t.edge.css}'",
         "menu-border-width": "1",
-        "menu-border-radius": str(r["r_menu"]),
+        "menu-border-radius": str(r["r_m"]),
         "menu-separator-color": f"'{t.divider.css}'",
         "menu-item-hover-bg-color": f"'{hover.css}'",
         "menu-item-hover-fg-color": f"'{fg.css}'",
         "menu-item-active-bg-color": f"'{active.css}'",
         "menu-item-active-fg-color": f"'{t.accent_fg.css}'",
-        "search-entry-border-radius": "(true, 999)",
+        "search-entry-border-radius": f"(true, {FULL})",         # a search entry stays a capsule
         "menu-button-fg-color": f"(true, '{fg.css}')",
         "menu-button-bg-color": f"(true, '{ink.with_alpha(0.0).css}')",
         "menu-button-hover-bg-color": f"(true, '{hover.css}')",
         "menu-button-hover-fg-color": f"(true, '{fg.css}')",
         "menu-button-active-bg-color": f"(true, '{ink.with_alpha(0.16).css}')",
         "menu-button-active-fg-color": f"(true, '{fg.css}')",
-        "menu-button-border-radius": "(true, 999)",
+        "menu-button-border-radius": f"(true, {r['r_s']})",      # a button, so the buttons step
         "menu-button-border-width": "(true, 0)",
         "menu-button-border-color": "(true, 'transparent')",
     }

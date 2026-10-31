@@ -49,13 +49,34 @@ def test_css_never_asks_for_multiple_shadows(frost, dark):
             assert not (ch == "," and depth == 0), value
 
 
+GLASS_SURFACES = (".popup-menu-content", ".quick-settings", ".notification-banner", ".osd-window",
+                  ".switcher-list", ".arcmenu-menu .popup-menu-content")
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_glass_surfaces_keep_their_css_shadow_tight(dark):
+    """St cuts a wide box-shadow blur off sharply (a hard line on a smooth wallpaper,
+    seen above ArcMenu). The glass pane draws the wide soft shadow, so the CSS one on a
+    glass surface stays within 6 px blur and 2 px offset."""
+    css = re.sub(r"/\*.*?\*/", "", rs.render_css(tokens(0.5, dark)), flags=re.S)
+    seen = set()
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        sels = {x.strip() for x in m.group(1).split(",")}
+        hit = sels & set(GLASS_SURFACES)
+        sh = re.search(r"box-shadow:\s*(?!inset)(-?\d+)(?:px)?\s+(-?\d+)(?:px)?\s+(\d+)px", m.group(2))
+        if hit and sh:
+            seen |= hit
+            assert int(sh.group(2)) <= 2 and int(sh.group(3)) <= 6, f"{hit}: {sh.group(0)}"
+    assert {".popup-menu-content", ".quick-settings", ".notification-banner"} <= seen
+
+
 def test_css_uses_token_colours_and_radius():
     t = tokens(0.3, True, radius=22)
     css = rs.render_css(t)
     assert rs.surfaces(t)["popover"].css in css
     assert t.accent.css in css
-    assert f"border-radius: {rs.radii(t)['r_menu']}px" in css
-    assert "border-radius: 24px" in css  # r_menu = 22 + 2
+    assert f"border-radius: {rs.radii(t)['r_m']}px" in css
+    assert "border-radius: 20px" in css  # the m step of a 22 px base: 16 * 22 / 18
 
 
 def test_shell_surfaces_are_thinner_than_tokens_only_when_blur_is_real():
@@ -227,12 +248,23 @@ def test_dash_to_panel_floating_and_docked(fake_env):
         return {a.key: a.value for a in acts if isinstance(a, GSet)}
     floating, docked = values("floating"), values("docked")
     assert floating["panel-top-bottom-margins"] == floating["panel-side-margins"] == "10"
-    assert floating["global-border-radius"] == "4"   # steps of 4 px
+    assert floating["global-border-radius"] == "5"   # steps of 4 px: the l step, 24 px, caps at 5
     assert docked["panel-top-bottom-margins"] == docked["panel-side-margins"] == "0"
     assert docked["global-border-radius"] == "0"
     layout = ("panel-sizes", "panel-element-positions", "panel-positions", "dot-position", "appicon-margin")
     assert not set(floating) & set(layout)
     assert floating["trans-use-custom-bg"] == "true" and floating["trans-use-dynamic-opacity"] == "false"
+
+
+def test_dash_to_panel_hover_colour_is_clear_while_the_highlight_glides(fake_env):
+    install(fake_env, ts.DASH_TO_PANEL)
+    def hover(glide):
+        acts = ts.DashToPanel().plan(context(fake_env, hover_glide=glide))
+        found = [a.value for a in acts if isinstance(a, GSet) and a.key == "highlight-appicon-hover-background-color"]
+        assert len(found) == 1
+        return found[0]
+    assert hover(True) == "'rgba(0,0,0,0)'"
+    assert hover(False) != "'rgba(0,0,0,0)'"
 
 
 def test_arcmenu_values_have_the_schema_types(fake_env):
@@ -243,7 +275,7 @@ def test_arcmenu_values_have_the_schema_types(fake_env):
     assert re.fullmatch(r"'rgba\(\d+,\d+,\d+,[\d.]+\)'", v["menu-background-color"])
     assert v["search-entry-border-radius"] == "(true, 999)"
     assert re.fullmatch(r"\(true, 'rgba?\([^)]*\)'\)", v["menu-button-bg-color"])
-    assert v["menu-button-border-radius"] == "(true, 999)"
+    assert v["menu-button-border-radius"] == "(true, 12)"     # a button: the s step
     assert v["menu-border-radius"].isdigit()
 
 
@@ -334,13 +366,13 @@ def test_parts_reach_the_shell_css_and_gsettings():
         "arcmenu": {"radius": 6}, "quicksettings": {"radius": 24}, "calendar": {"radius": 10},
         "panel": {"radius": 0}}), dark=True)
     css = rs.render_css(t)
-    assert f"border-radius: {rs.radii(t)['r_big']}px" in css            # quick settings: 48
-    assert f"border-radius: {rs.radii(t, 10)['r_cal']}px" in css        # calendar
+    assert f"border-radius: {rs.radii(t)['r_m']}px" in css              # quick settings: 16
+    assert f"border-radius: {rs.radii(t, 10)['r_m']}px" in css          # calendar: 9
     assert "${" not in css
     arc = rs.arcmenu_values(t)
-    assert arc["menu-border-radius"] == str(rs.radii(t, 6)["r_menu"])
+    assert arc["menu-border-radius"] == str(rs.radii(t, 6)["r_m"])
     assert rs.dtp_values(t)["global-border-radius"] == "0"
-    assert rs.arcmenu_values(palette.build(Settings(), dark=True))["menu-border-radius"] == "20"
+    assert rs.arcmenu_values(palette.build(Settings(), dark=True))["menu-border-radius"] == "16"
 
 
 def test_glass_config_has_parts_and_bleed():

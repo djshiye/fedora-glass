@@ -1,6 +1,6 @@
 /* ---- geometry ---------------------------------------------------------- */
 :root {
-  --window-radius: $radius_window;
+  --window-radius: $r_l;
   --border-opacity: 12%;
 }
 
@@ -18,7 +18,7 @@ treeview.view header button { background-color: transparent; border-radius: 0; b
 /* ---- windows: deep soft shadow. The edge and its reflections are real glass,
    drawn by the Shell behind the window, so nothing here paints light. ---- */
 window.csd {
-  border-radius: $radius_window;
+  border-radius: $r_l;
   outline: none;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.30),
@@ -68,7 +68,7 @@ searchbar > revealer > box { box-shadow: inset 0 -1px 0 var(--lg-divider); }
 .sidebar-pane headerbar, .sidebar-pane .top-bar { box-shadow: none; }
 .navigation-sidebar { background: transparent; }
 .navigation-sidebar > row, .navigation-sidebar > row.activatable {
-  border-radius: $radius_menu_item;
+  border-radius: $r_xs;
   margin: 1px 6px;
 }
 .navigation-sidebar > row:hover { background-color: var(--lg-hover); }
@@ -98,14 +98,14 @@ row:selected, listview > row:selected, columnview > listview > row:selected {
 row:hover:not(:selected), listview > row:hover:not(:selected), gridview > child:hover:not(:selected) {
   background-color: var(--lg-hover);
 }
-gridview > child { border-radius: $radius_card; }
+gridview > child { border-radius: $r_m; }
 columnview > header { background-color: transparent; box-shadow: inset 0 -1px 0 var(--lg-divider); }
 columnview > header > button, treeview > header > button { background: transparent; border-radius: 0; box-shadow: none; }
 separator { background-color: var(--lg-divider); }
 
 /* ---- cards, boxed lists, preference groups ------------------------------- */
 .card, list.boxed-list, list.content, .boxed-list-separate > row, list.boxed-list-separate > row {
-  border-radius: $radius_card;
+  border-radius: $r_m;
   background-color: var(--card-bg-color);
   box-shadow:
     inset 0 1px 0 var(--lg-rim),
@@ -121,7 +121,7 @@ row.expander row.header:hover { background-color: var(--lg-hover); }
 preferencespage > scrolledwindow > viewport > clamp > box > preferencesgroup > box > box > list.boxed-list { background: var(--card-bg-color); }
 
 /* ---- buttons: glass pills ---------------------------------------------- */
-button { border-radius: 999px; }
+button { border-radius: $r_s; }
 button.flat, button.image-button.flat, headerbar button.flat, .toolbar button.flat {
   background-color: transparent;
   box-shadow: none;
@@ -147,20 +147,20 @@ button.suggested-action, button.destructive-action, button.opaque {
 button.suggested-action:hover, button.destructive-action:hover, button.opaque:hover {
   background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.04) 60%);
 }
-button.pill, button.card { border-radius: 999px; }
-button.card { border-radius: $radius_card; }
+button.pill { border-radius: $r_s; }
+button.card { border-radius: $r_m; }
 .linked > button:not(:first-child):not(:last-child) { border-radius: 0; }
 .linked > button:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .linked > button:last-child:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.linked:not(.vertical) > button:first-child:not(:last-child) { border-radius: 999px 0 0 999px; }
-.linked:not(.vertical) > button:last-child:not(:first-child) { border-radius: 0 999px 999px 0; }
-.linked.vertical > button:first-child:not(:last-child) { border-radius: $radius_small $radius_small 0 0; }
-.linked.vertical > button:last-child:not(:first-child) { border-radius: 0 0 $radius_small $radius_small; }
+.linked:not(.vertical) > button:first-child:not(:last-child) { border-radius: $r_s 0 0 $r_s; }
+.linked:not(.vertical) > button:last-child:not(:first-child) { border-radius: 0 $r_s $r_s 0; }
+.linked.vertical > button:first-child:not(:last-child) { border-radius: $r_s $r_s 0 0; }
+.linked.vertical > button:last-child:not(:first-child) { border-radius: 0 0 $r_s $r_s; }
 splitbutton > button, splitbutton > menubutton > button { border-radius: 0; }
-splitbutton > button:first-child { border-radius: 999px 0 0 999px; }
-splitbutton > menubutton:last-child > button { border-radius: 0 999px 999px 0; }
+splitbutton > button:first-child { border-radius: $r_s 0 0 $r_s; }
+splitbutton > menubutton:last-child > button { border-radius: 0 $r_s $r_s 0; }
 button.osd, .osd button { background-color: rgba(20, 20, 24, 0.55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.10); }
-menubutton > button, dropdown > button, combobox button.combo { border-radius: 999px; }
+menubutton > button, dropdown > button, combobox button.combo { border-radius: $r_s; }
 button.destructive-action { color: var(--destructive-fg-color); }
 
 /* ---- header bar buttons: flat icons on one glass bar -------------------------
@@ -168,7 +168,7 @@ button.destructive-action { color: var(--destructive-fg-color); }
    pressing it thins the tile and dips the icon. Calls to action (Save, Delete)
    stay filled. The tile fades in quickly and out slowly. */
 $hdr_btn {
-  border-radius: 8px;
+  border-radius: $r_xs;
   background-color: transparent;
   background-image: none;
   box-shadow: none;
@@ -193,7 +193,7 @@ $hdr_btn_icon_active { -gtk-icon-transform: scale(0.94); transition-duration: 60
 
 /* Window controls: the same flat glyphs and tile. Close turns soft red on hover only. */
 windowcontrols > button {
-  border-radius: 8px;
+  border-radius: $r_xs;
   background-color: transparent;
   box-shadow: none;
   color: color-mix(in srgb, var(--headerbar-fg-color) 90%, transparent);
@@ -234,7 +234,7 @@ tabbar.inline .box:backdrop > scrolledwindow, tabbar.inline .box:backdrop > .sta
 
 /* ---- entries, search, spin buttons ----------------------------------------- */
 entry, spinbutton, searchentry, row.entry, row.spin {
-  border-radius: 999px;
+  border-radius: $r_s;
   min-height: 36px;
   background-color: var(--lg-glass);
   box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge), 0 1px 0 0 var(--lg-rim);
@@ -244,9 +244,11 @@ entry:focus-within, spinbutton:focus-within {
   box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-accent-text), 0 0 0 3px color-mix(in srgb, var(--lg-accent) 35%, transparent);
   outline: none;
 }
-row.entry, row.spin, row.entry:focus-within { border-radius: $radius_small; box-shadow: none; background-color: transparent; }
-textview { border-radius: $radius_small; }
-spinbutton > button { border-radius: 999px; }
+row.entry, row.spin, row.entry:focus-within { border-radius: $r_s; box-shadow: none; background-color: transparent; }
+textview { border-radius: $r_s; }
+/* Search fields are capsules, every other field is a rounded rectangle. */
+searchentry { border-radius: 999px; }
+spinbutton > button { border-radius: $r_s; }
 treeview entry, treeview entry.flat { border-radius: 0; box-shadow: none; }
 searchentry { padding-left: 8px; }
 entry > text > selection, textview > text > selection, label > selection { background-color: var(--lg-selection); }
@@ -302,7 +304,7 @@ scrollbar.overlay-indicator:not(.hovering) > range > trough > slider { backgroun
 
 /* ---- popovers and menus: the most solid glass, they have no blur behind ----- */
 popover > contents {
-  border-radius: $radius_popover;
+  border-radius: $pop_m;
   background-color: var(--popover-bg-color);
   background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 40%);
   box-shadow:
@@ -315,7 +317,7 @@ popover > contents {
 }
 popover > arrow { background-color: var(--popover-bg-color); box-shadow: none; border: none; }
 popover.menu > contents { padding: 0; }
-popover.menu modelbutton, popover modelbutton { border-radius: $radius_menu_item; }
+popover.menu modelbutton, popover modelbutton { border-radius: $pop_xs; }
 popover.menu modelbutton:hover, popover.menu modelbutton:selected { background-color: var(--lg-glass-hi); }
 popover.menu separator, popover separator { background-color: var(--lg-divider); }
 popover > contents > list, popover > contents > .view, popover > contents > toolbar { background-color: transparent; }
@@ -324,10 +326,10 @@ popover.background > contents scrolledwindow > .view, popover scrolledwindow > l
 
 /* ---- dialogs and sheets -------------------------------------------------------- */
 window.dialog, window.dialog-window, window.messagedialog, window.print { background-color: var(--dialog-bg-color); }
-window.dialog.csd, window.messagedialog.csd { border-radius: $radius_window; }
+window.dialog.csd, window.messagedialog.csd { border-radius: $r_l; }
 dialog-host > dialog.background sheet, dialog-host > dialog.alert sheet, dialog-host > dialog sheet {
   background-color: var(--dialog-bg-color);
-  border-radius: $radius_window;
+  border-radius: $r_l;
   box-shadow:
     inset 0 1px 0 var(--lg-rim),
     inset 0 0 0 1px var(--lg-edge),
@@ -338,7 +340,7 @@ dialog-host > dialog.bottom-sheet sheet, bottom-sheet > sheet {
   background-color: var(--dialog-bg-color);
   box-shadow: inset 0 1px 0 var(--lg-rim), 0 -8px 32px 0 var(--lg-deep-shadow);
 }
-dialog-host > dialog.alert sheet { border-radius: $radius_window; }
+dialog-host > dialog.alert sheet { border-radius: $r_l; }
 dialog-host > dialog.alert sheet button { min-height: 38px; }
 dialog-host > dialog sheet headerbar { background: transparent; }
 window.dialog-window headerbar, window.messagedialog headerbar { box-shadow: none; }
@@ -348,7 +350,7 @@ bottom-sheet > dimming, dialog-host > dialog > dimming, dialog-host > dialog.flo
 tooltip.background {
   background-color: var(--lg-tooltip);
   color: var(--lg-tooltip-fg);
-  border-radius: $radius_menu_item;
+  border-radius: $r_xs;
   border: none;
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 6px 18px 0 var(--lg-deep-shadow);
 }
@@ -371,25 +373,25 @@ progressbar.osd > trough > progress { background-color: var(--lg-tooltip-fg); ba
 progressbar.osd { background: transparent; box-shadow: none; }
 
 /* ---- tabs, view switchers -------------------------------------------------------- */
-tabbar tabbox > tab, tabbar tabbox > tabboxchild { border-radius: 999px; }
+tabbar tabbox > tab, tabbar tabbox > tabboxchild { border-radius: $r_s; }
 tabbar tabbox > tabboxchild:selected, tabbar tabbox > tab:selected {
   background-color: var(--lg-glass-hi);
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
 }
 tabbar tabbox > tabboxchild:hover:not(:selected) { background-color: var(--lg-hover); }
 notebook > header { background-color: transparent; box-shadow: inset 0 -1px 0 var(--lg-divider); }
-notebook > header > tabs > tab { border-radius: $radius_menu_item $radius_menu_item 0 0; }
+notebook > header > tabs > tab { border-radius: $r_s $r_s 0 0; }
 notebook > header > tabs > tab:checked { background-color: var(--lg-glass-hi); box-shadow: inset 0 1px 0 var(--lg-rim); }
 notebook > stack { background-color: var(--view-bg-color); }
 viewswitcher button.toggle, inline-view-switcher button, toggle-group button {
-  border-radius: 999px;
+  border-radius: $r_s;
 }
 viewswitcher button.toggle:checked, inline-view-switcher button:checked {
   background-color: var(--lg-glass-hi);
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge);
 }
 toggle-group, inline-view-switcher {
-  border-radius: 999px;
+  border-radius: $r_s;
   background-color: var(--lg-glass);
   box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge);
 }
@@ -404,19 +406,19 @@ toggle-group button:checked, toggle-group > toggle:checked {
 /* The location field is filled with the window's own glass once more, a little deeper
    than the bar: its text keeps 4.5:1 even in an unfocused window (faded to 65%) over a
    white wallpaper (3.6:1 with the lighter glass fill, 5.1:1 and up with this). */
-.nautilus-pathbar, pathbar { background-color: var(--window-bg-color); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
-.path-bar-box { background-color: var(--window-bg-color); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
+.nautilus-pathbar, pathbar { background-color: var(--window-bg-color); border-radius: $r_s; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
+.path-bar-box { background-color: var(--window-bg-color); border-radius: $r_s; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
 .nautilus-pathbar > menubutton > button { margin: 3px; }
 .nautilus-pathbar .path-bar-box { background: none; box-shadow: none; padding: 0; }
-.nautilus-pathbar > scrolledwindow:dir(ltr) undershoot.left { border-radius: 999px 0 0 999px; }
-.nautilus-pathbar > scrolledwindow:dir(rtl) undershoot.right { border-radius: 0 999px 999px 0; }
-.path-bar-box button, pathbar button { border-radius: 999px; background: transparent; box-shadow: none; min-height: 28px; }
+.nautilus-pathbar > scrolledwindow:dir(ltr) undershoot.left { border-radius: $r_s 0 0 $r_s; }
+.nautilus-pathbar > scrolledwindow:dir(rtl) undershoot.right { border-radius: 0 $r_s $r_s 0; }
+.path-bar-box button, pathbar button { border-radius: $r_s; background: transparent; box-shadow: none; min-height: 28px; }
 .path-bar-box button.current-dir, pathbar button:checked, .path-bar-box button:checked { background-color: var(--lg-glass-hi); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge); }
 /* Folder segments sit flat inside the field (Files marks the current one in bold);
    hovering a parent folder lifts the same glass tile as header buttons. */
-$path_btn { background: none; box-shadow: none; border-radius: 999px; }
+$path_btn { background: none; box-shadow: none; border-radius: $r_s; }
 $path_btn_hover { background-color: var(--lg-tile); box-shadow: inset 0 1px 0 var(--lg-rim); }
-NautilusViewCell, .nautilus-grid-view > child { border-radius: $radius_card; }
+NautilusViewCell, .nautilus-grid-view > child { border-radius: $r_m; }
 .nautilus-window .view, window.nautilus .view { background-color: var(--view-bg-color); }
 .floating-bar, .nautilus-floating-bar { border-radius: 999px; background-color: var(--popover-bg-color); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 4px 14px 0 var(--lg-shadow); }
 .nautilus-grid-view > child:selected { background-color: var(--lg-selection); box-shadow: inset 0 1px 0 var(--lg-rim); }
@@ -429,9 +431,9 @@ revealer.top-bar > windowhandle { box-shadow: inset 0 -1px 0 var(--lg-divider); 
 /* Same fill as cards (white glass in light, faint glass in dark), no painted sheen,
    and a soft, wide shadow at half strength. "=" keeps its accent fill.
    Scoped through $glass_btn so these win over the general glass button rule.
-   Every key, "=" included, shares one 24px radius: single-row keys clamp to capsules,
-   the two-row "=" gets the same corners. */
-.math-buttons $glass_btn, .math-buttons grid button.suggested-action { border-radius: 24px; }
+   Every key, "=" included, shares one radius (the large step, radius.KEYPAD): single-row
+   keys clamp to capsules, the two-row "=" gets the same corners. */
+.math-buttons $glass_btn, .math-buttons grid button.suggested-action { border-radius: $r_l; }
 .math-buttons $glass_btn {
   background-color: var(--card-bg-color);
   background-image: none;

@@ -151,6 +151,12 @@ class DashToPanel(Target):
         # Its own hover animation and ours would both move the icons. Only switched off when
         # the user asks in the Motion card; Restore original (or turning that back) brings theirs back.
         s = ctx.settings
+        # The gliding highlight (glide.js) stands in for Dash to Panel's own one, so its
+        # hover colour is clear. Pressing an icon still shows Dash to Panel's pressed colour.
+        if s.hover_glide:
+            for i, a in enumerate(acts):
+                if isinstance(a, GSet) and a.key == "highlight-appicon-hover-background-color":
+                    acts[i] = GSet(self.SCHEMA, a.key, "'rgba(0,0,0,0)'")
         if s.motion_dtp_hover_off and s.motion_for("hover")["preset"] != "off":
             acts.append(GSet(self.SCHEMA, "animate-appicon-hover", "false", keep_user_change=True))
         else:

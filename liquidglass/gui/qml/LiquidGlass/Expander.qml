@@ -22,10 +22,10 @@ Item {
         Accessible.name: root.title
         HoverHandler { cursorShape: Qt.PointingHandCursor }
         background: Rectangle {
-            radius: 12
+            radius: Theme.rS
             color: header.hovered ? Theme.hover : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.fast } }
-            FocusRing { target: header; radius: 14; gap: 0 }
+            FocusRing { target: header; radius: Theme.rS + 2; gap: 0 }
         }
         contentItem: Item {
             Icon {

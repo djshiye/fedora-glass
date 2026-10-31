@@ -1,8 +1,8 @@
 /* ---- windows ---------------------------------------------------------------- */
 window.background { background-color: @window_bg_color; color: @window_fg_color; }
-window.csd, window.csd.background { border-radius: $radius_window; }
+window.csd, window.csd.background { border-radius: $r_l; }
 window.csd > decoration, decoration {
-  border-radius: $radius_window;
+  border-radius: $r_l;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.30),
     0 18px 44px 2px @lg_deep_shadow,
@@ -26,7 +26,7 @@ headerbar, .titlebar, headerbar:backdrop, .titlebar:backdrop {
   box-shadow: inset 0 -1px 0 @lg_divider;
   border-radius: 0;
 }
-window.csd > .titlebar, window.csd > headerbar { border-top-left-radius: $radius_window; border-top-right-radius: $radius_window; box-shadow: inset 0 -1px 0 @lg_divider; }
+window.csd > .titlebar, window.csd > headerbar { border-top-left-radius: $r_l; border-top-right-radius: $r_l; box-shadow: inset 0 -1px 0 @lg_divider; }
 headerbar.selection-mode { background-color: @accent_bg_color; color: @accent_fg_color; }
 searchbar, .search-bar, actionbar { background-color: @lg_bar; border: none; box-shadow: inset 0 -1px 0 @lg_divider; }
 actionbar { box-shadow: inset 0 1px 0 @lg_divider; }
@@ -39,7 +39,7 @@ actionbar { box-shadow: inset 0 1px 0 @lg_divider; }
 }
 placessidebar list, stacksidebar list, .sidebar list { background-color: transparent; }
 placessidebar row, stacksidebar row, .sidebar row {
-  border-radius: $radius_menu_item;
+  border-radius: $r_xs;
   margin: 1px 6px;
 }
 placessidebar row:hover, stacksidebar row:hover { background-color: @lg_hover; }
@@ -56,7 +56,7 @@ list row, .content-view .view { background-color: transparent; }
 .view:selected:focus, treeview.view:selected:focus {
   background-color: @lg_selection;
   color: @view_fg_color;
-  border-radius: $radius_small;
+  border-radius: $r_xs;
 }
 row:hover:not(:selected) { background-color: @lg_hover; }
 treeview.view header button { background-color: transparent; background-image: none; border-radius: 0; box-shadow: inset 0 -1px 0 @lg_divider; }
@@ -66,7 +66,7 @@ frame > border, .frame { border-color: @lg_edge; }
 
 /* ---- buttons ---------------------------------------------------------------------------- */
 button {
-  border-radius: 999px;
+  border-radius: $r_s;
   min-height: 24px;
   padding: 4px 14px;
   border: none;
@@ -95,15 +95,15 @@ button.suggested-action, button.destructive-action {
 button.suggested-action { background-color: @accent_bg_color; color: @accent_fg_color; }
 button.destructive-action { background-color: @destructive_bg_color; color: @destructive_fg_color; }
 .linked > button:not(:first-child):not(:last-child) { border-radius: 0; }
-.linked:not(.vertical) > button:first-child:not(:last-child) { border-radius: 999px 0 0 999px; }
-.linked:not(.vertical) > button:last-child:not(:first-child) { border-radius: 0 999px 999px 0; }
+.linked:not(.vertical) > button:first-child:not(:last-child) { border-radius: $r_s 0 0 $r_s; }
+.linked:not(.vertical) > button:last-child:not(:first-child) { border-radius: 0 $r_s $r_s 0; }
 
 /* ---- header bar buttons: flat icons on one glass bar (same look as GTK 4) ---------------------- */
 headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton),
 .titlebar button:not(.suggested-action):not(.destructive-action):not(.titlebutton),
 headerbar .linked:not(.vertical) > button:not(.suggested-action):not(.destructive-action),
 .titlebar .linked:not(.vertical) > button:not(.suggested-action):not(.destructive-action) {
-  border-radius: 8px;
+  border-radius: $r_xs;
   border: none;
   background-color: transparent;
   background-image: none;
@@ -134,7 +134,7 @@ headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutto
 
 /* Window controls: flat glyphs, the same tile on hover, Close turns soft red. */
 .titlebutton, headerbar .titlebutton, .titlebar .titlebutton {
-  border-radius: 8px; padding: 4px; min-height: 16px; min-width: 16px;
+  border-radius: $r_xs; padding: 4px; min-height: 16px; min-width: 16px;
   /* Other GTK 3 themes (Orchis, for one) paint window buttons with coloured dots,
      image assets and a transparent glyph: reset all of it so only our look shows. */
   border: none; animation: none;
@@ -154,7 +154,7 @@ headerbar .titlebutton.close:active, .titlebar .titlebutton.close:active { backg
 
 /* ---- entries ----------------------------------------------------------------------------------- */
 entry, spinbutton {
-  border-radius: 999px;
+  border-radius: $r_s;
   min-height: 28px;
   padding: 2px 12px;
   border: none;
@@ -168,8 +168,10 @@ entry:focus, spinbutton:focus-within {
   box-shadow: inset 0 1px 2px 0 @lg_shadow, inset 0 0 0 1px @accent_color, 0 0 0 3px alpha(@accent_bg_color, 0.35);
 }
 entry selection, textview text selection { background-color: @lg_selection; }
-spinbutton button { border-radius: 999px; box-shadow: none; background-image: none; }
+spinbutton button { border-radius: $r_s; box-shadow: none; background-image: none; }
 treeview entry { border-radius: 0; box-shadow: none; }
+/* Search fields are capsules, every other field is a rounded rectangle. */
+entry.search, searchentry { border-radius: 999px; }
 
 /* ---- switches, checks, scales, progress ------------------------------------------------------------ */
 switch {
@@ -193,7 +195,7 @@ switch slider {
    The marks are GTK 3's own built-in symbolic icons, recoloured to the text colour. */
 check, radio {
   min-width: 14px; min-height: 14px; padding: 1px; margin: 0;
-  border-radius: 5px;
+  border-radius: $r_check;
   background-color: @lg_glass_hi; background-image: none; border: none; outline-offset: 2px;
   /* A clear 1 px ring, so an empty box reads on any backdrop (the same as GTK 4). */
   box-shadow: inset 0 1px 2px 0 @lg_shadow, inset 0 0 0 1px alpha(@window_fg_color, 0.34);
@@ -248,32 +250,32 @@ scale slider {
 
 /* ---- popovers and menus ----------------------------------------------------------------------------------- */
 popover.background, popover {
-  border-radius: $radius_popover;
+  border-radius: $pop_m;
   border: none;
   background-color: @popover_bg_color;
   color: @popover_fg_color;
   box-shadow: inset 0 1px 0 @lg_rim, inset 0 0 0 1px @lg_edge, 0 0 0 1px rgba(0, 0, 0, 0.30), 0 12px 32px 0 @lg_deep_shadow;
 }
 popover.background > box, popover > box { background-color: transparent; }
-popover modelbutton { border-radius: $radius_menu_item; }
+popover modelbutton { border-radius: $pop_xs; }
 popover modelbutton:hover { background-color: @lg_glass_hi; }
 menu, .menu, .context-menu {
-  border-radius: $radius_popover;
+  border-radius: $pop_m;
   border: none;
   padding: 6px;
   background-color: @popover_bg_color;
   color: @popover_fg_color;
   box-shadow: inset 0 1px 0 @lg_rim, inset 0 0 0 1px @lg_edge, 0 12px 32px 0 @lg_deep_shadow;
 }
-menu menuitem, .menu menuitem { border-radius: $radius_menu_item; padding: 6px 10px; }
+menu menuitem, .menu menuitem { border-radius: $pop_xs; padding: 6px 10px; }
 menu menuitem:hover, .menu menuitem:hover { background-color: @lg_glass_hi; color: @popover_fg_color; }
 menu separator, .menu separator { background-color: @lg_divider; }
-.csd menu, .csd .menu { border-radius: $radius_popover; }
+.csd menu, .csd .menu { border-radius: $pop_m; }
 
 /* ---- dialogs, tooltips, notifications ------------------------------------------------------------------------- */
 window.dialog.background, messagedialog.background, window.messagedialog { background-color: @dialog_bg_color; color: @dialog_fg_color; }
 tooltip, tooltip.background {
-  border-radius: $radius_menu_item;
+  border-radius: $r_xs;
   border: none;
   background-color: @lg_tooltip;
   color: @lg_tooltip_fg;
@@ -285,16 +287,16 @@ infobar > revealer > box, infobar { background-color: alpha(@accent_bg_color, 0.
 
 /* ---- tabs ------------------------------------------------------------------------------------------------------------ */
 notebook > header { background-color: transparent; box-shadow: inset 0 -1px 0 @lg_divider; border: none; }
-notebook > header > tabs > tab { border-radius: $radius_menu_item $radius_menu_item 0 0; border: none; background-image: none; }
+notebook > header > tabs > tab { border-radius: $r_s $r_s 0 0; border: none; background-image: none; }
 notebook > header > tabs > tab { color: @theme_fg_color; }
 notebook > header > tabs > tab:hover { background-color: @lg_hover; }
 /* The open tab: full-strength text and an accent line, so it reads in light and dark alike. */
 notebook > header > tabs > tab:checked { color: @theme_fg_color; background-color: @lg_glass_hi; box-shadow: inset 0 1px 0 @lg_rim, inset 0 -2px 0 @lg_accent; }
 notebook > stack { background-color: @view_bg_color; }
-stackswitcher button { border-radius: 999px; }
+stackswitcher button { border-radius: $r_s; }
 
 /* ---- Nautilus-like file managers, path bars, scrollbars ----------------------------------------------------------------------- */
-.path-bar button, pathbar button { border-radius: 999px; }
+.path-bar button, pathbar button { border-radius: $r_s; }
 scrollbar slider { border-radius: 999px; background-color: @lg_fg_faint; border: none; min-width: 6px; min-height: 6px; }
 scrollbar.overlay-indicator:not(.hovering) slider { background-color: @lg_fg_dim; }
 scrollbar trough { background-color: transparent; border: none; }

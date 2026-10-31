@@ -17,6 +17,16 @@ STYLE_PLUGINS = (
 )
 
 
+def environment(settings) -> str:
+    """The session environment for native Qt apps. With Qt title bars like GNOME's on,
+    Qt tries XWayland first (GNOME then draws the title bar with the header bar
+    style) and falls back to Wayland if XWayland is missing, so no app fails to start."""
+    lines = ["QT_STYLE_OVERRIDE=kvantum"]
+    if settings.qt_gnome_titlebars:
+        lines.append("QT_QPA_PLATFORM=xcb;wayland")
+    return "\n".join(lines) + "\n"
+
+
 class QtKvantum(Target):
     def __init__(self) -> None:
         super().__init__(
@@ -53,7 +63,7 @@ class QtKvantum(Target):
             WriteFile(theme / f"{kvantum.THEME}.kvconfig", kvantum.build_config(ctx.tokens)),
             WriteFile(theme / f"{kvantum.THEME}.svg", kvantum.build_svg(ctx.tokens)),
             WriteFile(main, kvantum.build_main_config(existing)),
-            WriteFile(env.config / "environment.d/90-liquid-glass-qt.conf", "QT_STYLE_OVERRIDE=kvantum\n"),
+            WriteFile(env.config / "environment.d/90-liquid-glass-qt.conf", environment(ctx.settings)),
         ]
         if env.which("flatpak"):
             # Let Flatpak Qt apps load the Kvantum theme.

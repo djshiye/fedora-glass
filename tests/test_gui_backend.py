@@ -89,6 +89,33 @@ def make_backend(app, home):
     return make
 
 
+@pytest.fixture(scope="module")
+def qml(app, tmp_path_factory):
+    """One QML engine with one Backend registered as the singleton, shared by the QML
+    tests, as the app does. Registering the singleton a second time in one process breaks
+    Qt's type registry: the next engine then rejects QtQuick.Effects types ("Cannot assign
+    object of type QQuickRectangularShadow to list property data"), so whichever QML test
+    ran second failed in a full run."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlEngine, qmlRegisterSingletonInstance
+
+    from liquidglass.gui import app as gui_app
+    from liquidglass.gui.backend import Backend
+    home = tmp_path_factory.mktemp("qml-home")
+    mp = pytest.MonkeyPatch()
+    for key, sub in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"), ("XDG_DATA_HOME", "data")):
+        mp.setenv(key, str(home / sub))
+    env = FakeEnv(home=home)
+    b = Backend(env=env, engine_factory=lambda: FakeEngine(env, []),
+                settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
+    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
+    engine = QQmlEngine()
+    engine.addImportPath(str(gui_app.QML_DIR))
+    engine.rootContext().setContextProperty("appIconUrl", QUrl())
+    yield engine
+    mp.undo()
+
+
 def test_property_round_trips(make_backend):
     b = make_backend()
     cases = {"frost": 0.8, "scheme": "light", "accent": "purple", "tint": "#112233",
@@ -216,19 +243,33 @@ def test_plan_apply_revert(make_backend, home):
     assert b.property("hasBackup") is False
 
 
-def test_qml_loads(make_backend, home):
+def test_qml_loads(qml):
     """The whole window compiles and every component resolves."""
     from PySide6.QtCore import QUrl
-    from PySide6.QtQml import QQmlComponent, QQmlEngine, qmlRegisterSingletonInstance
+    from PySide6.QtQml import QQmlComponent
 
     from liquidglass.gui import app as gui_app
-    from liquidglass.gui.backend import Backend
-    b = make_backend()
-    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
-    engine = QQmlEngine()
-    engine.addImportPath(str(gui_app.QML_DIR))
-    engine.rootContext().setContextProperty("appIconUrl", QUrl())
-    comp = QQmlComponent(engine, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
+    comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
+    assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
+
+
+def test_popups_compile_on_glass(qml):
+    """A tooltip, a dropdown and the colour picker (all on PopupGlass) compile."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlComponent
+
+    from liquidglass.gui import app as gui_app
+    comp = QQmlComponent(qml)
+    comp.setData(b"""
+import QtQuick
+import LiquidGlass
+Item {
+    width: 400; height: 300
+    LgDropdown { model: [{ value: "a", label: "A", tip: "first" }]; value: "a"; tip: "pick" }
+    LgToolTip { shown: true; text: "hello" }
+    ColorPicker { }
+}
+""", QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "popups.qml")))
     assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
 
 

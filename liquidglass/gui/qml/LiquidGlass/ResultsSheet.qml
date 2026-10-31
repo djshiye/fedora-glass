@@ -42,7 +42,7 @@ Sheet {
                     readonly property var m: sheet.meta(modelData)
                     height: 26
                     width: chipRow.width + 20
-                    radius: 13
+                    radius: height / 2
                     color: Theme.alpha(m.color, 0.14)
                     Row {
                         id: chipRow
