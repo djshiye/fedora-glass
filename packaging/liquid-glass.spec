@@ -8,7 +8,7 @@ Source0:        %{url}/archive/v%{version}/fedora-liquid-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
-# For the tests in %check.
+# For the tests in %%check.
 BuildRequires:  python3-pytest
 BuildRequires:  python3-gobject
 Requires:       python3
