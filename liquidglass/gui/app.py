@@ -71,6 +71,10 @@ def main(argv: list[str] | None = None) -> int:
 
     cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
     os.environ.setdefault("QML_DISK_CACHE_PATH", str(cache / "liquid-glass" / f"qmlcache-{__version__}"))
+    # "Qt apps get the same title bar" sends Qt apps through XWayland; this app draws
+    # its own glass header, so it stays on Wayland when it can.
+    if os.environ.get("QT_QPA_PLATFORM") == "xcb;wayland":
+        os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"
 
     try:
         from PySide6.QtCore import QTimer, QUrl

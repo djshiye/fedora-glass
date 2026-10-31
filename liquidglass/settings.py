@@ -107,6 +107,11 @@ class Settings:
     # Ptyxis has its own light/dark switch, set to dark out of the box. Off unless the
     # user opts in: then Ptyxis follows GNOME's style; off again brings their own value back.
     terminal_follows_style: bool = False
+    # Qt apps' own title bars have fixed colours that no theme can reach. On, native Qt
+    # apps start through XWayland when they can, so GNOME draws their title bar with
+    # the same glass header as GTK apps. Off unless the user opts in: it can make Qt
+    # apps a little soft with fractional scaling. Flatpak apps are left alone.
+    qt_gnome_titlebars: bool = False
 
     # Animations, per event: {"open": {"preset": "spring", "intensity": 0.5, "speed": 1.0}, ...}.
     # A missing event or key uses MOTION_DEFAULTS.
@@ -153,7 +158,7 @@ class Settings:
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
-                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "start_on_desktop",
+                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars", "start_on_desktop",
                   "overview_off"):
             setattr(s, k, bool(getattr(s, k)))
         if s.opacity is not None:
