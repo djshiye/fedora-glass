@@ -8,8 +8,9 @@ import Shell from 'gi://Shell';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {moving, stopMoving} from './glass.js';
+import {moving, stopMoving, releaseAllPanes} from './glass.js';
 import {WindowWatch, windowWatch, motion, wallpaper, Signals} from './common.js';
+import {WindowAnimationHold} from './hold.js';
 import {Motion} from './motion.js';
 import {Panels} from './panels.js';
 import {Popups} from './popups.js';
@@ -49,6 +50,8 @@ export class GlassManager {
         motion.current = new Motion();
         this._motion = motion.current;   // reachable from Looking Glass, for testing
         this._parts = [new Panels(cfg), new Popups(cfg), new Windows(cfg), new OverviewBackdrop(cfg)];
+        // While a window animates, the glass keeps its picture (see glass.js holdPanes).
+        this._hold = new WindowAnimationHold();
         this._signals = new Signals();
         // Behind the panel and menus is the overview while it is open, the windows otherwise.
         for (const s of ['showing', 'shown', 'hiding', 'hidden'])
@@ -65,6 +68,9 @@ export class GlassManager {
 
     destroy() {
         this._signals.clear();
+        this._hold?.destroy();
+        this._hold = null;
+        releaseAllPanes(true);
         stopMoving();
         motion.current?.destroy();
         motion.current = null;

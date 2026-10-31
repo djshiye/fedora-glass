@@ -13,6 +13,7 @@ const STUBS = {
     'gi/St': 'export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3}};',
     'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
+        export const wm = globalThis.fake.wm;
         export const panel = {statusArea: {}};`,
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
     'glass': `export class GlassPane extends globalThis.fake.Actor {
@@ -20,7 +21,9 @@ const STUBS = {
         setLook() { if (globalThis.fake.glassFails) throw new Error('forced test failure'); }
         setSources() {} setEdges() {} place() {} setMotion() {}
     }
-    export function windowLanded() {}`,
+    export function windowLanded() {}
+    export function holdPanes(key) { globalThis.fake.holds?.push(['hold', key]); }
+    export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }`,
 };
 
 export async function resolve(specifier, context, next) {
