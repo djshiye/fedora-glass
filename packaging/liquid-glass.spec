@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.4.0
+Version:        1.4.1
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -91,6 +91,9 @@ python3 -m pytest -q tests
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Sat Oct 31 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.1-1
+- Genie minimize now narrows smoothly into the icon when the window sits above it
+
 * Sat Oct 31 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.0-1
 - Text stays readable on window glass over bright wallpapers
 - Flat, small GTK 3 checkboxes and radio buttons on Orchis
