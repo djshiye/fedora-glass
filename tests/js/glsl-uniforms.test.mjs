@@ -118,20 +118,29 @@ test('each effect keeps its own uniform slots; looked up once', () => {
     assert.deepEqual(b.calls.map(c => c.values[0]), [1, 0.75, 0.5, 0.25, 0]);
 });
 
-test('an unknown uniform throws; a non-finite value is skipped', () => {
-    const shader = new Shader(shaderSource('glass.js', 'SHADER'));
-    const e = new FakeEffect();
-    assert.throws(() => shader.set(e, {nope: 1}), /no uniform nope/);
+function quietly(fn) {
     const warn = console.warn;
     const warned = [];
     console.warn = m => warned.push(m);
     try {
-        shader.set(e, {ptr_x: NaN, ptr_y: Infinity, ptr_k: 0.5, press: undefined});
+        fn();
     } finally {
         console.warn = warn;
     }
-    assert.deepEqual(e.calls.map(c => c.values[0]), [0.5]);
+    return warned;
+}
+
+test('a bad name or value is skipped with one warning, never thrown (it runs mid-paint)', () => {
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'));
+    const e = new FakeEffect();
+    const warned = quietly(() => {
+        assert.doesNotThrow(() => shader.set(e, {nope: 1, ptr_x: NaN, ptr_y: Infinity, ptr_k: 0.5, press: undefined}));
+        assert.doesNotThrow(() => shader.set(e, {nope: 2, hl: 0.25}));
+    });
+    assert.deepEqual(e.calls.map(c => c.values[0]), [0.5, 0.25]);
+    assert.ok(!e.slots.has('nope'));
     assert.equal(warned.length, 1);
+    assert.match(warned[0], /no uniform nope/);
 });
 
 test('build adds one replacing fragment snippet', () => {

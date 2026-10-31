@@ -44,10 +44,11 @@ export function uniformNames(source) {
  *     }
  *
  * build() runs once per class, on its first instance. set() sets each uniform
- * as a float. A name the shader does not declare is a programming error and
- * throws. A value that is not a finite number (NaN from a bad measurement) is
- * left out, with one warning, so the uniform keeps its last good value and the
- * frame still draws.
+ * as a float. It runs while a frame is painted, so it never throws: a name the
+ * shader does not declare, or a value that is not a finite number (NaN from a
+ * bad measurement), is left out with one warning per shader, so the uniform
+ * keeps its last good value and the frame still draws. The unit tests check
+ * that every name the code sets is declared.
  */
 export class Shader {
     constructor(source) {
@@ -59,16 +60,22 @@ export class Shader {
         effect.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, this.decls, this.code, true);
     }
 
+    _warn(message) {
+        if (this._warned)
+            return;
+        this._warned = true;
+        console.warn(message);
+    }
+
     set(effect, values) {
         effect._uniformAt ??= new Map();
         for (const [k, v] of Object.entries(values)) {
-            if (!this.names.has(k))
-                throw new Error(`Liquid Glass: no uniform ${k}`);
+            if (!this.names.has(k)) {
+                this._warn(`Liquid Glass: no uniform ${k} in this shader; skipped`);
+                continue;
+            }
             if (typeof v !== 'number' || !Number.isFinite(v)) {
-                if (!this._warned) {
-                    this._warned = true;
-                    console.warn(`Liquid Glass: uniform ${k} skipped, not a finite number`);
-                }
+                this._warn(`Liquid Glass: uniform ${k} skipped, not a finite number`);
                 continue;
             }
             let loc = effect._uniformAt.get(k);
