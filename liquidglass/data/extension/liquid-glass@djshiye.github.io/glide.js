@@ -8,8 +8,8 @@
 // (the app does that), so there is never a second highlight.
 //
 // The tile is a child of the Dash to Panel panel actor, under its icons and over
-// its background. That panel lays out only its own children, so the tile gives
-// itself its allocation (a box at 0,0 of its size) and is moved with translations:
+// its background. That panel does not always lay out extra children, so the tile
+// gives itself its allocation (a box at 0,0 of its size) and is moved with translations:
 // moving it costs a redraw and nothing else, and it stays shown at opacity 0 when
 // idle, so showing and hiding never asks the panel for a layout. Nothing runs while the pointer is
 // still: steps are scheduled before the next redraw only while a tile is moving.
@@ -97,10 +97,14 @@ class Tile {
         this.actor.set_style(`background-color: ${look.color}; border-radius: ${look.radius}px;`);
     }
 
+    // Its size is also set as its natural size: when the panel does lay out its
+    // children (its BinLayout), the tile then gets the same box at 0,0.
     allocate() {
         if (this.gone)
             return;
         const [w, h] = this.size;
+        if (this.actor.width !== w || this.actor.height !== h)
+            this.actor.set_size(w, h);
         this.actor.allocate(new Clutter.ActorBox({x1: 0, y1: 0, x2: w, y2: h}));
     }
 

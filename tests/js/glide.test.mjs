@@ -62,6 +62,10 @@ class Actor {
     transform_stage_point(x, y) {
         return [true, x - this.pos[0], y - this.pos[1]];
     }
+    set_size(w, h) {
+        this.width = w;
+        this.height = h;
+    }
     allocate(box) {
         this.width = box.x2 - box.x1;
         this.height = box.y2 - box.y1;
