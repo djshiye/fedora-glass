@@ -85,6 +85,9 @@ uniform float shadow;
 uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = the surface's own light,
                                  // 3 = the rim over an app window
 
+// setFloats() nudges whole numbers by 1e-6 so they reach GL as floats, so a
+// uniform set to 0 arrives as 0.000001: test "is it on" against OFF, never 0.0.
+const float OFF = 0.001;
 const float IOR = 1.5;           // crown glass at 550 nm
 const float F0 = 0.04;           // ((IOR - 1) / (IOR + 1))^2, head-on reflectance
 
@@ -244,7 +247,7 @@ void main() {
     // It also lies under the edge's partly covered pixels, so the rounded edge
     // stays anti-aliased against the shadow.
     float s = 0.0;
-    if (shadow > 0.0 && pad > 1.0 && sd > -0.5) {
+    if (shadow > OFF && pad > 1.0 && sd > -0.5) {
         float ds = sdRoundRect(cc + L * (pad * 0.25), hh, r);
         s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
         s = shadow * s * s;
@@ -284,7 +287,7 @@ void main() {
         // content, mirror what lies just beyond the edge: the real wallpaper and
         // windows, in their own colours. Everything further in stays the app's own.
         float band = smoothstep(2.8, 1.2, inside);
-        if (band <= 0.0 || hl <= 0.0) {
+        if (band <= 0.0 || hl <= OFF) {
             cogl_color_out = vec4(0.0);
             return;
         }
@@ -374,7 +377,7 @@ void main() {
     // Adapt to the backdrop: over bright things the glass shades itself a little
     // so text stays readable. Dark glass is never lifted: over a dark backdrop
     // that reads milky.
-    if (adapt > 0.0 || lift > 0.0) {
+    if (adapt > OFF || lift > OFF) {
         vec2 q = h * 0.5;
         float bl = dot((at(size * 0.5 + vec2(-q.x, -q.y)).rgb + at(size * 0.5 + vec2(q.x, -q.y)).rgb
                       + at(size * 0.5 + vec2(-q.x, q.y)).rgb + at(size * 0.5 + q).rgb) * 0.25,
@@ -398,7 +401,7 @@ void main() {
     // A ceiling on brightness, for glass that carries white text over any backdrop
     // (the lock screen). Dark backdrops pass unchanged; brighter ones ease into
     // the ceiling in their own colour, so a white wallpaper gives a calm grey.
-    if (ceil_y > 0.0) {
+    if (ceil_y > OFF) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         float Yl = dot(pow(max(st, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722));
         float knee = 0.6 * ceil_y;
@@ -413,7 +416,7 @@ void main() {
     // leaves outwards, so the rim shows the backdrop beyond the edge, and
     // changes as the windows there move. Where the edge faces the light it
     // catches more, in the backdrop's own colours.
-    if (hl > 0.0 && slope > 0.0) {
+    if (hl > OFF && slope > 0.0) {
         vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
         vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
         vec3 seen = vivid(env(px + dir * env_reach * length(Rf.xy) + parallax(toPtr, h)), 1.4);
@@ -444,7 +447,7 @@ void main() {
     }
     // Light glass over a light backdrop has no edge of its own, so a bar can keep
     // a thin dark contact line: darker, never lit. Sides on the screen edge have none.
-    if (hair > 0.0)
+    if (hair > OFF)
         col.rgb *= 1.0 - hair * smoothstep(1.6, 0.6, inside) * smoothstep(0.0, 0.4, inside);
     col.rgb += vec3(grain(px) / 255.0) * col.a;
 
