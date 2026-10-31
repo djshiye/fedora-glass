@@ -21,6 +21,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {Signals} from './common.js';
+import {springStep as spring} from './curves.js';
 
 const FADE_IN_MS = 120;
 const FADE_OUT_MS = 200;
@@ -48,17 +49,6 @@ function iconsOf(panel) {
 // What Dash to Panel would have highlighted: the icon's container.
 function highlightOf(icon) {
     return icon._container ?? icon;
-}
-
-// One step of a damped spring towards `to` (stiffness k, damping c).
-export function spring(x, v, to, k, c, dt) {
-    const steps = Math.ceil(dt / 0.008);
-    const h = dt / steps;
-    for (let i = 0; i < steps; i++) {
-        v += (k * (to - x) - c * v) * h;
-        x += v * h;
-    }
-    return [x, v];
 }
 
 class Tile {

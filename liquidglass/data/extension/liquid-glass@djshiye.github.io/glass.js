@@ -302,6 +302,27 @@ void main() {
         // Only colour bleeds: white and grey text and icons cast nothing, or the
         // glass turns milky. What is left after taking out the grey is the colour.
         vec3 glow = (g.rgb - vec3(min(g.r, min(g.g, g.b)))) * 2.6;
+        // A large painted area (an accent-filled toggle, a slider fill) is paint, not
+        // a light: its colour stays inside its own edge, with no halo around it. Next
+        // to such an area, colour still fills the blur both half way out and all the
+        // way out along some direction; next to an icon, the far sample has left it.
+        float paint = 0.0;
+        for (int i = 0; i < 8; i++) {
+            vec2 d = vec2(cos(float(i) * 0.7853982), sin(float(i) * 0.7853982));
+            // Samples past the pane's edge count as empty (at() would clamp them
+            // back onto the edge, which in a thin panel is right next to the icon).
+            vec2 p1 = px + d * 28.0, p2 = px + d * 56.0;
+            vec2 size = vec2(width, height);
+            float in1 = step(0.0, p1.x) * step(0.0, p1.y) * step(p1.x, size.x) * step(p1.y, size.y);
+            float in2 = step(0.0, p2.x) * step(0.0, p2.y) * step(p2.x, size.x) * step(p2.y, size.y);
+            vec4 a1 = at(p1);
+            vec4 a2 = at(p2);
+            float c1 = in1 * (max(a1.r, max(a1.g, a1.b)) - min(a1.r, min(a1.g, a1.b)));
+            float c2 = in2 * (max(a2.r, max(a2.g, a2.b)) - min(a2.r, min(a2.g, a2.b)));
+            paint = max(paint, min(c1, c2));
+        }
+        float keepIn = 1.0 - smoothstep(0.16, 0.34, paint);
+        glow *= keepIn;
         // The surface's light, caught inside the glass, leaves at the very edge: a
         // one px hairline in the surface's own colour, equally faint on every surface
         // (a fixed step in display values is a fixed step in lightness).
@@ -313,7 +334,7 @@ void main() {
             // Content near the edge, mirrored into it by reflection inside the glass.
             vec4 m = at(px - n * (2.0 * inside + 6.0));
             vec3 mc = (m.rgb - vec3(min(m.r, min(m.g, m.b)))) * 1.6;
-            glow += mc * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bevel, 1.0)) * 1.2;
+            glow += mc * keepIn * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bevel, 1.0)) * 1.2;
         }
         if (light_glass > 0.5) {
             // Light glass is already near white: added light would only clip, and a

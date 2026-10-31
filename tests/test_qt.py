@@ -221,3 +221,8 @@ def test_qt_title_bar_switch_names_the_x11_trade_off():
     qml = (Path(__file__).resolve().parents[1] / "liquidglass/gui/qml/LiquidGlass/HeaderBarCard.qml").read_text()
     tip = qml[qml.index('objectName: "qtGnomeTitlebars"'):]
     assert "other X11 apps can see what you type" in tip and "fractional scaling" in tip
+    # Security council: the warning shows under the switch whenever it is on.
+    note = qml[qml.index('objectName: "qtGnomeTitlebarsNote"'):]
+    assert "visible: Backend.qtGnomeTitlebars" in note
+    assert ("X11 keeps apps less separated: other X11 apps can see what you type in them. "
+            "Leave this off if you use a Qt password manager such as KeePassXC.") in note

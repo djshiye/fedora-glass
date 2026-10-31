@@ -296,3 +296,17 @@ test('config: only plain colours reach the style string', async () => {
     assert.equal(cleanGlide({radius: 500}).radius, 48);
     assert.equal(cleanGlide(null).enabled, false);
 });
+
+test('the shared spring settles on its target with a small overshoot, also over long frames', async () => {
+    const {springStep} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/curves.js');
+    let [x, v, peak] = [0, 0, 0];
+    for (let i = 0; i < 60; i++) {
+        [x, v] = springStep(x, v, 1, 700, 46, 0.016);
+        peak = Math.max(peak, x);
+    }
+    assert.ok(Math.abs(x - 1) < 1e-3 && Math.abs(v) < 0.05);
+    assert.ok(peak < 1.03, `overshoot ${peak}`);
+    // One 150 ms stall is sub-stepped, not one huge Euler step.
+    [x, v] = springStep(0, 0, 1, 1370, 44, 0.15);
+    assert.ok(Number.isFinite(x) && x > 0 && x < 1.3);
+});
