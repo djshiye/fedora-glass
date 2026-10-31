@@ -89,32 +89,6 @@ def make_backend(app, home):
     return make
 
 
-@pytest.fixture(scope="module")
-def qml(app, tmp_path_factory):
-    """One QML engine with one Backend registered as the singleton, shared by the QML
-    tests, as the app does. Registering the singleton a second time in one process breaks
-    Qt's type registry: the next engine then rejects QtQuick.Effects types ("Cannot assign
-    object of type QQuickRectangularShadow to list property data"), so whichever QML test
-    ran second failed in a full run."""
-    from PySide6.QtCore import QUrl
-    from PySide6.QtQml import QQmlEngine, qmlRegisterSingletonInstance
-
-    from liquidglass.gui import app as gui_app
-    from liquidglass.gui.backend import Backend
-    home = tmp_path_factory.mktemp("qml-home")
-    mp = pytest.MonkeyPatch()
-    for key, sub in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"), ("XDG_DATA_HOME", "data")):
-        mp.setenv(key, str(home / sub))
-    env = FakeEnv(home=home)
-    b = Backend(env=env, engine_factory=lambda: FakeEngine(env, []),
-                settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
-    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
-    engine = QQmlEngine()
-    engine.addImportPath(str(gui_app.QML_DIR))
-    engine.rootContext().setContextProperty("appIconUrl", QUrl())
-    yield engine
-    mp.undo()
-
 
 def test_property_round_trips(make_backend):
     b = make_backend()
@@ -427,3 +401,4 @@ def test_replaced_files_show_a_reapply_note(make_backend, home):
     b.apply()
     assert b.waitIdle()
     assert b.property("lostNote") == ""
+
