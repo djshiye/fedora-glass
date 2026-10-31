@@ -108,6 +108,52 @@ for (const [p, I, icon] of [0.3, 0.6, 0.85].flatMap(p => [[p, 0.5, below], [p, 0
         check(Math.abs(mid[1] - chord) > 8, `p=${p} I=${I} icon x ${icon.x}: the side curves (${Math.round(mid[1] - chord)} px off a straight line)`);
     }
 }
+// Beside the icon (the window off to one side, the icon in a bottom panel): the
+// tail heads into the icon, and nothing runs along at the icon's height away from it.
+{
+    const side = {x: 880, y: 120, width: 640, height: 480}, ico = {x: 112, y: 848, width: 68, height: 44};
+    const icx = ico.x + ico.width / 2, icy = ico.y + ico.height / 2;
+    for (const p of [0.6, 0.85]) {
+        for (const I of [0, 0.5, 1]) {
+            // The tail: the nearest twentieth of the window, its centre.
+            const [tx, ty] = C.genieWarp(side.x + 0.05 * side.width, side.y + side.height / 2, p, side, ico, I);
+            check(Math.abs(tx - icx) <= ico.width / 2 && Math.abs(ty - icy) <= ico.height / 2,
+                `side p=${p} I=${I}: the tail lands in the icon (${Math.round(tx)}, ${Math.round(ty)})`);
+            for (let f = 0; f <= 1; f += 0.02) {
+                const top = C.genieWarp(side.x + f * side.width, side.y, p, side, ico, I);
+                const bottom = C.genieWarp(side.x + f * side.width, side.y + side.height, p, side, ico, I);
+                if (bottom[1] - top[1] <= ico.height + 1e-6 && top[1] >= ico.y - 1)
+                    check(Math.abs(top[0] - icx) <= 2 * ico.width, `side p=${p} I=${I}: squeezed to the icon only near it (x ${Math.round(top[0])})`);
+            }
+        }
+    }
+}
+// No fold and no crossing, above and beside, at every intensity: rows keep their order
+// down the window and each row's two edges never pass each other.
+{
+    const side = {x: 880, y: 120, width: 640, height: 480}, ico = {x: 112, y: 848, width: 68, height: 44};
+    for (const [w, ic, label] of [[win, below, 'above'], [win, belowLeft, 'above-left'], [side, ico, 'side']]) {
+        const vertical = label !== 'side';
+        for (const I of [0, 0.5, 1]) {
+            for (let p = 0; p <= 1.0001; p += 0.05) {
+                let last = -Infinity, ok = true, folds = true;
+                for (let f = 0; f <= 1.0001; f += 0.01) {
+                    const at = (g) => vertical ? C.genieWarp(w.x + g * w.width, w.y + f * w.height, p, w, ic, I)
+                        : C.genieWarp(w.x + f * w.width, w.y + g * w.height, p, w, ic, I);
+                    const [a0, a1] = [at(0), at(1)];
+                    const [along, e0, e1] = vertical ? [a0[1], a0[0], a1[0]] : [a0[0], a0[1], a1[1]];
+                    if (e1 < e0 - 1e-6)
+                        ok = false;
+                    if (along < last - 1e-9)
+                        folds = false;
+                    last = along;
+                }
+                check(ok, `${label} p=${p.toFixed(2)} I=${I}: the edges never cross`);
+                check(folds, `${label} p=${p.toFixed(2)} I=${I}: no fold`);
+            }
+        }
+    }
+}
 // At the top the window is still full width at 0.3 (it narrows from the bottom up).
 check(near(C.genieWarp(win.x + win.width, win.y, 0.3, win, below)[0], win.x + win.width, 1e-6), 'genie: the far edge keeps its width early on');
 
