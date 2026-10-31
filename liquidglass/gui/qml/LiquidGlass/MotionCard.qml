@@ -531,6 +531,15 @@ Card {
             }
         }
 
+        SwitchRow {
+            objectName: "motionGlide"
+            label: "Gliding highlight"
+            caption: "One highlight slides from icon to icon along the taskbar"
+            tip: "Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on."
+            checked: Backend.hoverGlide
+            onToggled: (on) => Backend.hoverGlide = on
+        }
+
         // ---- Dash to Panel ----
         Note {
             objectName: "motionDtpNote"

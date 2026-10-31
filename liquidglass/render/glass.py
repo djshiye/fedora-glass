@@ -19,7 +19,7 @@ UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
-         "animations.js", "curves.js", "dtpquiet.js", "prefs.js")
+         "animations.js", "curves.js", "glide.js", "dtpquiet.js", "prefs.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -155,6 +155,8 @@ def config(s: Settings, t: Tokens) -> dict:
         "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
         "animations": {ev: s.motion_for(ev) for ev in MOTION_EVENTS},
+        # One hover highlight that glides along the Dash to Panel taskbar (glide.js).
+        "glide": {"enabled": s.hover_glide, "color": t.hover.css, "radius": t.radius_small},
     }
 
 

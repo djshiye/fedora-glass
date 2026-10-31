@@ -235,6 +235,17 @@ def test_dash_to_panel_floating_and_docked(fake_env):
     assert floating["trans-use-custom-bg"] == "true" and floating["trans-use-dynamic-opacity"] == "false"
 
 
+def test_dash_to_panel_hover_colour_is_clear_while_the_highlight_glides(fake_env):
+    install(fake_env, ts.DASH_TO_PANEL)
+    def hover(glide):
+        acts = ts.DashToPanel().plan(context(fake_env, hover_glide=glide))
+        found = [a.value for a in acts if isinstance(a, GSet) and a.key == "highlight-appicon-hover-background-color"]
+        assert len(found) == 1
+        return found[0]
+    assert hover(True) == "'rgba(0,0,0,0)'"
+    assert hover(False) != "'rgba(0,0,0,0)'"
+
+
 def test_arcmenu_values_have_the_schema_types(fake_env):
     install(fake_env, ts.ARCMENU)
     acts = ts.ArcMenu().plan(context(fake_env, frost=0.0, dark=False))

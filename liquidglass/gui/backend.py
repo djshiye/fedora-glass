@@ -357,6 +357,7 @@ class Backend(QObject):
     startOnDesktop = _p("start_on_desktop", bool)
     overviewOff = _p("overview_off", bool)
     motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
+    hoverGlide = _p("hover_glide", bool)
     del _p
 
     # ---- animations ----------------------------------------------------------------
