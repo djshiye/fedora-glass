@@ -215,3 +215,9 @@ def test_the_customizer_itself_stays_on_wayland():
     src = (Path(__file__).resolve().parents[1] / "liquidglass/gui/app.py").read_text()
     assert 'os.environ.get("QT_QPA_PLATFORM") == "xcb;wayland"' in src
     assert 'os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"' in src
+
+
+def test_qt_title_bar_switch_names_the_x11_trade_off():
+    qml = (Path(__file__).resolve().parents[1] / "liquidglass/gui/qml/LiquidGlass/HeaderBarCard.qml").read_text()
+    tip = qml[qml.index('objectName: "qtGnomeTitlebars"'):]
+    assert "other X11 apps can see what you type" in tip and "fractional scaling" in tip
