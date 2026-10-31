@@ -565,3 +565,12 @@ def test_shader_never_tests_a_uniform_against_exactly_zero():
     uniforms = set(re.findall(r"^uniform float (\w+);", shader, re.M))
     bad = [m.group(0) for m in re.finditer(r"\b(\w+)\s*(?:>|<=)\s*0\.0\b", shader) if m.group(1) in uniforms]
     assert not bad, bad
+
+
+def test_dark_window_glass_has_a_brightness_ceiling(fake_env):
+    """Dark window glass darkens itself under bright backdrops (header text 4.5:1 on a
+    white wallpaper); light glass carries dark text and never gets one."""
+    dark = rg.config(Settings(), context(fake_env, dark=True).tokens)["windows"]
+    assert dark["look"]["ceiling"] == rg.WINDOW_CEILING and dark["terminalLook"]["ceiling"] == rg.WINDOW_CEILING
+    light = rg.config(Settings(), context(fake_env, dark=False).tokens)["windows"]
+    assert "ceiling" not in light["look"] and "ceiling" not in light["terminalLook"]

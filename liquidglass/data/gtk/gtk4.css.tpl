@@ -272,7 +272,8 @@ switch > slider {
 }
 check, radio {
   background-color: var(--lg-glass-hi);
-  box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge);
+  /* A clear 1 px ring, so an empty box reads on any backdrop. */
+  box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px alpha(currentColor, 0.34);
 }
 check:checked, radio:checked, check:indeterminate, radio:indeterminate {
   background-color: var(--accent-bg-color);

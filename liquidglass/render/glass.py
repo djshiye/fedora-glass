@@ -87,13 +87,23 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     return {"look": look, "tint": [c.r, c.g, c.b, 0]}      # the Shell theme paints the fill
 
 
+# Dark glass behind app windows: the brightest it may get (linear Y). Under a bright
+# backdrop (a white or rainbow wallpaper) the glass darkens itself there, and only
+# there, so header and window text keeps 4.5:1 or better. Dark backdrops pass unchanged.
+# Measured on Orchis-Dark GTK 3 apps: 0.28 gives 4.8:1 or more on a white wallpaper.
+WINDOW_CEILING = 0.28
+
+
 def _window_look(t: Tokens, name: str) -> dict:
     """App windows: the menus' lens, a little narrower and thinner, since a window is
     big and holds text near its edge. No colour bleed: content stays as the app draws it."""
     p = t.parts[name]
-    return {"blur": max(24, p["blur"]), "refraction": round(p["lens_width"] * 0.85, 1),
+    look = {"blur": max(24, p["blur"]), "refraction": round(p["lens_width"] * 0.85, 1),
             "bend": round(p["lens_bend"] * 0.6, 1), "dispersion": round(t.dispersion * 0.6, 3),
             "depth": 0.1, "highlight": p["glare"], "bleed": 0, "shadow": 0, **_milk(t, name)}
+    if t.dark and t.blur_radius > 0:
+        look["ceiling"] = WINDOW_CEILING
+    return look
 
 
 def _lock_config(s: Settings, off: bool) -> dict:
