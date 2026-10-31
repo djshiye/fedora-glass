@@ -19,7 +19,8 @@ const STUBS = {
         constructor(name) { super(); this.name = name; this.pad = 0; }
         setLook() { if (globalThis.fake.glassFails) throw new Error('forced test failure'); }
         setSources() {} setEdges() {} place() {} setMotion() {}
-    }`,
+    }
+    export function windowLanded() {}`,
 };
 
 export async function resolve(specifier, context, next) {
