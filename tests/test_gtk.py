@@ -338,3 +338,12 @@ def test_files_path_bar_is_one_field_with_flat_segments():
     assert _specificity(geo["path_btn_hover"]) > _specificity(geo["glass_btn"] + ":hover")
     css = gtk4.render(toks(True, 0.4))
     assert ".nautilus-pathbar .path-bar-box { background: none" in css
+
+
+def test_files_location_field_is_a_deeper_field():
+    """An unfocused Files window fades its bar to 65%; over a white wallpaper the location
+    text measured 3.6:1 on the light glass fill. The field takes the window's own fill."""
+    css = gtk4.render(toks(True, 0.4))
+    for sel in (".nautilus-pathbar, pathbar {", ".path-bar-box {"):
+        rule = css[css.index(sel):].split("}", 1)[0]
+        assert "background-color: var(--window-bg-color)" in rule, sel

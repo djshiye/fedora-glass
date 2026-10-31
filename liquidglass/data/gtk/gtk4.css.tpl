@@ -401,8 +401,11 @@ toggle-group button:checked, toggle-group > toggle:checked {
 
 /* ---- Nautilus ---------------------------------------------------------------------- */
 /* Files' path bar is one glass field: the location and the ⋮ menu share one fill. */
-.nautilus-pathbar, pathbar { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
-.path-bar-box { background-color: var(--lg-glass); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
+/* The location field is filled with the window's own glass once more, a little deeper
+   than the bar: its text keeps 4.5:1 even in an unfocused window (faded to 65%) over a
+   white wallpaper (3.6:1 with the lighter glass fill, 5.1:1 and up with this). */
+.nautilus-pathbar, pathbar { background-color: var(--window-bg-color); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); }
+.path-bar-box { background-color: var(--window-bg-color); border-radius: 999px; box-shadow: inset 0 1px 2px 0 var(--lg-shadow), inset 0 0 0 1px var(--lg-edge); padding: 2px; }
 .nautilus-pathbar > menubutton > button { margin: 3px; }
 .nautilus-pathbar .path-bar-box { background: none; box-shadow: none; padding: 0; }
 .nautilus-pathbar > scrolledwindow:dir(ltr) undershoot.left { border-radius: 999px 0 0 999px; }
