@@ -129,14 +129,14 @@ FocusScope {
         }
         exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
 
-        // Glass, but frosted hard (blur 40, tint 0.86 dark / 0.88 light): the list
+        // Glass, but frosted hard (blur 40, tint 0.76 dark / 0.80 light; text keeps at least 6:1 even over pure white or black): the list
         // sits over card text and the preview, and the rows must stay readable.
         background: PopupGlass {
             owner: popup
             radius: Theme.rM
             blurRadius: 40
-            tintAlphaDark: 0.86
-            tintAlphaLight: 0.88
+            tintAlphaDark: 0.76
+            tintAlphaLight: 0.80
             shadowBlur: 26
             shadowY: 8
         }

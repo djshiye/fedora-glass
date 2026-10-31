@@ -4,6 +4,8 @@ component. These checks read the QML source, so they run without a GUI."""
 from __future__ import annotations
 
 import re
+
+import pytest
 from pathlib import Path
 
 QML = Path(__file__).resolve().parents[1] / "liquidglass/gui/qml"
@@ -56,4 +58,32 @@ def test_tooltip_text_follows_theme_and_tint_is_heavy():
     tip = _src("LgToolTip.qml")
     assert "color: Theme.text" in tip and "#f4f5f9" not in tip
     assert re.search(r"blurRadius:\s*(3[2-9]|[4-9]\d)", tip)
-    assert "tintAlphaDark: 0.80" in tip and "tintAlphaLight: 0.82" in tip
+
+
+
+def _lum(rgb):
+    def ch(c):
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (ch(c) for c in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast(a, b):
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+@pytest.mark.parametrize("name", ["LgToolTip.qml", "LgDropdown.qml", "ColorPicker.qml"])
+def test_popup_text_reads_over_the_worst_backdrop(name):
+    """The tint over pure white (dark mode) or pure black (light mode) still gives
+    Theme.text at least 4.5:1, even though more of the glass now shows through."""
+    src = _src(name)
+    dark = float(re.search(r"tintAlphaDark:\s*([\d.]+)", src).group(1))
+    light = float(re.search(r"tintAlphaLight:\s*([\d.]+)", src).group(1))
+    tint_d, tint_l = (0.075, 0.08, 0.10), (0.985, 0.987, 0.993)       # PopupGlass.qml
+    text_d, text_l = (0xf2 / 255, 0xf3 / 255, 0xf7 / 255), (0x17 / 255, 0x18 / 255, 0x1d / 255)
+    over_white = tuple(t * dark + 1 * (1 - dark) for t in tint_d)
+    over_black = tuple(t * light for t in tint_l)
+    assert _contrast(text_d, over_white) >= 4.5
+    assert _contrast(text_l, over_black) >= 4.5
+    assert dark < 0.85 and light < 0.9, "keep it glass: some backdrop must show through"

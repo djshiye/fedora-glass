@@ -35,8 +35,8 @@ C.Popup {
         owner: pop
         radius: Theme.rM
         blurRadius: 40
-        tintAlphaDark: 0.90
-        tintAlphaLight: 0.92
+        tintAlphaDark: 0.84
+        tintAlphaLight: 0.88
         shadowBlur: 26
         shadowY: 8
     }

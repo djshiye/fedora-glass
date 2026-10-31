@@ -41,6 +41,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--fine-tune", action="store_true", help="open the Fine-tune section")
     shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
     shot.add_argument("--sheet", choices=("changes", "results", "restore"), help="open a sheet")
+    shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
+    shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
     shot.add_argument("--size", default="1280x820", help="content size WxH (shadow margin is added)")
     shot.add_argument("--delay-ms", type=int, default=2500)
     return ap.parse_args(argv)
@@ -147,6 +149,32 @@ def main(argv: list[str] | None = None) -> int:
                 backend.applyFinished.emit(_demo_results(backend))
             elif args.sheet == "restore":
                 win.setProperty("startSheet", "restore")
+            if args.dropdown or args.tip:
+                from PySide6.QtCore import QMetaObject, QObject
+
+                def find(name):
+                    # Repeater rows are only visual children: walk the item tree too.
+                    hit = win.findChild(QObject, name)
+                    todo = [win.contentItem()]
+                    while hit is None and todo:
+                        it = todo.pop()
+                        if it.objectName() == name:
+                            hit = it
+                        todo.extend(it.childItems())
+                    return hit
+                if args.dropdown:
+                    dd = find(args.dropdown)
+                    if dd is not None:
+                        dd.setProperty("focus", True)
+                        ok = QMetaObject.invokeMethod(dd, "open")
+                        print(f"dropdown {args.dropdown}: {'opened' if dd.property('opened') else 'not opened'} ({ok})", flush=True)
+                if args.tip:
+                    ctl = find(args.tip)
+                    tips = [] if ctl is None else [c for c in ctl.findChildren(QObject)
+                                                   if c.metaObject().indexOfProperty("shown") >= 0]
+                    if tips:
+                        tips[0].setProperty("delay", 0)
+                        tips[0].setProperty("shown", True)
 
         def grab() -> None:
             img = win.grabWindow()

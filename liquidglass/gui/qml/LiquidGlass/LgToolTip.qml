@@ -43,8 +43,8 @@ C.ToolTip {
         owner: tip
         radius: Theme.rS
         blurRadius: 32
-        tintAlphaDark: 0.80
-        tintAlphaLight: 0.82
+        tintAlphaDark: 0.72
+        tintAlphaLight: 0.76
         shadowBlur: 18
         shadowY: 4
     }
