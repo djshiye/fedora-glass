@@ -181,7 +181,34 @@ def test_gtk3_sheet_follows_a_kept_themes_darkness(fake_env, theme, css, want_da
     ctx = ctx_for(fake_env, dark=desktop_dark)
     w = next(a for a in by_id("gtk3").plan(ctx) if isinstance(a, WriteFile))
     dark = desktop_dark if want_dark is None else want_dark
-    assert w.content.startswith(gtk3.render(ctx.dark if dark else ctx.light))
+    # A dark sheet on the light desktop sits on light window glass: it gets a denser fill.
+    assert w.content.startswith(gtk3.render(ctx.dark if dark else ctx.light, dark and not desktop_dark))
+
+
+def test_gtk3_dark_sheet_on_light_glass_is_denser():
+    """Orchis-Dark kept with the desktop in light mode: white text on the light window
+    glass measured 3.1:1 on a white wallpaper; a fill of 0.82 or more gives 4.9:1."""
+    t = toks(True, 0.4)
+    col = gtk3.named_colors(t, on_light_glass=True)
+    for k in ("window_bg_color", "headerbar_bg_color", "theme_bg_color"):
+        assert col[k].a >= gtk3.DARK_ON_LIGHT_GLASS_ALPHA
+    assert gtk3.named_colors(t)["window_bg_color"].a == t.window.a < gtk3.DARK_ON_LIGHT_GLASS_ALPHA
+    # A light sheet never changes: it isn't the one with white text.
+    light = toks(False, 0.4)
+    assert gtk3.named_colors(light, on_light_glass=True) == gtk3.named_colors(light)
+
+
+def test_gtk3_check_and_radio_are_small_boxes_on_any_theme():
+    """Orchis makes checks 40 px (24 px + 8 px padding) with its own ring glyph, so our fill
+    showed as a big blue circle. The sheet resets the box and draws GTK's own marks."""
+    css = gtk3.render(toks(True, 0.4))
+    rule = re.search(r"\ncheck, radio \{([^}]*)\}", css).group(1)
+    for decl in ("min-width: 14px", "min-height: 14px", "padding: 1px", "margin: 0", "-gtk-icon-source: none"):
+        assert decl in rule
+    for state, icon in (("check:checked", "check-symbolic"), ("radio:checked", "bullet-symbolic"),
+                        ("check:indeterminate, radio:indeterminate", "dash-symbolic")):
+        assert re.search(re.escape(state) + r" \{ -gtk-icon-source: -gtk-recolor\(url\(\"resource:///org/gtk/libgtk/"
+                         r"theme/Adwaita/assets/" + icon + r"\.svg\"\)\); \}", css), state
 
 
 @pytest.mark.parametrize("desktop_dark", (True, False))
@@ -311,3 +338,12 @@ def test_files_path_bar_is_one_field_with_flat_segments():
     assert _specificity(geo["path_btn_hover"]) > _specificity(geo["glass_btn"] + ":hover")
     css = gtk4.render(toks(True, 0.4))
     assert ".nautilus-pathbar .path-bar-box { background: none" in css
+
+
+def test_files_location_field_is_a_deeper_field():
+    """An unfocused Files window fades its bar to 65%; over a white wallpaper the location
+    text measured 3.6:1 on the light glass fill. The field takes the window's own fill."""
+    css = gtk4.render(toks(True, 0.4))
+    for sel in (".nautilus-pathbar, pathbar {", ".path-bar-box {"):
+        rule = css[css.index(sel):].split("}", 1)[0]
+        assert "background-color: var(--window-bg-color)" in rule, sel
