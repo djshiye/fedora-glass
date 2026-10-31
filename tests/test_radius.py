@@ -32,6 +32,7 @@ CAPSULES = {
     "gtk3": {
         "entry.search, searchentry",                     # search entries
         "switch", "switch slider",                       # switches and their knobs
+        "radio",                                         # radio buttons are round
         "scale trough, progressbar trough, levelbar trough",
         "scale highlight, progressbar progress, levelbar block.filled",
         "scale slider",                                  # slider knob
@@ -68,6 +69,11 @@ def test_bigger_base_never_shrinks_a_step():
     for a, b in zip(range(0, 40), range(1, 41)):
         sa, sb = radius.scale(a), radius.scale(b)
         assert all(sa[k] <= sb[k] for k in ("xs", "s", "m", "l"))
+
+
+def test_check_boxes_stay_square_ish():
+    assert radius.check(18) == 5 and radius.check(0) == 0
+    assert all(radius.check(r) <= radius.scale(r)["xs"] for r in range(0, 41))
 
 
 def test_the_keypad_step_is_the_large_one():

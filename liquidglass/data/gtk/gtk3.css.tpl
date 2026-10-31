@@ -189,11 +189,42 @@ switch slider {
   background-image: linear-gradient(to bottom, #ffffff, #e9ebf2);
   box-shadow: inset 0 1px 0 #ffffff, 0 2px 6px 0 rgba(0, 0, 0, 0.45);
 }
-check, radio { background-color: @lg_glass_hi; background-image: none; border: none; box-shadow: inset 0 1px 2px 0 @lg_shadow, inset 0 0 0 1px @lg_edge; }
+/* Check and radio buttons: one small glass box with our own mark, whatever the GTK 3 theme.
+   Orchis makes them 40 px (24 px + 8 px padding, -8 px margin) and draws its own ring
+   glyph, so our fill used to paint a big blue circle around it: reset the box and the mark.
+   The marks are GTK 3's own built-in symbolic icons, recoloured to the text colour. */
+check, radio {
+  min-width: 14px; min-height: 14px; padding: 1px; margin: 0;
+  border-radius: $r_check;
+  background-color: @lg_glass_hi; background-image: none; border: none; outline-offset: 2px;
+  /* A clear 1 px ring, so an empty box reads on any backdrop (the same as GTK 4). */
+  box-shadow: inset 0 1px 2px 0 @lg_shadow, inset 0 0 0 1px alpha(@window_fg_color, 0.34);
+  color: @window_fg_color;
+  -gtk-icon-source: none; -gtk-icon-shadow: none; -gtk-icon-transform: none;
+  transition: background-color 150ms ease-out, box-shadow 150ms ease-out;
+  animation: none;
+}
+radio { border-radius: 999px; }
+check:hover:not(:checked):not(:indeterminate), radio:hover:not(:checked):not(:indeterminate) {
+  box-shadow: inset 0 1px 2px 0 @lg_shadow, inset 0 0 0 1px alpha(@window_fg_color, 0.5), inset 0 0 0 9px @lg_hover;
+}
 check:checked, radio:checked, check:indeterminate, radio:indeterminate {
   background-color: @accent_bg_color; color: @accent_fg_color;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 70%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px 0 @lg_shadow;
 }
+check:checked { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Adwaita/assets/check-symbolic.svg")); }
+radio:checked { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Adwaita/assets/bullet-symbolic.svg")); }
+check:indeterminate, radio:indeterminate { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Adwaita/assets/dash-symbolic.svg")); }
+check:disabled, radio:disabled { opacity: 0.5; }
+/* Room between the box and its label, and in menus, where themes pull the box sideways. */
+checkbutton.text-button > check, radiobutton.text-button > radio { margin: 0 6px 0 2px; }
+checkbutton.text-button, radiobutton.text-button { padding: 2px 0; }
+popover modelbutton check.left, popover modelbutton radio.left,
+menu menuitem check, menu menuitem radio { margin: 0 8px 0 0; }
+popover modelbutton check.right, popover modelbutton radio.right { margin: 0 0 0 8px; }
+treeview.view check, treeview.view radio { margin: 0; }
+treeview.view check:selected:not(:checked):not(:indeterminate), treeview.view radio:selected:not(:checked):not(:indeterminate) { color: @window_fg_color; }
 scale trough, progressbar trough, levelbar trough {
   border-radius: 999px; border: none; background-image: none;
   background-color: @lg_glass_hi;

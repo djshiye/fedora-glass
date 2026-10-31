@@ -19,7 +19,8 @@ sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/
 2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**.
 3. Log out and back in once, so GNOME loads the glass. From then on, changes show up live.
 
-To update, run the same command again.
+To update, run the same command again. Signed updates through `sudo dnf upgrade`
+([Fedora COPR](docs/COPR.md)) are coming soon.
 
 ## Undo or remove
 

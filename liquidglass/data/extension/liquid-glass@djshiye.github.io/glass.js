@@ -27,6 +27,8 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
+import {GlassHold} from './holdstate.js';
+
 const SHADER = `
 uniform sampler2D tex;
 uniform float width;
@@ -506,11 +508,26 @@ class LiquidGlassEffect extends Clutter.ShaderEffect {
     }
 
     vfunc_paint(node, paintContext, flags) {
+        const dirty = Clutter.EffectPaintFlags.ACTOR_DIRTY;
+        const a = this.get_actor();
+        const size = a ? `${a.width}x${a.height}` : '';
+        // While a window animates (see holdPanes), a pane that has a picture of
+        // the right size shows it again instead of re-rendering: what changed
+        // behind it is caught up in one render when the animation lands. The lens
+        // still runs on the kept picture, so the pointer light and press stay live.
+        if ((flags & dirty) && hold.held && !a?._free && this._picture === size) {
+            this._stale = true;
+            this.held = (this.held ?? 0) + 1;    // read by the QA tools
+            super.vfunc_paint(node, paintContext, flags & ~dirty);
+            return;
+        }
+        if (flags & dirty)
+            this._picture = size;
         // Re-rendered for a change in part of it, the pane only gets that part's
         // wallpaper (Mutter paints the wallpaper only inside the frame's redraw
         // area). Its blur and rim reach past that part, and the copy is kept and
         // shown again later, so re-render all of it once more, in full.
-        if (flags & Clutter.EffectPaintFlags.ACTOR_DIRTY) {
+        if (flags & dirty) {
             this.renders = (this.renders ?? 0) + 1;    // read by the QA tools
             if (this._full)
                 this._full = false;
@@ -601,7 +618,11 @@ export function qaFreeze(on) {
     freezing = Boolean(on);
 }
 
+// Our own window animations (animations.js) call these at their start and end, so
+// they also hold the glass (see holdPanes): Mutter may already count an opening
+// window as shown while ours still plays.
 export function freezeSource(actor) {
+    holdPanes(actor);
     if (!freezing || frozen.has(actor))
         return;
     frozen.add(actor);
@@ -609,6 +630,7 @@ export function freezeSource(actor) {
 }
 
 export function thawSource(actor) {
+    releasePanes(actor);
     if (!frozen.delete(actor))
         return;
     panes.forEach(p => p._clones.has(actor) && p._syncClones());
@@ -628,6 +650,88 @@ export function windowLanded(r) {
             p.queueFull();
     }
 }
+
+// While a window animates (opening, minimizing, restoring, closing; GNOME's own
+// animations or ours), no pane re-renders: each keeps its last picture, and one that went stale renders once
+// when the last of them ends. On software GL a window-sized pane takes 40-150 ms
+// to render, so re-rendering during the animation turned each such frame into a
+// stall. The hold has a hard time limit (holdstate.js), so the glass never stays
+// behind for long, however many animations follow each other.
+const hold = new GlassHold({
+    panes: () => panes,
+    alive: p => panes.has(p),
+    isStale: p => Boolean(p._glass._stale),
+    // Bottom window first; Shell surfaces (the panel, menus) sit above all windows.
+    rank: p => {
+        const order = global.get_window_actors();
+        let a = p;
+        while (a && !a.meta_window)
+            a = a.get_parent();
+        const i = a ? order.indexOf(a) : -1;
+        return i < 0 ? order.length : i;
+    },
+    keep: p => {
+        p._free = false;
+        p._syncClones();    // hides the copies of windows behind
+    },
+    free: p => {
+        p._free = true;
+        p._glass._stale = false;
+        p._syncClones();    // shows them again
+        p.queueFull();
+    },
+    renders: p => p._glass.renders ?? 0,
+    afterFrame: fn => global.stage.connect('after-paint', fn),
+    cancelFrame: id => global.stage.disconnect(id),
+    endAll: () => {
+        for (const p of panes) {
+            p._free = false;
+            p._syncClones();
+            if (p._glass._stale) {
+                p._glass._stale = false;
+                p.queueFull();
+            }
+        }
+    },
+});
+
+// For QA: compare with and without the hold in one session.
+export function qaHold(on) {
+    hold.enabled = Boolean(on);
+    if (!hold.enabled)
+        releaseAllPanes(true);
+}
+
+// For QA frame strips: with steps on, the catch-up waits for qaCatchUpStep()
+// before each pane (the first included), so each step can be captured.
+export function qaCatchUp(steps) {
+    hold.manual = Boolean(steps);
+}
+
+export function qaCatchUpStep() {
+    return hold.step()?.name ?? 'done';
+}
+
+/** Hold the glass for `key` (a window actor) until releasePanes(key), at most HOLD_LIMIT_MS. */
+export function holdPanes(key) {
+    hold.hold(key);
+}
+
+export function releasePanes(key) {
+    hold.release(key);
+}
+
+/** Let the glass go; with `now` (turning off), at once, without the one-per-frame catch-up. */
+export function releaseAllPanes(now = false) {
+    hold.releaseAll(now);
+}
+
+export function panesHeld() {
+    return hold.held;
+}
+
+
+
 
 export function stopMoving() {
     if (cheapTimer)
@@ -681,6 +785,11 @@ class LiquidGlassPane extends Clutter.Actor {
 
     /** Redraw all of the pane (see LiquidGlassEffect.vfunc_paint), before the next frame. */
     queueFull() {
+        // Held (see holdPanes): render once when the hold ends.
+        if (this._kept()) {
+            this._glass._stale = true;
+            return;
+        }
         if (this._fullLater)
             return;
         this._fullLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
@@ -789,8 +898,23 @@ class LiquidGlassPane extends Clutter.Actor {
             this._applyMotion();   // the pointer is held in this pane's own px
     }
 
+    /** Whether the pane is held and has a picture of its size to keep showing. */
+    _kept() {
+        return hold.held && !this._free && this._glass._picture === `${this.width}x${this.height}`;
+    }
+
     _syncClones() {
+        const kept = this._kept();
         for (const [src, clone] of this._clones) {
+            // Held, the copies of windows behind are hidden: a hidden copy does not
+            // pass its window's redraws on, so the pane is not even asked to show its
+            // kept picture again each time a window behind repaints.
+            if (kept && src.meta_window) {
+                if (clone.visible)
+                    this._glass._stale = true;
+                clone.hide();
+                continue;
+            }
             if (!src.get_stage() || frozen.has(src)) {
                 if (clone.visible)
                     this.queueFull();

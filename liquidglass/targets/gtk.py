@@ -105,7 +105,10 @@ class Gtk3(Target):
             # the rest, so our sheet must match its darkness, not the desktop's light/dark.
             if (dark := kept_theme_is_dark(ctx.env)) is not None:
                 t = ctx.dark if dark else ctx.light
-        css = WriteFile(ctx.env.config / "gtk-3.0/gtk.css", gtk3.render(t) + headerbar.gtk3_css(ctx.settings, t))
+        # A dark sheet over the light desktop's light window glass needs a denser fill.
+        on_light_glass = t.dark and not ctx.tokens.dark
+        css = WriteFile(ctx.env.config / "gtk-3.0/gtk.css",
+                        gtk3.render(t, on_light_glass) + headerbar.gtk3_css(ctx.settings, t))
         if kept:
             return [css]
         return [GSet("org.gnome.desktop.interface", "gtk-theme", f"'{gtk3.theme_name(t)}'"), css]

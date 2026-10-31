@@ -25,19 +25,32 @@ def theme_name(t: Tokens) -> str:
     return "adw-gtk3-dark" if t.dark else "adw-gtk3"
 
 
-def named_colors(t: Tokens) -> dict[str, Color]:
+# A dark GTK 3 theme kept on a light desktop (Orchis-Dark with the desktop in light mode)
+# sits on the Shell's light window glass, which is bright everywhere. Its window fill
+# is made this solid at least, so its white text keeps 4.5:1 even on a white wallpaper
+# (measured 4.9:1 and up; the usual 0.63 gave 3.1:1).
+DARK_ON_LIGHT_GLASS_ALPHA = 0.82
+
+
+def named_colors(t: Tokens, on_light_glass: bool = False) -> dict[str, Color]:
+    window = t.window
+    if on_light_glass and t.dark:
+        window = window.with_alpha(max(window.a, DARK_ON_LIGHT_GLASS_ALPHA))
     colors = {k.replace("-", "_"): v for k, v in {**adwaita_colors(t), **glass_colors(t)}.items()}
     colors.update({
-        "headerbar_bg_color": t.window, "headerbar_backdrop_color": t.window,
+        "window_bg_color": window,
+        "headerbar_bg_color": window, "headerbar_backdrop_color": window,
         # GTK 3 era names some apps still use
-        "theme_bg_color": t.window, "theme_fg_color": t.fg,
+        "theme_bg_color": window, "theme_fg_color": t.fg,
         "theme_base_color": view_color(t), "theme_text_color": t.fg,
         "theme_selected_bg_color": t.accent, "theme_selected_fg_color": t.accent_fg,
     })
     return colors
 
 
-def render(t: Tokens) -> str:
-    colors = "\n".join(f"@define-color {k} {v.css};" for k, v in named_colors(t).items())
+def render(t: Tokens, on_light_glass: bool = False) -> str:
+    """on_light_glass: the sheet is dark (it follows a kept dark theme) while the desktop,
+    and so the Shell's window glass, is light."""
+    colors = "\n".join(f"@define-color {k} {v.css};" for k, v in named_colors(t, on_light_glass).items())
     rules = Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(_geometry(t))
     return f"{HEADER}\n{colors}\n\n{rules}"

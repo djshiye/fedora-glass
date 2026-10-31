@@ -14,7 +14,7 @@ from string import Template
 
 from ..color import Color
 from ..palette import Tokens
-from ..radius import scale
+from ..radius import scale, check
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk4.css.tpl"
 
@@ -145,6 +145,7 @@ def _geometry(t: Tokens) -> dict[str, str]:
     return {
         "r_xs": f"{w['xs']}px", "r_s": f"{w['s']}px", "r_m": f"{w['m']}px", "r_l": f"{w['l']}px",
         "pop_xs": f"{m['xs']}px", "pop_m": f"{m['m']}px",
+        "r_check": f"{check(t.window_radius)}px",
         "glass_btn": glass,
         # Files' folder segments: as strong as $glass_btn plus two classes, so they stay flat.
         "path_btn": f".nautilus-pathbar {glass}.nautilus-path-button",

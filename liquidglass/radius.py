@@ -8,7 +8,7 @@ A part with its own radius override (Settings.parts[part]["radius"]) gets its ow
 Roles, and the only places each step may be used:
 
   xs  8   small things inside a surface: header bar hover tiles, menu items and list rows
-          inside menus and popovers, tooltips, check boxes, calendar day cells, small
+          inside menus and popovers, tooltips, calendar day cells, small
           badges, Qt menu items, Qt tab buttons inside a tab bar.
   s   12  buttons (linked and split buttons and menu buttons too: the outer corners of a
           linked group get s, the inner ones 0), text entries, dropdown/combo buttons,
@@ -19,10 +19,12 @@ Roles, and the only places each step may be used:
   l   24  app windows, dialogs and sheets, the floating Dash to Panel panel and the big
           Shell surfaces (overview folders and the like). The Calculator keypad also uses
           this one step for every key (see KEYPAD).
+  check   a check box is only 16 px, so xs would make it a circle (a radio): it
+          gets check(base), 5/8 of xs (5 px at the default base).
   full 999 a capsule. Only for switches, slider troughs and knobs, progress bars,
           scrollbars, search entries, chips/tags/pills that are labels, quick settings
-          toggles and the Shell's round icon-only buttons (GNOME's own shapes), and
-          spinners/dots. Everything else uses a
+          toggles and the Shell's round icon-only buttons (GNOME's own shapes), radio
+          buttons, and spinners/dots. Everything else uses a
           step above.
 
 The renderers take their numbers from here and nowhere else.
@@ -47,3 +49,8 @@ def scale(r: int) -> dict[str, int]:
     out = {k: round(v * r / DEFAULT_BASE) for k, v in _STEPS.items()}
     out["full"] = FULL
     return out
+
+
+def check(r: int) -> int:
+    """Corner radius of a check box for base radius `r`: 5/8 of the xs step."""
+    return round(scale(r)["xs"] * 5 / 8)

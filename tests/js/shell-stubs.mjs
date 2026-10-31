@@ -23,6 +23,7 @@ const STUBS = {
         Widget: globalThis.fake.Widget ?? class {}};`,
     'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
+        export const wm = globalThis.fake.wm;
         export const panel = {statusArea: {}};`,
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
     'glass': `export class GlassPane extends globalThis.fake.Actor {
@@ -31,7 +32,9 @@ const STUBS = {
         setSources() {} setEdges() {} place() {} setMotion() {}
     }
     export const DEFAULT_LOOK = {};
-    export function windowLanded() {}`,
+    export function windowLanded() {}
+    export function holdPanes(key) { globalThis.fake.holds?.push(['hold', key]); }
+    export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }`,
 };
 
 export async function resolve(specifier, context, next) {
