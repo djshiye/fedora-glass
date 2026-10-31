@@ -251,6 +251,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border-top-color: ${glass_rim};
   border-radius: ${r_m}px;
   box-shadow: 0 14px 40px 0 ${shadow}; }
+/* GNOME's own shapes stay: round icon buttons and pill toggles in quick settings
+   (the split halves of a toggle with a menu come from GNOME's sheet and win over this). */
+.icon-button, .quick-toggle, .quick-toggle-has-menu {
+  border-radius: 999px; }
 .quick-toggle {
   color: ${fg};
   border: 1px solid ${edge};

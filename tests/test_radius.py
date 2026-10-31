@@ -39,6 +39,7 @@ CAPSULES = {
     },
     "shell": {
         ".quick-slider .slider-bin",                     # quick settings volume/brightness
+        ".icon-button, .quick-toggle, .quick-toggle-has-menu",   # GNOME's round icon buttons, pill toggles
         ".search-entry",                                 # overview search
         ".wg-chip", ".wg-pill",                          # Wheelguard chips and pills (labels)
     },

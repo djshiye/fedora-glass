@@ -21,7 +21,8 @@ Roles, and the only places each step may be used:
           this one step for every key (see KEYPAD).
   full 999 a capsule. Only for switches, slider troughs and knobs, progress bars,
           scrollbars, search entries, chips/tags/pills that are labels, quick settings
-          toggles (GNOME draws those itself) and spinners/dots. Everything else uses a
+          toggles and the Shell's round icon-only buttons (GNOME's own shapes), and
+          spinners/dots. Everything else uses a
           step above.
 
 The renderers take their numbers from here and nowhere else.
