@@ -4,6 +4,8 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {windowLanded} from './glass.js';
+
 export const HOLD_MAX_MS = 100;   // a menu waits at most this long for its glass
 const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
 export const MOVES = ['notify::allocation', 'notify::visible', 'notify::opacity', 'notify::translation-x',
@@ -77,6 +79,8 @@ export class WindowWatch {
             for (const sig of ['position-changed', 'size-changed', 'notify::minimized'])
                 this._windows.on(win, sig, this._changed);
             this._windows.on(actor, 'notify::visible', this._changed);
+            // Minimized windows keep their old place, so this is where the effect was.
+            this._windows.on(actor, 'effects-completed', () => windowLanded(win.get_buffer_rect()));
             // A closed window's actor is disposed before the next restack: never touch it again.
             this._windows.on(actor, 'destroy', () => this._windows.forget(actor));
         }

@@ -901,11 +901,19 @@ class PanelAnimations {
                 continue;
             const signals = new Signals();
             signals.on(item, 'notify::hover', () => this._hover(item));
+            const w = {signals, target, gone: false};
+            // ArcMenu rebuilds its button by destroying it: its inner widget goes
+            // first, and touching it after that only fills the log.
+            signals.on(target, 'destroy', () => {
+                signals.forget(target);
+                w.gone = true;
+                stop(target, false);
+            });
             signals.on(item, 'destroy', () => {
                 signals.forget(item);
                 this._unwatch(item);
             });
-            this._watched.set(item, {signals, target});
+            this._watched.set(item, w);
         }
         // New taskbar icons come and go with apps: look again when they do.
         if (!this._taskbarIds) {
@@ -921,6 +929,8 @@ class PanelAnimations {
             return;
         this._watched.delete(item);
         w.signals.clear();
+        if (w.gone)
+            return;
         stop(w.target, false);
         reset(w.target);
     }
@@ -939,7 +949,7 @@ class PanelAnimations {
 
     _hover(item) {
         const w = this._watched.get(item);
-        if (!w || this._launchingIcon(item))
+        if (!w || w.gone || this._launchingIcon(item))
             return;
         const m = this.motion.hover;
         if (!animationsOn() || m.preset === 'off' || this._dtpAnimates(item)) {
@@ -1071,6 +1081,8 @@ class PanelAnimations {
         for (const app of [...this._launching.keys()])
             this._endLaunch(app, false);
         for (const w of this._watched.values()) {
+            if (w.gone)
+                continue;
             stop(w.target, false);
             reset(w.target);
         }

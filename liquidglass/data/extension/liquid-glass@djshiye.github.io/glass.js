@@ -587,6 +587,21 @@ export function thawSource(actor) {
     panes.forEach(p => p._clones.has(actor) && p._syncClones());
 }
 
+/**
+ * A window's effect (open, minimize, restore, close; GNOME's or ours) just ended
+ * over the stage rectangle r: redraw all of each pane it touched. Its frames only
+ * redrew the window's own spot, and a pane drawn that way can keep a patch there.
+ */
+export function windowLanded(r) {
+    for (const p of panes) {
+        if (!p._stage || !p._size || !p.mapped)
+            continue;
+        const [x, y] = p._stage, [w, h] = p._size;
+        if (r.x < x + w && r.x + r.width > x && r.y < y + h && r.y + r.height > y)
+            p.queueFull();
+    }
+}
+
 export function stopMoving() {
     if (cheapTimer)
         GLib.source_remove(cheapTimer);
