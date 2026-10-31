@@ -252,18 +252,42 @@ export function geniePinch(intensity) {
     return 1.5 + 2 * clamp(intensity);
 }
 
+/** Where along the funnel the sides reach the icon's width: a longer neck at more intensity. */
+export function genieNeck(intensity) {
+    return 0.85 - 0.3 * clamp(intensity);
+}
+
 // How far along its way a row of the window is, at progress p; near is 1 for the
 // row facing the icon. Rows nearest the icon go first. Returns [along, across]:
-// the move towards the icon, and how far the row has narrowed to the icon's width.
+// the move towards the icon, and (beside the icon) how far the row has narrowed
+// to the icon's size.
 function genieRow(near, p, pinch) {
     const r = clamp(p * 2 - (1 - near));
     return [r * r * (3 - 2 * r), 1 - Math.pow(1 - r, pinch)];
 }
 
+const smooth = (e0, e1, x) => {
+    const t = clamp((x - e0) / (e1 - e0));
+    return t * t * (3 - 2 * t);
+};
+
+/**
+ * How far across a point at a (along the way, in px) has narrowed to the icon's
+ * width. The sides are a funnel fixed on the screen: full width at the window's
+ * far edge, bending in an S to the icon's width, which they keep for the last
+ * stretch (the neck) so the window pours into the icon. Rows narrow as they slide
+ * down it. The funnel forms over the first half; intensity makes the neck longer.
+ */
+function genieAcross(a, p, far, mouth, intensity) {
+    const span = Math.abs(mouth - far) < 1e-3 ? 1e-3 : mouth - far;   // as the shader
+    const t = clamp((a - far) / span);
+    return smooth(0, 0.5, p) * smooth(0, genieNeck(intensity), t);
+}
+
 /**
  * Where a point of the window goes in the genie warp at progress p (0 = the
- * window as it is, 1 = all of it inside the icon). The sides curve in towards
- * the icon like a funnel. The shader in animations.js runs this backwards.
+ * window as it is, 1 = all of it inside the icon). Above or below the icon the
+ * sides bend into a neck as wide as the icon; beside it they curve in column by column. The shader in animations.js runs this backwards.
  * win and icon are {x, y, width, height}; returns [x, y].
  */
 export function genieWarp(px, py, p, win, icon, intensity = 0.5) {
@@ -275,9 +299,14 @@ export function genieWarp(px, py, p, win, icon, intensity = 0.5) {
         ? [py, px, win.y, win.height, win.x, win.width, icon.y, icon.height, icon.x, icon.width, icy > wcy]
         : [px, py, win.x, win.width, win.y, win.height, icon.x, icon.width, icon.y, icon.height, icx > wcx];
     const along = (pa - wa0) / wal;              // 0..1 down the window
-    const [ra, rb] = genieRow(toward ? along : 1 - along, p, geniePinch(intensity));
-    const across = (pb - wb0) / wbl;
+    const [ra, rowRb] = genieRow(toward ? along : 1 - along, p, geniePinch(intensity));
     const a = pa + (ia0 + along * ial - pa) * ra;
+    // Above or below the icon, the sides make a funnel from the window's far edge
+    // to the icon's near edge. Beside it, each column narrows as it goes, so the
+    // tail stays aimed at the icon and never runs along inside the panel.
+    const [far, mouth] = toward ? [wa0, ia0] : [wa0 + wal, ia0 + ial];
+    const rb = vertical ? genieAcross(a, p, far, mouth, intensity) : rowRb;
+    const across = (pb - wb0) / wbl;
     const b = pb + (ib0 + across * ibl - pb) * rb;
     return vertical ? [b, a] : [a, b];
 }
