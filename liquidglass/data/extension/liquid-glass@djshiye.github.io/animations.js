@@ -346,7 +346,7 @@ class LiquidGlassGenie extends Shell.GLSLEffect {
             Math.abs(icon.x + icon.width / 2 - win.x - win.width / 2);
         const toward = vertical ? icon.y + icon.height / 2 > win.y + win.height / 2
             : icon.x + icon.width / 2 > win.x + win.width / 2;
-        this._set({win_x: win.x, win_y: win.y, win_w: win.width, win_h: win.height,
+        this._set({win_x: win.x, win_y: win.y, win_w: Math.max(1, win.width), win_h: Math.max(1, win.height),
             ico_x: icon.x, ico_y: icon.y, ico_w: Math.max(1, icon.width), ico_h: Math.max(1, icon.height),
             neck: C.genieNeck(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
     }
