@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.3.1
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -91,6 +91,17 @@ python3 -m pytest -q tests
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Sat Oct 31 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.0-1
+- Text stays readable on window glass over bright wallpapers
+- Flat, small GTK 3 checkboxes and radio buttons on Orchis
+- Smoother window animations: glass behind a moving window holds still
+- One corner-radius scale: rounded buttons instead of pills, 24 px window corners
+- A glass highlight that glides between panel icons on hover
+- Glass dropdowns and tooltips in the Liquid Glass app
+- No blue halo around active Quick Settings toggles, no hard edge above ArcMenu
+- Optional: Qt app title bars that match GNOME (through XWayland, off by default)
+- Faster, safer shader engine (no stray "almost zero" settings)
+
 * Sat Oct 31 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.3.1-1
 - Fix window and panel glass rendering nearly black in 1.3.0
 
