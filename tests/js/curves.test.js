@@ -76,6 +76,41 @@ for (const p of [0.1, 0.3, 0.5, 0.7, 0.9]) {
 }
 check(C.genieWarp(0, 0, 0.5, win, icon).every(Number.isFinite), 'genie is finite');
 
+const below = {x: 620, y: 850, width: 44, height: 44}, belowLeft = {x: 260, y: 850, width: 44, height: 44};
+// The funnel, window above its icon: the sides bend (not a straight shear) into a
+// neck as wide as the icon, from both sides, while the far edge is still wide.
+for (const [p, I, icon] of [0.3, 0.6, 0.85].flatMap(p => [[p, 0.5, below], [p, 0.5, belowLeft]])
+    .concat([[0.6, 0, below], [0.6, 1, belowLeft]])) {
+    // Each side, traced down the window at this progress: [screen y, screen x].
+    const side = across => {
+        const out = [];
+        for (let y = win.y; y <= win.y + win.height; y += 2)
+            out.push(C.genieWarp(win.x + across * win.width, y, p, win, icon, I).reverse());
+        return out;
+    };
+    const L = side(0), R = side(1);
+    // In the neck (the last stretch before the icon) every row is as wide as the icon,
+    // once the funnel has formed (from half way).
+    const mouth = icon.y, neckTop = win.y + C.genieNeck(I) * (mouth - win.y);
+    const neck = R.map(([y, x], i) => [y, x - L[i][1]]).filter(([y]) => y >= neckTop);
+    if (p >= 0.5)
+        check(neck.length > 0 && neck.every(([, w]) => w <= icon.width + 1e-6),
+            `p=${p} I=${I}: the neck is as wide as the icon (${neck.map(([, w]) => Math.round(w))})`);
+    // Both sides move in, the right one most: no side stays straight down.
+    check(p >= 0.85 || Math.max(...L.map(([, x]) => x)) - Math.min(...L.map(([, x]) => x)) > 20 &&
+        Math.max(...R.map(([, x]) => x)) - Math.min(...R.map(([, x]) => x)) > 20, `p=${p} I=${I}: both sides bend`);
+    // The right side is a curve, not a straight slant: half way down, it is well off the chord.
+    const moving = R.filter(([, x], i) => i === 0 || x !== R[i - 1][1]);
+    if (moving.length > 4) {
+        const [y0, x0] = moving[0], [y1, x1] = moving[moving.length - 1];
+        const mid = moving[Math.floor(moving.length / 2)];
+        const chord = x0 + (x1 - x0) * (mid[0] - y0) / ((y1 - y0) || 1);
+        check(Math.abs(mid[1] - chord) > 8, `p=${p} I=${I} icon x ${icon.x}: the side curves (${Math.round(mid[1] - chord)} px off a straight line)`);
+    }
+}
+// At the top the window is still full width at 0.3 (it narrows from the bottom up).
+check(near(C.genieWarp(win.x + win.width, win.y, 0.3, win, below)[0], win.x + win.width, 1e-6), 'genie: the far edge keeps its width early on');
+
 // The sampler guard: NaN time, a huge frame gap and wild values never reach a window.
 {
     let hits = 0;

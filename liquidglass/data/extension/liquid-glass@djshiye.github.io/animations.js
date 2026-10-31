@@ -276,17 +276,17 @@ function capped(fn, cap) {
 // ---- genie ------------------------------------------------------------------------
 
 // Each pixel of the copy looks up where in the window it comes from: rows nearer the
-// icon travel first, and each row narrows towards the icon (curves.js genieWarp is
-// the same maths run forwards). Inverting it per pixel needs no mesh.
+// icon travel first, and the sides bend into a neck as wide as the icon that the rows
+// slide down (curves.js genieWarp is the same maths run forwards). Inverting it per
+// pixel needs no mesh.
 const GENIE_SHADER = `
 uniform float tex_w, tex_h, org_x, org_y;
 uniform float win_x, win_y, win_w, win_h, ico_x, ico_y, ico_w, ico_h;
-uniform float progress, pinch, vertical, toward;
+uniform float progress, neck, vertical, toward;
 
-float rowAt(float along, out float rb) {
+float rowAt(float along) {
     float near = toward > 0.5 ? along : 1.0 - along;
     float r = clamp(progress * 2.0 - (1.0 - near), 0.0, 1.0);
-    rb = 1.0 - pow(1.0 - r, pinch);
     return r * r * (3.0 - 2.0 * r);
 }
 
@@ -297,25 +297,26 @@ void main() {
     float wa0 = v ? win_y : win_x, wal = v ? win_h : win_w, wb0 = v ? win_x : win_y, wbl = v ? win_w : win_h;
     float ia0 = v ? ico_y : ico_x, ial = v ? ico_h : ico_w, ib0 = v ? ico_x : ico_y, ibl = v ? ico_w : ico_h;
     // Which row of the window lands here: rows keep their order, so search.
-    float lo = 0.0, hi = 1.0, rb = 0.0;
-    float a0 = 0.0, a1 = 0.0;
-    float rb0;
-    float ra0 = rowAt(0.0, rb0);
-    a0 = wa0 + (ia0 - wa0) * ra0;
-    float ra1 = rowAt(1.0, rb0);
-    a1 = wa0 + wal + (ia0 + ial - wa0 - wal) * ra1;
+    float a0 = wa0 + (ia0 - wa0) * rowAt(0.0);
+    float a1 = wa0 + wal + (ia0 + ial - wa0 - wal) * rowAt(1.0);
     if (pa < min(a0, a1) - 0.5 || pa > max(a0, a1) + 0.5) {
         cogl_color_out = vec4(0.0);
         return;
     }
+    float lo = 0.0, hi = 1.0;
     for (int i = 0; i < 14; i++) {   // to 1/16384 of the window: under a px
         float m = 0.5 * (lo + hi);
-        float ra = rowAt(m, rb);
-        float a = wa0 + m * wal + (ia0 + m * ial - wa0 - m * wal) * ra;
+        float a = wa0 + m * wal + (ia0 + m * ial - wa0 - m * wal) * rowAt(m);
         if (a < pa) lo = m; else hi = m;
     }
     float along = 0.5 * (lo + hi);
-    rowAt(along, rb);
+    // The funnel is fixed on the screen, from the window's far edge to the icon's
+    // near edge: how far this spot along it has narrowed to the icon's width.
+    float far = toward > 0.5 ? wa0 : wa0 + wal;
+    float mouth = toward > 0.5 ? ia0 : ia0 + ial;
+    float span = abs(mouth - far) < 1e-3 ? 1e-3 : mouth - far;
+    float t = clamp((pa - far) / span, 0.0, 1.0);
+    float rb = smoothstep(0.0, 0.5, progress) * smoothstep(0.0, neck, t);
     // Across the row the warp is a straight scale towards the icon: undo it.
     float k = 1.0 - rb + rb * ibl / wbl;
     float b = (pb - rb * (ib0 - wb0 * ibl / wbl)) / max(k, 1e-4);
@@ -347,7 +348,7 @@ class LiquidGlassGenie extends Shell.GLSLEffect {
             : icon.x + icon.width / 2 > win.x + win.width / 2;
         this._set({win_x: win.x, win_y: win.y, win_w: win.width, win_h: win.height,
             ico_x: icon.x, ico_y: icon.y, ico_w: Math.max(1, icon.width), ico_h: Math.max(1, icon.height),
-            pinch: C.geniePinch(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
+            neck: C.genieNeck(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
     }
 
     vfunc_build_pipeline() {
