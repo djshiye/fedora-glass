@@ -1,7 +1,10 @@
 # Builds the RPM and publishes it as a GitHub release, either when a version tag
 # (v1.2.3) is pushed or when run by hand from the Actions tab (that run tags the
-# commit with the version in the spec). The RPM then installs with:
-#   sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/liquid-glass.noarch.rpm
+# commit with the version in the spec).
+#
+# The new tag also starts the signed build on Fedora COPR, through COPR's own
+# GitHub webhook (no token is stored here). See docs/COPR.md. Users install with:
+#   sudo dnf copr enable djshiye/liquid-glass && sudo dnf install liquid-glass
 name: Release
 
 on:
@@ -58,4 +61,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Liquid Glass $VER" --notes "Install: sudo dnf install https://github.com/$GITHUB_REPOSITORY/releases/latest/download/liquid-glass.noarch.rpm"
+            --title "Liquid Glass $VER" --notes "Install: sudo dnf copr enable djshiye/liquid-glass && sudo dnf install liquid-glass. Updates then come with sudo dnf upgrade. The signed COPR build of this version appears there a few minutes after this release."

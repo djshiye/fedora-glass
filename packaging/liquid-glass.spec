@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.3.0
+Version:        1.3.1
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -8,6 +8,9 @@ Source0:        %{url}/archive/v%{version}/fedora-liquid-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
+# For the tests in %%check.
+BuildRequires:  python3-pytest
+BuildRequires:  python3-gobject
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
@@ -67,6 +70,10 @@ install -Dm644 /dev/stdin %{buildroot}%{_userpresetdir}/80-liquid-glass.preset <
 enable liquid-glass-watch.service
 PRESET
 
+%check
+# The same tests a GitHub release runs: a build that fails them never reaches dnf.
+python3 -m pytest -q tests
+
 %post
 %systemd_user_post liquid-glass-watch.service
 
@@ -84,6 +91,9 @@ PRESET
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Sat Oct 31 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.3.1-1
+- Fix window and panel glass rendering nearly black in 1.3.0
+
 * Fri Oct 30 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.3.0-1
 - Unified, flat window header bars for GTK 4, libadwaita and GTK 3 apps
 - GTK 3 styling now works on top of any theme, including Orchis, without adw-gtk3
