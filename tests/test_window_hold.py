@@ -32,7 +32,7 @@ def test_held_panes_skip_rerendering_and_catch_up_once():
     assert "flags & ~dirty" in src and "this._picture === size" in src
     # Our own window animations hold too, and the hold always ends.
     assert "holdPanes(actor);" in src and "releasePanes(actor);" in src
-    assert "new HoldState(" in src and "HOLD_LIMIT_MS" in (EXT / "holdstate.js").read_text()
+    assert "new GlassHold(" in src and "HOLD_LIMIT_MS" in (EXT / "holdstate.js").read_text()
 
 
 @pytest.mark.skipif(NODE is None, reason="needs Node.js")
