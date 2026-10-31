@@ -29,7 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
-import {freezeSource, thawSource, holdPanes, releasePanes} from './glass.js';
+import {freezeSource, thawSource} from './glass.js';
 
 const WM_SIGNALS = ['map', 'minimize', 'unminimize', 'destroy'];
 // The parts of GNOME's window manager the window animations build on. They are
@@ -1068,17 +1068,12 @@ class PanelAnimations {
             const wob = C.wobble('jelly', 1);
             const sq = m.preset === 'jelly' ? u => 0.6 * m.intensity * wob(u) : u => -amp * Math.sin(Math.PI * u) * (1 - u);
             const dip = m.preset === 'bounce' ? u => 3 * m.intensity * Math.abs(Math.sin(2 * Math.PI * u)) * (1 - u) : () => 0;
-            // The panel's glass keeps its picture while the icon gives (see glass.js holdPanes).
-            holdPanes(t);
             animate(t, 320 / m.speed, {
                 'scale-x': u => 1 + sq(u),
                 'scale-y': u => 1 - sq(u),
                 'translation-x': u => -w * sq(u) / 2,
                 'translation-y': u => h * sq(u) - dip(u),
-            }, () => {
-                releasePanes(t);
-                reset(t);
-            });
+            }, () => reset(t));
         }
     }
 

@@ -629,8 +629,7 @@ export function windowLanded(r) {
 }
 
 // While a window animates (opening, minimizing, restoring, closing; GNOME's own
-// animations or ours) or a taskbar icon gives as a window lands in it, no pane
-// re-renders: each keeps its last picture, and one that went stale renders once
+// animations or ours), no pane re-renders: each keeps its last picture, and one that went stale renders once
 // when the last of them ends. On software GL a window-sized pane takes 40-150 ms
 // to render, so re-rendering during the animation turned each such frame into a
 // stall. The hold has a hard time limit (holdstate.js), so the glass never stays
@@ -647,7 +646,7 @@ export function qaHold(on) {
         releaseAllPanes(true);
 }
 
-/** Hold the glass for `key` (a window or icon actor) until releasePanes(key), at most HOLD_LIMIT_MS. */
+/** Hold the glass for `key` (a window actor) until releasePanes(key), at most HOLD_LIMIT_MS. */
 export function holdPanes(key) {
     hold.hold(key);
 }
@@ -698,7 +697,22 @@ function letGo(now) {
     };
     stale.sort((a, b) => rank(a) - rank(b));
     catchUp = {stale, pane: null, renders: 0, sig: 0, timer: 0};
+    if (!qaSteps)
+        catchUpNext();
+}
+
+// For QA frame strips: with steps on, the catch-up waits for qaCatchUpStep()
+// before each pane (the first included), so each step can be captured.
+let qaSteps = false;
+export function qaCatchUp(steps) {
+    qaSteps = Boolean(steps);
+}
+
+export function qaCatchUpStep() {
+    if (!catchUp)
+        return 'done';
     catchUpNext();
+    return catchUp ? catchUp.pane?.name ?? '' : 'done';
 }
 
 export function panesHeld() {
@@ -743,6 +757,8 @@ function catchUpNext() {
     p.queueFull();
     c.pane = p;
     c.renders = p._glass.renders ?? 0;
+    if (qaSteps)
+        return;
     const next = () => {
         if (catchUp !== c)
             return;
