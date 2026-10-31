@@ -94,7 +94,7 @@ def test_gtk4_does_not_touch_terminal_surface():
 
 def test_gtk4_radius_follows_settings():
     t = toks(True, 0.4, radius=26)
-    assert "--window-radius: 26px" in gtk4.render(t, toks(False, 0.4, radius=26))
+    assert "--window-radius: 35px" in gtk4.render(t, toks(False, 0.4, radius=26))   # the l step: 24 * 26 / 18
 
 
 def test_gtk4_accent_follows_settings():

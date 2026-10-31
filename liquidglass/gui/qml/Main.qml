@@ -18,7 +18,7 @@ Window {
 
     readonly property bool maximized: visibility === Window.Maximized || visibility === Window.FullScreen
     readonly property int margin: maximized ? 0 : 18
-    readonly property int cornerRadius: maximized ? 0 : 16
+    readonly property int cornerRadius: maximized ? 0 : Theme.rL
 
     width: 1280 + 2 * margin
     height: 820 + 2 * margin
@@ -187,10 +187,10 @@ Window {
                                  : modelData.act === "max" ? (win.visibility = win.maximized ? Window.Windowed : Window.Maximized)
                                  : win.close()
                         background: Rectangle {
-                            radius: 13
+                            radius: Theme.rS
                             color: wb.down ? Theme.wellHi : wb.hovered ? Theme.alpha(Theme.text, Theme.dark ? 0.16 : 0.12) : Theme.well
                             Behavior on color { ColorAnimation { duration: Theme.fast } }
-                            FocusRing { target: wb; radius: 16 }
+                            FocusRing { target: wb; radius: Theme.rS + 3 }
                         }
                         contentItem: Item {
                             Icon { anchors.centerIn: parent; name: wb.modelData.icon; size: 16; strokeWidth: 1.8; color: Theme.text }
@@ -247,7 +247,7 @@ Window {
             height: shown ? 48 : 0
             visible: height > 0
             clip: true
-            radius: 12
+            radius: Theme.rM
             color: Theme.well
             Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
             Icon {

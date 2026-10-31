@@ -16,7 +16,7 @@ Item {
     property real blurRadius: 0          // px
     property real brightness: 0          // -1..1, added after the blur
     property real saturation: 0          // -1..1
-    property real radius: 12
+    property real radius: Theme.rM
     property color tint: "transparent"
     property color rim: Qt.rgba(1, 1, 1, 0.5)
     property color edge: Qt.rgba(1, 1, 1, 0.12)

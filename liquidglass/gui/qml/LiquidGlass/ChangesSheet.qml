@@ -58,9 +58,9 @@ Sheet {
                         Accessible.name: grp.modelData.name
                         HoverHandler { cursorShape: grp.n > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor }
                         background: Rectangle {
-                            radius: 8
+                            radius: Theme.rXs
                             color: grpHead.hovered ? Theme.hover : "transparent"
-                            FocusRing { target: grpHead; radius: 10; gap: 1 }
+                            FocusRing { target: grpHead; radius: Theme.rXs + 2; gap: 1 }
                         }
                         contentItem: Row {
                             spacing: 6
@@ -85,7 +85,7 @@ Sheet {
                         visible: grp.open
                         width: parent.width
                         height: lines.height + 16
-                        radius: 12
+                        radius: Theme.rS
                         color: Theme.well
                         Column {
                             id: lines

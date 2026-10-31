@@ -14,6 +14,7 @@ from string import Template
 
 from ..color import Color
 from ..palette import Tokens
+from ..radius import scale
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk4.css.tpl"
 
@@ -136,16 +137,14 @@ def header_buttons(state: str = "", child: str = "") -> str:
 
 
 def _geometry(t: Tokens) -> dict[str, str]:
-    r = t.window_radius
+    # Window-level things follow the windows' ladder; popovers and menus follow the menus'
+    # ladder (a part can have its own radius), see radius.py for the roles.
+    w, m = scale(t.window_radius), scale(t.menu_radius)
     glass = ("button:not(.flat):not(.suggested-action):not(.destructive-action)"
              ":not(.opaque):not(.osd):not(.close):not(.minimize):not(.maximize):not(.chip):not(.swatch)")
     return {
-        "radius": f"{r}px",
-        "radius_small": f"{max(4, round(r * 0.6))}px",
-        "radius_card": f"{max(6, round(r * 0.75))}px",
-        "radius_popover": f"{t.menu_radius}px",
-        "radius_menu_item": f"{max(6, round(r * 0.5))}px",
-        "radius_window": f"{max(8, r)}px",
+        "r_xs": f"{w['xs']}px", "r_s": f"{w['s']}px", "r_m": f"{w['m']}px", "r_l": f"{w['l']}px",
+        "pop_xs": f"{m['xs']}px", "pop_m": f"{m['m']}px",
         "glass_btn": glass,
         # Files' folder segments: as strong as $glass_btn plus two classes, so they stay flat.
         "path_btn": f".nautilus-pathbar {glass}.nautilus-path-button",

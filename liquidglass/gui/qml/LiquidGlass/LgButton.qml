@@ -61,7 +61,7 @@ C.Button {
     }
 
     background: Rectangle {
-        radius: height / 2
+        radius: Theme.rS
         color: control._primary
                ? (control.down ? Qt.darker(control._fill, 1.12) : control.hovered ? Qt.lighter(control._fill, 1.08) : control._fill)
                : control.kind === "flat" || control.kind === "danger"
@@ -71,6 +71,6 @@ C.Button {
         border.color: Theme.border
         Behavior on color { ColorAnimation { duration: Theme.fast } }
 
-        FocusRing { target: control; radius: height / 2 }
+        FocusRing { target: control; radius: Theme.rS + 3 }
     }
 }

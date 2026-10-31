@@ -217,7 +217,7 @@ Card {
         default property alias extra: extraCol.data
         width: parent ? parent.width : 300
         height: noteCol.implicitHeight + 24
-        radius: 12
+        radius: Theme.rS
         color: Theme.well
         Column {
             id: noteCol
@@ -270,7 +270,7 @@ Card {
             objectName: "motionPreview"
             width: parent.width
             height: 120
-            radius: 14
+            radius: Theme.rS
             color: Theme.well
             clip: true
 
@@ -304,13 +304,13 @@ Card {
                 transform: Scale { origin.x: win.width / 2; origin.y: win.height / 2; xScale: root.fr.sx; yScale: root.fr.sy }
                 Rectangle {
                     anchors.fill: parent
-                    radius: 9
+                    radius: Theme.rXs
                     color: Theme.dark ? Qt.rgba(0.2, 0.21, 0.26, 1) : "white"
                     border.width: 1
                     border.color: Theme.borderHi
                     Rectangle {
                         width: parent.width; height: 16
-                        radius: 9
+                        radius: Theme.rXs
                         color: Theme.dark ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(0, 0, 0, 0.07)
                         Rectangle { width: parent.width; height: 9; anchors.bottom: parent.bottom; color: parent.color }
                         Row {
@@ -453,7 +453,7 @@ Card {
                             y: 4
                             width: parent.width
                             height: inner.implicitHeight + 28
-                            radius: 12
+                            radius: Theme.rS
                             color: Theme.well
                             opacity: row.open ? 1 : 0
                             Behavior on opacity { NumberAnimation { duration: Theme.normal } }

@@ -42,7 +42,7 @@ FocusScope {
     Rectangle {
         id: track
         anchors.fill: parent
-        radius: height / 2
+        radius: Theme.rS
         color: popup.visible ? Theme.wellHi : hover.hovered ? Theme.wellHi : Theme.well
         border.width: 1
         border.color: Theme.border
@@ -93,7 +93,7 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         anchors.margins: -3
-        radius: height / 2
+        radius: Theme.rS + 3
         color: "transparent"
         border.width: 2
         border.color: Theme.alpha(Theme.accent, 0.85)

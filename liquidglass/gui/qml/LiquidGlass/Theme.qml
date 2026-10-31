@@ -48,14 +48,18 @@ QtObject {
     // popups capture to draw real glass. Set from Main.qml.
     property Item backdrop: null
 
-    // Corner radii
+    // One corner scale for the app (liquidglass/radius.py at its default base, 18). The app's own
+    // chrome is fixed: it does not follow the user's radius slider, which only styles the desktop.
+    //   rXs  small things inside a surface (hover tiles, menu rows)
+    //   rS   buttons, fields, dropdown buttons, tooltips, nested panels
+    //   rM   cards, popups and menus, banners
+    //   rL   the window and sheets
+    // Capsules (switch, slider, chips, the segmented pill) use height / 2 instead.
     readonly property int rXs: 8
     readonly property int rS: 12
     readonly property int rM: 16
     readonly property int rL: 24
-
-    readonly property int rCard: 20
-    readonly property int rControl: 12
+    // (app code uses these four; there is no separate card or control radius)
 
     readonly property int fast: 150
     readonly property int normal: 200

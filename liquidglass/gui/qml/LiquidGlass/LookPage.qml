@@ -44,7 +44,7 @@ Item {
 
             RectangularShadow {
                 anchors.fill: parent
-                radius: 18
+                radius: Theme.rM
                 blur: 28
                 offset.y: 8
                 color: Qt.rgba(0, 0, 0, Theme.dark ? 0.5 : 0.22)
@@ -70,7 +70,7 @@ Item {
             Rectangle {
                 id: previewMask
                 anchors.fill: parent
-                radius: 18
+                radius: Theme.rM
                 visible: false
                 layer.enabled: true
                 layer.smooth: true
@@ -131,7 +131,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         height: 28
                         width: valueRow.width + 24
-                        radius: 14
+                        radius: height / 2
                         color: Theme.alpha(Theme.accent, Theme.dark ? 0.18 : 0.12)
                         Row {
                             id: valueRow

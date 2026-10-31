@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from ..color import BLACK, WHITE, Color
 from ..palette import Tokens
+from ..radius import scale
 
 THEME = "LiquidGlass"
 PROGRESS = 16
@@ -32,6 +33,26 @@ def over(top: Color, bottom: Color) -> Color:
 
 def _clamp(v: float, lo: int, hi: int) -> int:
     return int(min(hi, max(lo, round(v))))
+
+
+def radii(t: Tokens) -> dict[str, int]:
+    """Frame corner sizes, taken from the one radius scale (radius.py) at the windows' base radius.
+
+    Kvantum uses the corner size of a 9-slice frame as the frame's width too, so a corner as
+    large as the scale's own step would eat the label area of a 24-28 px button or entry (and
+    crush a menu item). Each role is therefore capped where its widgets still have room:
+      R   buttons, entries, tabs      the s step, at most 10
+      RM  menus, group boxes, panes   the m step, at most 14 (they are tall, so they can afford it)
+      RT  tooltips                    the xs step, at most 10
+      RI  menu items, list selections the xs step, at most 8
+    The floor of 4 keeps the frame pieces drawable when the base radius is 0."""
+    sc = scale(t.window_radius)
+    return {
+        "R": _clamp(sc["s"], 4, 10),
+        "RM": _clamp(sc["m"], 4, 14),
+        "RT": _clamp(sc["xs"], 4, 10),
+        "RI": _clamp(sc["xs"], 4, 8),
+    }
 
 
 # ---- SVG plumbing ------------------------------------------------------------
@@ -279,10 +300,9 @@ def _indicator_box(sh: Sheet, p: Palette, kind: str, prefix: str) -> None:
 def build_svg(t: Tokens) -> str:
     sh = Sheet()
     p = Palette(t)
-    R = _clamp(t.window_radius * 0.45, 4, 10)       # buttons, entries, tabs
-    RM = _clamp(t.window_radius * 0.5, 4, 10)       # menus
-    RI = 4                                   # list selections, menu items
-    RG = 4                                   # generic frames, group boxes
+    rad = radii(t)
+    R, RM, RT, RI = rad["R"], rad["RM"], rad["RT"], rad["RI"]
+    RG = RM                                  # generic frames, group boxes, tab panes
     PR = PROGRESS // 2                       # progress bars are pills
     edge, rim = t.edge, t.highlight
 
@@ -327,7 +347,7 @@ def build_svg(t: Tokens) -> str:
     box(sh, "menubaritem", "focused", Look(t.hover, None, edge, rim), RI + 1)
     box(sh, "menubaritem", "pressed", Look(t.selection, None, p.acc_edge), RI + 1)
     box(sh, "menubaritem", "toggled", Look(t.selection, None, p.acc_edge), RI + 1)
-    box(sh, "tooltip", "normal", Look(t.popover, t.popover, edge.with_alpha(min(1, edge.a * 1.5)), rim), R)
+    box(sh, "tooltip", "normal", Look(t.popover, t.popover, edge.with_alpha(min(1, edge.a * 1.5)), rim), RT)
 
     # tabs: a raised glass pill for the current one
     tabs = {"normal": Look(CLEAR), "focused": Look(t.hover, None, None, None),
@@ -413,10 +433,9 @@ def build_config(t: Tokens) -> str:
     base = t.view.with_alpha(1)
     fg = _hex(t.fg)
     dim = _hex(_opaque(t.fg_faint, surface))
-    R = _clamp(t.window_radius * 0.45, 4, 10)
-    RM = _clamp(t.window_radius * 0.5, 4, 10)
-    RI = 4
-    RG = 4
+    rad = radii(t)
+    R, RM, RT, RI = rad["R"], rad["RM"], rad["RT"], rad["RI"]
+    RG = RM
     # Qt draws no backdrop blur here, so keep enough body behind the text:
     # dark text on a see-through light window over a dark wallpaper is unreadable.
     window_alpha = max(t.window.a, 0.45 if t.dark else 0.78)
@@ -824,7 +843,7 @@ inherits=GenericFrame
 frame.element=tooltip
 interior.element=tooltip
 interior=true
-{fr(R)}
+{fr(RT)}
 text.shadow=0
 text.margin=0
 text.normal.color={fg}

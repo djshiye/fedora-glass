@@ -49,7 +49,7 @@ C.Popup {
             id: square
             width: parent.width
             height: 150
-            radius: 10
+            radius: Theme.rS
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0; color: "white" }
@@ -57,7 +57,7 @@ C.Popup {
             }
             Rectangle {
                 anchors.fill: parent
-                radius: 10
+                radius: Theme.rS
                 gradient: Gradient {
                     GradientStop { position: 0; color: "transparent" }
                     GradientStop { position: 1; color: "black" }
@@ -90,7 +90,7 @@ C.Popup {
         Rectangle {
             width: parent.width
             height: 16
-            radius: 8
+            radius: height / 2
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.000; color: "#ff0000" }
@@ -146,7 +146,7 @@ C.Popup {
                 validator: RegularExpressionValidator { regularExpression: /#?[0-9a-fA-F]{0,6}/ }
                 Accessible.name: "Hex colour"
                 background: Rectangle {
-                    radius: 18
+                    radius: Theme.rS
                     color: Theme.well
                     border.width: hex.activeFocus ? 2 : 1
                     border.color: hex.activeFocus ? Theme.alpha(Theme.accent, 0.85) : Theme.border

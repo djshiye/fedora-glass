@@ -75,7 +75,7 @@ FocusScope {
                     x: 0
                     width: parent.width
                     height: 14
-                    radius: 7
+                    radius: height / 2
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.wellHi
                     border.width: 1

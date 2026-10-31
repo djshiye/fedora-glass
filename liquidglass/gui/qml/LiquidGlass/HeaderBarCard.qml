@@ -26,7 +26,7 @@ Card {
             visible: Backend.headerNote !== ""
             width: parent.width
             height: noteCol.implicitHeight + 24
-            radius: 12
+            radius: Theme.rS
             color: Theme.well
             Column {
                 id: noteCol
@@ -99,7 +99,7 @@ Card {
             visible: own
             width: parent.width
             height: termCol.implicitHeight + 24
-            radius: 12
+            radius: Theme.rS
             color: Theme.well
             Column {
                 id: termCol

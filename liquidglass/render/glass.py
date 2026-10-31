@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..color import Color, lerp
 from ..palette import Tokens
+from ..radius import scale
 from ..settings import MOTION_EVENTS, Settings
 
 UUID = "liquid-glass@djshiye.github.io"
@@ -144,7 +145,7 @@ def config(s: Settings, t: Tokens) -> dict:
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
-        "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": max(8, t.window_radius),
+        "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": scale(t.window_radius)["l"],   # the same as the GTK window corners
                     "skip": list(WINDOW_SKIP), "look": _window_look(t, "windows"),
                     "terminalLook": _window_look(t, "terminal")},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
