@@ -15,6 +15,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 
 from . import __version__, settings as settings_mod
 
@@ -87,6 +88,25 @@ def _take_all(q: queue.Queue) -> set:
             return got
 
 
+def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.sleep) -> bool:
+    """At login, finish the Shell parts an Apply left waiting for the glass extension
+    (see engine.WAITING). GNOME starts extensions a little after the session, so wait
+    for ours to run. Returns True when there was nothing left to do or it finished."""
+    from .engine import read_pending
+    if not read_pending() or not eng.is_applied():
+        return True
+    s = settings_mod.load()
+    waited = 0.0
+    while not eng.glass_running(s):
+        if waited >= wait_s:
+            print("liquid-glass watch: the glass extension isn't running; Shell parts still wait", file=sys.stderr)
+            return False
+        sleep(step_s)
+        waited += step_s
+    eng.apply(s, only=read_pending() | {"glass"})   # glass too: it hands blur over from Blur my Shell
+    return not read_pending()
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
     switch only needs the parts that can't switch by themselves (Shell theme,
@@ -109,6 +129,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
         return 1
     eng = _engine()
     only = {t.id for t in eng.targets if t.scheme_dependent}
+    finish_pending(eng)
     changes: queue.Queue[int | None] = queue.Queue()
 
     def follow(i: int, p: subprocess.Popen) -> None:

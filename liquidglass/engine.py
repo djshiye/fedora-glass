@@ -30,6 +30,7 @@ from . import palette
 from .env import Env
 from .settings import Settings, config_dir
 from .targets import all_targets
+from .targets.shell import GlassEffects
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 
 
@@ -39,6 +40,33 @@ class Result:
     name: str
     status: str        # "applied", "info" (nothing to change, see notes), "skipped", "reverted", "failed"
     message: str = ""
+
+
+# Shown for a Shell part that waits for the glass extension (see Engine._apply).
+WAITING = ("Finishes after you restart your PC. GNOME only starts the Liquid Glass extension at login, "
+           "and this part needs the glass behind it.")
+
+
+def pending_path() -> Path:
+    """Shell parts that wait for the glass extension, finished by `liquid-glass watch` at login."""
+    return config_dir() / "pending-shell.json"
+
+
+def read_pending() -> set[str]:
+    try:
+        data = json.loads(pending_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {x for x in data if isinstance(x, str)} if isinstance(data, list) else set()
+
+
+def _write_pending(ids: set[str]) -> None:
+    path = pending_path()
+    if ids:
+        atomic_write(path, json.dumps(sorted(ids)).encode())
+    else:
+        with contextlib.suppress(OSError):
+            path.unlink()
 
 
 def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
@@ -524,7 +552,14 @@ class Engine:
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
-    def context(self, settings: Settings) -> Context:
+    def glass_running(self, settings: Settings) -> bool:
+        """False only when our glass is wanted but GNOME Shell isn't running it yet."""
+        glass = next((t for t in self.targets if isinstance(t, GlassEffects)), None)
+        if glass is None or not settings.target_enabled(glass.id) or not glass.detect(self.env).available:
+            return True
+        return GlassEffects.running(self.env)
+
+    def context(self, settings: Settings, check_glass: bool = False) -> Context:
         if self.env.high_contrast() and not settings.reduce_transparency:
             # High Contrast asks for solid surfaces: no see-through glass anywhere, for
             # as long as it is on. The user's own setting is left as it is.
@@ -537,7 +572,8 @@ class Engine:
         else:
             use_dark = settings.scheme == "dark"
         return Context(settings=settings, tokens=dark if use_dark else light,
-                       dark=dark, light=light, env=self.env)
+                       dark=dark, light=light, env=self.env,
+                       glass_running=self.glass_running(settings) if check_glass else True)
 
     def plan(self, settings: Settings) -> dict[str, list[Action]]:
         ctx = self.context(settings)
@@ -556,10 +592,12 @@ class Engine:
             return self._apply(settings, only)
 
     def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
-        ctx = self.context(settings)
+        ctx = self.context(settings, check_glass=True)
         backup = Backup(self.env)
         backup.tidy_folders()
         results: list[Result] = []
+        pending = read_pending()
+        waiting = set(pending)
         for t in self.targets:
             if only and t.id not in only:
                 continue
@@ -572,6 +610,15 @@ class Engine:
             if not det.available:
                 results.append(Result(t.id, t.name, "skipped", det.detail))
                 continue
+            # A see-through panel or menu with no glass behind it looks broken, and changing
+            # Dash to Panel and ArcMenu mid-session for nothing only risks them. So Shell parts
+            # wait until the glass extension runs (after the next login), and the watcher
+            # (`liquid-glass watch`) finishes them then.
+            if t.waits_for_glass and not ctx.glass_running:
+                waiting.add(t.id)
+                results.append(Result(t.id, t.name, "info", WAITING))
+                continue
+            waiting.discard(t.id)
             actions: list[Action] = []
             try:
                 actions = t.plan(ctx)
@@ -585,12 +632,16 @@ class Engine:
                 results.append(Result(t.id, t.name, "info", " ".join(t.live_notes(ctx)) or t.summary))
             else:
                 results.append(Result(t.id, t.name, "applied"))
+        if waiting != pending and not self.env.dry_run:
+            _write_pending(waiting)
         self._write_tokens(ctx)
         return results
 
     def revert(self, target: str | None = None) -> list[str]:
         with self._locked():
             problems = Backup(self.env).restore(target)
+            if not self.env.dry_run:
+                _write_pending(set() if target is None else read_pending() - {target})
             if target is None and not problems and not self.env.dry_run:
                 for name in ("tokens.json", "tokens-dark.json", "tokens-light.json"):
                     with contextlib.suppress(OSError):
