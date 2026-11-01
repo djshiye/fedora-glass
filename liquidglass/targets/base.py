@@ -107,6 +107,9 @@ class Context:
     dark: "Tokens"            # both schemes, for CSS that switches by itself
     light: "Tokens"
     env: "Env"
+    # Whether GNOME Shell is running our glass extension right now. The Shell only
+    # loads a new extension at login, so right after the first Apply it is False.
+    glass_running: bool = True
 
 
 @dataclass
@@ -126,6 +129,9 @@ class Target:
     # False when the output already covers dark and light by itself, so the
     # dark/light watcher can skip it.
     scheme_dependent: bool = True
+    # True for Shell parts (Shell theme, Dash to Panel, ArcMenu) whose look only works
+    # with the glass behind it. They wait until the glass extension runs.
+    waits_for_glass: bool = False
 
     def detect(self, env: "Env") -> Detection:
         return Detection(True)

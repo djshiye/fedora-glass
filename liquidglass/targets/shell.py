@@ -33,6 +33,7 @@ def _gset(schema: str, values: dict[str, str]) -> list[Action]:
 class GnomeShell(Target):
     id: str = "shell"
     name: str = "GNOME Shell"
+    waits_for_glass: bool = True
     group: str = "Desktop"
     summary: str = "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
     notes: list[str] = field(default_factory=lambda: [
@@ -98,7 +99,8 @@ class GlassEffects(Target):
         acts.append(WriteFile(self.config_path(env), rg.render_config(ctx.settings, ctx.tokens)))
         acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,)))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))
-        if env.extension_path(BLUR) is not None:
+        # Blur my Shell keeps blurring until our glass is there to take over.
+        if ctx.glass_running and env.extension_path(BLUR) is not None:
             acts += [GSet(f"{self.BLUR_SCHEMA}.{part}", "blur", "false") for part in self.BLUR_OVERLAP]
         acts += self._startup_actions(ctx)
         return acts
@@ -121,8 +123,8 @@ class GlassEffects(Target):
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
         if not self.running(ctx.env):
-            notes.append("Log out and back in once so GNOME Shell starts the Liquid Glass extension. "
-                         "After that, changes show up instantly.")
+            notes.append("Restart your PC once (or log out and back in) so GNOME Shell starts the Liquid Glass extension. "
+                         "The panel, menus and ArcMenu switch to glass then. After that, changes show up instantly.")
         return notes
 
     @staticmethod
@@ -138,6 +140,7 @@ class GlassEffects(Target):
 class DashToPanel(Target):
     id: str = "dash-to-panel"
     name: str = "Dash to Panel"
+    waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
 
@@ -168,6 +171,7 @@ class DashToPanel(Target):
 class ArcMenu(Target):
     id: str = "arcmenu"
     name: str = "ArcMenu"
+    waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass menu and menu button; colours, radius, search pill and hover washes."
 

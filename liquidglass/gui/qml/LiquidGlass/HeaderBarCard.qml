@@ -151,7 +151,7 @@ Card {
             objectName: "qtGnomeTitlebars"
             width: parent.width
             label: "Qt apps get the same title bar"
-            caption: "For apps like qBittorrent. Applies after you log out and back in"
+            caption: "For apps like qBittorrent. Applies after you restart your PC or log out and back in"
             tip: "Qt apps draw their own title bar in fixed colours that no theme can change. Turn this on and they open through GNOME's X11 support instead, so GNOME draws their title bar exactly like your other apps. Two trade-offs: through X11 an app is less sealed off than on Wayland, so other X11 apps can see what you type into it, and with fractional scaling (such as 125%) it can look slightly soft. Flatpak apps keep their own bar. Turn it off, or Restore original, to go back."
             checked: Backend.qtGnomeTitlebars
             onToggled: (on) => Backend.qtGnomeTitlebars = on
