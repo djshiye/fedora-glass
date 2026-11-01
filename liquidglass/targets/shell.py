@@ -121,7 +121,7 @@ class GlassEffects(Target):
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
         if not self.running(ctx.env):
-            notes.append("Log out and back in once so GNOME Shell starts the Liquid Glass extension. "
+            notes.append("Restart your PC once (or log out and back in) so GNOME Shell starts the Liquid Glass extension. "
                          "After that, changes show up instantly.")
         return notes
 

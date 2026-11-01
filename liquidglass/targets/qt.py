@@ -34,7 +34,7 @@ class QtKvantum(Target):
             summary="Glass buttons, entries, tabs, lists, menus and scrollbars in Qt Widgets apps, "
                     "drawn by a Kvantum theme built from your settings.",
             notes=[
-                "Native Qt apps pick the style up after you log out and back in "
+                "Native Qt apps pick the style up after you restart your PC or log out and back in "
                 "(QT_STYLE_OVERRIDE is set in ~/.config/environment.d).",
                 "Open Qt apps keep their old look until restarted; light/dark changes apply to apps started afterwards.",
                 "Flatpak Qt apps also need the Kvantum style extension matching the app's KDE runtime, "

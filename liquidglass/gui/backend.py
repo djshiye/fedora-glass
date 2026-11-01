@@ -880,7 +880,7 @@ class Backend(QObject):
         since quitting it would end running shells."""
         path = self._env.which("nautilus")
         if not path or not QProcess.startDetached(path, ["-q"]):
-            self.failed.emit("Could not restart Files. Close all Files windows and log out and back in instead.")
+            self.failed.emit("Could not restart Files. Close all Files windows, or restart your PC instead.")
             return False
         self._set_header_note("restarted")
         return True

@@ -659,7 +659,7 @@ Item {
                         font.pixelSize: Theme.fsSmall
                         text: Backend.glassLive
                               ? "Live: your desktop follows these as you change them."
-                              : "Drawn by Liquid Glass's own Shell extension. Apply, then log out once to start it."
+                              : "Drawn by Liquid Glass's own Shell extension. Apply, then restart your PC once to start it."
                     }
                     LabeledSlider {
                         label: "Bend"
