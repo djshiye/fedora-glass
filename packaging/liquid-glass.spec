@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.4.1
+Version:        1.4.2
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -91,6 +91,10 @@ python3 -m pytest -q tests
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Sun Nov 01 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.2-1
+- Apply waits for the glass before changing the panel, menus and ArcMenu, and finishes after a restart
+- Notes say "restart your PC" instead of "log out"
+
 * Sat Oct 31 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.1-1
 - Genie minimize now narrows smoothly into the icon when the window sits above it
 
