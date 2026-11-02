@@ -108,6 +108,10 @@ jobs:
             *) echo "could not read the served version (HTTP $code)"; exit 1 ;;
           esac
           echo "served: ${served:-nothing yet}, new: $EVR"
+          # Both go into an rpm Lua expression below: allow only version characters.
+          for v in "$EVR" ${served:+"$served"}; do
+            printf '%s' "$v" | grep -Eqx '[0-9A-Za-z.:~^_+-]+' || { echo "refusing: bad version string"; exit 1; }
+          done
           if [ -n "$served" ]; then
             cmp="$(rpm --eval "%{lua: print(rpm.vercmp('$EVR', '$served'))}")"
             [ "$cmp" -ge 0 ] || { echo "refusing: $EVR is older than the served $served"; exit 1; }
