@@ -136,6 +136,56 @@ class GlassEffects(Target):
         return m is not None and float(m.group(1)) == 1.0   # 1 = enabled and running
 
 
+
+def extension_info(env: Env, uuid: str) -> tuple[float | None, str]:
+    """The Shell's state for an extension (1 running, 3 failed) and its error text."""
+    r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+                 "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", uuid], timeout=5)
+    if r.code != 0:
+        return None, ""
+    m = re.search(r"'state': <([\d.]+)>", r.out)
+    # GVariant text quotes a string with ' unless it holds one, then with ".
+    e = re.search(r"""'error': <(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")>""", r.out)
+    return (float(m.group(1)) if m else None), ((e.group(1) or e.group(2) or "") if e else "")
+
+
+# ArcMenu's own bug (see arcrescue.js): when an extension is switched off, GNOME
+# restarts every extension that started after it, in start order, and an ArcMenu
+# restarted before Dash to Panel finds no panel and fails until the next login.
+# Restore original switches the glass extension off, and by then the glass is not
+# there to bring ArcMenu back. So ArcMenu is set aside for that moment and started
+# again last, after Dash to Panel.
+def _shell_ext(env: Env, method: str, uuid: str) -> None:
+    env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+             "--method", f"org.gnome.Shell.Extensions.{method}", uuid], timeout=5)
+
+
+def _wait_state(env: Env, uuid: str, done, wait_s: float, step_s: float = 0.1) -> bool:
+    waited = 0.0
+    while not done(extension_info(env, uuid)[0]):
+        if waited >= wait_s:
+            return False
+        env.sleep(step_s)
+        waited += step_s
+    return True
+
+
+def park_arcmenu(env: Env) -> bool:
+    """Switch ArcMenu off before the glass extension goes. True if it was running."""
+    if extension_info(env, ARCMENU)[0] != 1.0 or extension_info(env, rg.UUID)[0] != 1.0:
+        return False
+    _shell_ext(env, "DisableExtension", ARCMENU)
+    _wait_state(env, ARCMENU, lambda st: st not in (1.0, 7.0), 3.0)
+    return True
+
+
+def unpark_arcmenu(env: Env) -> None:
+    """Start ArcMenu again once the glass extension is off: it then comes after Dash to Panel."""
+    # Not just "switching off" (7): GNOME restarts the others only after that.
+    _wait_state(env, rg.UUID, lambda st: st not in (1.0, 7.0), 3.0)
+    _shell_ext(env, "EnableExtension", ARCMENU)
+    _wait_state(env, ARCMENU, lambda st: st in (1.0, 3.0), 3.0)
+
 @dataclass
 class DashToPanel(Target):
     id: str = "dash-to-panel"
