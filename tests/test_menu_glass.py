@@ -45,3 +45,19 @@ def test_glide_setting_reaches_the_extension():
     assert "glide.js" in glass.FILES
     s.hover_glide = False
     assert glass.config(s, t)["glide"]["enabled"] is False
+
+
+@pytest.mark.skipif(NODE is None, reason="needs Node.js")
+def test_arcmenu_comes_back_after_gnome_restarts_it_before_dash_to_panel():
+    r = subprocess.run(
+        [NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/arcrescue.test.mjs"],
+        cwd=ROOT, capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_arcmenu_rescue_ships_and_runs_only_in_the_session():
+    from liquidglass.render import glass
+    assert "arcrescue.js" in glass.FILES
+    ext = (glass.SOURCE / "extension.js").read_text()
+    assert "new ArcMenuRescue()" in ext and "this._rescue?.destroy()" in ext
