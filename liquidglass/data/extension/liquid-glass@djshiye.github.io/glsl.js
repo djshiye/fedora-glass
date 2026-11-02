@@ -89,3 +89,14 @@ export class Shader {
         }
     }
 }
+
+// Where an actor sits in its effect's texture, in the actor's own (logical) pixels.
+// The texture is in screen pixels, so at a fractional scale such as 125 % it is
+// bigger than the actor by that factor; mixing the two drew the glass at the wrong
+// size and place (a stray box inside menus and the panel). Clutter grows the frame
+// by 2 px at the top left and 1 px at the bottom right, before scaling.
+export function textureFrame(texW, texH, actor) {
+    const s = Math.max(actor.get_resource_scale?.() ?? 1, 1e-3);
+    const w = texW / s, h = texH / s;
+    return {tex_w: w, tex_h: h, org_x: Math.ceil((w - actor.width) / 2), org_y: Math.ceil((h - actor.height) / 2)};
+}

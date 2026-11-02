@@ -27,7 +27,7 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
-import {Shader} from './glsl.js';
+import {Shader, textureFrame} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
 const SHADER = `
@@ -501,12 +501,10 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         const a = this.get_actor();
         if (t && a) {
             const [w, h] = [t.get_width(), t.get_height()];
-            const key = `${w}x${h}/${a.width}x${a.height}`;
+            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}`;
             if (key !== this._frame) {
                 this._frame = key;
-                // Clutter grows an effect's frame by 2 px at the top left and 1 px at the bottom right.
-                const ox = Math.ceil((w - a.width) / 2), oy = Math.ceil((h - a.height) / 2);
-                GLASS.set(this, {tex_w: w, tex_h: h, org_x: ox, org_y: oy});
+                GLASS.set(this, textureFrame(w, h, a));
             }
         }
         super.vfunc_paint_target(node, paintContext);
