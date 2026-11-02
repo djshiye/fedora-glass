@@ -2,7 +2,7 @@
 // gi:// and resource:// imports, and the GPU glass itself, become the stubs below.
 const STUBS = {
     'gi/GLib': `export default {
-        PRIORITY_HIGH: 0, PRIORITY_DEFAULT: 0, PRIORITY_DEFAULT_IDLE: 0, SOURCE_REMOVE: false,
+        PRIORITY_HIGH: 0, PRIORITY_DEFAULT: 0, PRIORITY_DEFAULT_IDLE: 0, SOURCE_REMOVE: false, SOURCE_CONTINUE: true,
         timeout_add: (_p, ms, fn) => globalThis.fake.timeouts.add(ms, fn),
         idle_add: (_p, fn) => globalThis.fake.timeouts.add(0, fn),
         source_remove: id => globalThis.fake.timeouts.remove(id),
@@ -25,7 +25,8 @@ const STUBS = {
     'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
-        export const panel = {statusArea: {}};`,
+        export const panel = {statusArea: {}};
+        export const extensionManager = globalThis.fake.extensionManager;`,
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
     'glass': `export class GlassPane extends globalThis.fake.Actor {
         constructor(name) { super(); this.name = name; this.pad = 0; }

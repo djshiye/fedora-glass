@@ -12,6 +12,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {Animations} from './animations.js';
+import {ArcMenuRescue} from './arcrescue.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
@@ -61,6 +62,12 @@ export default class LiquidGlassExtension extends Extension {
             this._desktop = new DesktopBehaviour(cfg);
             this._manager = new GlassManager(cfg);
             this._animations = new Animations(cfg);
+            try {
+                this._rescue = new ArcMenuRescue();
+            } catch (e) {
+                console.error(`Liquid Glass: no ArcMenu restart helper: ${e}`);
+                this._rescue = null;
+            }
         }
     }
 
@@ -73,6 +80,8 @@ export default class LiquidGlassExtension extends Extension {
             logError(e, 'Liquid Glass: turning the animations off');   // the rest still turns off
         }
         this._animations = null;
+        this._rescue?.destroy();
+        this._rescue = null;
         this._desktop?.destroy();
         this._desktop = null;
         this._manager?.destroy();
