@@ -1,0 +1,132 @@
+# Publishes a DNF repository on GitHub Pages with the released RPMs, so
+# `sudo dnf upgrade` picks up new versions. It runs after each successful
+# Release, or by hand from the Actions tab for a given release tag. Users add it
+# once with:
+#   sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo
+#
+# The site serves the release and the two before it (so `dnf downgrade` can roll
+# back), and never goes back to an older version than the one it serves.
+name: DNF repository
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v1.4.3"
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  SITE: https://djshiye.github.io/fedora-liquid-glass
+
+jobs:
+  publish:
+    # Only in this repository (never a fork), and only after a Release from a
+    # v* tag push or a hand-started Release on main, or when run by hand on main.
+    if: >-
+      github.repository == 'djshiye/fedora-liquid-glass' && (
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.head_repository.full_name == github.repository &&
+         (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')))
+    runs-on: ubuntu-latest
+    container: fedora:44
+    permissions:
+      contents: read    # read tags and the repo file
+      pages: write      # publish the site
+      id-token: write   # required by deploy-pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Tools
+        run: dnf install -y --setopt=install_weak_deps=False createrepo_c rpm git-core curl
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0   # tags and history, to check the release below
+
+      - name: Which release
+        env:
+          # Hand-started: the tag typed in. After a Release: the commit it built.
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          if [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          else
+            ver="$(git show "$RELEASE_SHA:packaging/liquid-glass.spec" | sed -n 's/^Version:[[:space:]]*//p' | head -1)"
+            tag="v$ver"
+            test "$(git rev-parse "$tag^{commit}")" = "$RELEASE_SHA" || { echo "$tag is not $RELEASE_SHA"; exit 1; }
+          fi
+          case "$tag" in v[0-9]*) ;; *) echo "not a release tag: $tag"; exit 1 ;; esac
+          # A real release: the tag exists here and is on main.
+          git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "no tag $tag"; exit 1; }
+          git merge-base --is-ancestor "$tag" origin/main || { echo "$tag is not on main"; exit 1; }
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Download the RPMs, checked against each release's SHA256SUMS
+        run: |
+          # This release and the two releases before it that are on main.
+          tags="$(git tag --merged origin/main --list 'v[0-9]*' --sort=-v:refname \
+                  | awk -v t="$TAG" 'f || $0 == t { f = 1; print }' | head -3)"
+          echo "$tags" | head -1 | grep -qx "$TAG" || { echo "$TAG not found among tags"; exit 1; }
+          mkdir -p site/rpms
+          for tag in $tags; do
+            d="dl/$tag"; mkdir -p "$d"
+            base="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag"
+            if ! curl -fsSLo "$d/liquid-glass.noarch.rpm" "$base/liquid-glass.noarch.rpm" \
+               || ! curl -fsSLo "$d/SHA256SUMS" "$base/SHA256SUMS"; then
+              [ "$tag" = "$TAG" ] && { echo "release $TAG has no RPM"; exit 1; }
+              echo "skipping $tag: no release files"; continue
+            fi
+            (cd "$d" && grep ' liquid-glass.noarch.rpm$' SHA256SUMS | sha256sum -c -)
+            test "$(rpm -qp --qf '%{name} v%{version}' "$d/liquid-glass.noarch.rpm")" = "liquid-glass $tag"
+            nvr="$(rpm -qp --qf '%{name}-%{version}-%{release}' "$d/liquid-glass.noarch.rpm")"
+            cp "$d/liquid-glass.noarch.rpm" "site/rpms/$nvr.noarch.rpm"
+            [ "$tag" = "$TAG" ] && echo "EVR=$(rpm -qp --qf '%{evr}' "$d/liquid-glass.noarch.rpm")" >> "$GITHUB_ENV"
+          done
+          ls site/rpms
+
+      - name: Never go back to an older version
+        run: |
+          code="$(curl -sSL -o served.txt -w '%{http_code}' "$SITE/version.txt")"
+          case "$code" in
+            200) served="$(cat served.txt)" ;;
+            404) served="" ;;   # first publish
+            *) echo "could not read the served version (HTTP $code)"; exit 1 ;;
+          esac
+          echo "served: ${served:-nothing yet}, new: $EVR"
+          # Both go into an rpm Lua expression below: allow only version characters.
+          for v in "$EVR" ${served:+"$served"}; do
+            printf '%s' "$v" | grep -Eqx '[0-9A-Za-z.:~^_+-]+' || { echo "refusing: bad version string"; exit 1; }
+          done
+          if [ -n "$served" ]; then
+            cmp="$(rpm --eval "%{lua: print(rpm.vercmp('$EVR', '$served'))}")"
+            [ "$cmp" -ge 0 ] || { echo "refusing: $EVR is older than the served $served"; exit 1; }
+          fi
+
+      - name: Build the repository
+        run: |
+          createrepo_c site/rpms
+          cp packaging/liquid-glass.repo site/
+          echo "$EVR" > site/version.txt
+          printf '<!doctype html><meta charset="utf-8"><title>Liquid Glass DNF repository</title><pre>sudo dnf config-manager addrepo --from-repofile=%s/liquid-glass.repo\nsudo dnf install liquid-glass</pre><p>Serving %s.</p>\n' "$SITE" "$TAG" > site/index.html
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa  # v3.0.1
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e  # v4.0.5
