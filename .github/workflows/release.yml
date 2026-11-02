@@ -2,9 +2,9 @@
 # (v1.2.3) is pushed or when run by hand from the Actions tab (that run tags the
 # commit with the version in the spec).
 #
-# The new tag also starts the signed build on Fedora COPR, through COPR's own
-# GitHub webhook (no token is stored here). See docs/COPR.md. Users install with:
-#   sudo dnf copr enable djshiye/liquid-glass && sudo dnf install liquid-glass
+# When it succeeds, the "DNF repository" workflow (dnf-repo.yml) publishes the RPM
+# to the DNF repository on GitHub Pages, so `sudo dnf upgrade` picks it up.
+# Once COPR is set up (docs/COPR.md), the new tag also starts a signed COPR build.
 name: Release
 
 on:
@@ -61,4 +61,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Liquid Glass $VER" --notes "Install: sudo dnf copr enable djshiye/liquid-glass && sudo dnf install liquid-glass. Updates then come with sudo dnf upgrade. The signed COPR build of this version appears there a few minutes after this release."
+            --title "Liquid Glass $VER" --notes "Install: sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo, then sudo dnf install liquid-glass. After that, sudo dnf upgrade brings each new version."
