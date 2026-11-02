@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, readdirSync} from 'node:fs';
 import {test} from 'node:test';
 
-import {Shader, snippet, uniformNames} from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glsl.js';
+import {Shader, snippet, textureFrame, uniformNames} from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glsl.js';
 
 const EXT = new URL('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/', import.meta.url);
 const read = f => readFileSync(new URL(f, EXT), 'utf8');
@@ -76,6 +76,10 @@ for (const {file, name, calls} of SHADERS) {
     test(`${name}: every uniform it declares is set from ${file}, and nothing else`, () => {
         const declared = new Set(uniformNames(shaderSource(file, name)));
         const set = keysSet(file, calls);
+        // The texture frame comes from glsl.js's textureFrame, handed straight to a set call.
+        if (new RegExp(`(${calls.map(c => c.replace('.', '\\.')).join('|')})\\((this, )?textureFrame\\(`).test(code(file)))
+            for (const k of Object.keys(textureFrame(3, 3, {width: 0, height: 0})))
+                set.add(k);
         assert.ok(declared.size > 10);
         assert.deepEqual([...declared].filter(k => !set.has(k)), [], 'declared but never set');
         assert.deepEqual([...set].filter(k => !declared.has(k)), [], 'set but not declared');
@@ -150,4 +154,25 @@ test('build adds one replacing fragment snippet', () => {
     assert.equal(e.snippet.hook, 'fragment');
     assert.equal(e.snippet.replace, true);
     assert.equal(e.snippet.code.trim().endsWith(';'), true);
+});
+
+// At a fractional display scale (Dino's 125 %) the effect texture is in screen
+// pixels and the pane in logical ones; the shader works in logical pixels, or the
+// glass is drawn at the wrong size and place (a stray box in menus and the panel).
+
+test('the texture frame is in the pane\'s own pixels at any display scale', () => {
+    const pane = (width, height, scale) => ({width, height, get_resource_scale: () => scale});
+    assert.deepEqual(textureFrame(203, 53, pane(200, 50, 1)), {tex_w: 203, tex_h: 53, org_x: 2, org_y: 2});
+    const f = textureFrame(Math.ceil(203 * 1.25), Math.ceil(53 * 1.25), pane(200, 50, 1.25));
+    assert.ok(Math.abs(f.tex_w - 203) < 1 && Math.abs(f.tex_h - 53) < 1, JSON.stringify(f));
+    assert.equal(f.org_x, 2);
+    assert.equal(f.org_y, 2);
+    assert.deepEqual(textureFrame(406, 106, pane(200, 50, 2)), {tex_w: 203, tex_h: 53, org_x: 2, org_y: 2});
+});
+
+test('both effects that map a texture onto an actor use textureFrame', () => {
+    for (const f of ['glass.js', 'animations.js']) {
+        assert.match(code(f), /textureFrame\(w, h, a\)/, f);
+        assert.doesNotMatch(code(f), /tex_w: w/, f);
+    }
 });

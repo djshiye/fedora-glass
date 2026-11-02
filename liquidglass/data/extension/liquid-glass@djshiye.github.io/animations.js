@@ -29,7 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
-import {Shader} from './glsl.js';
+import {Shader, textureFrame} from './glsl.js';
 import {freezeSource, thawSource} from './glass.js';
 import {HoverGlide} from './glide.js';
 
@@ -378,10 +378,10 @@ class LiquidGlassGenie extends Shell.GLSLEffect {
         const a = this.get_actor();
         if (t && a) {
             const [w, h] = [t.get_width(), t.get_height()];
-            const key = `${w}x${h}/${a.width}x${a.height}`;
+            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}`;
             if (key !== this._frame) {
                 this._frame = key;
-                this._set({tex_w: w, tex_h: h, org_x: Math.ceil((w - a.width) / 2), org_y: Math.ceil((h - a.height) / 2)});
+                this._set(textureFrame(w, h, a));
             }
         }
         super.vfunc_paint_target(node, paintContext);
