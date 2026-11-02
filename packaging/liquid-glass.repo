@@ -1,0 +1,10 @@
+[liquid-glass]
+name=Liquid Glass
+baseurl=https://djshiye.github.io/fedora-liquid-glass/fedora-$releasever/
+enabled=1
+# Published by this project's GitHub Actions from each tagged release, after
+# checking the RPM against the release's SHA256SUMS. Served over HTTPS from
+# GitHub Pages. The packages are not GPG-signed.
+gpgcheck=0
+metadata_expire=1h
+skip_if_unavailable=True

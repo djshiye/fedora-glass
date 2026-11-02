@@ -12,15 +12,21 @@ Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need 
 ## Install
 
 ```sh
-sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/liquid-glass.noarch.rpm
+sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo
+sudo dnf install liquid-glass
 ```
 
 1. Open **Liquid Glass** from the app grid.
 2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**.
 3. Restart your PC once (or log out and back in, if your system offers Log Out), so GNOME loads the glass. From then on, changes show up live.
 
-To update, run the same command again. Signed updates through `sudo dnf upgrade`
-([Fedora COPR](docs/COPR.md)) are coming soon.
+Updates then come with the rest of your system through `sudo dnf upgrade`. The repository is built
+by this project's GitHub Actions from each release, after checking the RPM against the release's
+`SHA256SUMS`, and served over HTTPS. The packages are not GPG-signed yet; signed builds through
+[Fedora COPR](docs/COPR.md) are planned.
+
+**Installed it from the old download link?** Run only the first command above. Your next
+`sudo dnf upgrade` then picks up new versions and keeps your settings.
 
 ## Undo or remove
 
