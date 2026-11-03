@@ -39,6 +39,8 @@ Apply.
   sudo dnf remove liquid-glass
   ```
 
+  Removing it also puts the normal login screen back if you turned on glass there.
+
 ## Blur my Shell
 
 You can uninstall it. Liquid Glass covers what Blur my Shell did (the panel, menus, overview and app
@@ -63,6 +65,10 @@ GNOME Shell, Dash to Panel, ArcMenu, GTK 4 and libadwaita apps (Nautilus include
 Flatpak apps, Ptyxis and GNOME Terminal, Qt apps (through Kvantum), btop, micro, Discord (Vencord),
 VS Code, Obsidian, qBittorrent, Prism Launcher, Brave, Helium, Clipperino, RGBeast and Wheelguard.
 The app's **Apps** page lists every part, shows which you have installed, and has a switch for each.
+
+The login screen is opt in: **Use glass on the login screen** (under Lock screen) asks for your
+password, then gives it a glow in your tint colour with glass panes for your name and password.
+**Put the normal login screen back** undoes it exactly, and GNOME updates undo it by themselves.
 
 <p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Liquid Glass app: live preview and the Liquid to Frosted slider"></p>
 
@@ -91,7 +97,10 @@ The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/
 
 ## Safe by design
 
-- It runs as you: no root, no network access, and it changes only your own settings.
+- It runs as you: no root, no network access, and it changes only your own settings. The one
+  exception is the opt-in login screen glass, which asks for your password. Its small helper takes
+  only three colours or numbers, changes only the login screen's part of GNOME Shell's theme file,
+  checks every other part stays byte for byte the same, and keeps the original to put back.
 - Every file and setting is backed up before its first change. **Show changes** lists everything
   before **Apply** touches it.
 
