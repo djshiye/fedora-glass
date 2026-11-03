@@ -11,6 +11,7 @@ import argparse
 import html
 import json
 import math
+import os
 import re
 import statistics
 import sys
@@ -28,7 +29,9 @@ import lgqa  # noqa: E402
 from lgqa import LG, OUT, Shell, ShellError  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-REFS = HERE.parent / "references"
+# Reference pictures are for the default 2000x1125 screens; other sizes keep their own set.
+SCREEN = os.environ.get("LGQA_SCREEN", "2000x1125")
+REFS = HERE.parent / "references" / ("" if SCREEN == "2000x1125" else SCREEN)
 NEW_REFS = OUT / "new-references"
 REPORT = OUT / "report"
 LIMITS = tomllib.loads((HERE.parent / "limits.toml").read_text())
@@ -94,8 +97,14 @@ class Ctx:
 
     def new_errors(self, since: int) -> list[str]:
         lines = self.log.read_text(errors="replace").splitlines()[since:]
-        pat = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|Liquid Glass:.*(fail|error)", re.I)
+        pat = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|(Liquid|Fedora) Glass:.*(fail|error)", re.I)
         return [l for l in lines if pat.search(l) and "Xwayland" not in l]
+
+
+def ours(line: str) -> bool:
+    """A log line from this project, under its old name or its new one (Fedora Glass)."""
+    low = line.lower()
+    return "liquid-glass" in low or "liquid glass" in low or "fedora glass" in low or "fedora-glass" in low
 
 
 # ---------------------------------------------------------------------------------------------
@@ -133,6 +142,10 @@ def against_reference(ctx: Ctx, chk: Check, name: str, label: str, now: np.ndarr
     if ctx.update:
         lgqa.save(now, NEW_REFS / f"{name}.png")
         return chk.add(True, f"{label}: saved as the new reference picture.", picture(name, now))
+    if not ref_p.exists() and SCREEN != "2000x1125":
+        chk.info(f"{label}: not compared, there are no reference pictures for {SCREEN} screens.")
+        picture(name, now)
+        return True
     if not ref_p.exists():
         return chk.add(False, f"{label}: there is no reference picture yet (run with --update-references once).",
                        picture(name, now))
@@ -819,7 +832,7 @@ def check_lock(ctx: Ctx) -> Check:
     panes = sh.glass_panes()
     c.add(panes >= 1 and panes <= panes0 + 6, f"Glass pieces before locking: {panes0}, after three locks: {panes}."
           + ("" if panes >= 1 and panes <= panes0 + 6 else " Glass is missing or piling up."))
-    errs = [e for e in ctx.new_errors(log0) if "liquid-glass" in e.lower() or "Liquid Glass" in e]
+    errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Liquid Glass errors while locking." if not errs else
           f"{len(errs)} Liquid Glass errors while locking, first: {errs[0][-160:]}")
     sh.close_all()
@@ -881,7 +894,7 @@ def check_restart(ctx: Ctx) -> Check:
             if not bad:
                 break
         took = time.monotonic() - t0
-        errs = [e for e in ctx.new_errors(log0) if "liquid-glass" in e.lower()]
+        errs = [e for e in ctx.new_errors(log0) if ours(e)]
         if bad:
             c.add(False, f"After switching {NAMES[u]} off and on: " + "; ".join(bad) + f" after {lim['settle_seconds']} s.")
         else:
@@ -936,7 +949,7 @@ def check_restore(ctx: Ctx) -> Check:
     bad, took = wait_healthy(ctx, expected, True, lim["settle_seconds"] + 15)
     c.add(not bad, f"After Apply, the glass and every extension were back in {took:.0f} s." if not bad else
           "After Apply: " + "; ".join(bad) + ".")
-    errs = [e for e in ctx.new_errors(log0) if "liquid-glass" in e.lower()]
+    errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Liquid Glass errors during Restore original and Apply." if not errs else
           f"{len(errs)} Liquid Glass errors, first: {errs[0][-160:]}")
     return c
@@ -952,7 +965,7 @@ def check_log(ctx: Ctx) -> Check:
     failed = [l for l in apply_txt.splitlines() if l.startswith("✗")]
     c.add("apply exit 0" in apply_txt and not failed,
           "Apply finished without problems." if not failed else f"Apply reported: {failed[0]}")
-    errs = [e for e in ctx.new_errors(0) if "liquid-glass" in e.lower() or "Liquid Glass" in e]
+    errs = [e for e in ctx.new_errors(0) if ours(e)]
     c.add(not errs, "GNOME Shell logged no Liquid Glass errors." if not errs else
           f"GNOME Shell logged {len(errs)} Liquid Glass errors. First: {errs[0][-200:]}")
     alive = lgqa.subprocess.run(["pgrep", "-u", "dino", "-x", "gnome-shell"], capture_output=True).returncode == 0
@@ -960,8 +973,64 @@ def check_log(ctx: Ctx) -> Check:
     return c
 
 
+# ---------------------------------------------------------------------------------------------
+# 8. Upgrade from the last release (only with run.sh --from)
+# ---------------------------------------------------------------------------------------------
+def _version_of(tree: Path) -> str:
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (tree / "liquidglass/__init__.py").read_text())
+    return m.group(1) if m else "?"
+
+
+ERROR_LINE = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|(Liquid|Fedora) Glass:.*(fail|error)", re.I)
+
+
+def _lg_errors(name: str) -> list[str]:
+    p = OUT / name
+    lines = p.read_text(errors="replace").splitlines() if p.exists() else []
+    return [l for l in lines if ERROR_LINE.search(l) and "Xwayland" not in l
+            and ours(l)]
+
+
+def check_upgrade(ctx: Ctx) -> Check:
+    old, new = _version_of(Path("/from")), _version_of(Path("/src"))
+    c = Check("upgrade", "Upgrading from the last release",
+              f"Dino's PC on {old}: applied and used for one session. Then {new} arrives the way dnf upgrade "
+              "brings it, nobody presses Apply, and the PC restarts twice. The new glass must be running, "
+              "with Dino's settings kept.")
+    sh = ctx.sh
+    txt = (OUT / "apply-old.txt").read_text(errors="replace")
+    c.add("apply exit 0" in txt, f"{old} was applied." if "apply exit 0" in txt else
+          f"Applying {old} failed: {txt.strip().splitlines()[-1][-160:] if txt.strip() else 'no output'}")
+    errs = _lg_errors("shell-old.log")
+    c.add(not errs, f"{old} ran its session without Liquid Glass errors." if not errs else
+          f"{old} logged {len(errs)} Liquid Glass errors (this is the old version): {errs[0][-140:]}")
+    watch = (OUT / "watch-upgrade.txt").read_text(errors="replace") if (OUT / "watch-upgrade.txt").exists() else ""
+    said = f"updating the applied look from {old} to {new}" in watch
+    c.add(said, f"At the first login after the upgrade, the look was brought up to {new} by itself." if said else
+          "At the first login after the upgrade, the look was not brought up to date"
+          + (f": {watch.strip().splitlines()[-1][-160:]}" if watch.strip() else "."))
+    errs = _lg_errors("shell-upgrade.log")
+    c.add(not errs, f"The {old} glass kept working with {new}'s settings until the restart." if not errs else
+          f"{len(errs)} Liquid Glass errors in the session between the update and the restart: {errs[0][-140:]}")
+    running = sh.json(f"return Main.extensionManager.lookup('{LG}')?.metadata?.['version-name'] ?? null;")
+    c.add(running == new, f"After the next restart GNOME Shell runs the {new} glass." if running == new else
+          f"After the next restart GNOME Shell runs the {running or 'no'} glass, not {new}.")
+    try:
+        saved = json.loads((lgqa.HOME / ".config/liquid-glass/settings.json").read_text())
+    except (OSError, ValueError):
+        saved = {}
+    kept = saved.get("overview_off") is True and saved.get("start_on_desktop") is True
+    c.add(kept, "Dino's own settings (no overview, start on the desktop) were kept." if kept else
+          f"Dino's settings changed: {json.dumps(saved)[:160]}")
+    others = [u for u in DINO_EXTENSIONS if sh.ext_states().get(u) == 1]
+    bad = healthy(health(ctx, others), others)
+    c.add(not bad, "The glass and all of Dino's extensions are working." if not bad else "; ".join(bad) + ".")
+    return c
+
+
 ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
-       "restart": check_restart, "restore": check_restore, "lock": check_lock, "log": check_log}
+       "restart": check_restart, "restore": check_restore, "lock": check_lock, "log": check_log,
+       "upgrade": check_upgrade}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1022,7 +1091,10 @@ img{display:block;max-width:100%;border-radius:8px;margin:8px 0 2px;border:1px s
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", default=",".join(ALL))
+    # The upgrade check needs the older tree (run.sh --from) and goes first, before other
+    # checks Apply or Restore.
+    upgrade = ["upgrade"] if Path("/from/liquidglass").is_dir() else []
+    ap.add_argument("--only", default=",".join(upgrade + [k for k in ALL if k != "upgrade"]))
     ap.add_argument("--update-references", action="store_true")
     ap.add_argument("--version", default="")
     args = ap.parse_args()
