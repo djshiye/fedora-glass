@@ -1,4 +1,4 @@
-"""liquid-glass watch: stops cleanly, and merges quick switches into one apply."""
+"""fedora-glass watch: stops cleanly, and merges quick switches into one apply."""
 from __future__ import annotations
 
 import queue

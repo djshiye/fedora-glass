@@ -15,7 +15,7 @@ BLUR = "blur-my-shell@aunetx"
 DASH_TO_PANEL = "dash-to-panel@jderose9.github.com"
 ARCMENU = "arcmenu@arcmenu.com"
 JUST_PERFECTION = "just-perfection-desktop@just-perfection"
-THEME_NAME = "LiquidGlass"
+THEME_NAME = "FedoraGlass"
 
 
 
@@ -38,7 +38,7 @@ class GnomeShell(Target):
     summary: str = "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
     notes: list[str] = field(default_factory=lambda: [
         "Needs the User Themes extension (enabled automatically when installed).",
-        "Surfaces are translucent; the glass behind them comes from Liquid Glass effects."])
+        "Surfaces are translucent; the glass behind them comes from Fedora Glass effects."])
 
     def detect(self, env: Env) -> Detection:
         return _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
@@ -70,12 +70,12 @@ class GnomeShell(Target):
 @dataclass
 class GlassEffects(Target):
     id: str = "glass"
-    name: str = "Liquid Glass effects"
+    name: str = "Fedora Glass effects"
     group: str = "Desktop"
     summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu, app windows and the overview: "
                     "live blur, a refracting rim, rim light and a rainbow edge.")
     notes: list[str] = field(default_factory=lambda: [
-        "Uses Liquid Glass's own GNOME Shell extension; Blur my Shell isn't needed."])
+        "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."])
 
     BLUR_SCHEMA = "org.gnome.shell.extensions.blur-my-shell"
     # Blur my Shell parts that would draw a second blur over ours.
@@ -123,7 +123,7 @@ class GlassEffects(Target):
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
         if not self.running(ctx.env):
-            notes.append("Restart your PC once (or log out and back in) so GNOME Shell starts the Liquid Glass extension. "
+            notes.append("Restart your PC once (or log out and back in) so GNOME Shell starts the Fedora Glass extension. "
                          "The panel, menus and ArcMenu switch to glass then. After that, changes show up instantly.")
         return notes
 

@@ -2,7 +2,7 @@
 
 A target never touches the system itself. Its plan() returns a list of
 actions; the engine backs up whatever an action will change (the first time
-Liquid Glass ever changes it), then performs it. That keeps every change
+Fedora Glass ever changes it), then performs it. That keeps every change
 reversible and lets the app show exactly what Apply will do.
 """
 
@@ -53,7 +53,7 @@ class GReset:
     path: str | None = None
 
     def describe(self) -> str:
-        return f"restore {self.schema} {self.key} if Liquid Glass changed it"
+        return f"restore {self.schema} {self.key} if Fedora Glass changed it"
 
 
 @dataclass(frozen=True)

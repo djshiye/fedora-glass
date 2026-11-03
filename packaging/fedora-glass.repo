@@ -1,0 +1,12 @@
+[fedora-glass]
+name=Fedora Glass
+baseurl=https://djshiye.github.io/fedora-liquid-glass/rpms/
+enabled=1
+# Only the fedora-glass package is ever taken from here, whatever else appears.
+includepkgs=fedora-glass
+# Published by this project's GitHub Actions from each tagged release, after
+# checking the RPMs against the release's SHA256SUMS. Served over HTTPS from
+# GitHub Pages. The packages are not GPG-signed.
+gpgcheck=0
+metadata_expire=1h
+skip_if_unavailable=True

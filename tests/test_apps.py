@@ -106,8 +106,8 @@ def test_vscode_plan_installs_and_merges(fake_env):
     assert cmd.undo == ("code", "--uninstall-extension", "djshiye.liquid-glass-theme")
     assert cmd.argv[2].endswith("liquid-glass/vscode/liquid-glass.vsix")
     st = json.loads(by_name(plan)["settings.json"].content)
-    assert st["editor.fontSize"] == 15 and st["workbench.colorTheme"] == "Liquid Glass Dark"
-    assert st["workbench.preferredLightColorTheme"] == "Liquid Glass Light"
+    assert st["editor.fontSize"] == 15 and st["workbench.colorTheme"] == "Fedora Glass Dark"
+    assert st["workbench.preferredLightColorTheme"] == "Fedora Glass Light"
 
 
 def test_vscode_skips_commented_settings_and_unchanged_install(fake_env):
@@ -129,7 +129,7 @@ def test_vscode_skips_commented_settings_and_unchanged_install(fake_env):
 @pytest.mark.parametrize("dark,frost", CASES)
 def test_discord_css(dark, frost):
     css = ra.discord_css(toks(True, frost), toks(False, frost))
-    assert css.startswith("/**") and "@name Liquid Glass" in css
+    assert css.startswith("/**") and "@name Fedora Glass" in css
     assert balanced(css) and "None" not in css and ".theme-dark" in css and ".theme-light" in css
 
 
@@ -160,9 +160,9 @@ def test_obsidian_plan(fake_env, tmp_path):
         "a": {"path": str(vault)}, "b": {"path": str(tmp_path / "gone")}, "c": {"path": "relative"}}}))
     plan = ta.Obsidian().plan(ctx_for(fake_env))
     files = by_name(plan)
-    assert files["theme.css"].path == vault / ".obsidian/themes/Liquid Glass/theme.css"
-    assert json.loads(files["manifest.json"].content)["name"] == "Liquid Glass"
-    assert json.loads(files["appearance.json"].content) == {"baseFontSize": 17, "cssTheme": "Liquid Glass"}
+    assert files["theme.css"].path == vault / ".obsidian/themes/Fedora Glass/theme.css"
+    assert json.loads(files["manifest.json"].content)["name"] == "Fedora Glass"
+    assert json.loads(files["appearance.json"].content) == {"baseFontSize": 17, "cssTheme": "Fedora Glass"}
     assert len(plan) == 3
     assert balanced(files["theme.css"].content)
 

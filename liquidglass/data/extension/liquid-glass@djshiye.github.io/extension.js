@@ -1,4 +1,4 @@
-// Liquid Glass for GNOME Shell. The look is set in the Liquid Glass app, which
+// Fedora Glass for GNOME Shell. The look is set in the Fedora Glass app, which
 // writes ~/.config/liquid-glass/shell-glass.json; changes show up live.
 // It also decides whether GNOME starts on the desktop or in the overview.
 //
@@ -45,7 +45,7 @@ export default class LiquidGlassExtension extends Extension {
             try {
                 this._lock = new LockGlass(cfg);
             } catch (e) {
-                console.error(`Liquid Glass: no lock screen glass: ${e}`);
+                console.error(`Fedora Glass: no lock screen glass: ${e}`);
                 this._lock = null;
             }
         } else {
@@ -65,7 +65,7 @@ export default class LiquidGlassExtension extends Extension {
             try {
                 this._rescue = new ArcMenuRescue();
             } catch (e) {
-                console.error(`Liquid Glass: no ArcMenu restart helper: ${e}`);
+                console.error(`Fedora Glass: no ArcMenu restart helper: ${e}`);
                 this._rescue = null;
             }
         }
@@ -77,7 +77,7 @@ export default class LiquidGlassExtension extends Extension {
         try {
             this._animations?.destroy();
         } catch (e) {
-            logError(e, 'Liquid Glass: turning the animations off');   // the rest still turns off
+            logError(e, 'Fedora Glass: turning the animations off');   // the rest still turns off
         }
         this._animations = null;
         this._rescue?.destroy();

@@ -108,7 +108,7 @@ VSCODE_PUBLISHER = "djshiye"
 VSCODE_NAME = "liquid-glass-theme"
 VSCODE_ID = f"{VSCODE_PUBLISHER}.{VSCODE_NAME}"
 VSCODE_VERSION = "1.0.0"
-VSCODE_LABELS = {True: "Liquid Glass Dark", False: "Liquid Glass Light"}
+VSCODE_LABELS = {True: "Fedora Glass Dark", False: "Fedora Glass Light"}
 
 
 def vscode_theme(t: Tokens) -> dict:
@@ -275,7 +275,7 @@ def vsix_bytes(dark: Tokens, light: Tokens) -> bytes:
     """A VSIX is a zip with a manifest, content types and the extension folder.
     Timestamps are fixed so identical tokens give identical bytes."""
     pkg = {
-        "name": VSCODE_NAME, "displayName": "Liquid Glass", "publisher": VSCODE_PUBLISHER,
+        "name": VSCODE_NAME, "displayName": "Fedora Glass", "publisher": VSCODE_PUBLISHER,
         "version": VSCODE_VERSION, "description": "Glass-matched colour themes.",
         "engines": {"vscode": "^1.60.0"}, "categories": ["Themes"], "license": "MIT",
         "contributes": {"themes": [
@@ -294,7 +294,7 @@ def vsix_bytes(dark: Tokens, light: Tokens) -> bytes:
         '<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">'
         f'<Metadata><Identity Language="en-US" Id="{VSCODE_NAME}" Version="{VSCODE_VERSION}" '
         f'Publisher="{VSCODE_PUBLISHER}"/>'
-        '<DisplayName>Liquid Glass</DisplayName><Description xml:space="preserve">'
+        '<DisplayName>Fedora Glass</DisplayName><Description xml:space="preserve">'
         'Glass-matched colour themes.</Description><Tags>theme</Tags>'
         '<Categories>Themes</Categories><GalleryFlags>Public</GalleryFlags>'
         '<Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.60.0"/></Properties>'
@@ -341,9 +341,9 @@ def _discord_vars(t: Tokens) -> str:
 def discord_css(dark: Tokens, light: Tokens) -> str:
     sc = scale(dark.radius)
     return f"""/**
- * @name Liquid Glass
- * @description Translucent glass surfaces that follow the Liquid Glass settings.
- * @author Liquid Glass
+ * @name Fedora Glass
+ * @description Translucent glass surfaces that follow the Fedora Glass settings.
+ * @author Fedora Glass
  * @version 1.0.0
  */
 
@@ -457,8 +457,8 @@ html, body, #app-mount, .appAsidePanelWrapper_a3002d, .app_a3002d {{
 
 # ---- Obsidian ---------------------------------------------------------------------
 def obsidian_manifest() -> str:
-    return json.dumps({"name": "Liquid Glass", "version": "1.0.0", "minAppVersion": "1.0.0",
-                       "author": "Liquid Glass"}, indent=2) + "\n"
+    return json.dumps({"name": "Fedora Glass", "version": "1.0.0", "minAppVersion": "1.0.0",
+                       "author": "Fedora Glass"}, indent=2) + "\n"
 
 
 def _obsidian_vars(t: Tokens) -> str:
@@ -483,7 +483,7 @@ def _obsidian_vars(t: Tokens) -> str:
 
 def obsidian_css(dark: Tokens, light: Tokens) -> str:
     sc = scale(dark.radius)
-    return f"""/* Liquid Glass for Obsidian. Colours come from the Liquid Glass tokens. */
+    return f"""/* Fedora Glass for Obsidian. Colours come from the Fedora Glass tokens. */
 body {{
   --radius-s: {sc["xs"]}px;
   --radius-m: {sc["s"]}px;
@@ -555,7 +555,7 @@ def qt_qss(t: Tokens) -> str:
     sc = scale(t.window_radius)
     xs, rs, rm = sc["xs"], sc["s"], sc["m"]     # menu items and tabs / buttons and fields / menus and panes
     dim = _o(t.fg.mix(win, 0.35))
-    return f"""/* Liquid Glass */
+    return f"""/* Fedora Glass */
 QWidget {{ color: {t.fg.hex6}; }}
 QMainWindow, QDialog {{ background: {win.hex6}; }}
 QMenuBar {{ background: {chrome.hex6}; }}
@@ -627,7 +627,7 @@ def prism_theme_json(t: Tokens) -> str:
                                 "Highlight", "HighlightedText")}
     colors["fadeColor"] = _o(t.window).hex6
     colors["fadeAmount"] = 0.5
-    return json.dumps({"name": "Liquid Glass", "widgets": "Fusion", "qssFilePath": "themeStyle.css",
+    return json.dumps({"name": "Fedora Glass", "widgets": "Fusion", "qssFilePath": "themeStyle.css",
                        "colors": colors}, indent=2) + "\n"
 
 
@@ -648,8 +648,8 @@ def chromium_manifest(t: Tokens) -> str:
         "omnibox_background": _rgb(_o(frame.mix(t.fg, 0.08))), "omnibox_text": _rgb(t.fg),
     }
     return json.dumps({
-        "manifest_version": 3, "name": "Liquid Glass", "version": "1.0",
-        "description": "Browser colours that follow the Liquid Glass settings.",
+        "manifest_version": 3, "name": "Fedora Glass", "version": "1.0",
+        "description": "Browser colours that follow the Fedora Glass settings.",
         "theme": {"colors": colors, "properties": {"ntp_background_alignment": "center"}},
     }, indent=2) + "\n"
 

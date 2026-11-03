@@ -1,5 +1,5 @@
 [liquid-glass]
-name=Liquid Glass
+name=Liquid Glass (now Fedora Glass)
 baseurl=https://djshiye.github.io/fedora-liquid-glass/rpms/
 enabled=1
 # Only the liquid-glass package is ever taken from here, whatever else appears.

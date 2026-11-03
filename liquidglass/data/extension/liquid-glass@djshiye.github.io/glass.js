@@ -1,4 +1,4 @@
-// A Liquid Glass pane for GNOME Shell: a live copy of whatever lies behind a
+// A Fedora Glass pane for GNOME Shell: a live copy of whatever lies behind a
 // Shell surface, blurred, seen through a slab of glass and cut to the
 // surface's rounded shape.
 //

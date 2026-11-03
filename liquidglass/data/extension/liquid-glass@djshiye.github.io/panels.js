@@ -36,7 +36,7 @@ function quiet(target) {
 let warned = false;
 function warnOnce(msg) {
     if (!warned)
-        console.warn(`Liquid Glass: ${msg}`);
+        console.warn(`Fedora Glass: ${msg}`);
     warned = true;
 }
 
@@ -116,7 +116,7 @@ export class Panels {
                 if (undo)
                     this._quieted.set(anim, undo);
             } catch (e) {
-                logError(e, 'Liquid Glass: could not quiet Dash to Panel icon animations');
+                logError(e, 'Fedora Glass: could not quiet Dash to Panel icon animations');
             }
         }
     }

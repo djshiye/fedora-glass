@@ -1,7 +1,7 @@
 """Apply and revert: runs target plans with a first-touch backup.
 
 Backup lives in ~/.local/state/liquid-glass/backup. For every file or
-gsettings key a target changes, the state from *before Liquid Glass ever
+gsettings key a target changes, the state from *before Fedora Glass ever
 touched it* is recorded once, tagged with the target id. Reverting a target
 puts exactly those things back; reverting everything restores the desktop
 as it was before the first Apply. Shared lists (enabled extensions, Flatpak
@@ -43,12 +43,32 @@ class Result:
 
 
 # Shown for a Shell part that waits for the glass extension (see Engine._apply).
-WAITING = ("Finishes after you restart your PC. GNOME only starts the Liquid Glass extension at login, "
+WAITING = ("Finishes after you restart your PC. GNOME only starts the Fedora Glass extension at login, "
            "and this part needs the glass behind it.")
 
 
+# The name in the header of every file Apply generates. Files written before the rename
+# carry the old name, and are still ours.
+MARKERS = (b"Fedora Glass", b"Liquid Glass")
+
+
+def _marked(head: bytes) -> bool:
+    return any(m in head for m in MARKERS)
+
+
+# Files earlier versions wrote under the old name ("Liquid Glass"), which now live under
+# "Fedora Glass": the theme folders and theme files apps list by name. Apply takes the old
+# ones away once the new ones are written (see Backup.retire).
+LEGACY_NAMES = frozenset({"LiquidGlass", "Liquid Glass", "Liquid Glass.palette",
+                          "liquid-glass.theme", "liquid-glass.micro"})
+
+
+def is_legacy(path: Path) -> bool:
+    return any(part in LEGACY_NAMES for part in path.parts)
+
+
 def pending_path() -> Path:
-    """Shell parts that wait for the glass extension, finished by `liquid-glass watch` at login."""
+    """Shell parts that wait for the glass extension, finished by `fedora-glass watch` at login."""
     return config_dir() / "pending-shell.json"
 
 
@@ -208,7 +228,7 @@ class Backup:
             return False
         if e.get("wrote"):
             return hashlib.sha256(data).hexdigest() == e["wrote"]
-        return b"Liquid Glass" in data[:512]
+        return _marked(data[:512])
 
     @staticmethod
     def _has_header(path: Path) -> bool:
@@ -218,7 +238,7 @@ class Backup:
             if path.is_symlink() or not path.is_file():
                 return False
             with open(path, "rb") as f:
-                return b"Liquid Glass" in f.read(512)
+                return _marked(f.read(512))
         except OSError:
             return False
 
@@ -265,6 +285,30 @@ class Backup:
                         q.symlink_to(entry)
                         made.append(entry.name)
         self.save()
+
+    def retire(self, target: str, written: set[str]) -> None:
+        """Take away the files `target` wrote under its old name, now that it has written
+        the new ones: each goes back to what was there before (usually nothing). A file
+        the user has changed since is theirs now, so it stays and only its record goes."""
+        if self.env.dry_run:
+            return
+        new_dirs: set[str] = set()
+        for key, e in list(self.data["files"].items()):
+            if e["target"] != target or key in written or not is_legacy(Path(key)):
+                continue
+            if self.is_ours(Path(key), e):
+                self._restore_file(key, e, new_dirs)
+            else:
+                self._forget_file(key, e)
+        _remove_empty(new_dirs)
+        # A folder an old write created that the new files now share (~/.local/share/themes,
+        # say) stays, and goes with the new files on Restore original.
+        for d in sorted(x for x in new_dirs if os.path.isdir(x)):
+            for key in written:
+                e = self.data["files"].get(key)
+                if e and e.get("kind") == "missing" and Path(key).is_relative_to(d) \
+                        and d not in e.setdefault("new_dirs", []):
+                    e["new_dirs"].append(d)
 
     def overwritten(self) -> list[str]:
         """Targets whose files were replaced by something else since Apply (a theme
@@ -584,7 +628,7 @@ class Engine:
         return out
 
     def is_applied(self) -> bool:
-        """True while anything Liquid Glass changed is still in place."""
+        """True while anything Fedora Glass changed is still in place."""
         return bool(Backup(self.env).targets_with_changes())
 
     def apply(self, settings: Settings, only: set[str] | None = None) -> list[Result]:
@@ -613,7 +657,7 @@ class Engine:
             # A see-through panel or menu with no glass behind it looks broken, and changing
             # Dash to Panel and ArcMenu mid-session for nothing only risks them. So Shell parts
             # wait until the glass extension runs (after the next login), and the watcher
-            # (`liquid-glass watch`) finishes them then.
+            # (`fedora-glass watch`) finishes them then.
             if t.waits_for_glass and not ctx.glass_running:
                 waiting.add(t.id)
                 results.append(Result(t.id, t.name, "info", WAITING))
@@ -623,6 +667,8 @@ class Engine:
             try:
                 actions = t.plan(ctx)
                 errs = self._run(t.id, actions, backup)
+                if not errs:
+                    backup.retire(t.id, {str(a.path) for a in actions if isinstance(a, WriteFile)})
             except Exception as e:  # a broken target must not stop the others
                 errs = [f"{type(e).__name__}: {e}"]
             backup.save()

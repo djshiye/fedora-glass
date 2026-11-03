@@ -554,7 +554,7 @@ Card {
                 kind: parent.parent.parent.off ? "flat" : "secondary"
                 implicitHeight: 32
                 leftPadding: 14; rightPadding: 14
-                text: parent.parent.parent.off ? "Keep Dash to Panel's" : "Use Liquid Glass hover"
+                text: parent.parent.parent.off ? "Keep Dash to Panel's" : "Use Fedora Glass hover"
                 tip: parent.parent.parent.off ? "Leaves Dash to Panel's own hover animation on."
                                               : "Turns Dash to Panel's own hover animation off when you Apply. Restore original turns it back on."
                 tipBelow: true

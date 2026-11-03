@@ -1,6 +1,6 @@
 <h1 align="center">
   <img src="data/icons/io.github.djshiye.LiquidGlass.svg" width="96" alt=""><br>
-  Liquid Glass for Fedora
+  Fedora Glass
 </h1>
 
 <p align="center">A glass look for the whole Fedora GNOME desktop, with an app to tune it from liquid to frosted.</p>
@@ -12,21 +12,22 @@ Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need 
 ## Install
 
 ```sh
-sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo
-sudo dnf install liquid-glass
+sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/fedora-glass.noarch.rpm
 ```
 
-1. Open **Liquid Glass** from the app grid.
+1. Open **Fedora Glass** from the app grid.
 2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**.
-3. Restart your PC once (or log out and back in, if your system offers Log Out), so GNOME loads the glass. From then on, changes show up live.
+3. Restart your PC once, so GNOME loads the glass. From then on, changes show up live.
 
-Updates then come with the rest of your system through `sudo dnf upgrade`. The repository is built
-by this project's GitHub Actions from each release, after checking the RPM against the release's
-`SHA256SUMS`, and served over HTTPS. The packages are not GPG-signed yet; signed builds through
-[Fedora COPR](docs/COPR.md) are planned.
+The package adds its own dnf repository, so updates then come with the rest of your system through
+`sudo dnf upgrade`. The repository is built by this project's GitHub Actions from each release,
+after checking the RPMs against the release's `SHA256SUMS`, and served over HTTPS from GitHub Pages.
+The packages are not GPG-signed.
 
-**Installed it from the old download link?** Run only the first command above. Your next
-`sudo dnf upgrade` then picks up new versions and keeps your settings.
+**Had Liquid Glass?** Fedora Glass is its new name. Run `sudo dnf upgrade` twice: the first one
+updates Liquid Glass and adds the new repository, the second one swaps the package for
+`fedora-glass`. Your settings and your look stay as they are. Then open Fedora Glass, press
+**Apply**, and restart your PC, so the themes and the Shell extension carry the new name too.
 
 ## Undo or remove
 
@@ -34,14 +35,14 @@ by this project's GitHub Actions from each release, after checking the RPM again
 - To remove it completely, run these as your normal user:
 
   ```sh
-  liquid-glass revert
-  sudo dnf remove liquid-glass
+  fedora-glass revert
+  sudo dnf remove fedora-glass
   ```
 
 ## Blur my Shell
 
-You can uninstall it. Liquid Glass covers what Blur my Shell did (the panel, menus, overview and app
-windows) with its own extension. If Blur my Shell is still installed, Liquid Glass turns off the
+You can uninstall it. Fedora Glass covers what Blur my Shell did (the panel, menus, overview and app
+windows) with its own extension. If Blur my Shell is still installed, Fedora Glass turns off the
 parts that would blur the same things twice, and **Restore original** turns them back on.
 
 ```sh
@@ -63,7 +64,7 @@ Flatpak apps, Ptyxis and GNOME Terminal, Qt apps (through Kvantum), btop, micro,
 VS Code, Obsidian, qBittorrent, Prism Launcher, Brave, Helium, Clipperino, RGBeast and Wheelguard.
 The app's **Apps** page lists every part, shows which you have installed, and has a switch for each.
 
-<p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Liquid Glass app: live preview and the Liquid to Frosted slider"></p>
+<p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Fedora Glass app: live preview and the Liquid to Frosted slider"></p>
 
 ## How the glass works
 
@@ -97,10 +98,10 @@ The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/
 ## Command line
 
 ```sh
-liquid-glass                     # open the app
-liquid-glass apply --frost 0.3   # 0 = liquid, 1 = frosted
-liquid-glass status              # which parts are available
-liquid-glass revert              # restore the original look
+fedora-glass                     # open the app
+fedora-glass apply --frost 0.3   # 0 = liquid, 1 = frosted
+fedora-glass status              # which parts are available
+fedora-glass revert              # restore the original look
 ```
 
 ## From source

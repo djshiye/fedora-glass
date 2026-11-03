@@ -18,7 +18,7 @@ from ..radius import scale, check
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk4.css.tpl"
 
-HEADER = "/* Liquid Glass for GTK 4 and libadwaita. Generated, edits are overwritten. */\n"
+HEADER = "/* Fedora Glass for GTK 4 and libadwaita. Generated, edits are overwritten. */\n"
 
 
 def popover_color(t: Tokens) -> Color:

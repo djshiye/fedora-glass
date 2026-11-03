@@ -1,5 +1,5 @@
 #version 440
-// Liquid Glass surface, with the same optics as the Shell extension (glass.js):
+// Fedora Glass surface, with the same optics as the Shell extension (glass.js):
 // a glass slab whose top edge rounds off in a quarter circle, after Kyant's
 // AndroidLiquidGlass (Apache License 2.0). View rays are refracted by Snell's
 // law (IOR 1.5) through the slab to the backdrop; the index follows Cauchy's

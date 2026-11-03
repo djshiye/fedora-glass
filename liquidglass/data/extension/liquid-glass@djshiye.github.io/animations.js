@@ -1,4 +1,4 @@
-// Window and panel animations picked in the Liquid Glass app: how windows open,
+// Window and panel animations picked in the Fedora Glass app: how windows open,
 // minimize and restore, and close, how a taskbar icon bounces while its app
 // starts, and how panel items respond to the pointer.
 //
@@ -96,7 +96,7 @@ function safeFns(actor, fns) {
         out[prop] = C.guarded(fn, prop, b[prop] ?? null, (p, v) => {
             clampCount++;
             if (!clampLogged)
-                log(`Liquid Glass: an animation asked for ${p} = ${v}; held it in range (logged once)`);
+                log(`Fedora Glass: an animation asked for ${p} = ${v}; held it in range (logged once)`);
             clampLogged = true;
         });
     }
@@ -183,12 +183,12 @@ function finish(anim, finished) {
         // Land on the end state, then hand over.
         setAt(anim, 1);
     } catch (e) {
-        logError(e, 'Liquid Glass: finishing an animation');
+        logError(e, 'Fedora Glass: finishing an animation');
     }
     try {
         anim.onDone?.(finished, anim);
     } catch (e) {
-        logError(e, 'Liquid Glass: after an animation');
+        logError(e, 'Fedora Glass: after an animation');
     }
 }
 
@@ -505,7 +505,7 @@ class WindowAnimations {
             ...WM_SETS.filter(n => typeof Main.wm?.[n]?.has !== 'function')];
         if (missing.length) {
             if (!this._warned)
-                log(`Liquid Glass: this GNOME has no ${missing.join(', ')}; leaving window animations to GNOME`);
+                log(`Fedora Glass: this GNOME has no ${missing.join(', ')}; leaving window animations to GNOME`);
             this._warned = true;
             return;
         }
@@ -515,7 +515,7 @@ class WindowAnimations {
             // GNOME's window manager connected first, at startup: its handler is the first one.
             const id = GObject.signal_handler_find(wm, {signalId: name});
             if (!id) {
-                log(`Liquid Glass: GNOME's '${name}' window handler wasn't found; leaving window animations to GNOME`);
+                log(`Fedora Glass: GNOME's '${name}' window handler wasn't found; leaving window animations to GNOME`);
                 return;
             }
             found.push(id);
@@ -607,7 +607,7 @@ class WindowAnimations {
             const m = this.motion[ev];
             this[`_${kind}`](shellwm, actor, m);
         } catch (e) {
-            logError(e, `Liquid Glass: ${kind} animation`);
+            logError(e, `Fedora Glass: ${kind} animation`);
             this._rescue(kind, shellwm, actor, choice);
         }
     }
@@ -632,11 +632,11 @@ class WindowAnimations {
             else if (!this._stocked.has(actor))
                 this._stock(kind, shellwm, actor, false);
         } catch (e) {
-            logError(e, `Liquid Glass: GNOME couldn't finish the ${kind} (${choice ?? 'no choice'}); ending it`);
+            logError(e, `Fedora Glass: GNOME couldn't finish the ${kind} (${choice ?? 'no choice'}); ending it`);
             try {
                 shellwm[COMPLETED[kind]](actor);
             } catch (e2) {
-                logError(e2, 'Liquid Glass: ending a window effect');
+                logError(e2, 'Fedora Glass: ending a window effect');
             }
         }
         try {
