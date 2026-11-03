@@ -33,7 +33,7 @@ You need a free Fedora account: <https://accounts.fedoraproject.org> (**Create a
    Press **Create**.
 3. **Packages → New package → SCM**:
    - Package name `fedora-glass`
-   - Clone URL `https://github.com/djshiye/fedora-liquid-glass.git`
+   - Clone URL `https://github.com/djshiye/fedora-glass.git`
    - Committish: leave empty. Subdirectory: leave empty.
    - Spec file `packaging/fedora-glass.spec`
    - Type **git**, SRPM build method **make_srpm**

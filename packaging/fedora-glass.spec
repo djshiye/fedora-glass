@@ -5,8 +5,8 @@ Release:        1%{?dist}
 %global fg_evr  %{version}-%{release}
 Summary:        Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
-URL:            https://github.com/djshiye/fedora-liquid-glass
-Source0:        %{url}/archive/v%{version}/fedora-liquid-glass-%{version}.tar.gz
+URL:            https://github.com/djshiye/fedora-glass
+Source0:        %{url}/archive/v%{version}/fedora-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
@@ -52,7 +52,7 @@ package name, with the repository file for the new name, so the next
 `dnf upgrade` moves to the fedora-glass package. Your settings stay as they are.
 
 %prep
-%autosetup -n fedora-liquid-glass-%{version}
+%autosetup -n fedora-glass-%{version}
 
 %build
 # Pure Python and QML: nothing to build.
@@ -117,7 +117,7 @@ python3 -m pytest -q tests
 # through the old name, and fedora-glass.repo now does its job: set it aside, but only
 # if it is exactly ours.
 old=%{_sysconfdir}/yum.repos.d/liquid-glass.repo
-if [ -f "$old" ] && ! [ -L "$old" ] && grep -qx 'baseurl=https://djshiye.github.io/fedora-liquid-glass/rpms/' "$old" \
+if [ -f "$old" ] && ! [ -L "$old" ] && grep -qxE 'baseurl=https://djshiye.github.io/(fedora-liquid-glass|fedora-glass)/rpms/' "$old" \
    && grep -qx 'includepkgs=liquid-glass' "$old"; then
     mv -f "$old" "$old.rpmsave" || :
 fi

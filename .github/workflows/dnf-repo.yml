@@ -2,7 +2,7 @@
 # `sudo dnf upgrade` picks up new versions. It runs after each successful
 # Release, or by hand from the Actions tab for a given release tag. Users add it
 # once with:
-#   sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/fedora-glass.noarch.rpm
+#   sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
 # (the package carries fedora-glass.repo). Older Liquid Glass installs added
 # liquid-glass.repo by hand, which only lets through the liquid-glass package:
 # from 1.5.0 each release also has a liquid-glass package that moves them over.
@@ -28,14 +28,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SITE: https://djshiye.github.io/fedora-liquid-glass
+  # The Pages address follows the repository's name (fedora-liquid-glass until the
+  # rename to fedora-glass; GitHub does not redirect Pages after a rename).
+  SITE: https://djshiye.github.io/${{ github.event.repository.name }}
 
 jobs:
   publish:
     # Only in this repository (never a fork), and only after a Release from a
     # v* tag push or a hand-started Release on main, or when run by hand on main.
     if: >-
-      github.repository == 'djshiye/fedora-liquid-glass' && (
+      (github.repository == 'djshiye/fedora-glass' || github.repository == 'djshiye/fedora-liquid-glass') && (
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
         (github.event_name == 'workflow_run' &&
          github.event.workflow_run.conclusion == 'success' &&

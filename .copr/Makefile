@@ -26,8 +26,8 @@ srpm:
 	git -C "$$top" merge-base --is-ancestor HEAD FETCH_HEAD \
 	  || { echo "$$tag is not on main: only main is released"; exit 1; }; \
 	src="$$(mktemp -d)"; \
-	git -C "$$top" archive --format=tar.gz --prefix="fedora-liquid-glass-$$ver/" \
-	  -o "$$src/fedora-liquid-glass-$$ver.tar.gz" HEAD; \
+	git -C "$$top" archive --format=tar.gz --prefix="fedora-glass-$$ver/" \
+	  -o "$$src/fedora-glass-$$ver.tar.gz" HEAD; \
 	rpmbuild -bs "$(spec)" --define "_sourcedir $$src" --define "_srcrpmdir $(outdir)"; \
 	rm -rf "$$src"
 
