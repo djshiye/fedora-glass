@@ -395,8 +395,9 @@ def test_veil_is_light_and_text_stays_readable():
             t = palette.build(Settings(frost=f), dark=dark)
             assert t.glass_menu_edges and t.glass_panel_edges
             surf = rs.surfaces(t)
-            assert surf["popover"].a == pytest.approx(rs.veil(t, "menu"), abs=1e-6)
-            assert surf["chrome"].a == pytest.approx(rs.veil(t, "panel"), abs=1e-6)
+            menus, bar = t.parts["quicksettings"], t.parts["panel"]
+            assert surf["popover"].a == pytest.approx(rs.veil(t, "menu", menus["frost"], menus["blur"]), abs=1e-6)
+            assert surf["chrome"].a == pytest.approx(rs.veil(t, "panel", bar["frost"], bar["blur"]), abs=1e-6)
             assert surf["popover"].a <= 0.62 and surf["chrome"].a <= 0.45
             b = rg._brightness(t, f)
             assert (b < 1) if dark else (b >= 1)

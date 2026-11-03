@@ -239,6 +239,7 @@ vec3 caustic(vec3 c, vec2 n, vec2 L, float x, vec2 h) {
 // 0 where the flat top begins. Flat for most of the way, then curving faster
 // and faster towards the edge, with no visible line where the curve starts
 // (a quarter circle bends from its first px). Returns -dz/dr, outward.
+const float LENS_REACH = 0.16;
 float squircleSlope(float x) {
     float x3 = x * x * x;
     float k = max(1.0 - x3 * x, 0.0);
@@ -257,11 +258,21 @@ float softEdge(float d, float sigma) {
 // The thin line of light along the very edge. Strongest where the edge faces the
 // light and on the opposite side (at 40%), so it peaks at the corners and fades
 // along straight sides, and a faint trace stays all the way round. 0..1.
+// The light on the rim as iOS 26 draws it (measured by Glisse, MIT): brightest at
+// the very edge and gone about 1.2 px in. It lights the sides that face the light
+// and, by its reflection, the opposite ones, and fades out over the corners in
+// between, so a long straight edge gets a calm line, never a glare.
 float rimLine(float inside, vec2 n, vec2 L) {
-    float band = smoothstep(1.9, 1.3, inside) * smoothstep(0.0, 0.3, inside);
-    float d = dot(n, L);
-    float k = d > 0.0 ? pow(d, 3.0) : 0.4 * pow(-d, 3.0);
-    return band * (0.22 + 0.78 * k);
+    float facing = abs(dot(n, L));
+    float along = inside / (1.22 * (1.0 + 0.25 * facing));
+    if (along >= 1.0)
+        return 0.0;
+    return pow(facing, 1.5) * (1.0 - pow(along, 1.5)) * smoothstep(0.0, 0.25, inside);
+}
+
+// The glass's own edge: a half px line all the way round, faint white on dark glass.
+float edgeLine(float inside) {
+    return smoothstep(0.0, 0.2, inside) * (1.0 - smoothstep(0.4, 0.9, inside));
 }
 
 // The theme paints a thin veil over the glass. To make a colour c (straight rgb)
@@ -302,8 +313,8 @@ void main() {
     // the light, so it reads as lifted rather than outlined.
     float s = 0.0;
     if (shadow > OFF && pad > 1.0 && sd > -0.5) {
-        float spread = min(10.0, pad * 0.3);
-        float ds = sdRoundRect(cc + L * min(6.0, pad * 0.15), hh, r);
+        float spread = min(8.0, pad * 0.3);
+        float ds = sdRoundRect(cc + L * min(5.0, pad * 0.2), hh, r);
         s = shadow * 0.55 * softEdge(ds, spread);
     }
     if (sd > 0.5) {
@@ -321,9 +332,12 @@ void main() {
     vec2 dp = px - vec2(ptr_x, ptr_y);
     float give = max(90.0, 0.6 * min(h.x, h.y));   // px, how wide a press reaches
     float tch = touch(dp, give);
-    float th = refr_amt * (1.0 + tch);
     float slope = 0.0;
     float shortSide = 2.0 * min(h.x, h.y);
+    // How far the edge bends what is behind it. On the panel and menus it grows with
+    // the glass, as Apple's does (Glisse reaches 0.45 of the short side), so a big
+    // menu bends its backdrop in a band you can see, not only in its outer px.
+    float th = (lens_share > 0.5 ? max(refr_amt, min(LENS_REACH * shortSide, 72.0)) : refr_amt) * (1.0 + tch);
     float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
     float bevel = lens_share > 0.5
         ? min(clamp(share * shortSide, refr_h, 2.6 * refr_h), 0.45 * shortSide)
@@ -360,7 +374,7 @@ void main() {
         vec3 c3 = min(seen * (1.0 + 0.3 * lobe), vec3(1.0));
         // The same thin line of light as on the panel and menus, a little quieter:
         // a window is big, and the line runs right next to its own content.
-        float ln = rimLine(inside, n, L) * rim * 0.75;
+        float ln = min(1.0, (rimLine(inside, n, L) * 0.42 + edgeLine(inside) * 0.12) * rim);
         if (ln > 0.0) {
             vec3 lc = min(mix(seen, vec3(1.0), 0.6), vec3(dot(seen, vec3(0.213, 0.715, 0.072)) + 0.45));
             float a2 = a + (1.0 - a) * ln;
@@ -581,11 +595,13 @@ void main() {
     // of the way to white, at most a little brighter than the glass around it, so
     // it is a crisp line over any wallpaper and never a white glare.
     if (rim > OFF) {
-        float ln = min(1.0, rimLine(inside, n, L) * rim * 1.25);
+        // About 0.35 white at the lit edge (rim 0.85), as iOS lays on dark glass, over
+        // a 0.1 edge line all round.
+        float ln = min(1.0, (rimLine(inside, n, L) * 0.42 + edgeLine(inside) * 0.12) * rim);
         if (ln > 0.0) {
             vec3 base = col.rgb / max(col.a, 1e-3);
             vec3 seen = env(px + n * env_reach * 0.5);
-            vec3 lc = min(mix(seen, vec3(1.0), 0.75), base + vec3(0.5 + 0.35 * ln));
+            vec3 lc = mix(seen, vec3(1.0), 0.8);
             vec3 want = mix(base * (1.0 - veil_a) + vec3(veil_r, veil_g, veil_b) * veil_a, lc, ln);
             col.rgb = throughVeil(want) * col.a;
         }
@@ -749,7 +765,12 @@ function veilOf(v) {
     const [r, g, b, a] = ok ? v.map(x => Math.max(0, Math.min(1, x))) : [0, 0, 0, 0];
     return [r, g, b, Math.min(a, 0.9)];
 }
-const ENV_REACH = 32;   // px the rim sees beyond the edge
+const ENV_REACH = 32;
+// Room around a pane for its soft shadow. Every px of it is blurred and shaded on
+// every render, so it is only as wide as the shadow reaches (offset 6 + about 2.5
+// sigma), and the reflections pane on top has none: 1.5.0 gave both 40 px, which
+// made the panel's glass half again as costly on each frame.
+const SHADOW_PAD = 26;   // px the rim sees beyond the edge
 // How often a pane that stays put re-renders for changes behind it, at each
 // quality level (see setQuality): full, lighter, lightest.
 const RERENDER_HZ = [20, 10, 5];
@@ -1247,7 +1268,7 @@ class LiquidGlassPane extends Clutter.Actor {
         this._blur.enabled = blur > 0.5;
         // Room around the surface for the blur and the edge reflections to see past
         // the edge, and for the shadow.
-        this._pad = Math.ceil(Math.min(64, Math.max(blur, top ? 0 : blur * 0.5 + ENV_REACH, L.shadow > 0 ? 40 : 0, 2)));
+        this._pad = Math.ceil(Math.min(64, Math.max(blur, top ? 0 : blur * 0.5 + ENV_REACH, !top && L.shadow > 0 ? SHADOW_PAD : 0, 2)));
         const a = L.lightAngle * Math.PI / 180;
         const [tr, tg, tb, ta] = L.tint;
         const veil = veilOf(L.veil);
