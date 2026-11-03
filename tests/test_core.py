@@ -84,8 +84,11 @@ def test_settings_normalize_and_roundtrip(tmp_path):
 
 
 def test_presets_reset_overrides():
-    s = settings.apply_preset(Settings(opacity=0.3, blur=5), "Frosted")
-    assert s.frost == 0.8 and s.opacity is None and s.blur is None
+    s = settings.apply_preset(Settings(opacity=0.3, blur=5), "Balanced")
+    assert s.frost == 0.45 and s.opacity is None and s.blur is None
+    # Apple's two glasses set their own blur: next to none, and heavy but not foggy.
+    assert settings.apply_preset(Settings(blur=40), "Clear").blur == 2
+    assert settings.apply_preset(Settings(blur=5), "Frosted").blur == 26
 
 
 # ---- engine ---------------------------------------------------------------------------

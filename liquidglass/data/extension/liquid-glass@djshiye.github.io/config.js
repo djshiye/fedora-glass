@@ -39,7 +39,7 @@ function cleanLook(raw, base) {
         blur: [0, 100], refraction: [0, 80], bend: [0, 80], depth: [0, 1], dispersion: [0, 1],
         saturation: [0, 3], brightness: [0, 2], highlight: [0, 1], lightAngle: [-360, 360],
         shadow: [0, 1], bleed: [0, 1], adapt: [0, 1], lift: [0, 1], hairline: [0, 0.3], ceiling: [0, 1], solid: [0, 1],
-        pointerLight: [0, 1], motion: [0, 1],
+        pointerLight: [0, 1], motion: [0, 1], rim: [0, 1], textShade: [0, 0.6],
     };
     // edgeLight is the newer name for highlight.
     if (typeof raw.highlight !== 'number' && typeof raw.edgeLight === 'number')
@@ -50,6 +50,8 @@ function cleanLook(raw, base) {
         out.tint = raw.tint.map((v, i) => num(v, base.tint[i], 0, 1));
     if (Array.isArray(raw.milk) && raw.milk.length === 3)
         out.milk = raw.milk.map((v, i) => num(v, base.milk[i], 0, 1));
+    if (Array.isArray(raw.veil) && raw.veil.length === 4)
+        out.veil = raw.veil.map((v, i) => num(v, base.veil[i], 0, i === 3 ? 0.9 : 1));
     return out;
 }
 

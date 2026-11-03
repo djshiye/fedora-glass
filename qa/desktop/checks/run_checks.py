@@ -262,6 +262,11 @@ def check_looks(ctx: Ctx) -> Check:
     now = lgqa.load(sh.shot("looks-windows"))
     against_reference(ctx, c, "windows", "Terminal and Files windows", now, mask)
 
+    # Pictures only compare at full quality; lighter levels leave out the windows behind glass.
+    level = sh.json(f"return Main.extensionManager.lookup('{LG}')?.stateObj?._speed?.level ?? 0;")
+    c.add(level == 0, "The glass drew at full quality." if level == 0 else
+          f"The glass had stepped itself down to level {level} (glass_quality was not full), "
+          "so it shows only the wallpaper behind windows.")
     # The glass alone: hide Files' own content, keep only what Fedora Glass draws under it.
     sh.win_js(files["id"], "a.get_children().filter(c => !c.name).forEach(c => c.opacity = 0); return 1;")
     settle(1.5)
