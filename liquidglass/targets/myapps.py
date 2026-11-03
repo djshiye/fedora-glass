@@ -42,7 +42,7 @@ TARGETS: list[Target] = [
           notes=["RGBeast uses libadwaita, so the GTK 4 target already themes it."]),
     Wheelguard(id="wheelguard", name="Wheelguard", cmd="wheelguard-settings",
                desktop_id="io.github.djshiye.Wheelguard",
-               summary="Follows Liquid Glass by itself: it reads the Liquid Glass colours and watches them for changes.",
-               notes=["Wheelguard's Qt Quick UI takes its colours from the token file Liquid Glass writes "
+               summary="Follows Fedora Glass by itself: it reads the Fedora Glass colours and watches them for changes.",
+               notes=["Wheelguard's Qt Quick UI takes its colours from the token file Fedora Glass writes "
                       "on every Apply. Its shell-extension popup is themed by the Shell target."]),
 ]

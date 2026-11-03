@@ -1,6 +1,6 @@
 [liquid-glass]
-name=Liquid Glass
-baseurl=https://djshiye.github.io/fedora-liquid-glass/rpms/
+name=Liquid Glass (now Fedora Glass)
+baseurl=https://djshiye.github.io/fedora-glass/rpms/
 enabled=1
 # Only the liquid-glass package is ever taken from here, whatever else appears.
 includepkgs=liquid-glass

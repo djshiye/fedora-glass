@@ -42,7 +42,7 @@ jobs:
 
       - name: Version
         run: |
-          spec="$(rpmspec -q --qf '%{version}\n' --srpm packaging/liquid-glass.spec)"
+          spec="$(rpmspec -q --qf '%{version}\n' --srpm packaging/fedora-glass.spec)"
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             test "${GITHUB_REF_NAME#v}" = "$spec" || { echo "tag $GITHUB_REF_NAME but spec says $spec"; exit 1; }
           fi
@@ -56,11 +56,15 @@ jobs:
         run: |
           git config --global --add safe.directory "$PWD"
           mkdir -p ~/rpmbuild/SOURCES
-          git archive --format=tar.gz --prefix="fedora-liquid-glass-$VER/" -o ~/rpmbuild/SOURCES/fedora-liquid-glass-$VER.tar.gz HEAD
-          rpmbuild -bb packaging/liquid-glass.spec
+          git archive --format=tar.gz --prefix="fedora-glass-$VER/" -o ~/rpmbuild/SOURCES/fedora-glass-$VER.tar.gz HEAD
+          rpmbuild -bb packaging/fedora-glass.spec
           mkdir out
+          cp ~/rpmbuild/RPMS/noarch/fedora-glass-$VER-*.noarch.rpm out/
+          # The same app under the old name, which moves a Liquid Glass install to fedora-glass.
           cp ~/rpmbuild/RPMS/noarch/liquid-glass-$VER-*.noarch.rpm out/
-          # A fixed name too, so .../releases/latest/download/liquid-glass.noarch.rpm always works.
+          # Fixed names too, so .../releases/latest/download/fedora-glass.noarch.rpm always works
+          # (and the old liquid-glass.noarch.rpm link still leads to the current version).
+          cp out/fedora-glass-$VER-*.noarch.rpm out/fedora-glass.noarch.rpm
           cp out/liquid-glass-$VER-*.noarch.rpm out/liquid-glass.noarch.rpm
           (cd out && sha256sum *.rpm > SHA256SUMS)
 
@@ -69,4 +73,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Liquid Glass $VER" --notes "Install: sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo, then sudo dnf install liquid-glass. After that, sudo dnf upgrade brings each new version."
+            --title "Fedora Glass $VER" --notes "Install: sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm. After that, sudo dnf upgrade brings each new version. Had Liquid Glass? sudo dnf upgrade moves you to Fedora Glass by itself (run it twice) and keeps your settings."

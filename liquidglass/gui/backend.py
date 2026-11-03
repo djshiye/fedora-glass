@@ -279,7 +279,7 @@ class Backend(QObject):
             stem = did.removesuffix(".desktop")
             name, icon = _desktop_entry(self._env, did) or (stem.split(".")[-1], stem)
             if stem == APP_ID:
-                name, url = "Liquid Glass", self._own_icon_url()
+                name, url = "Fedora Glass", self._own_icon_url()
             elif icon.startswith("/"):
                 url = QUrl.fromLocalFile(icon).toString() if Path(icon).is_file() else ""
             else:
@@ -785,7 +785,7 @@ class Backend(QObject):
         if not self._lost:
             return ""
         what = self._lost[0] if len(self._lost) == 1 else ", ".join(self._lost[:-1]) + " and " + self._lost[-1]
-        return f"Another app replaced the Liquid Glass look for {what}. Apply again to bring it back."
+        return f"Another app replaced the Fedora Glass look for {what}. Apply again to bring it back."
 
     @Slot(str, bool)
     def setTargetEnabled(self, target_id: str, on: bool) -> None:

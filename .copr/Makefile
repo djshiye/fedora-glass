@@ -1,5 +1,5 @@
 # Fedora COPR runs this to make the source package (SRPM) for each build:
-#   make -f .copr/Makefile srpm outdir=<dir> spec=<path to liquid-glass.spec>
+#   make -f .copr/Makefile srpm outdir=<dir> spec=<path to fedora-glass.spec>
 # COPR then builds and signs the RPM from that SRPM.
 #
 # It only builds a released version: the commit must carry the tag v<Version>
@@ -7,7 +7,7 @@
 # releases, or a tag on some other branch) stops here, so nothing unreleased can
 # reach `dnf upgrade`.
 
-spec ?= packaging/liquid-glass.spec
+spec ?= packaging/fedora-glass.spec
 outdir ?= $(CURDIR)/out
 
 srpm:
@@ -26,8 +26,8 @@ srpm:
 	git -C "$$top" merge-base --is-ancestor HEAD FETCH_HEAD \
 	  || { echo "$$tag is not on main: only main is released"; exit 1; }; \
 	src="$$(mktemp -d)"; \
-	git -C "$$top" archive --format=tar.gz --prefix="fedora-liquid-glass-$$ver/" \
-	  -o "$$src/fedora-liquid-glass-$$ver.tar.gz" HEAD; \
+	git -C "$$top" archive --format=tar.gz --prefix="fedora-glass-$$ver/" \
+	  -o "$$src/fedora-glass-$$ver.tar.gz" HEAD; \
 	rpmbuild -bs "$(spec)" --define "_sourcedir $$src" --define "_srcrpmdir $(outdir)"; \
 	rm -rf "$$src"
 

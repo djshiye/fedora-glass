@@ -56,7 +56,7 @@ def test_gtk4_never_writes_into_a_linked_theme_folder(fake_env, relative):
     assert (theme / "gtk.css").read_text() == "/* orchis */"
     assert (theme / "gtk-dark.css").read_text() == "/* orchis dark */"
     assert not d.is_symlink() and d.is_dir()
-    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert "Fedora Glass" in (d / "gtk.css").read_text()
     # What else the theme provided still resolves (assets for relative url()s).
     assert (d / "assets/check.png").read_bytes() == b"png"
     # Revert puts the very same link back.
@@ -95,12 +95,12 @@ def test_earlier_write_through_the_link_is_repaired(fake_env, monkeypatch):
     d = link_config(fake_env, "gtk-4.0", theme)
     monkeypatch.setattr(Backup, "linked_folder", lambda self, path: None)   # the old behaviour
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
-    assert "Liquid Glass" in (theme / "gtk.css").read_text()               # the damage
+    assert "Fedora Glass" in (theme / "gtk.css").read_text()               # the damage
     monkeypatch.undo()
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert (theme / "gtk.css").read_text() == "/* orchis */"               # repaired
     assert (theme / "gtk-dark.css").read_text() == "/* orchis dark */"
-    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert "Fedora Glass" in (d / "gtk.css").read_text()
     assert Engine(fake_env, targets=[gtk4()]).revert() == []
     assert d.is_symlink() and (theme / "gtk.css").read_text() == "/* orchis */"
 
@@ -135,7 +135,7 @@ def test_linked_config_root_is_left_alone(fake_env, tmp_path):
     fake_env.config.symlink_to(real)
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert fake_env.config.is_symlink()
-    assert "Liquid Glass" in (real / "gtk-4.0/gtk.css").read_text()
+    assert "Fedora Glass" in (real / "gtk-4.0/gtk.css").read_text()
 
 
 def test_dry_run_changes_nothing(fake_env):
@@ -157,7 +157,7 @@ def test_repair_leaves_a_theme_file_someone_else_changed(fake_env, monkeypatch):
     (theme / "gtk.css").write_text("/* orchis, updated */")          # the theme's update
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert (theme / "gtk.css").read_text() == "/* orchis, updated */"
-    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert "Fedora Glass" in (d / "gtk.css").read_text()
     assert Engine(fake_env, targets=[gtk4()]).revert() == []
     assert d.is_symlink() and (theme / "gtk.css").read_text() == "/* orchis, updated */"
 
@@ -189,7 +189,7 @@ def test_an_interrupted_swap_is_cleaned_up(fake_env, swapped):
         (stray / "gtk.css").symlink_to(theme / "gtk.css")
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert not stray.exists() and d.is_dir() and not d.is_symlink()
-    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert "Fedora Glass" in (d / "gtk.css").read_text()
     assert (theme / "gtk.css").read_text() == "/* orchis */"     # rmtree never followed a link
 
 
@@ -212,12 +212,12 @@ def test_revert_after_a_theme_relink_and_reapply_keeps_the_theme_link(fake_env):
     theme = orchis(fake_env)
     d = fake_env.config / "gtk-4.0"
     d.mkdir(parents=True)
-    (d / "gtk.css").write_text("/* the user's own, before Liquid Glass */")
+    (d / "gtk.css").write_text("/* the user's own, before Fedora Glass */")
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     (d / "gtk.css").unlink()
     (d / "gtk.css").symlink_to(theme / "gtk.css")               # orchis-update
     Engine(fake_env, targets=[gtk4()]).apply(Settings())         # Re-apply
-    assert "Liquid Glass" in (d / "gtk.css").read_text() and not (d / "gtk.css").is_symlink()
+    assert "Fedora Glass" in (d / "gtk.css").read_text() and not (d / "gtk.css").is_symlink()
     assert Engine(fake_env, targets=[gtk4()]).revert() == []
     assert (d / "gtk.css").is_symlink() and os.readlink(d / "gtk.css") == str(theme / "gtk.css")
     assert (theme / "gtk.css").read_text() == "/* orchis */"

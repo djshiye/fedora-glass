@@ -1,6 +1,6 @@
 <h1 align="center">
   <img src="data/icons/io.github.djshiye.LiquidGlass.svg" width="96" alt=""><br>
-  Liquid Glass for Fedora
+  Fedora Glass
 </h1>
 
 <p align="center">A glass look for the whole Fedora GNOME desktop, with an app to tune it from liquid to frosted.</p>
@@ -12,22 +12,24 @@ Made for **Fedora 44 with GNOME 50**, and ready for GNOME 51 (Fedora 45). It dra
 ## Install
 
 ```sh
-sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo
-sudo dnf install liquid-glass
+sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
 ```
 
-1. Open **Liquid Glass** from the app grid.
+1. Open **Fedora Glass** from the app grid.
 2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**.
-3. Restart your PC once (or log out and back in, if your system offers Log Out), so GNOME loads the glass. From then on, changes show up live.
+3. Restart your PC once, so GNOME loads the glass. From then on, changes show up live.
 
-Updates then come with the rest of your system through `sudo dnf upgrade`. The repository is built
-by this project's GitHub Actions from each release, after checking the RPM against the release's
-`SHA256SUMS`, and served over HTTPS. After an upgrade Liquid Glass brings your look up to date by
-itself, with your own settings, and the new glass shows from your next restart. No need to press
-Apply.
+The package adds its own dnf repository, so updates then come with the rest of your system through
+`sudo dnf upgrade`. The repository is built by this project's GitHub Actions from each release,
+after checking the RPMs against the release's `SHA256SUMS`, and served over HTTPS from GitHub Pages.
+The packages are not GPG-signed. After an upgrade Fedora Glass brings your look up to date by itself, with your own settings, and
+the new glass shows from your next restart. No need to press Apply.
 
-**Installed it from the old download link?** Run only the first command above. Your next
-`sudo dnf upgrade` then picks up new versions and keeps your settings.
+**Had Liquid Glass?** Fedora Glass is its new name. Run `sudo dnf upgrade` twice: the first one
+updates Liquid Glass and adds the new repository, the second one swaps the package for
+`fedora-glass`. If dnf finds nothing new, run the install command above once instead. Either way
+your settings and your look stay as they are. Then restart your PC: Fedora Glass updates your look
+by itself, and the themes and the Shell extension carry the new name.
 
 ## Undo or remove
 
@@ -35,16 +37,16 @@ Apply.
 - To remove it completely, run these as your normal user:
 
   ```sh
-  liquid-glass revert
-  sudo dnf remove liquid-glass
+  fedora-glass revert
+  sudo dnf remove fedora-glass
   ```
 
   Removing it also puts the normal login screen back if you turned on glass there.
 
 ## Blur my Shell
 
-You can uninstall it. Liquid Glass covers what Blur my Shell did (the panel, menus, overview and app
-windows) with its own extension. If Blur my Shell is still installed, Liquid Glass turns off the
+You can uninstall it. Fedora Glass covers what Blur my Shell did (the panel, menus, overview and app
+windows) with its own extension. If Blur my Shell is still installed, Fedora Glass turns off the
 parts that would blur the same things twice, and **Restore original** turns them back on.
 
 ```sh
@@ -70,7 +72,7 @@ The login screen is opt in: **Use glass on the login screen** (under Lock screen
 password, then gives it a glow in your tint colour with glass panes for your name and password.
 **Put the normal login screen back** undoes it exactly, and GNOME updates undo it by themselves.
 
-<p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Liquid Glass app: live preview and the Liquid to Frosted slider"></p>
+<p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Fedora Glass app: live preview and the Liquid to Frosted slider"></p>
 
 ## How the glass works
 
@@ -107,16 +109,16 @@ The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/
 ## Command line
 
 ```sh
-liquid-glass                     # open the app
-liquid-glass apply --frost 0.3   # 0 = liquid, 1 = frosted
-liquid-glass status              # which parts are available
-liquid-glass revert              # restore the original look
+fedora-glass                     # open the app
+fedora-glass apply --frost 0.3   # 0 = liquid, 1 = frosted
+fedora-glass status              # which parts are available
+fedora-glass revert              # restore the original look
 ```
 
 ## From source
 
 ```sh
-git clone https://github.com/djshiye/fedora-liquid-glass && cd fedora-liquid-glass
+git clone https://github.com/djshiye/fedora-glass && cd fedora-glass
 ./install.sh      # installs to your home folder; ./uninstall.sh removes it
 ```
 

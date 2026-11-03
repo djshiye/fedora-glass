@@ -1,4 +1,4 @@
-// Reads ~/.config/liquid-glass/shell-glass.json, written by the Liquid Glass
+// Reads ~/.config/liquid-glass/shell-glass.json, written by the Fedora Glass
 // app, and reports changes. Anything missing or malformed falls back to the
 // defaults, so a broken file never breaks the Shell.
 

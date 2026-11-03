@@ -1,10 +1,12 @@
-Name:           liquid-glass
-Version:        1.4.4
+Name:           fedora-glass
+Version:        1.5.0
 Release:        1%{?dist}
-Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
+# This package's version-release, fixed here: the liquid-glass package below has its own.
+%global fg_evr  %{version}-%{release}
+Summary:        Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
-URL:            https://github.com/djshiye/fedora-liquid-glass
-Source0:        %{url}/archive/v%{version}/fedora-liquid-glass-%{version}.tar.gz
+URL:            https://github.com/djshiye/fedora-glass
+Source0:        %{url}/archive/v%{version}/fedora-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
@@ -23,33 +25,62 @@ Requires:       polkit
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
+# Fedora Glass was called Liquid Glass up to 1.4.4: this package replaces it, and
+# `dnf upgrade` swaps one for the other with the settings kept.
+Provides:       liquid-glass = %{fg_evr}
+Obsoletes:      liquid-glass < %{fg_evr}
+
 %description
-A Liquid Glass look for GNOME Shell, GTK and Qt apps, Dash to Panel and
-ArcMenu, drawn by its own GNOME Shell extension, with a Qt app to tune it
-from clear liquid glass to calm frost. The app changes only your own user
-settings and can restore your original look at any time.
+A glass look for GNOME Shell, GTK and Qt apps, Dash to Panel and ArcMenu,
+drawn by its own GNOME Shell extension, with a Qt app to tune it from clear
+liquid glass to calm frost. The app changes only your own user settings and
+can restore your original look at any time. Formerly called Liquid Glass.
+
+# A PC set up for Liquid Glass has a dnf repository file that only lets through
+# packages named liquid-glass, so it can't see fedora-glass yet. This package
+# carries the same app under the old name, plus the new repository file: the
+# first `dnf upgrade` installs it, and the next one replaces it with fedora-glass.
+%package -n liquid-glass
+Version:        %{version}
+Release:        0%{?dist}
+Summary:        Fedora Glass under its old name, Liquid Glass (moves you to fedora-glass)
+Requires:       python3
+Requires:       python3-gobject
+Requires:       python3-pyside6
+Requires:       gnome-shell
+Requires:       gnome-shell-extension-user-theme
+Requires:       /usr/bin/gresource
+Requires:       /usr/bin/glib-compile-resources
+Requires:       polkit
+
+%description -n liquid-glass
+Liquid Glass is now called Fedora Glass. This is the same app under the old
+package name, with the repository file for the new name, so the next
+`dnf upgrade` moves to the fedora-glass package. Your settings stay as they are.
 
 %prep
-%autosetup -n fedora-liquid-glass-%{version}
+%autosetup -n fedora-glass-%{version}
 
 %build
 # Pure Python and QML: nothing to build.
 
 %install
-install -d %{buildroot}%{_datadir}/%{name}
-cp -r liquidglass %{buildroot}%{_datadir}/%{name}/
-find %{buildroot}%{_datadir}/%{name} -name '__pycache__' -prune -exec rm -rf {} +
+install -d %{buildroot}%{_datadir}/fedora-glass
+cp -r liquidglass %{buildroot}%{_datadir}/fedora-glass/
+find %{buildroot}%{_datadir}/fedora-glass -name '__pycache__' -prune -exec rm -rf {} +
 
 # -I keeps Python from importing anything from the current folder or PYTHONPATH.
 install -d %{buildroot}%{_bindir}
-cat > %{buildroot}%{_bindir}/%{name} <<'LAUNCHER'
+cat > %{buildroot}%{_bindir}/fedora-glass <<'LAUNCHER'
 #!/bin/sh
-exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/share/liquid-glass"); from liquidglass.__main__ import main; sys.exit(main())' "$@"
+exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from liquidglass.__main__ import main; sys.exit(main())' "$@"
 LAUNCHER
-chmod 755 %{buildroot}%{_bindir}/%{name}
+chmod 755 %{buildroot}%{_bindir}/fedora-glass
+# The old command name keeps working (older copies of the Shell extension call it).
+ln -s fedora-glass %{buildroot}%{_bindir}/liquid-glass
 
 install -Dm644 data/io.github.djshiye.LiquidGlass.desktop %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
-sed -i 's|^Exec=.*|Exec=liquid-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
+sed -i 's|^Exec=.*|Exec=fedora-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec
@@ -58,15 +89,16 @@ install -Dm755 liquidglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-gla
 install -Dm644 data/io.github.djshiye.LiquidGlass.policy %{buildroot}%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 
 # Re-applies the parts that can't follow GNOME's dark/light switch by themselves.
+# The unit keeps its old file name, so an upgrade leaves it turned on as it was.
 install -d %{buildroot}%{_userunitdir}
 cat > %{buildroot}%{_userunitdir}/liquid-glass-watch.service <<'UNIT'
 [Unit]
-Description=Liquid Glass: follow GNOME dark and light style
+Description=Fedora Glass: follow GNOME dark and light style
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
-ExecStart=/usr/bin/liquid-glass watch
+ExecStart=/usr/bin/fedora-glass watch
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -78,6 +110,9 @@ UNIT
 install -Dm644 /dev/stdin %{buildroot}%{_userpresetdir}/80-liquid-glass.preset <<'PRESET'
 enable liquid-glass-watch.service
 PRESET
+
+# Where `dnf upgrade` finds new versions.
+install -Dm644 packaging/fedora-glass.repo %{buildroot}%{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %check
 # The same tests a GitHub release runs: a build that fails them never reaches dnf.
@@ -93,19 +128,67 @@ if [ $1 -eq 0 ]; then
     %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
 fi
 
+%posttrans
+# The old repository file (added by hand from the Liquid Glass instructions) only lets
+# through the old name, and fedora-glass.repo now does its job: set it aside, but only
+# if it is exactly ours.
+old=%{_sysconfdir}/yum.repos.d/liquid-glass.repo
+if [ -f "$old" ] && ! [ -L "$old" ] && grep -qxE 'baseurl=https://djshiye.github.io/(fedora-liquid-glass|fedora-glass)/rpms/' "$old" \
+   && grep -qx 'includepkgs=liquid-glass' "$old"; then
+    mv -f "$old" "$old.rpmsave" || :
+fi
+:
+
+%triggerpostun -- liquid-glass < %{fg_evr}
+# The watcher unit kept its name, so removing liquid-glass (when fedora-glass replaces
+# it) turns the unit off after fedora-glass has turned it on: turn it on again, the same
+# way a first install does.
+if [ $2 -eq 0 ] && [ -x /usr/lib/systemd/systemd-update-helper ]; then
+    /usr/lib/systemd/systemd-update-helper install-user-units liquid-glass-watch.service || :
+fi
+
+%post -n liquid-glass
+%systemd_user_post liquid-glass-watch.service
+
+%preun -n liquid-glass
+%systemd_user_preun liquid-glass-watch.service
+# No login-screen undo here: this package goes away when fedora-glass replaces it,
+# and that must not take the login screen glass off.
+
 %files
 %license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
-%{_bindir}/%{name}
-%{_datadir}/%{name}/
+%{_bindir}/fedora-glass
+%{_bindir}/liquid-glass
+%{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
+%config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
+
+%files -n liquid-glass
+%license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
+%doc README.md
+%{_bindir}/fedora-glass
+%{_bindir}/liquid-glass
+%{_datadir}/fedora-glass/
+%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
+%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_userunitdir}/liquid-glass-watch.service
+%{_userpresetdir}/80-liquid-glass.preset
+%{_libexecdir}/liquid-glass-login-screen
+%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
+%config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.0-1
+- Liquid Glass is now Fedora Glass: the app, the Shell extension and the themes it adds to other apps
+- The package is now fedora-glass; dnf upgrade moves to it by itself and keeps your settings
+- The command is now fedora-glass (liquid-glass still works)
+
 * Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.4-1
 - No glass strip on the other screen beside a window maximized on a second screen
 - Glass behind a window that keeps repainting redraws at most 20 times a second

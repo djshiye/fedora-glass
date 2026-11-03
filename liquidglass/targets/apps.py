@@ -121,10 +121,10 @@ class Discord(AppTarget):
 class VSCode(AppTarget):
     id: str = "vscode"
     name: str = "VS Code"
-    summary: str = "Liquid Glass Dark and Light colour themes, installed as a local extension."
+    summary: str = "Fedora Glass Dark and Light colour themes, installed as a local extension."
     notes: list[str] = field(default_factory=lambda: [
         "VS Code windows can't be translucent on Linux; the theme uses the glass colours on opaque surfaces.",
-        "If settings.json contains comments, Liquid Glass leaves it alone: pick Liquid Glass Dark/Light "
+        "If settings.json contains comments, Fedora Glass leaves it alone: pick Fedora Glass Dark/Light "
         "yourself under Preferences > Color Theme.",
     ])
 
@@ -146,7 +146,7 @@ class VSCode(AppTarget):
             have = same = False
         if not (have and same):
             acts.append(Command(("code", "--install-extension", str(vsix), "--force"),
-                                "install the Liquid Glass colour themes",
+                                "install the Fedora Glass colour themes",
                                 undo=("code", "--uninstall-extension", ra.VSCODE_ID)))
         updates: dict = {"workbench.colorTheme": ra.VSCODE_LABELS[t.dark]}
         if ctx.settings.scheme == "auto":
@@ -171,7 +171,7 @@ class VSCode(AppTarget):
 class Obsidian(AppTarget):
     id: str = "obsidian"
     name: str = "Obsidian"
-    summary: str = "Liquid Glass theme installed into every vault and selected."
+    summary: str = "Fedora Glass theme installed into every vault and selected."
     scheme_dependent: bool = False
     notes: list[str] = field(default_factory=lambda: [
         "Restart Obsidian (or reload with Ctrl+R) to see the theme. Obsidian's window is opaque."])
@@ -200,13 +200,13 @@ class Obsidian(AppTarget):
         css = ra.obsidian_css(ctx.dark, ctx.light)
         for v in self.vaults(ctx.env):
             base = v / ".obsidian"
-            theme = base / "themes/Liquid Glass"
+            theme = base / "themes/Fedora Glass"
             # Vaults can be synced or shared folders: never follow links planted inside them.
             if any(p.is_symlink() for p in (base, base / "themes", theme, base / "appearance.json")):
                 continue
             acts.append(WriteFile(theme / "manifest.json", ra.obsidian_manifest()))
             acts.append(WriteFile(theme / "theme.css", css))
-            edit = _json_edit(base / "appearance.json", {"cssTheme": "Liquid Glass"})
+            edit = _json_edit(base / "appearance.json", {"cssTheme": "Fedora Glass"})
             if edit is not None:
                 acts.append(edit)
         return acts
@@ -314,7 +314,7 @@ class Browsers(AppTarget):
             f"Load unpacked and pick {self.theme_dir(ctx.env)}.",
             "Later changes need Reload on that extension's card. Chromium themes follow the scheme in use "
             "when you apply, and browser windows stay opaque.",
-            "Liquid Glass never edits browser profiles.",
+            "Fedora Glass never edits browser profiles.",
         ]
 
 
@@ -355,7 +355,7 @@ TARGETS: list[Target] = [
           scheme_dependent=True),
     NotesOnly(id="steam", name="Steam", group="Apps", cmds=("steam",), dirs=(".local/share/Steam",),
               summary="Not themed: Steam draws its own UI.", scheme_dependent=False,
-              notes=["Steam has no supported theme hook; third-party skins break on updates, so Liquid Glass leaves it alone."]),
+              notes=["Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone."]),
     NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",),
               summary="Not themed; follows the system dark mode.", scheme_dependent=False,
               notes=["In Zoom: Settings > General > Theme > Use system setting."]),
@@ -371,5 +371,5 @@ TARGETS: list[Target] = [
     NotesOnly(id="firefox", name="Firefox", group="Apps", cmds=("firefox",), dirs=(".config/mozilla", ".mozilla"),
               summary="Not themed; follows the GTK theme for its window frame.", scheme_dependent=False,
               notes=["Use Firefox's built-in System theme (Add-ons > Themes) so the toolbar matches. "
-                     "Liquid Glass does not edit Firefox profiles."]),
+                     "Fedora Glass does not edit Firefox profiles."]),
 ]

@@ -1,4 +1,4 @@
-# Pass/fail limits for the Liquid Glass release checks.
+# Pass/fail limits for the Fedora Glass release checks.
 #
 # The test desktop renders on the processor (no graphics card), so speed limits compare
 # glass on with glass off in the same run instead of using absolute numbers.

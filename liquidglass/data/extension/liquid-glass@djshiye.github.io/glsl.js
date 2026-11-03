@@ -53,7 +53,7 @@ export function snippet(source) {
     const at = source.indexOf(head);
     const end = source.lastIndexOf('}');
     if (at < 0 || end < at || /uniform\s+sampler2D/.test(source))
-        throw new Error('Liquid Glass: a shader must have main() and read cogl_sampler0');
+        throw new Error('Fedora Glass: a shader must have main() and read cogl_sampler0');
     return {decls: source.slice(0, at), code: source.slice(at + head.length, end)};
 }
 
@@ -105,11 +105,11 @@ export class Shader {
         effect._uniformAt ??= new Map();
         for (const [k, v] of Object.entries(values)) {
             if (!this.names.has(k)) {
-                this._warn(`Liquid Glass: no uniform ${k} in this shader; skipped`);
+                this._warn(`Fedora Glass: no uniform ${k} in this shader; skipped`);
                 continue;
             }
             if (typeof v !== 'number' || !Number.isFinite(v)) {
-                this._warn(`Liquid Glass: uniform ${k} skipped, not a finite number`);
+                this._warn(`Fedora Glass: uniform ${k} skipped, not a finite number`);
                 continue;
             }
             if (typeof effect.get_uniform_location !== 'function') {

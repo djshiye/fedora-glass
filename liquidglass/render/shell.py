@@ -1,7 +1,7 @@
 """GNOME Shell theme: CSS for St and the Dash to Panel / ArcMenu values.
 
 St cannot blur, so every Shell surface is a translucent token colour and the
-Liquid Glass extension (render/glass.py) supplies the glass behind it. St also draws a single box-shadow, which
+Fedora Glass extension (render/glass.py) supplies the glass behind it. St also draws a single box-shadow, which
 is why large surfaces get their lit top edge from a lighter border-top and
 small controls from an inset shadow.
 """
@@ -179,7 +179,7 @@ def _boost(match: re.Match) -> str:
 
 
 def render_css(t: Tokens) -> str:
-    """The whole ~/.local/share/themes/LiquidGlass/gnome-shell/gnome-shell.css."""
+    """The whole ~/.local/share/themes/FedoraGlass/gnome-shell/gnome-shell.css."""
     text = Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(values(t))
     return _BOOST.sub(_boost, text)
 

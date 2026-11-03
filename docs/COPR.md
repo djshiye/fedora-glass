@@ -1,7 +1,7 @@
 # Publishing on Fedora COPR
 
-Liquid Glass is published at <https://copr.fedorainfracloud.org/coprs/djshiye/liquid-glass/>.
-Users run `sudo dnf copr enable djshiye/liquid-glass` once, and then `sudo dnf upgrade` keeps it
+Fedora Glass is published at <https://copr.fedorainfracloud.org/coprs/djshiye/fedora-glass/>.
+Users run `sudo dnf copr enable djshiye/fedora-glass` once, and then `sudo dnf upgrade` keeps it
 up to date.
 
 ## How a release reaches users
@@ -25,17 +25,17 @@ You need a free Fedora account: <https://accounts.fedoraproject.org> (**Create a
 
 **On COPR** (<https://copr.fedorainfracloud.org>, **Log in** with the Fedora account):
 
-1. **New project**. Name `liquid-glass`. Description: *A Liquid Glass look for Fedora GNOME, with an
-   app to tune it.* Instructions: *sudo dnf copr enable djshiye/liquid-glass, then sudo dnf
-   install liquid-glass.*
+1. **New project**. Name `fedora-glass`. Description: *A Fedora Glass look for Fedora GNOME, with an
+   app to tune it.* Instructions: *sudo dnf copr enable djshiye/fedora-glass, then sudo dnf
+   install fedora-glass.*
 2. Chroots: tick **fedora-44-x86_64**. Under *Other options*, tick **Follow Fedora branching** so new
    Fedora versions are added by themselves. Leave **Enable internet access during builds** off.
    Press **Create**.
 3. **Packages → New package → SCM**:
-   - Package name `liquid-glass`
-   - Clone URL `https://github.com/djshiye/fedora-liquid-glass.git`
+   - Package name `fedora-glass`
+   - Clone URL `https://github.com/djshiye/fedora-glass.git`
    - Committish: leave empty. Subdirectory: leave empty.
-   - Spec file `packaging/liquid-glass.spec`
+   - Spec file `packaging/fedora-glass.spec`
    - Type **git**, SRPM build method **make_srpm**
    - Tick **Auto-rebuild**, then **Submit**.
 4. **Settings → Integrations**: copy the **GitHub** webhook URL. It looks like
@@ -43,8 +43,8 @@ You need a free Fedora account: <https://accounts.fedoraproject.org> (**Create a
 
 **On GitHub** (this repository → **Settings → Webhooks → Add webhook**):
 
-1. Payload URL: the COPR URL with `liquid-glass/` added to the end, so it ends in
-   `/<code>/liquid-glass/`. The package name at the end is needed: without it COPR ignores tags
+1. Payload URL: the COPR URL with `fedora-glass/` added to the end, so it ends in
+   `/<code>/fedora-glass/`. The package name at the end is needed: without it COPR ignores tags
    named `v1.2.3`.
 2. Content type **application/json**. Secret: leave empty. SSL verification: on.
 3. **Let me select individual events**: tick only **Branch or tag creation**, untick **Pushes**.

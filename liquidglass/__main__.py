@@ -1,11 +1,11 @@
-"""liquid-glass command line.
+"""fedora-glass command line.
 
-  liquid-glass                 open the customizer
-  liquid-glass apply [--frost 0.4] [--preset Frosted] [--only gtk4,shell]
-  liquid-glass plan            show what Apply would change, change nothing
-  liquid-glass status          list targets and whether they're available
-  liquid-glass revert [TARGET] restore the original look (everything, or one target)
-  liquid-glass watch           re-apply when GNOME switches dark/light or High Contrast (run by a user service)
+  fedora-glass                 open the customizer
+  fedora-glass apply [--frost 0.4] [--preset Frosted] [--only gtk4,shell]
+  fedora-glass plan            show what Apply would change, change nothing
+  fedora-glass status          list targets and whether they're available
+  fedora-glass revert [TARGET] restore the original look (everything, or one target)
+  fedora-glass watch           re-apply when GNOME switches dark/light or High Contrast (run by a user service)
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
     waited = 0.0
     while not eng.glass_running(s):
         if waited >= wait_s:
-            print("liquid-glass watch: the glass extension isn't running; Shell parts still wait", file=sys.stderr)
+            print("fedora-glass watch: the glass extension isn't running; Shell parts still wait", file=sys.stderr)
             return False
         sleep(step_s)
         waited += step_s
@@ -135,7 +135,7 @@ def update_after_upgrade(eng) -> bool:
     had = installed_glass_version(eng)
     if had is None or had == __version__:
         return False
-    print(f"liquid-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
+    print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
     eng.apply(settings_mod.load())
     return True
 
@@ -204,11 +204,11 @@ def cmd_watch(args: argparse.Namespace) -> int:
             got = _take_all(changes)
             if UPGRADED in got:
                 # The user service starts the new version's watcher, which brings the look up to date.
-                print(f"liquid-glass watch: Liquid Glass {disk_version()} was installed; starting it", file=sys.stderr)
+                print(f"fedora-glass watch: Fedora Glass {disk_version()} was installed; starting it", file=sys.stderr)
                 return 75
             if None in got:
                 # Half a watcher would miss switches: stop, and let the user service start a fresh one.
-                print("liquid-glass watch: a gsettings monitor stopped", file=sys.stderr)
+                print("fedora-glass watch: a gsettings monitor stopped", file=sys.stderr)
                 return 1
             s = settings_mod.load()
             contrast = 1 in got
@@ -229,8 +229,8 @@ def cmd_gui(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="liquid-glass", description="Liquid Glass theme for Fedora GNOME")
-    p.add_argument("--version", action="version", version=f"liquid-glass {__version__}")
+    p = argparse.ArgumentParser(prog="fedora-glass", description="Glass theme for Fedora GNOME")
+    p.add_argument("--version", action="version", version=f"fedora-glass {__version__}")
     sub = p.add_subparsers(dest="cmd")
 
     a = sub.add_parser("apply", help="apply the theme with saved settings")

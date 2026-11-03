@@ -1,6 +1,6 @@
-# Liquid Glass tokens for app developers
+# Fedora Glass tokens for app developers
 
-Every time Liquid Glass applies, it writes its design tokens to:
+Every time Fedora Glass applies, it writes its design tokens to:
 
 | File | Contents |
 |---|---|
@@ -9,7 +9,7 @@ Every time Liquid Glass applies, it writes its design tokens to:
 | `~/.config/liquid-glass/tokens-light.json` | light tokens |
 
 An app that draws its own UI (Qt Quick, Electron, games) can read these files and watch them for
-changes to match the rest of the desktop. If the files don't exist, Liquid Glass isn't in use: keep
+changes to match the rest of the desktop. If the files don't exist, Fedora Glass isn't in use: keep
 your own look.
 
 ## Format
@@ -53,7 +53,7 @@ Colours are `#RRGGBBAA`. Numbers are plain JSON numbers. New keys may appear in 
 | `bleed` | how much the colours of icons and text light up the glass around them, 0..1 (0 with reduced transparency) |
 | `blur_radius`, `blur_brightness` | the blur behind glass |
 | `lens_width`, `lens_bend`, `dispersion`, `vibrancy`, `glare` | the glass lens: rounded-edge width and slab thickness in px, rainbow edge 0..1, colour boost (1 = none), rim highlight 0..1 |
-| `glass_panel_edges`, `glass_menu_edges` | true when the Liquid Glass extension draws the panel's or the menus' edges, so a theme should leave them without a border line |
+| `glass_panel_edges`, `glass_menu_edges` | true when the Fedora Glass extension draws the panel's or the menus' edges, so a theme should leave them without a border line |
 | `terminal_opacity` | terminal background opacity |
 | `panel_floating`, `panel_margin` | panel style |
 | `blur_app_windows` | whether app windows get blur behind them |

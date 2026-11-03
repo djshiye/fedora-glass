@@ -42,7 +42,7 @@ export function wrapAnimator(anim, quiet, unquiet, warn = () => {}) {
             if (anim[m] !== wrappers[m]) {
                 // Someone wrapped on top of ours: taking ours out would drop theirs.
                 // Ours stays under theirs, inert, and only calls the original.
-                warn(`Dash to Panel's ${m} was wrapped again after Liquid Glass; leaving it as it is`);
+                warn(`Dash to Panel's ${m} was wrapped again after Fedora Glass; leaving it as it is`);
                 continue;
             }
             if (saved[m].own)

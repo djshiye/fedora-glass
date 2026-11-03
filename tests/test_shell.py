@@ -120,7 +120,7 @@ def test_targets_order_and_ids():
 
 def test_detect_needs_the_extension(fake_env):
     for t in ts.TARGETS:
-        assert t.detect(fake_env).available == (t.id == "glass")   # ours ships with Liquid Glass
+        assert t.detect(fake_env).available == (t.id == "glass")   # ours ships with Fedora Glass
     install(fake_env, ts.USER_THEME, ts.BLUR, ts.DASH_TO_PANEL, ts.ARCMENU)
     for t in ts.TARGETS:
         assert t.detect(fake_env).available
@@ -134,12 +134,12 @@ def test_shell_target_writes_theme_and_enables_user_themes(fake_env):
     }
     acts = ts.GnomeShell().plan(context(fake_env))
     write = next(a for a in acts if isinstance(a, WriteFile))
-    assert write.path == fake_env.data / "themes/LiquidGlass/gnome-shell/gnome-shell.css"
+    assert write.path == fake_env.data / "themes/FedoraGlass/gnome-shell/gnome-shell.css"
     sets = {(a.schema, a.key): a.value for a in acts if isinstance(a, GSet)}
     edits = {(a.schema, a.key): (a.add, a.remove) for a in acts if isinstance(a, ListEdit)}
     assert edits[("org.gnome.shell", "enabled-extensions")] == ((ts.USER_THEME,), ())
     assert edits[("org.gnome.shell", "disabled-extensions")] == ((), (ts.USER_THEME,))
-    assert sets[("org.gnome.shell.extensions.user-theme", "name")] == "'LiquidGlass'"
+    assert sets[("org.gnome.shell.extensions.user-theme", "name")] == "'FedoraGlass'"
     # Through the engine: only our item is added/removed, and revert undoes only that.
     gs = fake_env.gs[("org.gnome.shell", None)]
     Engine(fake_env, [ts.GnomeShell()]).apply(Settings())
@@ -164,14 +164,14 @@ def test_shell_target_leaves_extension_lists_alone_when_already_enabled(fake_env
 def test_shell_target_bounces_the_theme_name_only_when_css_changed(fake_env):
     install(fake_env, ts.USER_THEME)
     schema = ("org.gnome.shell.extensions.user-theme", None)
-    fake_env.gs[schema] = {"name": "'LiquidGlass'"}
+    fake_env.gs[schema] = {"name": "'FedoraGlass'"}
     target, ctx = ts.GnomeShell(), context(fake_env)
     names = lambda: [a.value for a in target.plan(ctx) if isinstance(a, GSet) and a.key == "name"]  # noqa: E731
-    assert names() == ["''", "'LiquidGlass'"]       # new CSS: bounce so User Themes reloads it
+    assert names() == ["''", "'FedoraGlass'"]       # new CSS: bounce so User Themes reloads it
     path = target.css_path(fake_env)
     path.parent.mkdir(parents=True)
     path.write_text(rs.render_css(ctx.tokens))
-    assert names() == ["'LiquidGlass'"]             # same CSS: nothing to reload
+    assert names() == ["'FedoraGlass'"]             # same CSS: nothing to reload
 
 
 def test_glass_target_installs_extension_and_config(fake_env):
@@ -303,10 +303,10 @@ def test_apply_then_revert_restores_everything(fake_env):
     assert rg.UUID in gs[("org.gnome.shell", None)]["enabled-extensions"]
     assert (fake_env.data / "gnome-shell/extensions" / rg.UUID / "extension.js").is_file()
     assert ts.USER_THEME in gs[("org.gnome.shell", None)]["enabled-extensions"]
-    assert (fake_env.data / "themes/LiquidGlass/gnome-shell/gnome-shell.css").is_file()
+    assert (fake_env.data / "themes/FedoraGlass/gnome-shell/gnome-shell.css").is_file()
 
     assert engine.revert() == []
-    assert not (fake_env.data / "themes/LiquidGlass/gnome-shell/gnome-shell.css").exists()
+    assert not (fake_env.data / "themes/FedoraGlass/gnome-shell/gnome-shell.css").exists()
     assert not (fake_env.data / "gnome-shell/extensions" / rg.UUID / "extension.js").exists()
     assert not (fake_env.config / "liquid-glass/shell-glass.json").exists()
     assert {k: dict(v) for k, v in fake_env.gs.items()} == before
@@ -317,10 +317,10 @@ def test_reapplying_changes_nothing(fake_env):
     engine = Engine(fake_env, ts.TARGETS)
     engine.apply(Settings(frost=0.6, scheme="light"))
     first = {k: dict(v) for k, v in fake_env.gs.items()}
-    css = (fake_env.data / "themes/LiquidGlass/gnome-shell/gnome-shell.css").read_text()
+    css = (fake_env.data / "themes/FedoraGlass/gnome-shell/gnome-shell.css").read_text()
     engine.apply(Settings(frost=0.6, scheme="light"))
     assert {k: dict(v) for k, v in fake_env.gs.items()} == first
-    assert (fake_env.data / "themes/LiquidGlass/gnome-shell/gnome-shell.css").read_text() == css
+    assert (fake_env.data / "themes/FedoraGlass/gnome-shell/gnome-shell.css").read_text() == css
 
 
 def test_template_has_no_hardcoded_colours_outside_neutral_ones():
@@ -467,7 +467,7 @@ def test_desktop_options_are_checked_in_the_extension():
 
 
 def test_their_own_start_up_choice_comes_back_not_the_default(fake_env):
-    """A value the user picked before Liquid Glass came along is what Restore original and
+    """A value the user picked before Fedora Glass came along is what Restore original and
     turning ours off put back, never the schema default."""
     dtp, jp = "org.gnome.shell.extensions.dash-to-panel", "org.gnome.shell.extensions.just-perfection"
     install(fake_env, ts.DASH_TO_PANEL, ts.JUST_PERFECTION)

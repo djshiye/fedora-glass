@@ -10,7 +10,7 @@ Sheet {
     readonly property int appliedCount: count("applied")
 
     title: failedCount > 0 ? "Applied, with " + failedCount + " problem" + (failedCount === 1 ? "" : "s")
-         : results.length === 0 ? "Settings saved" : "Liquid Glass is on"
+         : results.length === 0 ? "Settings saved" : "Fedora Glass is on"
     subtitle: results.length === 0 ? "No targets are available yet, so only the token files were written."
             : failedCount > 0 ? "Everything else was applied. The details are below."
             : "Some apps pick the new look up when they restart."

@@ -16,7 +16,7 @@ from ..color import BLACK, WHITE, Color
 from ..palette import Tokens
 from ..radius import scale
 
-THEME = "LiquidGlass"
+THEME = "FedoraGlass"
 PROGRESS = 16
 SIDES = ("topleft", "top", "topright", "left", "right", "bottomleft", "bottom", "bottomright")
 CLEAR = Color(0, 0, 0, 0)
@@ -446,8 +446,8 @@ def build_config(t: Tokens) -> str:
         return f"frame.top={n}\nframe.bottom={n}\nframe.left={n}\nframe.right={n}"
 
     return f"""[%General]
-author=Liquid Glass
-comment=Liquid Glass for Qt widgets (generated, do not edit)
+author=Fedora Glass
+comment=Fedora Glass for Qt widgets (generated, do not edit)
 x11drag=all
 alt_mnemonic=true
 left_tabs=false
@@ -859,7 +859,7 @@ interior=false
 
 
 def build_main_config(existing: str | None) -> str:
-    """kvantum.kvconfig with `theme=LiquidGlass`, keeping everything else."""
+    """kvantum.kvconfig with `theme=FedoraGlass`, keeping everything else."""
     if not existing or not existing.strip():
         return f"[General]\ntheme={THEME}\n"
     lines = existing.splitlines()

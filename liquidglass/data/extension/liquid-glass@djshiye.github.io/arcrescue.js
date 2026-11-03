@@ -100,9 +100,9 @@ export class ArcMenuRescue {
             order.splice(at, 1);
         ext.error = '';
         this._manager._changeExtensionState(ext, State.INACTIVE);
-        console.log('Liquid Glass: restarting ArcMenu, which GNOME restarted before Dash to Panel');
+        console.log('Fedora Glass: restarting ArcMenu, which GNOME restarted before Dash to Panel');
         Promise.resolve(this._manager._callExtensionEnable(ARCMENU)).catch(e =>
-            console.error(`Liquid Glass: ArcMenu did not restart: ${e}`));
+            console.error(`Fedora Glass: ArcMenu did not restart: ${e}`));
     }
 
     destroy() {

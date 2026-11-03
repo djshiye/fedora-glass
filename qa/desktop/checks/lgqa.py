@@ -137,7 +137,7 @@ class Shell:
         raise ShellError(f"window {wid} would not stay at {x},{y}")
 
     # A real drag: grab the window's bottom-right corner with a virtual pointer and move it,
-    # the way a person resizes (GNOME and Liquid Glass treat that differently from a
+    # the way a person resizes (GNOME and Fedora Glass treat that differently from a
     # resize asked for by an app).
     def drag_begin(self, wid: int) -> bool:
         return self.win_js(wid, _DRAG_BEGIN_JS) == "true"

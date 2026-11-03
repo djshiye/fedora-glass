@@ -26,7 +26,7 @@ Window {
     minimumHeight: 680 + 2 * margin
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
-    title: "Liquid Glass"
+    title: "Fedora Glass"
 
     Shortcut { sequences: [StandardKey.Quit]; onActivated: Qt.quit() }
     Shortcut { sequence: "Ctrl+W"; onActivated: win.close() }
@@ -148,7 +148,7 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: "Liquid Glass"
+                    text: "Fedora Glass"
                     color: Theme.text
                     font.pixelSize: Theme.fsTitle + 1
                     font.weight: Font.Bold
@@ -327,7 +327,7 @@ Window {
                 text: "Re-apply"
                 iconName: "refresh"
                 enabled: !Backend.busy
-                tip: "Write the Liquid Glass look again. Nothing else changes."
+                tip: "Write the Fedora Glass look again. Nothing else changes."
                 onClicked: Backend.apply()
             }
         }
@@ -350,8 +350,8 @@ Window {
                 iconName: "undo"
                 leftPadding: 14
                 enabled: !Backend.busy && Backend.hasBackup
-                tip: Backend.hasBackup ? "Put back every file and setting as it was before Liquid Glass"
-                                       : "Nothing to restore: Liquid Glass hasn't changed anything yet"
+                tip: Backend.hasBackup ? "Put back every file and setting as it was before Fedora Glass"
+                                       : "Nothing to restore: Fedora Glass hasn't changed anything yet"
                 onClicked: confirmSheet.open()
             }
 
@@ -453,7 +453,7 @@ Window {
     Sheet {
         id: confirmSheet
         title: "Restore your original look?"
-        subtitle: "Every file and setting Liquid Glass changed goes back to how it was before your first Apply. Your Liquid Glass settings are kept, so you can apply them again later."
+        subtitle: "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later."
         iconName: "undo"
         iconColor: Theme.bad
         width: Math.min(520, win.width - 64)

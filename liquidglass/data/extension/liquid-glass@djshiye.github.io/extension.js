@@ -1,4 +1,4 @@
-// Liquid Glass for GNOME Shell. The look is set in the Liquid Glass app, which
+// Fedora Glass for GNOME Shell. The look is set in the Fedora Glass app, which
 // writes ~/.config/liquid-glass/shell-glass.json; changes show up live.
 // It also decides whether GNOME starts on the desktop or in the overview.
 //
@@ -25,7 +25,7 @@ export default class LiquidGlassExtension extends Extension {
     enable() {
         this._locked = null;
         // Safe mode: if the glass keeps failing it is turned off (plain panels and
-        // menus) until the Liquid Glass app turns it back on.
+        // menus) until the Fedora Glass app turns it back on.
         this._safety = new Safety(tripped => this._safeMode(tripped));
         this._config = new Config(guarded('settings change', cfg => {
             this._speed?.update(cfg);
@@ -52,7 +52,7 @@ export default class LiquidGlassExtension extends Extension {
             try {
                 this._lock = new LockGlass(cfg);
             } catch (e) {
-                console.error(`Liquid Glass: no lock screen glass: ${e}`);
+                console.error(`Fedora Glass: no lock screen glass: ${e}`);
                 this._lock = null;
             }
         } else {
@@ -72,14 +72,14 @@ export default class LiquidGlassExtension extends Extension {
                 this._speed = new Speed(cfg, guarded('speed change',
                     () => this._manager?.update(this._effective(this._config.value))));
             } catch (e) {
-                console.error(`Liquid Glass: no speed check or auto quality: ${e}`);
+                console.error(`Fedora Glass: no speed check or auto quality: ${e}`);
                 this._speed = null;
             }
             this._startGlass(cfg);
             try {
                 this._rescue = new ArcMenuRescue();
             } catch (e) {
-                console.error(`Liquid Glass: no ArcMenu restart helper: ${e}`);
+                console.error(`Fedora Glass: no ArcMenu restart helper: ${e}`);
                 this._rescue = null;
             }
         }
@@ -91,14 +91,14 @@ export default class LiquidGlassExtension extends Extension {
 
     _startGlass(cfg) {
         if (this._safety?.tripped) {
-            console.warn('Liquid Glass: safe mode is on, so the glass stays off. Turn it back on in the Liquid Glass app.');
+            console.warn('Fedora Glass: safe mode is on, so the glass stays off. Turn it back on in the Fedora Glass app.');
             return;
         }
         try {
             this._manager = new GlassManager(this._effective(cfg));
             this._animations = new Animations(cfg);
         } catch (e) {
-            logError(e, 'Liquid Glass: starting the glass');
+            logError(e, 'Fedora Glass: starting the glass');
             this._stopGlass();
             this._safety?.startFailed();
         }
@@ -110,13 +110,13 @@ export default class LiquidGlassExtension extends Extension {
         try {
             this._animations?.destroy();
         } catch (e) {
-            logError(e, 'Liquid Glass: turning the animations off');   // the rest still turns off
+            logError(e, 'Fedora Glass: turning the animations off');   // the rest still turns off
         }
         this._animations = null;
         try {
             this._manager?.destroy();
         } catch (e) {
-            logError(e, 'Liquid Glass: turning the glass off');
+            logError(e, 'Fedora Glass: turning the glass off');
         }
         this._manager = null;
     }
@@ -138,7 +138,7 @@ export default class LiquidGlassExtension extends Extension {
         try {
             this._speed?.destroy();
         } catch (e) {
-            logError(e, 'Liquid Glass: turning the speed watch off');
+            logError(e, 'Fedora Glass: turning the speed watch off');
         }
         this._speed = null;
     }
