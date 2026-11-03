@@ -20,7 +20,8 @@ UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
-         "animations.js", "curves.js", "glide.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "safety.js", "prefs.js")
+         "animations.js", "curves.js", "glide.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "safety.js",
+         "speed.js", "tuning.js", "prefs.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -162,6 +163,8 @@ def config(s: Settings, t: Tokens) -> dict:
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,
         "lock": _lock_config(s, off),
+        "grow": {"enabled": s.menu_grow},
+        "speed": {"quality": s.glass_quality},
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).

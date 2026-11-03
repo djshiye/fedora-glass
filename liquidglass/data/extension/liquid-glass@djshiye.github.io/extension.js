@@ -17,7 +17,9 @@ import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
 import {Safety, guarded} from './safety.js';
+import {Speed} from './speed.js';
 import {GlassManager} from './surfaces.js';
+import {effectiveConfig} from './tuning.js';
 
 export default class LiquidGlassExtension extends Extension {
     enable() {
@@ -26,7 +28,8 @@ export default class LiquidGlassExtension extends Extension {
         // menus) until the Liquid Glass app turns it back on.
         this._safety = new Safety(tripped => this._safeMode(tripped));
         this._config = new Config(guarded('settings change', cfg => {
-            this._manager?.update(cfg);
+            this._speed?.update(cfg);
+            this._manager?.update(this._effective(cfg));
             this._desktop?.update(cfg);
             this._lock?.update(cfg);
             this._animations?.update(cfg);
@@ -64,6 +67,14 @@ export default class LiquidGlassExtension extends Extension {
                 this._leaving = null;
             }
             this._desktop = new DesktopBehaviour(cfg);
+            // How much the glass draws (the glass quality setting, or auto when frames drop).
+            try {
+                this._speed = new Speed(cfg, guarded('speed change',
+                    () => this._manager?.update(this._effective(this._config.value))));
+            } catch (e) {
+                console.error(`Liquid Glass: no speed check or auto quality: ${e}`);
+                this._speed = null;
+            }
             this._startGlass(cfg);
             try {
                 this._rescue = new ArcMenuRescue();
@@ -74,13 +85,17 @@ export default class LiquidGlassExtension extends Extension {
         }
     }
 
+    _effective(cfg) {
+        return effectiveConfig(cfg, this._speed?.level ?? 0);
+    }
+
     _startGlass(cfg) {
         if (this._safety?.tripped) {
             console.warn('Liquid Glass: safe mode is on, so the glass stays off. Turn it back on in the Liquid Glass app.');
             return;
         }
         try {
-            this._manager = new GlassManager(cfg);
+            this._manager = new GlassManager(this._effective(cfg));
             this._animations = new Animations(cfg);
         } catch (e) {
             logError(e, 'Liquid Glass: starting the glass');
@@ -120,6 +135,12 @@ export default class LiquidGlassExtension extends Extension {
         this._rescue = null;
         this._desktop?.destroy();
         this._desktop = null;
+        try {
+            this._speed?.destroy();
+        } catch (e) {
+            logError(e, 'Liquid Glass: turning the speed watch off');
+        }
+        this._speed = null;
     }
 
     // GNOME keeps this extension on while the screen is locked (session-modes has

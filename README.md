@@ -7,7 +7,7 @@
 
 <p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Glass panel and ArcMenu: the rounded edge bends the stripes behind it and catches the light"></p>
 
-Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need Blur my Shell.
+Made for **Fedora 44 with GNOME 50**, and ready for GNOME 51 (Fedora 45). It draws its own glass, so you don't need Blur my Shell.
 
 ## Install
 
@@ -22,8 +22,9 @@ sudo dnf install liquid-glass
 
 Updates then come with the rest of your system through `sudo dnf upgrade`. The repository is built
 by this project's GitHub Actions from each release, after checking the RPM against the release's
-`SHA256SUMS`, and served over HTTPS. The packages are not GPG-signed yet; signed builds through
-[Fedora COPR](docs/COPR.md) are planned.
+`SHA256SUMS`, and served over HTTPS. After an upgrade Liquid Glass brings your look up to date by
+itself, with your own settings, and the new glass shows from your next restart. No need to press
+Apply.
 
 **Installed it from the old download link?** Run only the first command above. Your next
 `sudo dnf upgrade` then picks up new versions and keeps your settings.
