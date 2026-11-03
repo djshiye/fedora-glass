@@ -6,7 +6,7 @@ import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
 
 import {GlassPane} from './glass.js';
-import {HOLD_MAX_MS, MOVES, radiiOf, screenEdges, sourcesFor, windowWatch, followers, motion, Signals, glowSource} from './common.js';
+import {HOLD_MAX_MS, MOVES, radiiOf, screenEdges, sourcesFor, windowWatch, followers, motion, Signals, glowSource, grow} from './common.js';
 
 /**
  * A pane that sits right below `anchor` (a child of a free-layout container
@@ -147,6 +147,11 @@ export class Follower {
             pane.hide();
             top.hide();
             this.rect = null;
+            // A menu that flowed back into its button is its own size again once gone.
+            if (this._shrunk) {
+                this._shrunk = false;
+                target.set_scale(1, 1);
+            }
         };
         if (!this.settings.enabled || !target.mapped || target.width < 2 || target.height < 2) {
             hide();
@@ -194,6 +199,14 @@ export class Follower {
             this._closing = true;
         this._opacity = opacity;
         pane.opacity = top.opacity = this._closing ? Math.round(opacity * 255) : 255;
+        // Closing, a menu that grew out of its button flows back into it as it fades.
+        if (this._closing && this.condense && this._from) {
+            this._applyGrow(opacity);
+            this._shrunk = true;
+        } else if (this._shrunk && !this._closing) {
+            this._shrunk = false;
+            this._applyGrow(1);
+        }
         const p = pane.pad;
         const radii = radiiOf(target);
         pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
@@ -222,11 +235,64 @@ export class Follower {
         this.pane?.setMotion(m);
         this.top?.setMotion(shape);
         // A menu condenses into place as it opens: a little small, then its size.
+        // One opened from a button grows out of that button instead.
         if (this.condense && m.open !== undefined && this.target) {
-            const sc = 0.96 + 0.04 * Math.min(m.open, 1.0) + 0.02 * Math.max(0, m.open - 1);
-            this.target.set_pivot_point(0.5, 0.5);
-            this.target.set_scale(sc, sc);
+            if (m.open <= 0)
+                this._from = this._growFrom();
+            if (!this._applyGrow(m.open)) {
+                const sc = 0.96 + 0.04 * Math.min(m.open, 1.0) + 0.02 * Math.max(0, m.open - 1);
+                this.target.set_pivot_point(0.5, 0.5);
+                this.target.set_scale(sc, sc);
+            }
         }
+    }
+
+    /**
+     * Where the menu grows from: the button that opened it, as a pivot inside the
+     * menu (0..1) and the button's size as a share of the menu's. Null when there
+     * is no button, it is not on screen, or growing is off.
+     */
+    _growFrom() {
+        if (!grow.enabled || !this.source)
+            return null;
+        try {
+            const src = this.source();
+            const t = this.target;
+            if (!src?.mapped || !t)
+                return null;
+            const [bx, by] = src.get_transformed_position();
+            const [bw, bh] = src.get_transformed_size();
+            // The menu's own place, without the scale we set on it.
+            const box = t.get_allocation_box();
+            const [px, py] = t.get_parent().get_transformed_position();
+            const [tx, ty, tw, th] = [px + box.x1, py + box.y1, box.get_width(), box.get_height()];
+            if (![bx, by, bw, bh, tx, ty, tw, th].every(Number.isFinite) || tw < 8 || th < 8 || bw < 1 || bh < 1)
+                return null;
+            const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+            return {
+                px: clamp((bx + bw / 2 - tx) / tw, 0, 1),
+                py: clamp((by + bh / 2 - ty) / th, 0, 1),
+                fx: clamp(bw / tw, 0.12, 1),
+                fy: clamp(bh / th, 0.08, 1),
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    /** Shape the menu at k (0 the button, 1 the menu; past 1 the spring's overshoot). */
+    _applyGrow(k) {
+        const g = this._from;
+        if (!g)
+            return false;
+        const c = Math.max(0, Math.min(k, 1));
+        // Width leads and height follows a little, like a drop pulling away.
+        const ex = 1 - (1 - c) * (1 - c);
+        const sx = g.fx + (1 - g.fx) * ex + 0.015 * Math.max(0, k - 1);
+        const sy = g.fy + (1 - g.fy) * c + 0.03 * Math.max(0, k - 1);
+        this.target.set_pivot_point(g.px, g.py);
+        this.target.set_scale(sx, sy);
+        return true;
     }
 
     destroy() {

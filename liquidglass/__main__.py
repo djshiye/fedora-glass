@@ -140,6 +140,22 @@ def update_after_upgrade(eng) -> bool:
     return True
 
 
+def disk_version() -> str | None:
+    """The app version on disk now; after `dnf upgrade` it differs from the running one."""
+    import re
+    from pathlib import Path
+    try:
+        text = (Path(__file__).resolve().parent / "__init__.py").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", text)
+    return m.group(1) if m else None
+
+
+UPGRADED = "upgraded"
+UPGRADE_POLL_S = 60.0
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
     switch only needs the parts that can't switch by themselves (Shell theme,
@@ -172,11 +188,24 @@ def cmd_watch(args: argparse.Namespace) -> int:
             changes.put(i)
         changes.put(None)       # that monitor ended
 
+    def notice_upgrade() -> None:
+        while True:
+            time.sleep(UPGRADE_POLL_S)
+            v = disk_version()
+            if v is not None and v != __version__:
+                changes.put(UPGRADED)
+                return
+
     for i, p in enumerate(procs):
         threading.Thread(target=follow, args=(i, p), daemon=True).start()
+    threading.Thread(target=notice_upgrade, daemon=True).start()
     try:
         while True:
             got = _take_all(changes)
+            if UPGRADED in got:
+                # The user service starts the new version's watcher, which brings the look up to date.
+                print(f"liquid-glass watch: Liquid Glass {disk_version()} was installed; starting it", file=sys.stderr)
+                return 75
             if None in got:
                 # Half a watcher would miss switches: stop, and let the user service start a fresh one.
                 print("liquid-glass watch: a gsettings monitor stopped", file=sys.stderr)

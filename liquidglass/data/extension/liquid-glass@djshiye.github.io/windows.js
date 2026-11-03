@@ -36,6 +36,25 @@ function gone(win) {
     return !win || win.get_monitor() < 0;
 }
 
+// A full-screen window (a game, a video) on top of a screen hides every window under
+// it there: their glass would keep rendering for changes nobody can see.
+function underFullscreen(actor, win) {
+    const m = win.get_monitor();
+    if (m < 0 || win.fullscreen || !Main.layoutManager.monitors[m]?.inFullscreen)
+        return false;
+    let above = false;
+    for (const a of global.get_window_actors()) {
+        if (a === actor) {
+            above = true;
+            continue;
+        }
+        const w = a.meta_window;
+        if (above && w?.fullscreen && !w.minimized && w.get_monitor() === m)
+            return true;
+    }
+    return false;
+}
+
 class WindowGlass {
     constructor(actor, owner) {
         this.actor = actor;
@@ -98,6 +117,8 @@ class WindowGlass {
     _wanted() {
         const w = this.win, s = this.settings;
         if (!s.enabled || w.fullscreen || w.minimized || !WINDOW_TYPES.has(w.get_window_type()))
+            return false;
+        if (underFullscreen(this.actor, w))
             return false;
         // A title bar drawn by the Shell is opaque: nothing would show.
         if (typeof w.is_client_decorated === 'function' && w.get_client_type?.() === Meta.WindowClientType.X11 &&
@@ -244,6 +265,8 @@ export class Windows {
         this._onWindows = () => this.sync();
         windowWatch.current?.listeners.add(this._onWindows);
         this._signals.on(global.display, 'notify::focus-window', () => this.sync());
+        // A game or video going full screen pauses the glass of the windows it covers.
+        this._signals.on(global.display, 'in-fullscreen-changed', () => this.sync());
     }
 
     _add(actor) {
