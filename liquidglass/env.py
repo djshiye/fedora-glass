@@ -41,6 +41,10 @@ class Env:
         return Path(os.environ.get("XDG_DATA_HOME") or self.home / ".local/share")
 
     @property
+    def cache(self) -> Path:
+        return Path(os.environ.get("XDG_CACHE_HOME") or self.home / ".cache")
+
+    @property
     def state(self) -> Path:
         return Path(os.environ.get("XDG_STATE_HOME") or self.home / ".local/state")
 

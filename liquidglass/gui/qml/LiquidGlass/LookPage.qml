@@ -750,6 +750,8 @@ Item {
                 }
             }
 
+            SpeedCard { width: parent.width }
+
             MotionCard { width: parent.width }
 
             Card {

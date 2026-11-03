@@ -21,6 +21,8 @@ GNOME_ACCENTS = {
 }
 
 SCHEMES = ("auto", "dark", "light")
+# How much the shell extension draws: auto steps down by itself when frames drop.
+GLASS_QUALITIES = ("auto", "full", "lighter", "lightest")
 PANEL_STYLES = ("floating", "docked")
 # Header bar height limits: below 36 px the buttons no longer fit, above 64 px it is wasted space.
 HEADER_MIN, HEADER_MAX = 36, 64
@@ -68,6 +70,7 @@ class Settings:
     blur: int | None = None         # blur radius in px
     reduce_transparency: bool = False  # accessibility: near-opaque everything
 
+    glass_quality: str = "auto"     # see GLASS_QUALITIES
     panel_style: str = "floating"   # Dash to Panel: floating pill or edge-docked
     panel_margin: int = 8
     blur_app_windows: bool = True   # glass behind translucent app windows
@@ -173,6 +176,8 @@ class Settings:
             s.terminal_opacity = min(1.0, max(0.3, t)) if math.isfinite(t) else None
         if s.scheme not in SCHEMES:
             s.scheme = "auto"
+        if s.glass_quality not in GLASS_QUALITIES:
+            s.glass_quality = "auto"
         if s.panel_style not in PANEL_STYLES:
             s.panel_style = "floating"
         if not (s.accent == "system" or s.accent in GNOME_ACCENTS or _is_hex(s.accent)):

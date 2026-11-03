@@ -8,11 +8,11 @@ const STUBS = {
         source_remove: id => globalThis.fake.timeouts.remove(id),
         get_monotonic_time: () => globalThis.fake.now?.() ?? 0,
     };`,
-    'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}};",
+    'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}, Snippet: {new: (hook, decls, post) => ({hook, decls, post, set_replace(c) { this.replace = c; }})}};",
     'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
     'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},
         ActorBox: class { constructor(b) { Object.assign(this, b); } },
-        Actor: globalThis.fake.Actor ?? class {}};`,
+        Actor: globalThis.fake?.Actor ?? class {}, ShaderEffect: class {}};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},
         WindowTracker: {get_default: () => globalThis.fake.windowTracker},
@@ -21,7 +21,7 @@ const STUBS = {
     'gi/Gio': 'export default {};',
     'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},
         Settings: {get: () => globalThis.fake.stSettings},
-        Widget: globalThis.fake.Widget ?? class {}};`,
+        Widget: globalThis.fake?.Widget ?? class {}};`,
     'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
