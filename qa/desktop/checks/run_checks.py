@@ -97,8 +97,14 @@ class Ctx:
 
     def new_errors(self, since: int) -> list[str]:
         lines = self.log.read_text(errors="replace").splitlines()[since:]
-        pat = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|Liquid Glass:.*(fail|error)", re.I)
+        pat = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|(Liquid|Fedora) Glass:.*(fail|error)", re.I)
         return [l for l in lines if pat.search(l) and "Xwayland" not in l]
+
+
+def ours(line: str) -> bool:
+    """A log line from this project, under its old name or its new one (Fedora Glass)."""
+    low = line.lower()
+    return "liquid-glass" in low or "liquid glass" in low or "fedora glass" in low or "fedora-glass" in low
 
 
 # ---------------------------------------------------------------------------------------------
@@ -826,7 +832,7 @@ def check_lock(ctx: Ctx) -> Check:
     panes = sh.glass_panes()
     c.add(panes >= 1 and panes <= panes0 + 6, f"Glass pieces before locking: {panes0}, after three locks: {panes}."
           + ("" if panes >= 1 and panes <= panes0 + 6 else " Glass is missing or piling up."))
-    errs = [e for e in ctx.new_errors(log0) if "liquid-glass" in e.lower() or "Liquid Glass" in e]
+    errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Liquid Glass errors while locking." if not errs else
           f"{len(errs)} Liquid Glass errors while locking, first: {errs[0][-160:]}")
     sh.close_all()
@@ -888,7 +894,7 @@ def check_restart(ctx: Ctx) -> Check:
             if not bad:
                 break
         took = time.monotonic() - t0
-        errs = [e for e in ctx.new_errors(log0) if "liquid-glass" in e.lower()]
+        errs = [e for e in ctx.new_errors(log0) if ours(e)]
         if bad:
             c.add(False, f"After switching {NAMES[u]} off and on: " + "; ".join(bad) + f" after {lim['settle_seconds']} s.")
         else:
@@ -943,7 +949,7 @@ def check_restore(ctx: Ctx) -> Check:
     bad, took = wait_healthy(ctx, expected, True, lim["settle_seconds"] + 15)
     c.add(not bad, f"After Apply, the glass and every extension were back in {took:.0f} s." if not bad else
           "After Apply: " + "; ".join(bad) + ".")
-    errs = [e for e in ctx.new_errors(log0) if "liquid-glass" in e.lower()]
+    errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Liquid Glass errors during Restore original and Apply." if not errs else
           f"{len(errs)} Liquid Glass errors, first: {errs[0][-160:]}")
     return c
@@ -959,7 +965,7 @@ def check_log(ctx: Ctx) -> Check:
     failed = [l for l in apply_txt.splitlines() if l.startswith("✗")]
     c.add("apply exit 0" in apply_txt and not failed,
           "Apply finished without problems." if not failed else f"Apply reported: {failed[0]}")
-    errs = [e for e in ctx.new_errors(0) if "liquid-glass" in e.lower() or "Liquid Glass" in e]
+    errs = [e for e in ctx.new_errors(0) if ours(e)]
     c.add(not errs, "GNOME Shell logged no Liquid Glass errors." if not errs else
           f"GNOME Shell logged {len(errs)} Liquid Glass errors. First: {errs[0][-200:]}")
     alive = lgqa.subprocess.run(["pgrep", "-u", "dino", "-x", "gnome-shell"], capture_output=True).returncode == 0
@@ -975,14 +981,14 @@ def _version_of(tree: Path) -> str:
     return m.group(1) if m else "?"
 
 
-ERROR_LINE = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|Liquid Glass:.*(fail|error)", re.I)
+ERROR_LINE = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|(Liquid|Fedora) Glass:.*(fail|error)", re.I)
 
 
 def _lg_errors(name: str) -> list[str]:
     p = OUT / name
     lines = p.read_text(errors="replace").splitlines() if p.exists() else []
     return [l for l in lines if ERROR_LINE.search(l) and "Xwayland" not in l
-            and ("liquid-glass" in l.lower() or "Liquid Glass" in l)]
+            and ours(l)]
 
 
 def check_upgrade(ctx: Ctx) -> Check:
