@@ -36,6 +36,7 @@ quality (which steps down when frames are late) is not exercised here.
 | Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3 | 1.4.3 ArcMenu red after Restore |
 | Locking the screen works | Lock screen and password screen against references, unlock, three times | |
 | No errors from Liquid Glass | Apply output and GNOME Shell's log | |
+| Upgrading from the last release | With `--from` (CI passes the last release tag): the last release is applied and used for one session, then this version arrives the way `dnf upgrade` brings it, nobody presses Apply, and the PC restarts twice. The new glass must run with Dino's settings kept | every release up to 1.4.4: after `dnf upgrade` the glass stayed the old version until Apply |
 
 The limits are in `limits.toml`, with a note on each.
 
@@ -55,7 +56,14 @@ Needs Docker. From the repository folder:
 qa/desktop/run.sh                          # everything, about 15 minutes
 qa/desktop/run.sh --only looks,leftovers   # some checks
 qa/desktop/run.sh --source ../old-tree     # today's checks against another version
+qa/desktop/run.sh --from ../last-release   # also check the upgrade from the last release
+qa/desktop/run.sh --screen 2560x1440       # at the size of Dino's two screens
 ```
+
+The screens are 2000x1125 by default, which keeps a run quick. `--screen 2560x1440` runs
+the same checks on two screens the size of Dino's, against the pictures in
+`references/2560x1440/`. A size with no pictures of its own runs every other check and
+says the pictures were not compared.
 
 The report is `qa-report/report/report.html`. In GitHub it is the run's
 `release-check-report` download, and a short table is on the run's summary page.
