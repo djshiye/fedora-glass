@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Lets the Fedora Glass app change the login screen's look, after your password.
+     Only this one helper can run, and only for the user at the screen. -->
+<policyconfig>
+  <vendor>Fedora Glass</vendor>
+  <vendor_url>https://github.com/djshiye/fedora-liquid-glass</vendor_url>
+  <action id="io.github.djshiye.LiquidGlass.login-screen">
+    <description>Change the look of the login screen</description>
+    <message>Fedora Glass needs your password to change the look of the login screen</message>
+    <icon_name>io.github.djshiye.LiquidGlass</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/liquid-glass-login-screen</annotate>
+  </action>
+</policyconfig>

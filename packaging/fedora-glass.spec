@@ -18,6 +18,10 @@ Requires:       python3-gobject
 Requires:       python3-pyside6
 Requires:       gnome-shell
 Requires:       gnome-shell-extension-user-theme
+# For the login screen glass (whichever package has them).
+Requires:       /usr/bin/gresource
+Requires:       /usr/bin/glib-compile-resources
+Requires:       polkit
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
@@ -45,6 +49,9 @@ Requires:       python3-gobject
 Requires:       python3-pyside6
 Requires:       gnome-shell
 Requires:       gnome-shell-extension-user-theme
+Requires:       /usr/bin/gresource
+Requires:       /usr/bin/glib-compile-resources
+Requires:       polkit
 
 %description -n liquid-glass
 Liquid Glass is now called Fedora Glass. This is the same app under the old
@@ -75,6 +82,11 @@ ln -s fedora-glass %{buildroot}%{_bindir}/liquid-glass
 install -Dm644 data/io.github.djshiye.LiquidGlass.desktop %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 sed -i 's|^Exec=.*|Exec=fedora-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+
+# Opt-in glass on the login screen: the only part that runs as root, through pkexec
+# after your password. Standard library only, run with python3 -I -S.
+install -Dm755 liquidglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-glass-login-screen
+install -Dm644 data/io.github.djshiye.LiquidGlass.policy %{buildroot}%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 
 # Re-applies the parts that can't follow GNOME's dark/light switch by themselves.
 # The unit keeps its old file name, so an upgrade leaves it turned on as it was.
@@ -111,6 +123,10 @@ python3 -m pytest -q tests
 
 %preun
 %systemd_user_preun liquid-glass-watch.service
+# Removing the app puts the normal login screen back if the glass was on.
+if [ $1 -eq 0 ]; then
+    %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+fi
 
 %posttrans
 # The old repository file (added by hand from the Liquid Glass instructions) only lets
@@ -136,6 +152,8 @@ fi
 
 %preun -n liquid-glass
 %systemd_user_preun liquid-glass-watch.service
+# No login-screen undo here: this package goes away when fedora-glass replaces it,
+# and that must not take the login screen glass off.
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
@@ -147,6 +165,8 @@ fi
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
+%{_libexecdir}/liquid-glass-login-screen
+%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %files -n liquid-glass
@@ -159,6 +179,8 @@ fi
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
+%{_libexecdir}/liquid-glass-login-screen
+%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog

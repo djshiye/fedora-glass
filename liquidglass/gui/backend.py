@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import ast
 import configparser
+import json
 import os
+import secrets
+import stat
+import time
 from collections.abc import Callable
 from dataclasses import asdict, fields, replace
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QFileSystemWatcher, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
-from .. import APP_ID, palette
+from .. import APP_ID, login_screen, palette
 from .. import settings as settings_mod
 from ..color import Color
 from ..env import Env
@@ -116,6 +120,9 @@ class Backend(QObject):
     revertFinished = Signal("QVariantList")
     failed = Signal(str)
     headerNoteChanged = Signal()
+    loginGlassChanged = Signal()
+    safeModeChanged = Signal()
+    speedChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -145,6 +152,11 @@ class Backend(QObject):
         # Set when the last Apply or Restore changed the header bars, so the card can
         # offer to restart Files (it keeps running with the old style sheet).
         self._header_note = ""
+        # Glass on the login screen (opt in, needs the password): off, on, undone, busy
+        # or unavailable, and a sentence about the last change.
+        self._login_proc: QProcess | None = None
+        self._login_note = ""
+        self._login_state = self._read_login_state()
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
         self._lost: list[str] = []         # targets whose applied files something else replaced
@@ -155,12 +167,79 @@ class Backend(QObject):
         self._live_timer.setSingleShot(True)
         self._live_timer.setInterval(120)
         self._live_timer.timeout.connect(lambda: self._write_live_glass(self._s))
+        # Safe mode: the extension turned the glass off after it kept failing.
+        self._safe = self._read_safe_mode()
+        self._safe_timer = QTimer(self)
+        self._safe_timer.setInterval(3000)
+        self._safe_timer.timeout.connect(self._poll_safe_mode)
+        # Speed: what the extension reports, and the check the user can ask for.
+        self._speed_status: dict = {}
+        self._speed_state = "idle"
+        self._speed_result: dict = {}
+        self._speed_id = ""
+        self._speed_deadline = 0.0
+        self._speed_poll = QTimer(self)
+        self._speed_poll.setInterval(500)
+        self._speed_poll.timeout.connect(self._poll_speed)
+        self._speed_watch = QFileSystemWatcher(self)
+        self._speed_watch.fileChanged.connect(self._on_speed_file)
+        self._speed_watch.directoryChanged.connect(self._on_speed_file)
         self._wallpaper = self._find_wallpaper()
         self._dock = self._find_dock()
         self._rebuild_tokens()
         if start:
             self.refreshTargets()
             self._watch_scheme()
+            self._safe_timer.start()
+            self._start_speed_watch()
+
+    # ---- safe mode ---------------------------------------------------------------
+    def _read_safe_mode(self) -> dict:
+        """The extension's safe mode state, or {} when the glass runs normally. Only small,
+        well-formed files from this user count."""
+        path = self._env.cache / "liquid-glass/safe-mode.json"
+        try:
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024:
+                return {}
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(data, dict) or data.get("tripped") is not True:
+            return {}
+        reason = data.get("reason") if data.get("reason") in ("errors", "restarts", "start") else "errors"
+        return {"reason": reason, "resetId": str(data.get("resetId", ""))[:16]}
+
+    def _poll_safe_mode(self) -> None:
+        state = self._read_safe_mode()
+        if state != self._safe:
+            self._safe = state
+            self.safeModeChanged.emit()
+
+    @Property(bool, notify=safeModeChanged)
+    def safeMode(self) -> bool:
+        return bool(self._safe)
+
+    @Property(str, notify=safeModeChanged)
+    def safeModeNote(self) -> str:
+        why = {"restarts": "GNOME Shell restarted twice right after starting it",
+               "start": "it could not start",
+               "errors": "it hit errors"}.get(self._safe.get("reason", ""), "it hit errors")
+        return f"Glass is paused because {why}. Your desktop works as usual."
+
+    @Slot()
+    def resumeGlass(self) -> None:
+        """Ask the extension to turn the glass back on (it watches this file)."""
+        d = self._env.config / "liquid-glass"
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            tmp = d / ".safe-mode-reset.json.tmp"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"id": secrets.token_hex(8)}, f)
+            os.replace(tmp, d / "safe-mode-reset.json")
+        except OSError:
+            return
+        QTimer.singleShot(800, self._poll_safe_mode)
 
     # ---- helpers -----------------------------------------------------------------
     @staticmethod
@@ -293,6 +372,8 @@ class Backend(QObject):
     def shutdown(self) -> None:
         # Unapplied changes shown live on the desktop go back to the saved look.
         self._live_timer.stop()
+        self._speed_poll.stop()
+        self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
         if self._glass_live and self._s != self._saved:
@@ -336,9 +417,11 @@ class Backend(QObject):
     bleed = _p("bleed", float)
     pointerLight = _p("pointer_light", float)
     liquidMotion = _p("liquid_motion", bool)
+    menuGrow = _p("menu_grow", bool)
     glassPanel = _p("glass_panel", bool)
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)
+    glassQuality = _p("glass_quality", str)
     glassSeeWindows = _p("glass_see_windows", bool)
     headerHeight = _p("header_height", int)
     headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
@@ -437,6 +520,110 @@ class Backend(QObject):
         parts = {p: dict(v) for p, v in self._s.parts.items()}
         parts.get(part, {}).pop(key, None)
         self._set_parts(parts)
+
+    # ---- speed -------------------------------------------------------------------
+    def _speed_status_path(self) -> Path:
+        return self._env.cache / "liquid-glass/speed.json"
+
+    def _read_speed_status(self) -> dict:
+        """The extension's status file, read defensively: anything odd counts as no status."""
+        path = self._speed_status_path()
+        try:
+            st = os.lstat(path)
+            if not stat.S_ISREG(st.st_mode) or st.st_size > 64 * 1024:
+                return {}
+            with open(path, "rb") as f:
+                data = json.loads(f.read(64 * 1024 + 1))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _check_of(self, status: dict) -> dict:
+        c = status.get("check")
+        return c if isinstance(c, dict) else {}
+
+    def _start_speed_watch(self) -> None:
+        self._speed_status = self._read_speed_status()
+        # The last finished check shows again when the app opens.
+        c = self._check_of(self._speed_status)
+        if c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]:
+            self._speed_result = c
+            self._speed_state = "done"
+        self._rewatch_speed()
+        self.speedChanged.emit()
+
+    def _rewatch_speed(self) -> None:
+        path = self._speed_status_path()
+        if str(path.parent) not in self._speed_watch.directories() and path.parent.is_dir():
+            self._speed_watch.addPath(str(path.parent))
+        if str(path) not in self._speed_watch.files() and path.exists():
+            self._speed_watch.addPath(str(path))     # an atomic replace drops it, so add it again
+
+    def _on_speed_file(self, _path: str = "") -> None:
+        self._rewatch_speed()
+        self._speed_status = self._read_speed_status()
+        self.speedChanged.emit()
+
+    def _poll_speed(self) -> None:
+        status = self._read_speed_status()
+        self._speed_status = status
+        c = self._check_of(status)
+        if c.get("id") == self._speed_id and c.get("state") in ("done", "failed"):
+            self._speed_poll.stop()
+            self._speed_result = c
+            self._speed_state = c["state"]
+        elif time.monotonic() > self._speed_deadline:
+            self._speed_poll.stop()
+            self._speed_result = {}
+            self._speed_state = "noanswer"
+        self.speedChanged.emit()
+
+    @Slot()
+    def checkSpeed(self) -> None:
+        if self._speed_state == "running":
+            return
+        self._speed_result = {}
+        if not self._glass_live:
+            self._speed_state = "noanswer"
+            self.speedChanged.emit()
+            return
+        from ..engine import atomic_write
+        self._speed_id = secrets.token_hex(8)
+        try:
+            atomic_write(self._env.config / "liquid-glass/speed-check.json",
+                         json.dumps({"id": self._speed_id}).encode())
+        except OSError:
+            self._speed_state = "noanswer"
+            self.speedChanged.emit()
+            return
+        self._speed_state = "running"
+        self._speed_deadline = time.monotonic() + 45
+        self._speed_poll.start()
+        self.speedChanged.emit()
+
+    @Slot(str)
+    def useQuality(self, level: str) -> None:
+        if level in settings_mod.GLASS_QUALITIES:
+            self._set("glass_quality", level)
+
+    def _get_speed_level(self) -> str:
+        v = self._speed_status.get("level")
+        return v if v in ("full", "lighter", "lightest") else ""
+
+    def _get_speed_reason(self) -> str:
+        v = self._speed_status.get("reason")
+        return v if v in ("setting", "slow", "retry", "check") else ""
+
+    def _get_speed_state(self) -> str:
+        return self._speed_state
+
+    def _get_speed_result(self) -> dict:
+        return dict(self._speed_result)
+
+    speedLevel = Property(str, _get_speed_level, notify=speedChanged)
+    speedReason = Property(str, _get_speed_reason, notify=speedChanged)
+    speedState = Property(str, _get_speed_state, notify=speedChanged)
+    speedResult = Property("QVariantMap", _get_speed_result, notify=speedChanged)
 
     @Slot(str)
     def resetPart(self, part: str) -> None:
@@ -895,6 +1082,80 @@ class Backend(QObject):
             QCoreApplication.processEvents()
             QThread.msleep(5)
         return self._task is None
+
+    # ---- glass on the login screen -------------------------------------------------
+    LOGIN_HELPER = Path("/usr/libexec/liquid-glass-login-screen")
+    PKEXEC = Path("/usr/bin/pkexec")
+
+    def _login_available(self) -> bool:
+        """Only offered when the dnf package put a root-owned helper in place: pkexec
+        would run whatever is at that path as root."""
+        for p in (self.LOGIN_HELPER, self.PKEXEC):
+            try:
+                st = p.stat()
+            except OSError:
+                return False
+            if st.st_uid != 0 or st.st_mode & 0o022:
+                return False
+        return True
+
+    def _read_login_state(self) -> str:
+        if not self._login_available():
+            return "unavailable"
+        try:
+            return login_screen.status()
+        except Exception:  # noqa: BLE001 (a status read never stops the app)
+            return "off"
+
+    @Property(str, notify=loginGlassChanged)
+    def loginGlass(self) -> str:
+        return "busy" if self._login_proc is not None else self._login_state
+
+    @Property(str, notify=loginGlassChanged)
+    def loginGlassNote(self) -> str:
+        return self._login_note
+
+    def login_values(self) -> list[str]:
+        """The three values the helper takes: accent, tint and frost from the current look."""
+        s = self._s.normalized()
+        return [self._dark_t.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
+
+    @Slot()
+    def turnOnLoginGlass(self) -> None:
+        self._run_login(["apply", *self.login_values()], "Glass is on the login screen. You'll see it the next time you restart your PC.")
+
+    @Slot()
+    def turnOffLoginGlass(self) -> None:
+        self._run_login(["undo"], "The normal login screen is back.")
+
+    def _run_login(self, args: list[str], done: str) -> None:
+        if self._login_proc is not None or not self._login_available():
+            return
+        p = QProcess(self)
+        p.setProgram(str(self.PKEXEC))
+        p.setArguments([str(self.LOGIN_HELPER), *args])
+        p.finished.connect(lambda code, _status: self._login_finished(p, code, done))
+        p.errorOccurred.connect(lambda _e: self._login_finished(p, -1, done))
+        self._login_proc = p
+        self._login_note = ""
+        self.loginGlassChanged.emit()
+        p.start()
+
+    def _login_finished(self, p: QProcess, code: int, done: str) -> None:
+        if self._login_proc is not p:
+            return
+        err = bytes(p.readAllStandardError()).decode(errors="replace").strip()
+        self._login_proc = None
+        p.deleteLater()
+        if code == 0:
+            self._login_note = done
+        elif code in (126, 127):          # pkexec: the password dialog was closed or refused
+            self._login_note = "Not changed: the password wasn't given."
+        else:
+            first = err.splitlines()[-1] if err else "the helper didn't finish"
+            self._login_note = first if first.startswith("Nothing was changed") else f"Nothing was changed: {first}"
+        self._login_state = self._read_login_state()
+        self.loginGlassChanged.emit()
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:

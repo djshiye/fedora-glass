@@ -7,7 +7,7 @@
 
 <p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Glass panel and ArcMenu: the rounded edge bends the stripes behind it and catches the light"></p>
 
-Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need Blur my Shell.
+Made for **Fedora 44 with GNOME 50**, and ready for GNOME 51 (Fedora 45). It draws its own glass, so you don't need Blur my Shell.
 
 ## Install
 
@@ -22,13 +22,14 @@ sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/downloa
 The package adds its own dnf repository, so updates then come with the rest of your system through
 `sudo dnf upgrade`. The repository is built by this project's GitHub Actions from each release,
 after checking the RPMs against the release's `SHA256SUMS`, and served over HTTPS from GitHub Pages.
-The packages are not GPG-signed.
+The packages are not GPG-signed. After an upgrade Fedora Glass brings your look up to date by itself, with your own settings, and
+the new glass shows from your next restart. No need to press Apply.
 
 **Had Liquid Glass?** Fedora Glass is its new name. Run `sudo dnf upgrade` twice: the first one
 updates Liquid Glass and adds the new repository, the second one swaps the package for
 `fedora-glass`. If dnf finds nothing new, run the install command above once instead. Either way
-your settings and your look stay as they are. Then open Fedora Glass, press **Apply**, and restart
-your PC, so the themes and the Shell extension carry the new name too.
+your settings and your look stay as they are. Then restart your PC: Fedora Glass updates your look
+by itself, and the themes and the Shell extension carry the new name.
 
 ## Undo or remove
 
@@ -39,6 +40,8 @@ your PC, so the themes and the Shell extension carry the new name too.
   fedora-glass revert
   sudo dnf remove fedora-glass
   ```
+
+  Removing it also puts the normal login screen back if you turned on glass there.
 
 ## Blur my Shell
 
@@ -64,6 +67,10 @@ GNOME Shell, Dash to Panel, ArcMenu, GTK 4 and libadwaita apps (Nautilus include
 Flatpak apps, Ptyxis and GNOME Terminal, Qt apps (through Kvantum), btop, micro, Discord (Vencord),
 VS Code, Obsidian, qBittorrent, Prism Launcher, Brave, Helium, Clipperino, RGBeast and Wheelguard.
 The app's **Apps** page lists every part, shows which you have installed, and has a switch for each.
+
+The login screen is opt in: **Use glass on the login screen** (under Lock screen) asks for your
+password, then gives it a glow in your tint colour with glass panes for your name and password.
+**Put the normal login screen back** undoes it exactly, and GNOME updates undo it by themselves.
 
 <p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Fedora Glass app: live preview and the Liquid to Frosted slider"></p>
 
@@ -92,7 +99,10 @@ The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/
 
 ## Safe by design
 
-- It runs as you: no root, no network access, and it changes only your own settings.
+- It runs as you: no root, no network access, and it changes only your own settings. The one
+  exception is the opt-in login screen glass, which asks for your password. Its small helper takes
+  only three colours or numbers, changes only the login screen's part of GNOME Shell's theme file,
+  checks every other part stays byte for byte the same, and keeps the original to put back.
 - Every file and setting is backed up before its first change. **Show changes** lists everything
   before **Apply** touches it.
 

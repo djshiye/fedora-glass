@@ -21,6 +21,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {Signals} from './common.js';
+import {report} from './safety.js';
 import {springStep as spring} from './curves.js';
 
 const FADE_IN_MS = 120;
@@ -202,7 +203,7 @@ export class HoverGlide {
                 try {
                     tile = new Tile(panel, this._look);
                 } catch (e) {
-                    console.error(`Fedora Glass: no hover glide on a panel: ${e}`);
+                    report('hover glide on a panel', e);
                     continue;
                 }
                 this._tiles.set(panel, tile);
