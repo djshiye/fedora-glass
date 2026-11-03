@@ -93,10 +93,19 @@ export class Shader {
 // Where an actor sits in its effect's texture, in the actor's own (logical) pixels.
 // The texture is in screen pixels, so at a fractional scale such as 125 % it is
 // bigger than the actor by that factor; mixing the two drew the glass at the wrong
-// size and place (a stray box inside menus and the panel). Clutter grows the frame
-// by 2 px at the top left and 1 px at the bottom right, before scaling.
+// size and place (a stray box inside menus and the panel). Clutter frames the
+// actor's paint area, its clip if it has one, and grows it as
+// _clutter_actor_box_enlarge_for_effects does (clutter-actor-box.c): about 2 px at
+// the top left and 1 px at the bottom right.
 export function textureFrame(texW, texH, actor) {
     const s = Math.max(actor.get_resource_scale?.() ?? 1, 1e-3);
     const w = texW / s, h = texH / s;
-    return {tex_w: w, tex_h: h, org_x: Math.ceil((w - actor.width) / 2), org_y: Math.ceil((h - actor.height) / 2)};
+    let [x1, y1, x2, y2] = [0, 0, actor.width, actor.height];
+    if (actor.has_clip) {
+        const [cx, cy, cw, ch] = actor.get_clip();
+        [x1, y1, x2, y2] = [Math.max(x1, cx), Math.max(y1, cy), Math.min(x2, cx + cw), Math.min(y2, cy + ch)];
+    }
+    const fx = Math.ceil(x2 + 0.75) - Math.round(x2 - x1) - 3;
+    const fy = Math.ceil(y2 + 0.75) - Math.round(y2 - y1) - 3;
+    return {tex_w: w, tex_h: h, org_x: -fx, org_y: -fy};
 }

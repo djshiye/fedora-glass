@@ -30,7 +30,7 @@ from . import palette
 from .env import Env
 from .settings import Settings, config_dir
 from .targets import all_targets
-from .targets.shell import GlassEffects
+from .targets.shell import GlassEffects, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 
 
@@ -639,7 +639,12 @@ class Engine:
 
     def revert(self, target: str | None = None) -> list[str]:
         with self._locked():
-            problems = Backup(self.env).restore(target)
+            parked = not self.env.dry_run and target in (None, "glass") and park_arcmenu(self.env)
+            try:
+                problems = Backup(self.env).restore(target)
+            finally:
+                if parked:
+                    unpark_arcmenu(self.env)
             if not self.env.dry_run:
                 _write_pending(set() if target is None else read_pending() - {target})
             if target is None and not problems and not self.env.dry_run:

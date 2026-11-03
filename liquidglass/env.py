@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -54,6 +55,9 @@ class Env:
         except (OSError, subprocess.TimeoutExpired) as e:
             return RunResult(127, "", str(e))
         return RunResult(p.returncode, p.stdout, p.stderr)
+
+    def sleep(self, seconds: float) -> None:
+        time.sleep(seconds)
 
     # ---- GNOME Shell extensions ----------------------------------------
     def extension_dirs(self) -> list[Path]:

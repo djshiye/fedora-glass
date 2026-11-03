@@ -1,5 +1,5 @@
 Name:           liquid-glass
-Version:        1.4.3
+Version:        1.4.4
 Release:        1%{?dist}
 Summary:        Liquid Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
@@ -91,6 +91,12 @@ python3 -m pytest -q tests
 %{_userpresetdir}/80-liquid-glass.preset
 
 %changelog
+* Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.4-1
+- No glass strip on the other screen beside a window maximized on a second screen
+- Glass behind a window that keeps repainting redraws at most 20 times a second
+- Restore original keeps ArcMenu working
+- ArcMenu's recovery no longer loads its style twice, which could drop the Shell theme
+
 * Mon Nov 02 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.3-1
 - ArcMenu comes back by itself when GNOME restarts it before Dash to Panel
 - No more stray glass box in menus and the panel at 125% display scaling

@@ -102,3 +102,65 @@ def test_restore_original_forgets_what_was_waiting(fake_env):
     fake_env.glass_loaded = True
     assert cli.finish_pending(engine, sleep=lambda s: None)   # nothing left to do
     assert set(fake_env.gs[(ARC, None)].values()) == {"'theirs'"}
+
+
+
+def _toggles(env):
+    return [c[-2].rsplit(".", 1)[-1] for c in env.commands
+            if any(m in " ".join(c) for m in ("DisableExtension", "EnableExtension"))]
+
+
+def test_restore_original_starts_arcmenu_again_after_dash_to_panel(fake_env):
+    """GNOME restarts the extensions after the glass one when it goes, and ArcMenu
+    restarted before Dash to Panel fails: it is set aside and started again last."""
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    fake_env.ext_info = {ts.ARCMENU: ("1.0", ""), ts.DASH_TO_PANEL: ("1.0", ""), rg_uuid(): ("1.0", "")}
+    seen = []
+    real_set = fake_env.gsettings_set
+
+    def gset(schema, key, value, path=None):
+        if key == "enabled-extensions":
+            seen.append(("list", _toggles(fake_env)[:]))
+        return real_set(schema, key, value, path)
+    fake_env.gsettings_set = gset
+    fake_env.commands.clear()
+    engine.revert()
+    assert _toggles(fake_env) == ["DisableExtension", "EnableExtension"]
+    # ArcMenu was off before the glass extension was taken off the list.
+    assert seen and all(t == ["DisableExtension"] for _, t in seen)
+    assert "liquid-glass@djshiye.github.io" not in fake_env.gs[("org.gnome.shell", None)]["enabled-extensions"]
+
+
+def test_restore_original_with_the_glass_not_running_leaves_arcmenu_alone(fake_env):
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    fake_env.ext_info = {ts.ARCMENU: ("1.0", ""), rg_uuid(): ("6.0", "")}
+    fake_env.commands.clear()
+    engine.revert()
+    assert _toggles(fake_env) == []
+
+
+def test_restore_original_leaves_arcmenu_alone_when_it_is_not_running(fake_env):
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    fake_env.ext_info = {ts.ARCMENU: ("2.0", ""), rg_uuid(): ("1.0", "")}
+    fake_env.commands.clear()
+    engine.revert()
+    assert _toggles(fake_env) == []
+
+
+def rg_uuid():
+    from liquidglass.render import glass as rg
+    return rg.UUID
+
+
+def test_reads_the_error_as_gnome_prints_it(fake_env):
+    # A message holding ' comes back quoted with ".
+    from liquidglass.env import RunResult
+    out = ("({'uuid': <'arcmenu@arcmenu.com'>, 'error': <\"TypeError: can't access property "
+           "\\\"statusArea\\\", this.panel is undefined\">, 'state': <3.0>},)")
+    fake_env.run = lambda argv, timeout=30: RunResult(0, out, "")
+    state, error = ts.extension_info(fake_env, ts.ARCMENU)
+    assert state == 3.0
+    assert "this.panel is undefined" in error
