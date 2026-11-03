@@ -10,11 +10,11 @@ A release is only built when all of them pass (`.github/workflows/release.yml` w
 - **Orchis Dark**, with `~/.config/gtk-4.0` linked into it
 - Dino's extensions in Dino's order, with Dino's panel, menu and blur settings
   (`dino-settings.ini`, layout keys only): Extension List, ArcMenu, Dash to Panel,
-  AppIndicator, Blur my Shell, Just Perfection, Deja Window, then Liquid Glass
+  AppIndicator, Blur my Shell, Just Perfection, Deja Window, then Fedora Glass
 - The overview off and "start on the desktop", as Dino uses it
 - Apps: Ptyxis (terminal), Files, and an **Electron** window (like Claude Desktop) on
   Wayland and on XWayland
-- Liquid Glass is applied the way an update does it: Apply, then a fresh login
+- Fedora Glass is applied the way an update does it: Apply, then a fresh login
 
 It runs in a container with software rendering, so it has no graphics card. There the
 glass always keeps the processor busy while anything moves, on every version, so
@@ -35,7 +35,7 @@ quality (which steps down when frames are late) is not exercised here.
 | Extensions come back after restarts | Switches each extension off and on in Dino's order | 1.4.2 ArcMenu red |
 | Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3 | 1.4.3 ArcMenu red after Restore |
 | Locking the screen works | Lock screen and password screen against references, unlock, three times | |
-| No errors from Liquid Glass | Apply output and GNOME Shell's log | |
+| No errors from Fedora Glass | Apply output and GNOME Shell's log | |
 | Upgrading from the last release | With `--from` (CI passes the last release tag): the last release is applied and used for one session, then this version arrives the way `dnf upgrade` brings it, nobody presses Apply, and the PC restarts twice. The new glass must run with Dino's settings kept | every release up to 1.4.4: after `dnf upgrade` the glass stayed the old version until Apply |
 
 The limits are in `limits.toml`, with a note on each.

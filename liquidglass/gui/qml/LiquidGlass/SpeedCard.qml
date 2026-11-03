@@ -52,7 +52,7 @@ Card {
     }
     readonly property string failText: {
         if (checkState === "noanswer")
-            return "The desktop didn't answer. Make sure Liquid Glass is turned on, then try again."
+            return "The desktop didn't answer. Make sure Fedora Glass is turned on, then try again."
         if (checkState === "failed")
             return result.error === "noglass"
                 ? "There's no glass on screen to measure. Turn on glass for the panel, menus or windows first."
@@ -69,7 +69,7 @@ Card {
             wrapMode: Text.WordWrap
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
-            text: "Liquid Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
+            text: "Fedora Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
         }
         Column {
             width: parent.width

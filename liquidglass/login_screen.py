@@ -8,7 +8,7 @@ root, so the app runs this file through pkexec, which asks for your password.
 
 What it does, as root:
   apply   copies the original file to /var/lib/liquid-glass, then writes a copy of it where
-          only gdm.css differs: a block of Liquid Glass rules added at its end. Every other
+          only gdm.css differs: a block of Fedora Glass rules added at its end. Every other
           file inside is checked to be byte for byte the same before the copy goes in.
   undo    puts the original back, only if the file is still the one this wrote.
   status  says whether the glass is on (no root needed).
@@ -39,8 +39,8 @@ GDM_CSS = "/org/gnome/shell/theme/gdm.css"
 GRESOURCE = "/usr/bin/gresource"
 COMPILE = "/usr/bin/glib-compile-resources"
 RESTORECON = "/usr/sbin/restorecon"
-MARK_START = "/* Liquid Glass login screen: start */"
-MARK_END = "/* Liquid Glass login screen: end */"
+MARK_START = "/* Fedora Glass login screen: start */"
+MARK_END = "/* Fedora Glass login screen: end */"
 MAX_SIZE = 64 << 20                      # the real file is under 1 MB
 
 HEX = re.compile(r"#[0-9a-fA-F]{6}")
@@ -190,7 +190,7 @@ def extract(path: str, name: str) -> bytes:
 
 
 def strip_block(text: str) -> str:
-    """gdm.css without a Liquid Glass block (one left by an older version, say)."""
+    """gdm.css without a Fedora Glass block (one left by an older version, say)."""
     i = text.find("\n" + MARK_START)
     if i < 0:
         return text

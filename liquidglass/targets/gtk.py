@@ -119,7 +119,7 @@ class Flatpak(Target):
     def __init__(self) -> None:
         super().__init__(
             id="flatpak", name="Flatpak apps", group="Desktop",
-            summary="Lets sandboxed GTK apps read the Liquid Glass GTK 3 and 4 style files.",
+            summary="Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files.",
             notes=["GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: "
                    "flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"],
         )
@@ -130,7 +130,7 @@ class Flatpak(Target):
         return Detection(True)
 
     def plan(self, ctx: Context) -> list[Action]:
-        # Read-only access to the Liquid Glass GTK style files for every Flatpak app.
+        # Read-only access to the Fedora Glass GTK style files for every Flatpak app.
         return [FlatpakOverride(filesystems=("xdg-config/gtk-4.0:ro", "xdg-config/gtk-3.0:ro"))]
 
 

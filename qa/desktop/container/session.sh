@@ -1,7 +1,7 @@
 #!/bin/bash
 # Dino's desktop, as close as a container gets: GNOME 50 on Wayland on two screens, Orchis Dark
 # with ~/.config/gtk-4.0 linked into it, Dino's extensions in Dino's order with Dino's panel
-# and menu settings, the overview turned off, 125 % scaling, then Liquid Glass applied the
+# and menu settings, the overview turned off, 125 % scaling, then Fedora Glass applied the
 # way an update does it (Apply, then a fresh login).
 set -u
 export HOME=/home/dino USER=dino XDG_RUNTIME_DIR=/run/user/1000 XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=GNOME
@@ -32,7 +32,7 @@ gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuffe
 gsettings set org.gnome.shell disable-user-extensions false
 gsettings set org.gnome.shell welcome-dialog-last-shown-version '999'
 gsettings set org.gnome.shell favorite-apps "['org.gnome.Nautilus.desktop','org.gnome.Ptyxis.desktop']"
-# Dino's order (from their PC), Liquid Glass last as an update leaves it.
+# Dino's order (from their PC), Fedora Glass last as an update leaves it.
 gsettings set org.gnome.shell enabled-extensions "['extension-list@tu.berry', 'arcmenu@arcmenu.com', 'dash-to-panel@jderose9.github.com', 'appindicatorsupport@rgcjonas.gmail.com', 'blur-my-shell@aunetx', 'just-perfection-desktop@just-perfection', 'deja-window@mcast.gnomext.com']"
 dconf load /org/gnome/shell/extensions/ < /opt/lgqa/suite/dino-settings.ini
 
@@ -53,7 +53,7 @@ stop_session() {
     rm -f "$XDG_RUNTIME_DIR"/wayland-0 "$XDG_RUNTIME_DIR"/wayland-0.lock
 }
 
-# Liquid Glass: Dino's choices (start on the desktop, no overview), then Apply.
+# Fedora Glass: Dino's choices (start on the desktop, no overview), then Apply.
 # glass_quality "full": the automatic quality steps the glass down when frames are late,
 # which always happens without a graphics card, so the checks pin full quality (versions
 # without the setting ignore it).
@@ -95,7 +95,7 @@ else
     echo "apply exit $?" >> "$OUT/apply.txt"
 fi
 
-# The fresh login: GNOME Shell, then the Liquid Glass login helper (finishes held parts).
+# The fresh login: GNOME Shell, then the Fedora Glass login helper (finishes held parts).
 start_shell
 (cd "$HOME/liquid-glass-src" && exec python3 -m liquidglass watch) > "$OUT/watch.txt" 2>&1 &
 WATCH_PID=$!

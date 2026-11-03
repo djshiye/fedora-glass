@@ -1,4 +1,4 @@
-/* Liquid Glass lock screen. Loaded only while the screen is locked (the Shell theme
+/* Fedora Glass lock screen. Loaded only while the screen is locked (the Shell theme
    is GNOME's own then), and taken away again on unlock. Looks only. */
 
 /* The password field: a clear 2 px accent focus ring and a visible caret. GNOME's

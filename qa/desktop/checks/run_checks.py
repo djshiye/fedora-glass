@@ -1,4 +1,4 @@
-"""Liquid Glass release checks. Runs inside the test desktop (see ../run.sh).
+"""Fedora Glass release checks. Runs inside the test desktop (see ../run.sh).
 
     python3 run_checks.py [--only looks,leftovers,...] [--update-references]
 
@@ -46,7 +46,7 @@ NAMES = {
     "dash-to-panel@jderose9.github.com": "Dash to Panel", "appindicatorsupport@rgcjonas.gmail.com": "AppIndicator",
     "blur-my-shell@aunetx": "Blur my Shell", "just-perfection-desktop@just-perfection": "Just Perfection",
     "deja-window@mcast.gnomext.com": "Deja Window", "user-theme@gnome-shell-extensions.gcampax.github.com": "User Themes",
-    LG: "Liquid Glass",
+    LG: "Fedora Glass",
 }
 
 
@@ -267,7 +267,7 @@ def check_looks(ctx: Ctx) -> Check:
     c.add(level == 0, "The glass drew at full quality." if level == 0 else
           f"The glass had stepped itself down to level {level} (glass_quality was not full), "
           "so it shows only the wallpaper behind windows.")
-    # The glass alone: hide Files' own content, keep only what Liquid Glass draws under it.
+    # The glass alone: hide Files' own content, keep only what Fedora Glass draws under it.
     sh.win_js(files["id"], "a.get_children().filter(c => !c.name).forEach(c => c.opacity = 0); return 1;")
     settle(1.5)
     now = lgqa.load(sh.shot("looks-glass-only"))
@@ -339,7 +339,7 @@ class Leftovers:
 
 
 def fresh_screen(ctx: Ctx, name: str) -> np.ndarray:
-    """The same screen with all glass rebuilt from scratch (Liquid Glass switched off and on)."""
+    """The same screen with all glass rebuilt from scratch (Fedora Glass switched off and on)."""
     sh = ctx.sh
     sh.eval(f"const m = Main.extensionManager; m._callExtensionDisable('{LG}').then(() => m._callExtensionEnable('{LG}'))"
             ".catch(e => log('LGQA fresh ' + e)); 1")
@@ -838,8 +838,8 @@ def check_lock(ctx: Ctx) -> Check:
     c.add(panes >= 1 and panes <= panes0 + 6, f"Glass pieces before locking: {panes0}, after three locks: {panes}."
           + ("" if panes >= 1 and panes <= panes0 + 6 else " Glass is missing or piling up."))
     errs = [e for e in ctx.new_errors(log0) if ours(e)]
-    c.add(not errs, "No Liquid Glass errors while locking." if not errs else
-          f"{len(errs)} Liquid Glass errors while locking, first: {errs[0][-160:]}")
+    c.add(not errs, "No Fedora Glass errors while locking." if not errs else
+          f"{len(errs)} Fedora Glass errors while locking, first: {errs[0][-160:]}")
     sh.close_all()
     lgqa.kill_apps()
     return c
@@ -868,7 +868,7 @@ def healthy(h: dict, expected: list[str], glass: bool = True) -> list[str]:
     if not h["panels"]:
         bad.append("Dash to Panel has no panel")
     if glass and not h["panes"]:
-        bad.append("Liquid Glass draws no glass")
+        bad.append("Fedora Glass draws no glass")
     return bad
 
 
@@ -904,7 +904,7 @@ def check_restart(ctx: Ctx) -> Check:
             c.add(False, f"After switching {NAMES[u]} off and on: " + "; ".join(bad) + f" after {lim['settle_seconds']} s.")
         else:
             c.add(not errs, f"After switching {NAMES[u]} off and on, everything was back in {took:.0f} s"
-                  + ("." if not errs else f", but Liquid Glass logged {len(errs)} errors: {errs[0][-140:]}"))
+                  + ("." if not errs else f", but Fedora Glass logged {len(errs)} errors: {errs[0][-140:]}"))
     return c
 
 
@@ -926,12 +926,12 @@ def run_lg(*args: str) -> tuple[int, str]:
 
 def check_restore(ctx: Ctx) -> Check:
     c = Check("restore", "Restore original and Apply keep the desktop working",
-              "Runs Restore original (it switches Liquid Glass off, so GNOME restarts the extensions after it), "
+              "Runs Restore original (it switches Fedora Glass off, so GNOME restarts the extensions after it), "
               "then Apply again, and checks every extension comes back each time, ArcMenu included.")
     sh, lim = ctx.sh, LIMITS["restart"]
     others = [u for u in DINO_EXTENSIONS if u not in (LG, "user-theme@gnome-shell-extensions.gcampax.github.com")
               and sh.ext_states().get(u) == 1]
-    # The order that broke 1.4.3: GNOME's start order ending with Liquid Glass, ArcMenu,
+    # The order that broke 1.4.3: GNOME's start order ending with Fedora Glass, ArcMenu,
     # Dash to Panel (it gets there when those are switched off and on in this order).
     for u in ("arcmenu@arcmenu.com", LG, "arcmenu@arcmenu.com", "dash-to-panel@jderose9.github.com"):
         sh.eval(f"Main.extensionManager.disableExtension('{u}'); 1")
@@ -940,7 +940,7 @@ def check_restore(ctx: Ctx) -> Check:
         wait_healthy(ctx, others + [LG], True, lim["settle_seconds"])
     order = sh.json("return Main.extensionManager._extensionOrder.slice(-3);")
     want = [LG, "arcmenu@arcmenu.com", "dash-to-panel@jderose9.github.com"]
-    c.add(order == want, "Set up GNOME's start order to end with Liquid Glass, ArcMenu, Dash to Panel." if order == want
+    c.add(order == want, "Set up GNOME's start order to end with Fedora Glass, ArcMenu, Dash to Panel." if order == want
           else f"Could not set up the start order (it ends with {', '.join(NAMES.get(u, u) for u in order)}).")
     log0 = ctx.log_lines()
     rc, out = run_lg("revert")
@@ -955,8 +955,8 @@ def check_restore(ctx: Ctx) -> Check:
     c.add(not bad, f"After Apply, the glass and every extension were back in {took:.0f} s." if not bad else
           "After Apply: " + "; ".join(bad) + ".")
     errs = [e for e in ctx.new_errors(log0) if ours(e)]
-    c.add(not errs, "No Liquid Glass errors during Restore original and Apply." if not errs else
-          f"{len(errs)} Liquid Glass errors, first: {errs[0][-160:]}")
+    c.add(not errs, "No Fedora Glass errors during Restore original and Apply." if not errs else
+          f"{len(errs)} Fedora Glass errors, first: {errs[0][-160:]}")
     return c
 
 
@@ -964,15 +964,15 @@ def check_restore(ctx: Ctx) -> Check:
 # 7. Log and Apply
 # ---------------------------------------------------------------------------------------------
 def check_log(ctx: Ctx) -> Check:
-    c = Check("log", "No errors from Liquid Glass",
+    c = Check("log", "No errors from Fedora Glass",
               "Reads GNOME Shell's log for the whole run and the output of Apply.")
     apply_txt = (OUT / "apply.txt").read_text(errors="replace")
     failed = [l for l in apply_txt.splitlines() if l.startswith("✗")]
     c.add("apply exit 0" in apply_txt and not failed,
           "Apply finished without problems." if not failed else f"Apply reported: {failed[0]}")
     errs = [e for e in ctx.new_errors(0) if ours(e)]
-    c.add(not errs, "GNOME Shell logged no Liquid Glass errors." if not errs else
-          f"GNOME Shell logged {len(errs)} Liquid Glass errors. First: {errs[0][-200:]}")
+    c.add(not errs, "GNOME Shell logged no Fedora Glass errors." if not errs else
+          f"GNOME Shell logged {len(errs)} Fedora Glass errors. First: {errs[0][-200:]}")
     alive = lgqa.subprocess.run(["pgrep", "-u", "dino", "-x", "gnome-shell"], capture_output=True).returncode == 0
     c.add(alive, "GNOME Shell kept running for the whole test." if alive else "GNOME Shell crashed.")
     return c
@@ -1007,8 +1007,8 @@ def check_upgrade(ctx: Ctx) -> Check:
     c.add("apply exit 0" in txt, f"{old} was applied." if "apply exit 0" in txt else
           f"Applying {old} failed: {txt.strip().splitlines()[-1][-160:] if txt.strip() else 'no output'}")
     errs = _lg_errors("shell-old.log")
-    c.add(not errs, f"{old} ran its session without Liquid Glass errors." if not errs else
-          f"{old} logged {len(errs)} Liquid Glass errors (this is the old version): {errs[0][-140:]}")
+    c.add(not errs, f"{old} ran its session without Fedora Glass errors." if not errs else
+          f"{old} logged {len(errs)} Fedora Glass errors (this is the old version): {errs[0][-140:]}")
     watch = (OUT / "watch-upgrade.txt").read_text(errors="replace") if (OUT / "watch-upgrade.txt").exists() else ""
     said = f"updating the applied look from {old} to {new}" in watch
     c.add(said, f"At the first login after the upgrade, the look was brought up to {new} by itself." if said else
@@ -1016,7 +1016,7 @@ def check_upgrade(ctx: Ctx) -> Check:
           + (f": {watch.strip().splitlines()[-1][-160:]}" if watch.strip() else "."))
     errs = _lg_errors("shell-upgrade.log")
     c.add(not errs, f"The {old} glass kept working with {new}'s settings until the restart." if not errs else
-          f"{len(errs)} Liquid Glass errors in the session between the update and the restart: {errs[0][-140:]}")
+          f"{len(errs)} Fedora Glass errors in the session between the update and the restart: {errs[0][-140:]}")
     running = sh.json(f"return Main.extensionManager.lookup('{LG}')?.metadata?.['version-name'] ?? null;")
     c.add(running == new, f"After the next restart GNOME Shell runs the {new} glass." if running == new else
           f"After the next restart GNOME Shell runs the {running or 'no'} glass, not {new}.")
@@ -1044,7 +1044,7 @@ ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resiz
 def write_report(checks: list[Check], meta: dict) -> bool:
     REPORT.mkdir(parents=True, exist_ok=True)
     passed = all(c.ok for c in checks)
-    head = f"Liquid Glass {meta['version']}: " + ("all release checks passed" if passed else "release checks FAILED")
+    head = f"Fedora Glass {meta['version']}: " + ("all release checks passed" if passed else "release checks FAILED")
     md = [f"## {'✅' if passed else '❌'} {head}", "",
           f"Test desktop: {meta['desktop']}.", "", "| Check | Result | What we saw |", "|---|---|---|"]
     for c in checks:
@@ -1068,7 +1068,7 @@ img{display:block;max-width:100%;border-radius:8px;margin:8px 0 2px;border:1px s
 .banner{border-radius:14px;padding:16px 20px;margin:0 0 20px;color:#fff;font-weight:600;font-size:17px}.banner.ok{background:var(--ok)}.banner.bad{background:var(--bad)}"""
     h = [f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
          f"<title>Release checks {html.escape(meta['version'])}</title><style>{css}</style></head><body><main>",
-         f"<h1>Liquid Glass {html.escape(meta['version'])}</h1><p class=sub>Release checks on {html.escape(meta['desktop'])}. "
+         f"<h1>Fedora Glass {html.escape(meta['version'])}</h1><p class=sub>Release checks on {html.escape(meta['desktop'])}. "
          f"{html.escape(meta['when'])}</p>",
          f"<div class='banner {'ok' if passed else 'bad'}'>{'Every check passed. This version can be released.' if passed else 'Some checks failed. The release is blocked until they pass.'}</div>"]
     for c in checks:

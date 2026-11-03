@@ -4,7 +4,7 @@
 // frames in which glass was drawn are watched: when too many come late, the glass
 // steps down a level, and a few minutes later tries one level up again (tuning.js).
 //
-// The Liquid Glass app asks for a speed check by writing
+// The Fedora Glass app asks for a speed check by writing
 // ~/.config/liquid-glass/speed-check.json ({"id": "<16 hex>"}). The check redraws
 // all the glass on screen every frame for a few seconds at each level and scores
 // the frame rate. What the glass draws now, and the check's result, go to
@@ -62,7 +62,7 @@ export class Speed {
                     this._onRequest();
             });
         } catch (e) {
-            console.warn(`Liquid Glass: no speed check: ${e}`);
+            console.warn(`Fedora Glass: no speed check: ${e}`);
             this._monitor = null;
         }
         this._writeStatus();
@@ -98,7 +98,7 @@ export class Speed {
         try {
             this._onLevel?.(level);
         } catch (e) {
-            logError(e, 'Liquid Glass: changing the glass level');
+            logError(e, 'Fedora Glass: changing the glass level');
         }
     }
 
@@ -325,7 +325,7 @@ export class Speed {
             GLib.file_set_contents_full(path, new TextEncoder().encode(JSON.stringify(status)),
                 GLib.FileSetContentsFlags.CONSISTENT, 0o600);
         } catch (e) {
-            console.warn(`Liquid Glass: could not write the speed status: ${e}`);
+            console.warn(`Fedora Glass: could not write the speed status: ${e}`);
         }
     }
 

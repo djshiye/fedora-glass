@@ -1,7 +1,7 @@
 // Holds every glass pane on its last picture while GNOME's own window animations
 // play (see holdPanes in glass.js). The hold ends when the window lands (Mutter's
 // 'effects-completed'), or when it is destroyed mid-animation. The animations
-// picked in the Liquid Glass app hold the glass themselves (glass.js freezeSource).
+// picked in the Fedora Glass app hold the glass themselves (glass.js freezeSource).
 
 import Meta from 'gi://Meta';
 import GLib from 'gi://GLib';
@@ -26,7 +26,7 @@ export class WindowAnimationHold {
         this._pending = new Set();
         this._later = 0;
         // Not GNOME's own handlers, so animations.js never blocks these: they see every
-        // effect, whichever of GNOME or the Liquid Glass animations plays it.
+        // effect, whichever of GNOME or the Fedora Glass animations plays it.
         this._ids = Object.keys(EFFECTS).map(s => global.window_manager.connect(s, (_wm, actor) => this._event(actor)));
     }
 

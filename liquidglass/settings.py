@@ -76,7 +76,7 @@ class Settings:
     blur_app_windows: bool = True   # glass behind translucent app windows
     terminal_opacity: float | None = None
 
-    # The Liquid Glass Shell extension: the lens along the edge of the panel and menus.
+    # The Fedora Glass Shell extension: the lens along the edge of the panel and menus.
     refraction: float = 0.6         # 0..1, how strongly the rim bends what's behind
     dispersion: float = 0.3         # 0..1, rainbow split along the rim
     vibrancy: float = 0.85          # 0..1, how much colour shows through
@@ -105,7 +105,7 @@ class Settings:
     # Window header bars in GTK 3, GTK 4 and libadwaita apps.
     header_height: int = 47                 # px; 47 is GNOME's own height
     header_opacity: float | None = None     # how solid, 0..1; None = the same glass as the window
-    # Switch Ptyxis profiles to the Liquid Glass palette (it carries the glass top bar).
+    # Switch Ptyxis profiles to the Fedora Glass palette (it carries the glass top bar).
     # Off unless the user opts in, so their own terminal colours are never replaced.
     terminal_colors: bool = False
     # Ptyxis has its own light/dark switch, set to dark out of the box. Off unless the

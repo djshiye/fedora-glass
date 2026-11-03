@@ -1,4 +1,4 @@
-"""Liquid Glass customizer: a Qt Quick window over the engine.
+"""Fedora Glass customizer: a Qt Quick window over the engine.
 
 `python3 -m liquidglass gui` lands here. `--screenshot PATH` renders the
 window to a PNG once it has settled (for docs and tests) and quits.
@@ -31,7 +31,7 @@ def find_icon() -> Path | None:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    ap = argparse.ArgumentParser(prog="liquid-glass gui", description="Liquid Glass customizer")
+    ap = argparse.ArgumentParser(prog="fedora-glass gui", description="Fedora Glass customizer")
     shot = ap.add_argument_group("screenshots")
     shot.add_argument("--screenshot", metavar="PATH", help="render the window to a PNG, then quit")
     shot.add_argument("--page", default="0", help="page to show: 0/look or 1/apps")
@@ -83,14 +83,14 @@ def main(argv: list[str] | None = None) -> int:
         from PySide6.QtQuick import QQuickWindow  # noqa: F401 - registers the window type
         from PySide6.QtQuickControls2 import QQuickStyle
     except ImportError:
-        print("The Liquid Glass app needs PySide6: sudo dnf install python3-pyside6", file=sys.stderr)
+        print("The Fedora Glass app needs PySide6: sudo dnf install python3-pyside6", file=sys.stderr)
         return 1
 
     from .backend import Backend
     from .icons import IconProvider
 
-    QGuiApplication.setApplicationName("Liquid Glass")
-    QGuiApplication.setApplicationDisplayName("Liquid Glass")
+    QGuiApplication.setApplicationName("Fedora Glass")
+    QGuiApplication.setApplicationDisplayName("Fedora Glass")
     QGuiApplication.setOrganizationDomain("djshiye.github.io")
     QGuiApplication.setDesktopFileName(APP_ID)
     app = QGuiApplication(sys.argv[:1])

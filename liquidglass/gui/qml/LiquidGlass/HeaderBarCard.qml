@@ -91,7 +91,7 @@ Card {
             tip: "Sets how much of the desktop shows through the bar at the top of app windows. Left is clearer, right is more solid."
         }
         // Terminal draws its top bar from its colour palette, so the glass only reaches it
-        // with the Liquid Glass palette. Never switched without the user asking.
+        // with the Fedora Glass palette. Never switched without the user asking.
         Rectangle {
             objectName: "terminalColors"
             readonly property string pal: Backend.terminalPalette
@@ -119,7 +119,7 @@ Card {
                         font.pixelSize: Theme.fsSmall
                         lineHeight: 1.15
                         text: termCol.chosen
-                              ? "Terminal switches to Liquid Glass colours when you Apply, and its top bar turns to glass."
+                              ? "Terminal switches to Fedora Glass colours when you Apply, and its top bar turns to glass."
                               : "Terminal uses its own colours (" + termCol.palName + "), so its top bar stays solid."
                     }
                 }
@@ -130,10 +130,10 @@ Card {
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
                     tipBelow: true
-                    text: termCol.chosen ? "Keep my colours" : "Use Liquid Glass terminal colours"
+                    text: termCol.chosen ? "Keep my colours" : "Use Fedora Glass terminal colours"
                     tip: termCol.chosen
                          ? "Leaves Terminal on " + termCol.palName + ". Its top bar stays solid."
-                         : "Changes Terminal's text and background colours to the Liquid Glass palette, which also turns its top bar to glass. Restore original brings your own colours back."
+                         : "Changes Terminal's text and background colours to the Fedora Glass palette, which also turns its top bar to glass. Restore original brings your own colours back."
                     onClicked: Backend.terminalColors = !termCol.chosen
                 }
             }

@@ -1,14 +1,14 @@
 #!/bin/bash
-# Liquid Glass release checks on a test desktop that matches Dino's PC as closely as a
+# Fedora Glass release checks on a test desktop that matches Dino's PC as closely as a
 # container can: GNOME 50 on Wayland, 125 % scaling, Orchis Dark, Dino's extensions and
 # settings, the overview off, a terminal, Files and an Electron window.
 #
 #   qa/desktop/run.sh [--source DIR] [--only looks,leftovers,resize,speed,lock,restart,log]
 #                     [--update-references] [--out DIR] [--keep] [--start-only] [--screen WxH]
 #
-# --source              the Liquid Glass tree to test (default: this checkout). Lets you run
+# --source              the Fedora Glass tree to test (default: this checkout). Lets you run
 #                       today's checks against an older release.
-# --from DIR            also check the upgrade from an older Liquid Glass tree (the last
+# --from DIR            also check the upgrade from an older tree (Fedora Glass before 1.5.0) (the last
 #                       release): it is applied first, then this version arrives the way
 #                       dnf upgrade brings it, with two restarts and no Apply.
 # --update-references   save this run's pictures as the new reference pictures.

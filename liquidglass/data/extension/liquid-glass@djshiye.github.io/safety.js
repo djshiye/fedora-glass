@@ -6,7 +6,7 @@
 //  - GNOME Shell stopped within STABLE_S of starting the glass, RESTART_LIMIT
 //    times in a row (a crash loop), so the next start is a safe one.
 // Desktop behaviour (start on the desktop, no overview), the ArcMenu helper and
-// the lock screen keep working. The Liquid Glass app shows a note with a button
+// the lock screen keep working. The Fedora Glass app shows a note with a button
 // that writes ~/.config/liquid-glass/safe-mode-reset.json ({"id": "<16 hex>"}),
 // which turns the glass back on. The state lives in
 // ~/.cache/liquid-glass/safe-mode.json (only this user can read it).
@@ -27,7 +27,7 @@ let current = null;
 /** Report an error from the glass. Safe to call at any time, with or without safe mode running. */
 export function report(where, error) {
     try {
-        console.error(`Liquid Glass: ${where}: ${error}${error?.stack ? `\n${error.stack}` : ''}`);
+        console.error(`Fedora Glass: ${where}: ${error}${error?.stack ? `\n${error.stack}` : ''}`);
     } catch {}
     current?._error(where, error);
 }
@@ -162,7 +162,7 @@ export class Safety {
         this._at = Math.floor(Date.now() / 1000);
         this._running = false;
         this._write();
-        console.warn(`Liquid Glass: the glass kept failing (last in ${this._where}), so it is off (safe mode)`);
+        console.warn(`Fedora Glass: the glass kept failing (last in ${this._where}), so it is off (safe mode)`);
         if (!notify)
             return;
         // Not from inside the failing code: on the next main-loop turn.
@@ -184,7 +184,7 @@ export class Safety {
             GLib.file_set_contents_full(this._file.get_path(), new TextEncoder().encode(JSON.stringify(state)),
                 GLib.FileSetContentsFlags.CONSISTENT, 0o600);
         } catch (e) {
-            console.warn(`Liquid Glass: could not write the safe mode state: ${e}`);
+            console.warn(`Fedora Glass: could not write the safe mode state: ${e}`);
         }
     }
 

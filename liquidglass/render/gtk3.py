@@ -16,7 +16,7 @@ from ..palette import Tokens
 from .gtk4 import _geometry, adwaita_colors, glass_colors, view_color
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk3.css.tpl"
-HEADER = "/* Liquid Glass for GTK 3. Generated, edits are overwritten. */\n"
+HEADER = "/* Fedora Glass for GTK 3. Generated, edits are overwritten. */\n"
 
 THEMES = ("adw-gtk3", "adw-gtk3-dark")
 

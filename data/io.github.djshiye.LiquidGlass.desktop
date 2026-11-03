@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Liquid Glass
+Name=Fedora Glass
 GenericName=Theme Customizer
-Comment=Make GNOME and your apps look like Liquid Glass, from clear to frosted
+Comment=A glass look for GNOME and your apps, from clear to frosted
 Exec=python3 -m liquidglass gui
 Icon=io.github.djshiye.LiquidGlass
 Terminal=false
 Categories=GNOME;GTK;Settings;DesktopSettings;
-Keywords=theme;glass;blur;transparency;appearance;frosted;liquid;
+Keywords=theme;glass;blur;transparency;appearance;frosted;liquid;fedora;
 StartupNotify=true
 StartupWMClass=io.github.djshiye.LiquidGlass
 SingleMainWindow=true

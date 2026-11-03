@@ -135,14 +135,14 @@ def test_light_windows_keep_body_over_dark_wallpapers():
 
 
 def test_main_config_merge():
-    assert kvantum.build_main_config(None) == "[General]\ntheme=LiquidGlass\n"
+    assert kvantum.build_main_config(None) == "[General]\ntheme=FedoraGlass\n"
     merged = kvantum.build_main_config("[General]\ntheme=KvFlat\nx=1\n\n[Applications]\nKvFlat=qbittorrent\n")
     cp = parse_config(merged)
-    assert cp["General"]["theme"] == "LiquidGlass" and cp["General"]["x"] == "1"
+    assert cp["General"]["theme"] == "FedoraGlass" and cp["General"]["x"] == "1"
     assert cp["Applications"]["KvFlat"] == "qbittorrent"
     assert merged.count("theme=") == 1
-    assert "theme=LiquidGlass" in kvantum.build_main_config("[Applications]\na=b\n")
-    assert "theme=LiquidGlass" in kvantum.build_main_config("[General]\nfoo=bar\n[Other]\nz=1\n").split("[Other]")[0]
+    assert "theme=FedoraGlass" in kvantum.build_main_config("[Applications]\na=b\n")
+    assert "theme=FedoraGlass" in kvantum.build_main_config("[General]\nfoo=bar\n[Other]\nz=1\n").split("[Other]")[0]
 
 
 def ctx(fake_env, frost=0.45, dark=True):
@@ -156,10 +156,10 @@ def test_plan_writes_theme_main_config_and_env(fake_env):
     paths = {a.path.name: a for a in actions if isinstance(a, WriteFile)}
     cfg = fake_env.config
     assert {a.path for a in actions if isinstance(a, WriteFile)} == {
-        cfg / "Kvantum/LiquidGlass/LiquidGlass.kvconfig", cfg / "Kvantum/LiquidGlass/LiquidGlass.svg",
+        cfg / "Kvantum/FedoraGlass/FedoraGlass.kvconfig", cfg / "Kvantum/FedoraGlass/FedoraGlass.svg",
         cfg / "Kvantum/kvantum.kvconfig", cfg / "environment.d/90-liquid-glass-qt.conf"}
     assert paths["90-liquid-glass-qt.conf"].content == "QT_STYLE_OVERRIDE=kvantum\n"
-    assert "theme=LiquidGlass" in paths["kvantum.kvconfig"].content
+    assert "theme=FedoraGlass" in paths["kvantum.kvconfig"].content
 
 
 def test_plan_preserves_existing_kvantum_config(fake_env):
@@ -168,7 +168,7 @@ def test_plan_preserves_existing_kvantum_config(fake_env):
     main.write_text("[General]\ntheme=KvArc\n\n[Applications]\nKvFlat=vlc\n")
     actions = qt.TARGETS[0].plan(ctx(fake_env))
     new = next(a for a in actions if isinstance(a, WriteFile) and a.path == main).content
-    assert "theme=LiquidGlass" in new and "KvFlat=vlc" in new and "KvArc" not in new
+    assert "theme=FedoraGlass" in new and "KvFlat=vlc" in new and "KvArc" not in new
 
 
 def test_plan_flatpak_override(fake_env):
@@ -179,9 +179,9 @@ def test_plan_flatpak_override(fake_env):
 
 def test_plan_follows_scheme(fake_env):
     d = next(a for a in qt.TARGETS[0].plan(ctx(fake_env, dark=True))
-             if isinstance(a, WriteFile) and a.path.suffix == ".kvconfig" and "LiquidGlass/" in str(a.path))
+             if isinstance(a, WriteFile) and a.path.suffix == ".kvconfig" and "FedoraGlass/" in str(a.path))
     l = next(a for a in qt.TARGETS[0].plan(ctx(fake_env, dark=False))
-             if isinstance(a, WriteFile) and a.path.suffix == ".kvconfig" and "LiquidGlass/" in str(a.path))
+             if isinstance(a, WriteFile) and a.path.suffix == ".kvconfig" and "FedoraGlass/" in str(a.path))
     assert d.content != l.content
 
 
