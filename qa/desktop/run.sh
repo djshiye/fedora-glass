@@ -1,0 +1,65 @@
+#!/bin/bash
+# Liquid Glass release checks on a test desktop that matches Dino's PC as closely as a
+# container can: GNOME 50 on Wayland, 125 % scaling, Orchis Dark, Dino's extensions and
+# settings, the overview off, a terminal, Files and an Electron window.
+#
+#   qa/desktop/run.sh [--source DIR] [--only looks,leftovers,resize,speed,lock,restart,log]
+#                     [--update-references] [--out DIR] [--keep] [--start-only]
+#
+# --source              the Liquid Glass tree to test (default: this checkout). Lets you run
+#                       today's checks against an older release.
+# --update-references   save this run's pictures as the new reference pictures.
+# --start-only          start the test desktop and leave it running (for working on the checks).
+# Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
+set -euo pipefail
+SUITE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$SUITE/../.." && pwd)
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" NAME=${LGQA_NAME:-lgqa-$$}
+while [ $# -gt 0 ]; do
+    case $1 in
+        --source) SRC=$(cd "$2" && pwd); shift ;;
+        --only) ONLY="--only $2"; shift ;;
+        --update-references) UPDATE=--update-references ;;
+        --out) OUT=$2; shift ;;
+        --keep) KEEP=1 ;;
+        --start-only) KEEP=1 START_ONLY=1 ;;
+        *) echo "unknown option $1" >&2; exit 64 ;;
+    esac
+    shift
+done
+
+echo "Building the test desktop image (cached after the first time)..."
+docker build -q -t lgqa-desktop ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
+
+rm -rf "$OUT"; mkdir -p "$OUT"; chmod 0777 "$OUT"
+cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+# No network inside: nothing at run time needs it.
+docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g \
+    -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out \
+    lgqa-desktop /opt/lgqa/suite/container/start.sh >/dev/null
+
+for _ in $(seq 120); do
+    docker logs "$NAME" 2>&1 | grep -q READY && break
+    if ! docker inspect -f '{{.State.Running}}' "$NAME" | grep -q true; then break; fi
+    sleep 2
+done
+if ! docker logs "$NAME" 2>&1 | grep -q READY; then
+    echo "The test desktop did not start. Last lines of its log:" >&2
+    docker logs "$NAME" 2>&1 | tail -20 >&2
+    tail -40 "$OUT/shell.log" >&2 2>/dev/null || true
+    exit 2
+fi
+
+if [ -n "$START_ONLY" ]; then echo "Test desktop $NAME is running."; exit 0; fi
+set +e
+docker exec -u dino -e LGQA_OUT=/out "$NAME" python3 /opt/lgqa/suite/checks/run_checks.py $ONLY $UPDATE
+rc=$?
+set -e
+if [ -n "$UPDATE" ] && [ -d "$OUT/new-references" ]; then
+    cp "$OUT"/new-references/*.png "$SUITE/references/"
+    echo "Reference pictures updated in $SUITE/references."
+fi
+echo "Report: $OUT/report/report.html"
+exit $rc
