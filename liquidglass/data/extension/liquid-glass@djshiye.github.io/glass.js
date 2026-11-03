@@ -489,6 +489,14 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
     _init() {
         super._init();
         this._frame = '';
+        this._renderedAt = 0;
+        this._catchUp = 0;
+    }
+
+    stopCatchUp() {
+        if (this._catchUp)
+            GLib.source_remove(this._catchUp);
+        this._catchUp = 0;
     }
 
     vfunc_build_pipeline() {
@@ -501,7 +509,9 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         const a = this.get_actor();
         if (t && a) {
             const [w, h] = [t.get_width(), t.get_height()];
-            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}`;
+            // Its clip counts too: a clipped pane starts later in its texture.
+            const clip = a.has_clip ? a.get_clip().join() : '';
+            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}/${clip}`;
             if (key !== this._frame) {
                 this._frame = key;
                 GLASS.set(this, textureFrame(w, h, a));
@@ -524,8 +534,34 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
             super.vfunc_paint(node, paintContext, flags & ~dirty);
             return;
         }
-        if (flags & dirty)
+        // A window behind that repaints all the time (a chat app streaming text, a
+        // video) would re-render this glass for every one of its frames. While the
+        // pane itself stays put, show the kept picture and catch up a little later:
+        // at most RERENDER_HZ renders a second for changes behind it.
+        if ((flags & dirty) && !this._full && !a?._free && this._picture === size &&
+            this._placedAt === (a?._placed ?? '')) {
+            const wait = this._renderedAt + RERENDER_US - GLib.get_monotonic_time();
+            if (wait > 0) {
+                this._stale = true;
+                this.throttled = (this.throttled ?? 0) + 1;    // read by the QA tools
+                if (!this._catchUp) {
+                    this._catchUp = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.ceil(wait / 1000), () => {
+                        this._catchUp = 0;
+                        if (this._stale)
+                            this.get_actor()?.queueFull?.();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+                super.vfunc_paint(node, paintContext, flags & ~dirty);
+                return;
+            }
+        }
+        if (flags & dirty) {
             this._picture = size;
+            this._placedAt = a?._placed ?? '';
+            this._renderedAt = GLib.get_monotonic_time();
+            this._stale = false;
+        }
         // Re-rendered for a change in part of it, the pane only gets that part's
         // wallpaper (Mutter paints the wallpaper only inside the frame's redraw
         // area). Its blur and rim reach past that part, and the copy is kept and
@@ -585,6 +621,10 @@ export const DEFAULT_LOOK = Object.freeze({
  */
 const LAYERS = {full: 0, glass: 1, reflections: 2, rim: 3};
 const ENV_REACH = 32;   // px the rim sees beyond the edge
+// How often a pane that stays put re-renders for changes behind it.
+const RERENDER_HZ = 20;
+const RERENDER_US = 1e6 / RERENDER_HZ;
+
 const GLOW_BLUR = 30;   // px the content's light spreads
 
 // While a window is dragged or resized, every pane re-renders each frame, so they
@@ -740,6 +780,24 @@ export function stopMoving() {
     cheapTimer = 0;
 }
 
+// The screen that holds the middle of a stage rectangle.
+export function monitorFor(x, y, w, h) {
+    const d = global.display;
+    const n = d?.get_n_monitors?.() ?? 0;
+    const cx = x + w / 2, cy = y + h / 2;
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < n; i++) {
+        const g = d.get_monitor_geometry(i);
+        const dx = Math.max(g.x - cx, 0, cx - (g.x + g.width));
+        const dy = Math.max(g.y - cy, 0, cy - (g.y + g.height));
+        if (dx + dy < bestD) {
+            bestD = dx + dy;
+            best = g;
+        }
+    }
+    return best;
+}
+
 export const GlassPane = GObject.registerClass(
 class LiquidGlassPane extends Clutter.Actor {
     _init(layer = 'full') {
@@ -775,6 +833,7 @@ class LiquidGlassPane extends Clutter.Actor {
             if (this._fullLater)
                 global.compositor.get_laters().remove(this._fullLater);
             this._fullLater = 0;
+            this._glass.stopCatchUp();
             panes.delete(this);
             this._clones.clear();
         });
@@ -860,6 +919,38 @@ class LiquidGlassPane extends Clutter.Actor {
         this._edges = key;
         const [l, t, r, b] = edges.map(e => (e ? 1 : 0));
         this._glass.setFloats({edge_l: l, edge_t: t, edge_r: r, edge_b: b});
+        this._applyClip();
+    }
+
+    /**
+     * A side on the screen edge carries its glass on out to the edge of the pane.
+     * Where that edge is the seam with a second screen, the glass would show on the
+     * other screen as a strip beside the window or panel: cut it at the seam.
+     */
+    _applyClip() {
+        const sides = (this._edges ?? '').split(',').map(Number);
+        if (!this._stage || !this._size || !sides.some(Boolean)) {
+            if (this.has_clip)
+                this.remove_clip();
+            return;
+        }
+        const [px, py] = this._stage, [pw, ph] = this._size, p = this._pad;
+        const m = monitorFor(px + p, py + p, pw - 2 * p, ph - 2 * p);
+        if (!m) {
+            if (this.has_clip)
+                this.remove_clip();
+            return;
+        }
+        const x0 = sides[0] ? Math.max(0, m.x - px) : 0;
+        const y0 = sides[1] ? Math.max(0, m.y - py) : 0;
+        const x1 = sides[2] ? Math.min(pw, m.x + m.width - px) : pw;
+        const y1 = sides[3] ? Math.min(ph, m.y + m.height - py) : ph;
+        if (x0 <= 0 && y0 <= 0 && x1 >= pw && y1 >= ph) {
+            if (this.has_clip)
+                this.remove_clip();
+            return;
+        }
+        this.set_clip(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
     }
 
     _setCheap(on) {
@@ -895,6 +986,7 @@ class LiquidGlassPane extends Clutter.Actor {
         });
         this._syncClones();
         this._applyShape();
+        this._applyClip();
         if (this._motion.k > 0)
             this._applyMotion();   // the pointer is held in this pane's own px
     }
