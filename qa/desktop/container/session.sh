@@ -37,7 +37,10 @@ gsettings set org.gnome.shell enabled-extensions "['extension-list@tu.berry', 'a
 dconf load /org/gnome/shell/extensions/ < /opt/lgqa/suite/dino-settings.ini
 
 # Liquid Glass: Dino's choices (start on the desktop, no overview), then Apply.
-echo '{"overview_off": true, "start_on_desktop": true}' > "$HOME/.config/liquid-glass/settings.json"
+# glass_quality "full": the automatic quality steps the glass down when frames are late,
+# which always happens without a graphics card, so the checks pin full quality (versions
+# without the setting ignore it).
+echo '{"overview_off": true, "start_on_desktop": true, "glass_quality": "full"}' > "$HOME/.config/liquid-glass/settings.json"
 (cd "$HOME/liquid-glass-src" && python3 -m liquidglass apply) > "$OUT/apply.txt" 2>&1
 echo "apply exit $?" >> "$OUT/apply.txt"
 
