@@ -82,6 +82,7 @@ uniform float light_glass;       // 1 for light glass (it has a milk), 0 for dar
 uniform float hair;              // 0..0.3, light glass: a thin dark contact line at its edge
 uniform float bleed;             // strength of the content's colour in the glass
 uniform float solid;             // 1: the glass fills its pane fully (a full-screen sheet)
+uniform float haze;              // 0..1, dark glass: a grey smoke in the glass itself, so it reads as a pane over black
 uniform float ceil_y;            // 0 = off; else the brightest the glass may get (linear Y),
                                  // so white text on it stays readable over any backdrop
 uniform float edge_l;            // 1 where that side touches the screen edge
@@ -535,12 +536,25 @@ void main() {
         col.rgb = min(mix(up, milk * col.a, 0.3 * m), vec3(col.a));
     }
 
+    // Dark smoked glass (Glisse's dark glass is 40 grey at 62 %): over black it is a
+    // visible grey pane, and what is behind still shows through it, sharp.
+    if (haze > OFF)
+        col.rgb = mix(col.rgb, vec3(0.157, 0.157, 0.165) * col.a, haze);
+
     // A ceiling on brightness, for glass that carries white text over any backdrop
     // (the lock screen). Dark backdrops pass unchanged; brighter ones ease into
     // the ceiling in their own colour, so a white wallpaper gives a calm grey.
+    // It goes by the area around the pixel, not the pixel: a bright area is what
+    // text must read over, while a star or a small light can keep its sparkle.
     if (ceil_y > OFF) {
         vec3 st = col.rgb / max(col.a, 1e-3);
-        float Yl = dot(pow(max(st, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722));
+        const vec3 Yw = vec3(0.2126, 0.7152, 0.0722);
+        float Yp = dot(pow(max(st, vec3(0.0)), vec3(2.2)), Yw);
+        vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
+        vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
+        vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
+        float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
+        float Yl = max(min(Yp, Ya * 1.5), 1e-5);
         float knee = 0.6 * ceil_y;
         if (Yl > knee) {
             float room = ceil_y - knee;
@@ -730,6 +744,7 @@ export const DEFAULT_LOOK = Object.freeze({
     lightAngle: -125,   // degrees, -90 = from the top: where the reflections are strongest
     bleed: 0.6,         // 0..1, how much the content's colours light up the glass
     ceiling: 0,         // 0 = off; else the brightest the glass may get (linear Y, 0..1)
+    haze: 0,            // 0..0.7, dark glass: grey smoke in the glass, so it shows over black
     solid: 0,           // 1: fill the pane fully, for a full-screen sheet
     pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
     motion: 1,          // 0 or 1: press and open springs
@@ -1283,6 +1298,7 @@ class LiquidGlassPane extends Clutter.Actor {
             hl: Math.max(0, Math.min(1, L.highlight)),
             solid: L.solid > 0.5 ? 1 : 0,
             ceil_y: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.ceiling)),
+            haze: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.7, L.haze)),
             hl_x: Math.cos(a), hl_y: Math.sin(a),
             env_reach: ENV_REACH,
             margin: blur * 0.5,

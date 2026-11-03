@@ -384,7 +384,11 @@ def test_glass_config_has_parts_and_bleed():
     assert cfg["parts"]["panel"]["tint"][:3] == pytest.approx([0x10 / 255, 0x20 / 255, 0x30 / 255])
     for k in ("blur", "refraction", "bend", "bleed", "highlight"):
         assert k in cfg["parts"]["arcmenu"]["look"]
-    assert cfg["menus"]["look"]["brightness"] < 1 and "panel" in cfg and "overview" in cfg
+    # Dark glass is smoked, not darkened: a grey of its own, under a brightness ceiling.
+    m = cfg["menus"]["look"]
+    assert m["brightness"] == 1 and m["haze"] > 0 and m["ceiling"] > 0 and "panel" in cfg and "overview" in cfg
+    light = rg.config(s, palette.build(s, dark=False))["menus"]["look"]
+    assert "haze" not in light
 
 
 def test_veil_is_light_and_text_stays_readable():
