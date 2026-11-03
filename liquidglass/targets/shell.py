@@ -175,16 +175,21 @@ def park_arcmenu(env: Env) -> bool:
     if extension_info(env, ARCMENU)[0] != 1.0 or extension_info(env, rg.UUID)[0] != 1.0:
         return False
     _shell_ext(env, "DisableExtension", ARCMENU)
-    _wait_state(env, ARCMENU, lambda st: st not in (1.0, 7.0), 3.0)
+    # A busy desktop can take seconds to switch extensions; GNOME restarts the ones
+    # after ArcMenu before it counts as off.
+    _wait_state(env, ARCMENU, lambda st: st not in (1.0, 7.0), 15.0)
     return True
 
 
 def unpark_arcmenu(env: Env) -> None:
     """Start ArcMenu again once the glass extension is off: it then comes after Dash to Panel."""
-    # Not just "switching off" (7): GNOME restarts the others only after that.
-    _wait_state(env, rg.UUID, lambda st: st not in (1.0, 7.0), 3.0)
+    # Not just "switching off" (7): GNOME restarts the others only after that, and
+    # Dash to Panel must have its panels back. On a busy desktop that takes seconds.
+    _wait_state(env, rg.UUID, lambda st: st not in (1.0, 7.0), 20.0)
+    if extension_info(env, DASH_TO_PANEL)[0] is not None:
+        _wait_state(env, DASH_TO_PANEL, lambda st: st == 1.0, 10.0)
     _shell_ext(env, "EnableExtension", ARCMENU)
-    _wait_state(env, ARCMENU, lambda st: st in (1.0, 3.0), 3.0)
+    _wait_state(env, ARCMENU, lambda st: st in (1.0, 3.0), 10.0)
 
 @dataclass
 class DashToPanel(Target):
