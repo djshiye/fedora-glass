@@ -68,8 +68,10 @@ docker exec -u dino -e LGQA_OUT=/out "$NAME" python3 /opt/lgqa/suite/checks/run_
 rc=$?
 set -e
 if [ -n "$UPDATE" ] && [ -d "$OUT/new-references" ]; then
-    cp "$OUT"/new-references/*.png "$SUITE/references/"
-    echo "Reference pictures updated in $SUITE/references."
+    REFDIR="$SUITE/references"; [ "$SCREEN" = 2000x1125 ] || REFDIR="$REFDIR/$SCREEN"
+    mkdir -p "$REFDIR"
+    cp "$OUT"/new-references/*.png "$REFDIR/"
+    echo "Reference pictures updated in $REFDIR."
 fi
 echo "Report: $OUT/report/report.html"
 exit $rc
