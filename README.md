@@ -12,7 +12,7 @@ Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need 
 ## Install
 
 ```sh
-sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/fedora-glass.noarch.rpm
+sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
 ```
 
 1. Open **Fedora Glass** from the app grid.
@@ -26,8 +26,9 @@ The packages are not GPG-signed.
 
 **Had Liquid Glass?** Fedora Glass is its new name. Run `sudo dnf upgrade` twice: the first one
 updates Liquid Glass and adds the new repository, the second one swaps the package for
-`fedora-glass`. Your settings and your look stay as they are. Then open Fedora Glass, press
-**Apply**, and restart your PC, so the themes and the Shell extension carry the new name too.
+`fedora-glass`. If dnf finds nothing new, run the install command above once instead. Either way
+your settings and your look stay as they are. Then open Fedora Glass, press **Apply**, and restart
+your PC, so the themes and the Shell extension carry the new name too.
 
 ## Undo or remove
 
@@ -107,7 +108,7 @@ fedora-glass revert              # restore the original look
 ## From source
 
 ```sh
-git clone https://github.com/djshiye/fedora-liquid-glass && cd fedora-liquid-glass
+git clone https://github.com/djshiye/fedora-glass && cd fedora-glass
 ./install.sh      # installs to your home folder; ./uninstall.sh removes it
 ```
 
