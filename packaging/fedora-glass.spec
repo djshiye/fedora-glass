@@ -188,6 +188,14 @@ fi
 - Liquid Glass is now Fedora Glass: the app, the Shell extension and the themes it adds to other apps
 - The package is now fedora-glass; dnf upgrade moves to it by itself and keeps your settings
 - The command is now fedora-glass (liquid-glass still works)
+- Apple-style glass: a bright rim line, a wider squircle lens, and Clear and Frosted looks
+- Menus open from their button and land exactly at full size, with the glass in the same frame
+- A Check speed button, and glass that lightens itself when frames drop, while you drag a window, and under full-screen games and video
+- Safe mode: glass that keeps failing turns itself off, with a button in the app to turn it back on
+- Opt-in glass on the login screen, with one-click undo
+- After an upgrade your look updates by itself at the next restart, no Apply needed
+- Ready for GNOME 51 (Fedora 45)
+- qBittorrent's side list and btop's background follow the glass colours
 
 * Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.4-1
 - No glass strip on the other screen beside a window maximized on a second screen
