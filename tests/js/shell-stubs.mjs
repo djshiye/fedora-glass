@@ -60,7 +60,10 @@ const STUBS = {
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
         export const panel = {statusArea: {}};
-        export const extensionManager = globalThis.fake.extensionManager;`,
+        export const extensionManager = globalThis.fake.extensionManager;
+        export const overview = globalThis.fake.overview;
+        export const sessionMode = globalThis.fake.sessionMode;`,
+    'resource/overviewControls.js': 'export const ControlsState = {HIDDEN: 0, WINDOW_PICKER: 1, APP_GRID: 2};',
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
     'glass': `export class GlassPane extends globalThis.fake.Actor {
         constructor(name) { super(); this.name = name; this.pad = 0; }

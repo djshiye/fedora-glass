@@ -33,6 +33,7 @@ export class DesktopBehaviour {
     constructor(cfg) {
         this._patched = null;
         this._startupId = 0;
+        this._closeAfterStartupId = 0;
         this._realHasOverview = null;
         this.update(cfg);
         const atLogin = firstEnable;
@@ -113,7 +114,27 @@ export class DesktopBehaviour {
             this._activities.hide();
         }
         if (ov.visible)
-            ov.hide();
+            this._closeOverview();
+    }
+
+    _closeOverview() {
+        // While GNOME is starting, the overview that shows is its startup
+        // animation. Closing it before its first layout leaves GNOME waiting
+        // for that layout for good: start-up never finishes, the second
+        // screen keeps no wallpaper and the overview stays off for the session.
+        // So close it once start-up has finished.
+        if (!Main.layoutManager._startingUp) {
+            Main.overview.hide();
+            return;
+        }
+        if (this._closeAfterStartupId)
+            return;
+        this._closeAfterStartupId = Main.layoutManager.connect('startup-complete', () => {
+            Main.layoutManager.disconnect(this._closeAfterStartupId);
+            this._closeAfterStartupId = 0;
+            if (this._patched && Main.overview.visible)
+                Main.overview.hide();
+        });
     }
 
     _allowOverview() {
@@ -135,6 +156,9 @@ export class DesktopBehaviour {
 
     destroy() {
         this._endStartup();
+        if (this._closeAfterStartupId)
+            Main.layoutManager.disconnect(this._closeAfterStartupId);
+        this._closeAfterStartupId = 0;
         this._allowOverview();
     }
 }
