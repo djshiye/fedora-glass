@@ -7,6 +7,7 @@ import GLib from 'gi://GLib';
 
 import {DEFAULT_LOOK} from './glass.js';
 import {cleanMotion} from './curves.js';
+import {cleanQuality} from './tuning.js';
 
 const MAX_BYTES = 64 * 1024;
 const PARTS = ['panel', 'arcmenu', 'quicksettings', 'calendar'];
@@ -122,6 +123,8 @@ export function parse(text) {
     cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);
     cfg.glide = cleanGlide(raw.glide);
+    // Glass quality: auto, full, lighter or lightest (speed.js).
+    cfg.speed = {quality: cleanQuality(raw.speed)};
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};

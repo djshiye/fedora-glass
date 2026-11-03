@@ -63,6 +63,7 @@ uniform float ptr_k;              // 0..1, how strongly the rim near it lights u
 uniform float press;              // 0..1, held down at the pointer
 uniform float env_reach;         // px, how far beyond the edge the rim sees
 uniform float cheap;             // 1 while something moves behind: fewer taps
+uniform float lite;              // 1 for lighter glass (speed.js): three wavelengths, one-tap mirror
 uniform float valid_x0;          // the part of the texture that is on screen
 uniform float valid_y0;
 uniform float valid_x1;
@@ -140,7 +141,7 @@ vec3 env(vec2 p) {
     // and off the screen, where there is nothing to see.
     p = clamp(p, max(vec2(margin + sp), vec2(valid_x0, valid_y0) + sp),
               min(vec2(width, height) - vec2(margin + sp), vec2(valid_x1, valid_y1) - sp));
-    if (cheap > 0.5)
+    if (cheap > 0.5 || lite > 0.5)
         return at(p).rgb;
     return at(p).rgb * 0.4
         + (at(p + vec2(sp, 0.0)).rgb + at(p - vec2(sp, 0.0)).rgb
@@ -363,7 +364,17 @@ void main() {
 
     vec4 col;
     if (th > 0.01) {
-        if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5) {
+        if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5 && lite > 0.5) {
+            // Lighter glass: three wavelengths keep the rainbow edge at 3/5 of the reads.
+            float B = 0.08 * dispersion;
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
+            vec4 s550 = at(px + throughGlass(N, IOR, th));
+            vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th));
+            col.r = (0.15 * s550.r + s630.r) / 1.15;
+            col.g = s550.g;
+            col.b = (s450.b + 0.15 * s550.b) / 1.15;
+            col.a = (s450.a + s550.a + s630.a) / 3.0;
+        } else if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5) {
             // Five wavelengths, each refracted by its own index, then mixed back to RGB.
             float B = 0.08 * dispersion;   // crown glass is ~0.004, dense flint ~0.015: exaggerated, as Apple does
             vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
@@ -568,6 +579,7 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         // shown again later, so re-render all of it once more, in full.
         if (flags & dirty) {
             this.renders = (this.renders ?? 0) + 1;    // read by the QA tools
+            renderTotal++;    // read by speed.js
             if (this._full)
                 this._full = false;
             else
@@ -621,9 +633,10 @@ export const DEFAULT_LOOK = Object.freeze({
  */
 const LAYERS = {full: 0, glass: 1, reflections: 2, rim: 3};
 const ENV_REACH = 32;   // px the rim sees beyond the edge
-// How often a pane that stays put re-renders for changes behind it.
-const RERENDER_HZ = 20;
-const RERENDER_US = 1e6 / RERENDER_HZ;
+// How often a pane that stays put re-renders for changes behind it, at each
+// quality level (see setQuality): full, lighter, lightest.
+const RERENDER_HZ = [20, 10, 5];
+let RERENDER_US = 1e6 / RERENDER_HZ[0];
 
 const GLOW_BLUR = 30;   // px the content's light spreads
 
@@ -631,6 +644,46 @@ const GLOW_BLUR = 30;   // px the content's light spreads
 // all drop to fewer taps until shortly after it settles. A still frame looks the same.
 const panes = new Set();
 let cheapTimer = 0;
+
+// How much the glass draws (speed.js picks it): 0 full, 1 lighter (fewer taps and
+// fewer re-renders for changes behind), 2 lightest (as lighter, and the owners
+// show only the wallpaper behind the glass).
+let quality = 0;
+let renderTotal = 0;
+
+export function setQuality(level) {
+    const q = Math.max(0, Math.min(2, Math.round(Number(level) || 0)));
+    if (q === quality)
+        return;
+    quality = q;
+    RERENDER_US = 1e6 / RERENDER_HZ[q];
+    panes.forEach(p => p._setCheap(p._moving));
+}
+
+export function getQuality() {
+    return quality;
+}
+
+/** How many times any pane has rendered since the Shell started. */
+export function glassRenders() {
+    return renderTotal;
+}
+
+/** How many panes are on screen. */
+export function shownPanes() {
+    let n = 0;
+    for (const p of panes)
+        n += p.mapped && p.visible ? 1 : 0;
+    return n;
+}
+
+/** For the speed check: render every pane on screen again, in full, next frame. */
+export function redrawAllPanes() {
+    for (const p of panes) {
+        if (p.mapped)
+            p.queueFull();
+    }
+}
 
 export function moving(on) {
     if (cheapTimer) {
@@ -825,6 +878,8 @@ class LiquidGlassPane extends Clutter.Actor {
         this._edges = '';
         this.setEdges([false, false, false, false]);
         this._cheap = false;
+        this._lite = false;
+        this._moving = false;
         this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1};
         this._applyLook();
         panes.add(this);
@@ -953,11 +1008,16 @@ class LiquidGlassPane extends Clutter.Actor {
         this.set_clip(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
     }
 
-    _setCheap(on) {
-        if (on === this._cheap)
+    // Fewer taps while something moves behind (moving()); lighter glass (setQuality) has its own.
+    _setCheap(movingNow) {
+        this._moving = Boolean(movingNow);
+        const on = this._moving;
+        const lite = quality >= 1;
+        if (on === this._cheap && lite === this._lite)
             return;
         this._cheap = on;
-        this._glass.setFloats({cheap: on ? 1 : 0});
+        this._lite = lite;
+        this._glass.setFloats({cheap: on ? 1 : 0, lite: lite ? 1 : 0});
     }
 
     setLook(look) {
@@ -1070,6 +1130,7 @@ class LiquidGlassPane extends Clutter.Actor {
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             mode: this._layer,
             cheap: this._cheap ? 1 : 0,
+            lite: quality >= 1 ? 1 : 0,
         });
         this._applyMotion();
         this._applyShape();

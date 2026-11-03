@@ -16,13 +16,16 @@ import {ArcMenuRescue} from './arcrescue.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
+import {Speed} from './speed.js';
 import {GlassManager} from './surfaces.js';
+import {effectiveConfig} from './tuning.js';
 
 export default class LiquidGlassExtension extends Extension {
     enable() {
         this._locked = null;
         this._config = new Config(cfg => {
-            this._manager?.update(cfg);
+            this._speed?.update(cfg);
+            this._manager?.update(this._effective(cfg));
             this._desktop?.update(cfg);
             this._lock?.update(cfg);
             this._animations?.update(cfg);
@@ -60,7 +63,14 @@ export default class LiquidGlassExtension extends Extension {
                 this._leaving = null;
             }
             this._desktop = new DesktopBehaviour(cfg);
-            this._manager = new GlassManager(cfg);
+            // How much the glass draws (the glass quality setting, or auto when frames drop).
+            try {
+                this._speed = new Speed(cfg, () => this._manager?.update(this._effective(this._config.value)));
+            } catch (e) {
+                console.error(`Liquid Glass: no speed check or auto quality: ${e}`);
+                this._speed = null;
+            }
+            this._manager = new GlassManager(this._effective(cfg));
             this._animations = new Animations(cfg);
             try {
                 this._rescue = new ArcMenuRescue();
@@ -69,6 +79,10 @@ export default class LiquidGlassExtension extends Extension {
                 this._rescue = null;
             }
         }
+    }
+
+    _effective(cfg) {
+        return effectiveConfig(cfg, this._speed?.level ?? 0);
     }
 
     _stopSession() {
@@ -86,6 +100,12 @@ export default class LiquidGlassExtension extends Extension {
         this._desktop = null;
         this._manager?.destroy();
         this._manager = null;
+        try {
+            this._speed?.destroy();
+        } catch (e) {
+            logError(e, 'Liquid Glass: turning the speed watch off');
+        }
+        this._speed = null;
     }
 
     // GNOME keeps this extension on while the screen is locked (session-modes has
