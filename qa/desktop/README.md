@@ -21,7 +21,8 @@ glass always keeps the processor busy while anything moves, on every version, so
 smoothness on a real graphics card can't be judged here. The speed check therefore counts
 the glass's own work (redraws while idle, redraws of glass a busy app doesn't touch), and
 shows processor use and frame rates only for information. Smoothness on the PC stays with
-`tools/hardware-check`.
+`tools/hardware-check`. For the same reason the test desktop pins the glass quality to "full"; the automatic
+quality (which steps down when frames are late) is not exercised here.
 
 ## The checks
 
