@@ -30,7 +30,7 @@ shows processor use and frame rates only for information. Smoothness on the PC s
 | The glass looks right | Desktop, panel, ArcMenu, Quick Settings, Extension List menu and windows against reference pictures; window glass brightness against the wallpaper | 1.3.0 black glass, 1.4.2 dark box in menus at 125 % |
 | No leftover pieces of windows | Moves, resizes, minimizes, closes Electron windows; across the screen edge, in corners, maximized on the second screen; behind a terminal's glass | 1.4.3 window pieces and the glass strip at the screen edge |
 | Window content stays in place while resizing | Corner drags, app resizes, maximize and restore for the terminal, Files and Electron | 1.4.3 terminal content drifting (not reproduced on the test desktop yet) |
-| Light on the processor | No redraws and no processor use while nothing moves; no redraws of glass that a streaming app (like Claude writing) does not touch. Processor use and frame rates are shown for information | redraw loops |
+| Light on the processor | Waits for the desktop to settle, then: almost no redraws while nothing moves, and no redraws of glass that a streaming app (like Claude writing) does not touch. Processor use and frame rates are shown for information | redraw loops |
 | Extensions come back after restarts | Switches each extension off and on in Dino's order | 1.4.2 ArcMenu red |
 | Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3 | 1.4.3 ArcMenu red after Restore |
 | Locking the screen works | Lock screen and password screen against references, unlock, three times | |

@@ -39,8 +39,6 @@ max_content_drift = 30
 [speed]
 # Frames painted while nothing moves, per 10 seconds (should be close to 0).
 max_idle_frames = 6
-# GNOME Shell processor use while nothing moves (percent of one core).
-max_idle_cpu = 4.0
 # Redraws per second of the busiest piece of glass while nothing moves.
 max_idle_glass_redraws = 0.5
 # Redraws per second of glass that a busy, streaming window does not touch.
