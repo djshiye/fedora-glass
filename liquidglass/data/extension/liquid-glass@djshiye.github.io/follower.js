@@ -244,6 +244,11 @@ export class Follower {
                 this.target.set_pivot_point(0.5, 0.5);
                 this.target.set_scale(sc, sc);
             }
+            // Follow the new size in this same frame. This runs from a later
+            // itself, and the motion may have just settled, so a queued sync
+            // could wait for a frame that never comes.
+            if (this.pane?.visible)
+                this.sync();
         }
     }
 
