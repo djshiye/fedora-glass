@@ -1,12 +1,14 @@
 #version 440
 // Fedora Glass surface, with the same optics as the Shell extension (glass.js):
-// a glass slab whose top edge rounds off in a quarter circle, after Kyant's
+// a glass slab whose top edge rounds off in a squircle, after Kyant's
 // AndroidLiquidGlass (Apache License 2.0). View rays are refracted by Snell's
 // law (IOR 1.5) through the slab to the backdrop; the index follows Cauchy's
 // equation at five wavelengths for dispersion; Beer-Lambert absorption darkens
 // and greens the slanting paths through the edge. Nothing is painted on: the
 // edge reflects the real backdrop beyond it (weighted by Fresnel), and the
-// content's own colours bleed into the glass around it.
+// content's own colours bleed into the glass around it. One thing is painted:
+// a crisp line of light about 1.5 px wide along the very edge (rimLine), as on
+// Apple's glass, brightest at the corners facing the light.
 // `source` is the (already blurred) backdrop under the item plus `pad` px on
 // every side; `content` is a blurred copy of what the item holds.
 layout(location = 0) in vec2 qt_TexCoord0;
@@ -56,6 +58,21 @@ const float IOR = 1.5;
 const float F0 = 0.04;
 const vec2 LIGHT = vec2(-0.5574, -0.8302);   // the room is brighter top left
 const float REACH = 48.0;                    // px the edge sees beyond itself
+
+// The squircle edge profile's slope, as in glass.js.
+float squircleSlope(float x) {
+    float x3 = x * x * x;
+    float k = max(1.0 - x3 * x, 0.0);
+    return x3 / max(pow(k, 0.75), 0.03);
+}
+
+// The thin line of light along the very edge, as in glass.js. 0..1.
+float rimLine(float inside, vec2 n) {
+    float band = smoothstep(1.9, 1.3, inside) * smoothstep(0.0, 0.3, inside);
+    float d = dot(n, LIGHT);
+    float k = d > 0.0 ? pow(d, 3.0) : 0.4 * pow(-d, 3.0);
+    return band * (0.22 + 0.78 * k);
+}
 
 vec4 at(vec2 p) {
     return texture(source, (p + vec2(pad)) / (size + vec2(2.0 * pad)));
@@ -160,19 +177,21 @@ void main() {
         return;
     }
 
-    float gr = min(r * 1.5, min(c.x, c.y));
-    vec2 n = gradRoundRect(p, c, gr);
     float inside = -d;
 
-    // A thin bar gets a thin bevel, so a panel is not all rim.
+    // The bevel is a share of the short side, as in glass.js: a quarter on a
+    // menu, more on a thin bar; the bezel setting is the least it may be.
     float th = refraction;
     float slope = 0.0;
     float x = 0.0;
-    float bev = min(bezel, 0.35 * min(size.x, size.y));
+    float shortSide = 2.0 * min(c.x, c.y);
+    float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
+    float bev = bezel > 0.0 ? min(clamp(share * shortSide, bezel, 2.6 * bezel), 0.45 * shortSide) : 0.0;
+    float gr = min(max(r * 1.5, bev * 1.15), min(c.x, c.y));
+    vec2 n = gradRoundRect(p, c, gr);
     if (bev > 0.0 && inside < bev) {
         x = 1.0 - inside / bev;
-        float z = sqrt(max(1.0 - x * x, 0.0));
-        slope = x / max(z, 0.06);
+        slope = squircleSlope(x) * 1.6;
     }
     vec2 dome = depth * 0.25 * p / max(c.x, c.y);
     vec3 N = normalize(vec3(n * slope + dome + jitter(px0), 1.0));
@@ -206,7 +225,8 @@ void main() {
         }
         vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
         col.rgb *= exp(-vec3(0.006, 0.0025, 0.004) * min(th / max(-Rt.z, 0.2) - th, 40.0));
-        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, x, c) * col.a, vec3(col.a));
+        float xc = bev > 0.0 ? clamp(1.0 - inside / min(bev, 18.0), 0.0, 1.0) : 0.0;
+        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, xc, c) * col.a, vec3(col.a));
         col = over(col, tint, 1.0);
     }
     if (mode > 0.5 && mode < 1.5) {
@@ -238,13 +258,27 @@ void main() {
         vec3 base = under.rgb / max(under.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe), base + vec3(0.05 + 0.03 * lobe));
     }
+    // The line of light at the very edge: the backdrop beyond it mixed most of
+    // the way to white, at most a little brighter than the glass around it.
+    float ln = hl > 0.0 ? min(1.0, rimLine(inside, n) * min(1.0, 0.45 + 1.1 * hl) * 1.25) : 0.0;
+    vec3 lc = vec3(0.0);
+    if (ln > 0.0) {
+        vec4 e = env(px0 + n * REACH * 0.5);
+        vec4 under = mode > 1.5 ? at(px0) : col;
+        vec3 base = under.rgb / max(under.a, 1e-3);
+        lc = min(mix(e.rgb / max(e.a, 1e-3), vec3(1.0), 0.75), base + vec3(0.5 + 0.35 * ln));
+    }
     vec3 b = mode > 1.5 ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
     if (mode > 1.5) {
-        // Over the content: the reflection blends in, the bleed adds light.
-        fragColor = vec4(min(seen * a, vec3(1.0)) + b, a) * cov * qt_Opacity;
+        // Over the content: the reflection and the line blend in, the bleed adds light.
+        vec3 c2 = min(seen * a, vec3(1.0));
+        float a2 = a + (1.0 - a) * ln;
+        c2 = c2 * (1.0 - ln) + lc * ln;
+        fragColor = vec4(c2 + b, a2) * cov * qt_Opacity;
         return;
     }
     col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
+    col.rgb = mix(col.rgb, lc * col.a, ln);
     col.rgb += vec3(grain(px0) / 255.0) * col.a;
     fragColor = col * cov * qt_Opacity;
 }

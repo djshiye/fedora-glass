@@ -45,7 +45,7 @@ const CARD_CEILING = 0.11;
 function sheetLook(c) {
     return {blur: c.blur, refraction: 34, bend: 40, depth: 0.2, dispersion: 0.25, saturation: 1.35,
         brightness: c.dim, tint: c.tint, highlight: 0.5, bleed: 0, pointerLight: 0, motion: 0,
-        adapt: 0, shadow: 0, ceiling: SHEET_CEILING, solid: 1};
+        adapt: 0, shadow: 0, ceiling: SHEET_CEILING, solid: 1, rim: 0};
 }
 
 function cardLook(c) {
@@ -53,7 +53,7 @@ function cardLook(c) {
     // A shallow lens: on a plain backdrop a deep edge only reads as darker bands.
     return {...sheetLook(c), refraction: 12, bend: 16, depth: 0.12, dispersion: 0.15,
         brightness: Math.min(1, c.dim + 0.12), tint: [r, g, b, Math.min(1, a * 0.6)], highlight: 0.55,
-        ceiling: CARD_CEILING, solid: 0};
+        ceiling: CARD_CEILING, solid: 0, rim: 0.6};
 }
 
 /**

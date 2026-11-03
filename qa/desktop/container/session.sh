@@ -72,6 +72,13 @@ if [ -d /from/liquidglass ]; then
     for _ in $(seq 60); do [ -e "$HOME/.config/liquid-glass/pending-shell.json" ] || break; sleep 1; done
     sleep 5
     stop_session
+    # The older app saved the settings without glass_quality (it didn't know it), so the
+    # new glass would run on auto and step itself down to wallpaper-only glass under the
+    # software renderer. Pin full quality again before the new version brings the look up
+    # to date; Dino's own choices stay as the older app saved them (the upgrade check
+    # looks at those).
+    python3 -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); d["glass_quality"] = "full"; json.dump(d, open(p, "w"))' \
+        "$HOME/.config/liquid-glass/settings.json"
     start_shell shell-upgrade.log
     (cd "$HOME/liquid-glass-src" && exec python3 -m liquidglass watch) > "$OUT/watch-upgrade.txt" 2>&1 &
     WATCH_PID=$!
