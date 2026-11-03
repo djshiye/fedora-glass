@@ -29,7 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
-import {Shader, textureFrame} from './glsl.js';
+import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
 import {freezeSource, thawSource} from './glass.js';
 import {HoverGlide} from './glide.js';
 
@@ -342,7 +342,7 @@ void main() {
 const GENIE = new Shader(GENIE_SHADER);
 
 const GenieEffect = GObject.registerClass(
-class LiquidGlassGenie extends Shell.GLSLEffect {
+withShader(class LiquidGlassGenie extends ShaderBase {
     _init(win, icon, intensity) {
         super._init();
         // One program for all copies, but each copy has its own uniforms (a
@@ -356,10 +356,6 @@ class LiquidGlassGenie extends Shell.GLSLEffect {
         this._set({win_x: win.x, win_y: win.y, win_w: Math.max(1, win.width), win_h: Math.max(1, win.height),
             ico_x: icon.x, ico_y: icon.y, ico_w: Math.max(1, icon.width), ico_h: Math.max(1, icon.height),
             neck: C.genieNeck(intensity), pinch: C.geniePinch(intensity), vertical: vertical ? 1 : 0, toward: toward ? 1 : 0, progress: 0});
-    }
-
-    vfunc_build_pipeline() {
-        GENIE.build(this);
     }
 
     _set(values) {
@@ -388,7 +384,7 @@ class LiquidGlassGenie extends Shell.GLSLEffect {
         }
         super.vfunc_paint_target(node, paintContext);
     }
-});
+}, GENIE));
 
 /**
  * The genie warp, drawn on a copy of the window: the window itself stays in place,
