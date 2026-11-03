@@ -62,11 +62,11 @@ if [ -d /from/liquidglass ]; then
     # The older version is applied and runs for one session; then the new app arrives
     # (nobody presses Apply) and the PC restarts twice: at the first login the new login
     # helper brings the look up to date, at the second GNOME Shell loads the new glass.
-    cp -r /from "$HOME/liquid-glass-old"
-    (cd "$HOME/liquid-glass-old" && python3 -m liquidglass apply) > "$OUT/apply-old.txt" 2>&1
+    cp -r /from "$HOME/.liquid-glass-old"      # hidden, so Files shows the same home folder
+    (cd "$HOME/.liquid-glass-old" && python3 -m liquidglass apply) > "$OUT/apply-old.txt" 2>&1
     echo "apply exit $?" >> "$OUT/apply-old.txt"
     start_shell shell-old.log
-    (cd "$HOME/liquid-glass-old" && exec python3 -m liquidglass watch) > "$OUT/watch-old.txt" 2>&1 &
+    (cd "$HOME/.liquid-glass-old" && exec python3 -m liquidglass watch) > "$OUT/watch-old.txt" 2>&1 &
     WATCH_PID=$!
     for _ in $(seq 60); do [ -e "$HOME/.config/liquid-glass/pending-shell.json" ] || break; sleep 1; done
     sleep 5
