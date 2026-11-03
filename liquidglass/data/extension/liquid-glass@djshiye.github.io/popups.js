@@ -7,6 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import {Signals} from './common.js';
+import {report} from './safety.js';
 import {Follower} from './follower.js';
 
 // ---- popup menus, notification banners, OSD and the window switcher ----------------
@@ -113,7 +114,7 @@ export class Popups {
         try {
             f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
         } catch (e) {
-            console.error(`Liquid Glass: menu shown without glass: ${e}`);
+            report('menu shown without glass', e);
             return null;
         }
         f.part = part;
