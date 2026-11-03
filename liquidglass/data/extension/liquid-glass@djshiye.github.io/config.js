@@ -122,6 +122,8 @@ export function parse(text) {
     cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);
     cfg.glide = cleanGlide(raw.glide);
+    // Menus grow out of the button that opened them (follower.js).
+    cfg.grow = {enabled: !(raw.grow && typeof raw.grow === 'object' && raw.grow.enabled === false)};
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};
