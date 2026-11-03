@@ -28,15 +28,17 @@ export const ShaderBase = SHELL_GLSL ? Shell.GLSLEffect : Clutter.ShaderEffect;
  *     const MyEffect = GObject.registerClass(withShader(class extends ShaderBase { ... }, MY));
  */
 export function withShader(klass, shader) {
-    if (SHELL_GLSL) {
-        klass.prototype.vfunc_build_pipeline = function () {
+    // defineProperty, not assignment: GJS ignores a plain assignment of a vfunc the
+    // parent class already has a slot for (seen on GNOME 51), and the class would
+    // then have no shader at all.
+    const [name, fn] = SHELL_GLSL
+        ? ['vfunc_build_pipeline', function () {
             shader.build(this);
-        };
-    } else {
-        klass.prototype.vfunc_get_static_snippet = function () {
+        }]
+        : ['vfunc_get_static_snippet', function () {
             return shader.cogl();
-        };
-    }
+        }];
+    Object.defineProperty(klass.prototype, name, {value: fn, writable: true, configurable: true, enumerable: false});
     return klass;
 }
 
