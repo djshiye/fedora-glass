@@ -86,6 +86,13 @@ export class ArcMenuRescue {
         try {
             ext.stateObj?.disable();
         } catch {}
+        // GNOME's restart in start order keeps ArcMenu's stylesheet loaded, and
+        // starting ArcMenu loads it again. Loaded twice, a later switch-off leaves an
+        // empty entry in the Shell's list that breaks the next theme reload (User
+        // Themes then fails and the Shell theme is gone until a restart).
+        try {
+            this._manager._unloadExtensionStylesheet?.(ext);
+        } catch {}
         // GNOME keeps a failed extension in its start order; it is added again when it starts.
         const order = this._manager._extensionOrder;
         const at = order?.indexOf(ARCMENU) ?? -1;
