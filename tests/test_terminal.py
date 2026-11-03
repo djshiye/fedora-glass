@@ -147,7 +147,19 @@ def test_btop_target_keeps_rest_of_conf(fake_env):
     assert any(a.path.name == "liquid-glass.theme" for a in plan)
 
 
-def test_btop_without_conf_skips_conf(fake_env):
+def test_btop_without_conf_starts_one(fake_env):
+    """btop only writes btop.conf on its first exit; without one, its own black
+    background would cover the terminal glass (found by the app scorecard)."""
+    plan = tt.Btop().plan(ctx_for(fake_env))
+    assert [a.path.name for a in plan] == ["liquid-glass.theme", "btop.conf"]
+    conf = next(a.content for a in plan if a.path.name == "btop.conf")
+    assert 'color_theme = "liquid-glass"' in conf and "theme_background = False" in conf
+
+
+def test_btop_linked_conf_is_left_alone(fake_env, tmp_path):
+    d = fake_env.config / "btop"
+    d.mkdir(parents=True)
+    (d / "btop.conf").symlink_to(tmp_path / "nowhere.conf")
     plan = tt.Btop().plan(ctx_for(fake_env))
     assert [a.path.name for a in plan] == ["liquid-glass.theme"]
 
