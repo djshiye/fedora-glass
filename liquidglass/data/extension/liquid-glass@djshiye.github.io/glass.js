@@ -31,7 +31,7 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
-import {Shader, textureFrame} from './glsl.js';
+import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
 const SHADER = `
@@ -603,7 +603,7 @@ void main() {
 const GLASS = new Shader(SHADER);
 
 const GlassEffect = GObject.registerClass(
-class LiquidGlassEffect extends Shell.GLSLEffect {
+withShader(class LiquidGlassEffect extends ShaderBase {
     _init() {
         super._init();
         this._frame = '';
@@ -615,10 +615,6 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         if (this._catchUp)
             GLib.source_remove(this._catchUp);
         this._catchUp = 0;
-    }
-
-    vfunc_build_pipeline() {
-        GLASS.build(this);
     }
 
     vfunc_paint_target(node, paintContext) {
@@ -658,7 +654,7 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         // at most RERENDER_HZ renders a second for changes behind it.
         if ((flags & dirty) && !this._full && !a?._free && this._picture === size &&
             this._placedAt === (a?._placed ?? '')) {
-            const wait = this._renderedAt + RERENDER_US - GLib.get_monotonic_time();
+            const wait = this._renderedAt + (dragging ? DRAG_RERENDER_US : RERENDER_US) - GLib.get_monotonic_time();
             if (wait > 0) {
                 this._stale = true;
                 this.throttled = (this.throttled ?? 0) + 1;    // read by the QA tools
@@ -674,6 +670,8 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
                 return;
             }
         }
+        // A pane that moved this frame is inside Mutter's redraw area as a whole.
+        const moved = (flags & dirty) && this._placedAt !== (a?._placed ?? '');
         if (flags & dirty) {
             this._picture = size;
             this._placedAt = a?._placed ?? '';
@@ -689,6 +687,8 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
             renderTotal++;    // read by speed.js
             if (this._full)
                 this._full = false;
+            else if (dragging && moved)
+                fullAfterDrag.add(this);    // it renders again next frame anyway; one full render when the drag ends
             else
                 this.get_actor()?.queueFull?.();
         }
@@ -699,7 +699,7 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         GLASS.set(this, values);
         this.queue_repaint();
     }
-});
+}, GLASS));
 
 export const DEFAULT_LOOK = Object.freeze({
     blur: 6,            // px
@@ -754,6 +754,12 @@ const ENV_REACH = 32;   // px the rim sees beyond the edge
 // quality level (see setQuality): full, lighter, lightest.
 const RERENDER_HZ = [20, 10, 5];
 let RERENDER_US = 1e6 / RERENDER_HZ[0];
+// While a window is dragged or resized, glass that stays put catches up with changes
+// behind it at the next lighter level's rate (eyes follow the window), and glass that
+// moves renders once a frame instead of twice; everything renders in full once it ends.
+let dragging = false;
+let DRAG_RERENDER_US = 1e6 / RERENDER_HZ[1];
+const fullAfterDrag = new Set();
 
 const GLOW_BLUR = 30;   // px the content's light spreads
 
@@ -774,6 +780,7 @@ export function setQuality(level) {
         return;
     quality = q;
     RERENDER_US = 1e6 / RERENDER_HZ[q];
+    DRAG_RERENDER_US = 1e6 / RERENDER_HZ[Math.min(2, q + 1)];
     panes.forEach(p => p._setCheap(p._moving));
 }
 
@@ -802,17 +809,35 @@ export function redrawAllPanes() {
     }
 }
 
+function endDrag() {
+    dragging = false;
+    const owed = [...fullAfterDrag];
+    fullAfterDrag.clear();
+    for (const effect of owed) {
+        try {
+            effect.get_actor()?.queueFull?.();
+        } catch {}    // its pane went away during the drag
+    }
+}
+
+/** For tests and the QA tools: whether a drag is going on. */
+export function isDragging() {
+    return dragging;
+}
+
 export function moving(on) {
     if (cheapTimer) {
         GLib.source_remove(cheapTimer);
         cheapTimer = 0;
     }
     if (on) {
+        dragging = true;
         panes.forEach(p => p._setCheap(true));
         return;
     }
     cheapTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
         cheapTimer = 0;
+        endDrag();
         panes.forEach(p => p._setCheap(false));
         return GLib.SOURCE_REMOVE;
     });
@@ -948,6 +973,8 @@ export function stopMoving() {
     if (cheapTimer)
         GLib.source_remove(cheapTimer);
     cheapTimer = 0;
+    dragging = false;
+    fullAfterDrag.clear();
 }
 
 // The screen that holds the middle of a stage rectangle.

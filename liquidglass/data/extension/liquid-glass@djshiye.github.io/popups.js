@@ -6,7 +6,8 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
-import {Signals} from './common.js';
+import {Signals, grow} from './common.js';
+import {report} from './safety.js';
 import {Follower} from './follower.js';
 
 // ---- popup menus, notification banners, OSD and the window switcher ----------------
@@ -25,6 +26,7 @@ function partOf(bp) {
 export class Popups {
     constructor(cfg) {
         this.cfg = cfg;
+        grow.enabled = cfg.grow?.enabled !== false;
         this._followers = new Map();   // surface -> Follower
         this._waiting = new Map();     // surface -> [signal ids], until it first opens
         this._signals = new Signals();
@@ -62,7 +64,7 @@ export class Popups {
         const bp = child instanceof BoxPointer ? child
             : child.get_children?.().find(c => c instanceof BoxPointer) ?? null;
         if (bp) {
-            this._follow(bp.bin?.get_child?.(), child, partOf(bp));
+            this._follow(bp.bin?.get_child?.(), child, partOf(bp), () => bp._sourceActor ?? null);
             return;
         }
         // Volume and brightness pop-ups.
@@ -76,11 +78,11 @@ export class Popups {
             this._follow(child._switcherList, child, 'quicksettings');
     }
 
-    _follow(surface, anchor, part = 'menus') {
+    _follow(surface, anchor, part = 'menus', source = null) {
         if (!surface || this._followers.has(surface) || this._waiting.has(surface))
             return;
         if (surface.mapped) {
-            this._makeFollower(surface, anchor, part);
+            this._makeFollower(surface, anchor, part, source);
             return;
         }
         // Build the glass when the menu first opens, not before: menus that are made
@@ -93,7 +95,7 @@ export class Popups {
                 // It is about to be seen: hold it back until its glass is up. The hold
                 // gives up after HOLD_MAX_MS, and if the glass cannot be built at all
                 // the menu shows as it is, without glass.
-                this._makeFollower(surface, anchor, part)?._hold();
+                this._makeFollower(surface, anchor, part, source)?._hold();
             }),
             surface.connect('destroy', () => this._stopWaiting(surface)),
         ];
@@ -108,16 +110,17 @@ export class Popups {
         ids.forEach(id => surface.disconnect(id));
     }
 
-    _makeFollower(surface, anchor, part) {
+    _makeFollower(surface, anchor, part, source = null) {
         let f;
         try {
             f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
         } catch (e) {
-            console.error(`Liquid Glass: menu shown without glass: ${e}`);
+            report('menu shown without glass', e);
             return null;
         }
         f.part = part;
         f.condense = true;
+        f.source = source;
         this._followers.set(surface, f);
         return f;
     }
@@ -128,6 +131,7 @@ export class Popups {
 
     update(cfg) {
         this.cfg = cfg;
+        grow.enabled = cfg.grow?.enabled !== false;
         for (const f of this._followers.values())
             f.update(this._settings(f.part));
     }

@@ -644,6 +644,8 @@ Item {
 
             LockScreenCard { width: parent.width }
 
+            LoginScreenCard { width: parent.width }
+
             Card {
                 width: parent.width
                 height: implicitHeight
@@ -697,6 +699,15 @@ Item {
                         tip: "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
                         checked: Backend.liquidMotion
                         onToggled: (on) => Backend.liquidMotion = on
+                    }
+                    SwitchRow {
+                        objectName: "menuGrow"
+                        label: "Menus grow from their button"
+                        caption: "ArcMenu, quick settings and the calendar flow out of what you clicked"
+                        tip: "A menu opens as if it pours out of the button you clicked, and flows back into it when it closes. Off, menus open in place. It stays off when Reduce animation is on in Settings."
+                        enabled: Backend.liquidMotion
+                        checked: Backend.menuGrow
+                        onToggled: (on) => Backend.menuGrow = on
                     }
                     Column {
                         width: parent.width

@@ -402,3 +402,26 @@ def test_replaced_files_show_a_reapply_note(make_backend, home):
     assert b.waitIdle()
     assert b.property("lostNote") == ""
 
+
+
+# ---- glass on the login screen -----------------------------------------------------
+def test_login_glass_hidden_without_a_root_owned_helper(make_backend, tmp_path, monkeypatch):
+    import os
+
+    from liquidglass.gui.backend import Backend
+    helper = tmp_path / "liquid-glass-login-screen"
+    helper.write_text("#!/bin/sh\n")
+    monkeypatch.setattr(Backend, "LOGIN_HELPER", helper)
+    b = make_backend()
+    if os.geteuid() != 0:
+        assert b.loginGlass == "unavailable"     # a helper the user could edit is never run
+    monkeypatch.setattr(Backend, "LOGIN_HELPER", tmp_path / "missing")
+    assert make_backend().loginGlass == "unavailable"
+
+
+def test_login_glass_gets_only_the_current_colours(make_backend):
+    b = make_backend()
+    accent, tint, frost = b.login_values()
+    from liquidglass import login_screen as ls
+    ls.check_values(accent, tint, float(frost))
+    assert tint == b.settings().normalized().tint.lower()

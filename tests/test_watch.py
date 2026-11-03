@@ -107,3 +107,21 @@ def test_a_burst_of_switches_makes_one_apply(monkeypatch):
     monkeypatch.setattr(cli.settings_mod, "load", lambda: type("S", (), {"scheme": "auto"})())
     assert cli.cmd_watch(None) == 1
     assert eng.applies == 1
+
+
+def test_the_watcher_restarts_itself_when_dnf_installs_a_new_version(monkeypatch):
+    """The user service then starts the new version's watcher (Restart=on-failure), which
+    brings the applied look up to date without waiting for the next login."""
+    procs = [FakeProc(hold=True), FakeProc(hold=True)]
+    it = iter(procs)
+    monkeypatch.setattr(cli.subprocess, "Popen", lambda *a, **k: next(it))
+    monkeypatch.setattr(cli, "_engine", lambda: FakeEngine())
+    monkeypatch.setattr(cli, "UPGRADE_POLL_S", 0.01)
+    monkeypatch.setattr(cli, "disk_version", lambda: "99.0")
+    assert cli.cmd_watch(None) == 75
+    assert all(p.killed for p in procs), "its monitors are stopped"
+
+
+def test_the_version_on_disk_is_read_from_the_package():
+    from liquidglass import __version__
+    assert cli.disk_version() == __version__

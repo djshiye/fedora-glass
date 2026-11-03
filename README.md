@@ -7,7 +7,7 @@
 
 <p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Glass panel and ArcMenu: the rounded edge bends the stripes behind it and catches the light"></p>
 
-Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need Blur my Shell.
+Made for **Fedora 44 with GNOME 50**, and ready for GNOME 51 (Fedora 45). It draws its own glass, so you don't need Blur my Shell.
 
 ## Install
 
@@ -22,8 +22,9 @@ sudo dnf install liquid-glass
 
 Updates then come with the rest of your system through `sudo dnf upgrade`. The repository is built
 by this project's GitHub Actions from each release, after checking the RPM against the release's
-`SHA256SUMS`, and served over HTTPS. The packages are not GPG-signed yet; signed builds through
-[Fedora COPR](docs/COPR.md) are planned.
+`SHA256SUMS`, and served over HTTPS. After an upgrade Liquid Glass brings your look up to date by
+itself, with your own settings, and the new glass shows from your next restart. No need to press
+Apply.
 
 **Installed it from the old download link?** Run only the first command above. Your next
 `sudo dnf upgrade` then picks up new versions and keeps your settings.
@@ -37,6 +38,8 @@ by this project's GitHub Actions from each release, after checking the RPM again
   liquid-glass revert
   sudo dnf remove liquid-glass
   ```
+
+  Removing it also puts the normal login screen back if you turned on glass there.
 
 ## Blur my Shell
 
@@ -62,6 +65,10 @@ GNOME Shell, Dash to Panel, ArcMenu, GTK 4 and libadwaita apps (Nautilus include
 Flatpak apps, Ptyxis and GNOME Terminal, Qt apps (through Kvantum), btop, micro, Discord (Vencord),
 VS Code, Obsidian, qBittorrent, Prism Launcher, Brave, Helium, Clipperino, RGBeast and Wheelguard.
 The app's **Apps** page lists every part, shows which you have installed, and has a switch for each.
+
+The login screen is opt in: **Use glass on the login screen** (under Lock screen) asks for your
+password, then gives it a glow in your tint colour with glass panes for your name and password.
+**Put the normal login screen back** undoes it exactly, and GNOME updates undo it by themselves.
 
 <p align="center"><img src="docs/screenshots/app-look-dark.jpg" width="860" alt="The Liquid Glass app: live preview and the Liquid to Frosted slider"></p>
 
@@ -90,7 +97,10 @@ The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/
 
 ## Safe by design
 
-- It runs as you: no root, no network access, and it changes only your own settings.
+- It runs as you: no root, no network access, and it changes only your own settings. The one
+  exception is the opt-in login screen glass, which asks for your password. Its small helper takes
+  only three colours or numbers, changes only the login screen's part of GNOME Shell's theme file,
+  checks every other part stays byte for byte the same, and keeps the original to put back.
 - Every file and setting is backed up before its first change. **Show changes** lists everything
   before **Apply** touches it.
 
