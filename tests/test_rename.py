@@ -117,8 +117,10 @@ def test_shell_theme_moves_to_the_new_name(fake_env, monkeypatch):
 def test_package_moves_old_installs_over():
     spec = (Path(__file__).resolve().parents[1] / "packaging/fedora-glass.spec").read_text()
     assert "Name:           fedora-glass" in spec
-    assert "Obsoletes:      liquid-glass < %{version}-%{release}" in spec
-    assert "Provides:       liquid-glass = %{version}-%{release}" in spec
+    assert "%global fg_evr  %{version}-%{release}" in spec
+    assert "Obsoletes:      liquid-glass < %{fg_evr}" in spec
+    assert "Provides:       liquid-glass = %{fg_evr}" in spec
+    assert "%triggerpostun -- liquid-glass < %{fg_evr}" in spec
     # The bridge package sorts after every older liquid-glass and before fedora-glass.
     assert "%package -n liquid-glass" in spec and "Release:        0%{?dist}" in spec
     repo = (Path(__file__).resolve().parents[1] / "packaging/fedora-glass.repo").read_text()
