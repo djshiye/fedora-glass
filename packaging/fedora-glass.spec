@@ -1,6 +1,8 @@
 Name:           fedora-glass
 Version:        1.5.0
 Release:        1%{?dist}
+# This package's version-release, fixed here: the liquid-glass package below has its own.
+%global fg_evr  %{version}-%{release}
 Summary:        Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0
 URL:            https://github.com/djshiye/fedora-liquid-glass
@@ -21,8 +23,8 @@ Recommends:     kvantum
 
 # Fedora Glass was called Liquid Glass up to 1.4.4: this package replaces it, and
 # `dnf upgrade` swaps one for the other with the settings kept.
-Provides:       liquid-glass = %{version}-%{release}
-Obsoletes:      liquid-glass < %{version}-%{release}
+Provides:       liquid-glass = %{fg_evr}
+Obsoletes:      liquid-glass < %{fg_evr}
 
 %description
 A glass look for GNOME Shell, GTK and Qt apps, Dash to Panel and ArcMenu,
@@ -120,6 +122,14 @@ if [ -f "$old" ] && ! [ -L "$old" ] && grep -qx 'baseurl=https://djshiye.github.
     mv -f "$old" "$old.rpmsave" || :
 fi
 :
+
+%triggerpostun -- liquid-glass < %{fg_evr}
+# The watcher unit kept its name, so removing liquid-glass (when fedora-glass replaces
+# it) turns the unit off after fedora-glass has turned it on: turn it on again, the same
+# way a first install does.
+if [ $2 -eq 0 ] && [ -x /usr/lib/systemd/systemd-update-helper ]; then
+    /usr/lib/systemd/systemd-update-helper install-user-units liquid-glass-watch.service || :
+fi
 
 %post -n liquid-glass
 %systemd_user_post liquid-glass-watch.service
