@@ -8,16 +8,20 @@
 #
 # --source              the Liquid Glass tree to test (default: this checkout). Lets you run
 #                       today's checks against an older release.
+# --from DIR            also check the upgrade from an older Liquid Glass tree (the last
+#                       release): it is applied first, then this version arrives the way
+#                       dnf upgrade brings it, with two restarts and no Apply.
 # --update-references   save this run's pictures as the new reference pictures.
 # --start-only          start the test desktop and leave it running (for working on the checks).
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/../.." && pwd)
-SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" NAME=${LGQA_NAME:-lgqa-$$}
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" NAME=${LGQA_NAME:-lgqa-$$}
 while [ $# -gt 0 ]; do
     case $1 in
         --source) SRC=$(cd "$2" && pwd); shift ;;
+        --from) FROM=$(cd "$2" && pwd); shift ;;
         --only) ONLY="--only $2"; shift ;;
         --update-references) UPDATE=--update-references ;;
         --out) OUT=$2; shift ;;
@@ -37,7 +41,7 @@ trap cleanup EXIT
 
 # No network inside: nothing at run time needs it.
 docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g \
-    -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out \
+    -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out ${FROM:+-v "$FROM":/from:ro} \
     lgqa-desktop /opt/lgqa/suite/container/start.sh >/dev/null
 
 for _ in $(seq 120); do

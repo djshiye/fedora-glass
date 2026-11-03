@@ -960,8 +960,64 @@ def check_log(ctx: Ctx) -> Check:
     return c
 
 
+# ---------------------------------------------------------------------------------------------
+# 8. Upgrade from the last release (only with run.sh --from)
+# ---------------------------------------------------------------------------------------------
+def _version_of(tree: Path) -> str:
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (tree / "liquidglass/__init__.py").read_text())
+    return m.group(1) if m else "?"
+
+
+ERROR_LINE = re.compile(r"JS ERROR|TypeError|ReferenceError|Gjs-CRITICAL|Liquid Glass:.*(fail|error)", re.I)
+
+
+def _lg_errors(name: str) -> list[str]:
+    p = OUT / name
+    lines = p.read_text(errors="replace").splitlines() if p.exists() else []
+    return [l for l in lines if ERROR_LINE.search(l) and "Xwayland" not in l
+            and ("liquid-glass" in l.lower() or "Liquid Glass" in l)]
+
+
+def check_upgrade(ctx: Ctx) -> Check:
+    old, new = _version_of(Path("/from")), _version_of(Path("/src"))
+    c = Check("upgrade", "Upgrading from the last release",
+              f"Dino's PC on {old}: applied and used for one session. Then {new} arrives the way dnf upgrade "
+              "brings it, nobody presses Apply, and the PC restarts twice. The new glass must be running, "
+              "with Dino's settings kept.")
+    sh = ctx.sh
+    txt = (OUT / "apply-old.txt").read_text(errors="replace")
+    c.add("apply exit 0" in txt, f"{old} was applied." if "apply exit 0" in txt else
+          f"Applying {old} failed: {txt.strip().splitlines()[-1][-160:] if txt.strip() else 'no output'}")
+    errs = _lg_errors("shell-old.log")
+    c.add(not errs, f"{old} ran its session without Liquid Glass errors." if not errs else
+          f"{old} logged {len(errs)} Liquid Glass errors (this is the old version): {errs[0][-140:]}")
+    watch = (OUT / "watch-upgrade.txt").read_text(errors="replace") if (OUT / "watch-upgrade.txt").exists() else ""
+    said = f"updating the applied look from {old} to {new}" in watch
+    c.add(said, f"At the first login after the upgrade, the look was brought up to {new} by itself." if said else
+          "At the first login after the upgrade, the look was not brought up to date"
+          + (f": {watch.strip().splitlines()[-1][-160:]}" if watch.strip() else "."))
+    errs = _lg_errors("shell-upgrade.log")
+    c.add(not errs, f"The {old} glass kept working with {new}'s settings until the restart." if not errs else
+          f"{len(errs)} Liquid Glass errors in the session between the update and the restart: {errs[0][-140:]}")
+    running = sh.json(f"return Main.extensionManager.lookup('{LG}')?.metadata?.['version-name'] ?? null;")
+    c.add(running == new, f"After the next restart GNOME Shell runs the {new} glass." if running == new else
+          f"After the next restart GNOME Shell runs the {running or 'no'} glass, not {new}.")
+    try:
+        saved = json.loads((lgqa.HOME / ".config/liquid-glass/settings.json").read_text())
+    except (OSError, ValueError):
+        saved = {}
+    kept = saved.get("overview_off") is True and saved.get("start_on_desktop") is True
+    c.add(kept, "Dino's own settings (no overview, start on the desktop) were kept." if kept else
+          f"Dino's settings changed: {json.dumps(saved)[:160]}")
+    others = [u for u in DINO_EXTENSIONS if sh.ext_states().get(u) == 1]
+    bad = healthy(health(ctx, others), others)
+    c.add(not bad, "The glass and all of Dino's extensions are working." if not bad else "; ".join(bad) + ".")
+    return c
+
+
 ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
-       "restart": check_restart, "restore": check_restore, "lock": check_lock, "log": check_log}
+       "restart": check_restart, "restore": check_restore, "lock": check_lock, "log": check_log,
+       "upgrade": check_upgrade}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1022,7 +1078,10 @@ img{display:block;max-width:100%;border-radius:8px;margin:8px 0 2px;border:1px s
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", default=",".join(ALL))
+    # The upgrade check needs the older tree (run.sh --from) and goes first, before other
+    # checks Apply or Restore.
+    upgrade = ["upgrade"] if Path("/from/liquidglass").is_dir() else []
+    ap.add_argument("--only", default=",".join(upgrade + [k for k in ALL if k != "upgrade"]))
     ap.add_argument("--update-references", action="store_true")
     ap.add_argument("--version", default="")
     args = ap.parse_args()

@@ -36,22 +36,61 @@ gsettings set org.gnome.shell favorite-apps "['org.gnome.Nautilus.desktop','org.
 gsettings set org.gnome.shell enabled-extensions "['extension-list@tu.berry', 'arcmenu@arcmenu.com', 'dash-to-panel@jderose9.github.com', 'appindicatorsupport@rgcjonas.gmail.com', 'blur-my-shell@aunetx', 'just-perfection-desktop@just-perfection', 'deja-window@mcast.gnomext.com']"
 dconf load /org/gnome/shell/extensions/ < /opt/lgqa/suite/dino-settings.ini
 
+start_shell() {
+    gnome-shell --headless --virtual-monitor 2000x1125 --virtual-monitor 2000x1125 --unsafe-mode --wayland >> "$OUT/${1:-shell.log}" 2>&1 &
+    SHELL_PID=$!
+    export WAYLAND_DISPLAY=wayland-0
+    for _ in $(seq 90); do
+        gdbus call --session -d org.gnome.Shell -o /org/gnome/Shell -m org.gnome.Shell.Eval 'Main.layoutManager._startingUp ? 0 : 1' 2>/dev/null | grep -q "'1'" && break
+        sleep 1
+    done
+}
+# "Restart the PC": GNOME Shell and the login helper stop, then start again.
+stop_session() {
+    kill "$WATCH_PID" 2>/dev/null; wait "$WATCH_PID" 2>/dev/null
+    kill "$SHELL_PID" 2>/dev/null; wait "$SHELL_PID" 2>/dev/null
+    rm -f "$XDG_RUNTIME_DIR"/wayland-0 "$XDG_RUNTIME_DIR"/wayland-0.lock
+}
+
 # Liquid Glass: Dino's choices (start on the desktop, no overview), then Apply.
 # glass_quality "full": the automatic quality steps the glass down when frames are late,
 # which always happens without a graphics card, so the checks pin full quality (versions
 # without the setting ignore it).
 echo '{"overview_off": true, "start_on_desktop": true, "glass_quality": "full"}' > "$HOME/.config/liquid-glass/settings.json"
-(cd "$HOME/liquid-glass-src" && python3 -m liquidglass apply) > "$OUT/apply.txt" 2>&1
-echo "apply exit $?" >> "$OUT/apply.txt"
+if [ -d /from/liquidglass ]; then
+    # The upgrade check: Dino's PC on the last release, then `dnf upgrade` and a restart.
+    # The older version is applied and runs for one session; then the new app arrives
+    # (nobody presses Apply) and the PC restarts twice: at the first login the new login
+    # helper brings the look up to date, at the second GNOME Shell loads the new glass.
+    cp -r /from "$HOME/liquid-glass-old"
+    (cd "$HOME/liquid-glass-old" && python3 -m liquidglass apply) > "$OUT/apply-old.txt" 2>&1
+    echo "apply exit $?" >> "$OUT/apply-old.txt"
+    start_shell shell-old.log
+    (cd "$HOME/liquid-glass-old" && exec python3 -m liquidglass watch) > "$OUT/watch-old.txt" 2>&1 &
+    WATCH_PID=$!
+    for _ in $(seq 60); do [ -e "$HOME/.config/liquid-glass/pending-shell.json" ] || break; sleep 1; done
+    sleep 5
+    stop_session
+    start_shell shell-upgrade.log
+    (cd "$HOME/liquid-glass-src" && exec python3 -m liquidglass watch) > "$OUT/watch-upgrade.txt" 2>&1 &
+    WATCH_PID=$!
+    for _ in $(seq 90); do grep -q "updating the applied look" "$OUT/watch-upgrade.txt" 2>/dev/null && break; sleep 1; done
+    sleep 20      # the update itself, and any Shell parts it leaves for the glass
+    stop_session
+    if grep -q "updating the applied look" "$OUT/watch-upgrade.txt"; then
+        echo "apply exit 0 (the login helper applied it after the upgrade)" > "$OUT/apply.txt"
+    else
+        echo "apply exit 1 (the login helper did not bring the look up to date)" > "$OUT/apply.txt"
+    fi
+else
+    (cd "$HOME/liquid-glass-src" && python3 -m liquidglass apply) > "$OUT/apply.txt" 2>&1
+    echo "apply exit $?" >> "$OUT/apply.txt"
+fi
 
 # The fresh login: GNOME Shell, then the Liquid Glass login helper (finishes held parts).
-gnome-shell --headless --virtual-monitor 2000x1125 --virtual-monitor 2000x1125 --unsafe-mode --wayland > "$OUT/shell.log" 2>&1 &
-export WAYLAND_DISPLAY=wayland-0
-for _ in $(seq 90); do
-    gdbus call --session -d org.gnome.Shell -o /org/gnome/Shell -m org.gnome.Shell.Eval 'Main.layoutManager._startingUp ? 0 : 1' 2>/dev/null | grep -q "'1'" && break
-    sleep 1
-done
+start_shell
 (cd "$HOME/liquid-glass-src" && exec python3 -m liquidglass watch) > "$OUT/watch.txt" 2>&1 &
+WATCH_PID=$!
 python3 /opt/lgqa/suite/checks/scale.py "${LGQA_SCALE:-1.25}" > "$OUT/scale.txt" 2>&1
 echo READY
 sleep infinity
