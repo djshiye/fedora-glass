@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, readdirSync} from 'node:fs';
 import {test} from 'node:test';
 
-import {Shader, snippet, textureFrame, uniformNames} from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glsl.js';
+import {Shader, ShaderBase, snippet, textureFrame, uniformNames, withShader} from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glsl.js';
 
 const EXT = new URL('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/', import.meta.url);
 const read = f => readFileSync(new URL(f, EXT), 'utf8');
@@ -89,7 +89,10 @@ for (const {file, name, calls} of SHADERS) {
 test('no module sets a uniform any other way', () => {
     for (const f of readdirSync(EXT).filter(n => n.endsWith('.js'))) {
         const src = code(f);
-        assert.doesNotMatch(src, /set_uniform_value|set_shader_source|Clutter\.ShaderEffect|get_static_shader_source/, f);
+        // GNOME 50's Clutter.ShaderEffect source API compiles one program per pane.
+        assert.doesNotMatch(src, /set_uniform_value|set_shader_source|get_static_shader_source/, f);
+        if (f !== 'glsl.js')
+            assert.doesNotMatch(src, /Clutter\.ShaderEffect|Shell\.GLSLEffect\b(?! copies)/, `${f} must extend ShaderBase`);
         if (f !== 'glsl.js')
             assert.doesNotMatch(src, /set_uniform_float/, `${f} must go through Shader.set`);
     }
@@ -183,4 +186,33 @@ test('a clipped pane starts where Clutter frames its clip', () => {
     const f = textureFrame(256, 203, pane);
     assert.equal(f.org_x, -45);    // the texture starts 2 px before the clip, 45 px into the pane
     assert.equal(f.org_y, 2);
+});
+
+
+// GNOME 51 removed Shell.GLSLEffect; the same shaders run as a Clutter.ShaderEffect.
+test('on GNOME 51 uniforms are set by name, as floats', () => {
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'));
+    const calls = [];
+    const e = {set_uniform_float: (name, n, values) => calls.push([name, n, values])};
+    shader.set(e, {ceil_y: 0, width: 1920, nope: 1, hl: NaN});
+    assert.deepEqual(calls, [['ceil_y', 1, [0]], ['width', 1, [1920]]]);
+});
+
+test('each GNOME gets the one shader vfunc its base class has', () => {
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'));
+    const K = withShader(class extends ShaderBase {}, shader);
+    // The test stubs have no Shell.GLSLEffect, like GNOME 51.
+    assert.equal(typeof K.prototype.vfunc_get_static_snippet, 'function');
+    assert.equal(K.prototype.vfunc_build_pipeline, undefined);
+});
+
+test('the GNOME 51 snippet carries the same shader, replacing the fragment hook', () => {
+    const src = shaderSource('glass.js', 'SHADER');
+    const shader = new Shader(src);
+    const snip = shader.cogl();
+    const parts = snippet(src);
+    assert.equal(snip.hook, 'fragment');
+    assert.equal(snip.decls, parts.decls);
+    assert.equal(snip.post, null);
+    assert.equal(snip.replace, parts.code);
 });

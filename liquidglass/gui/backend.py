@@ -13,12 +13,14 @@ import configparser
 import json
 import os
 import secrets
+import stat
+import time
 from collections.abc import Callable
 from dataclasses import asdict, fields, replace
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QFileSystemWatcher, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
 from .. import APP_ID, palette
@@ -119,6 +121,7 @@ class Backend(QObject):
     failed = Signal(str)
     headerNoteChanged = Signal()
     safeModeChanged = Signal()
+    speedChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -163,6 +166,18 @@ class Backend(QObject):
         self._safe_timer = QTimer(self)
         self._safe_timer.setInterval(3000)
         self._safe_timer.timeout.connect(self._poll_safe_mode)
+        # Speed: what the extension reports, and the check the user can ask for.
+        self._speed_status: dict = {}
+        self._speed_state = "idle"
+        self._speed_result: dict = {}
+        self._speed_id = ""
+        self._speed_deadline = 0.0
+        self._speed_poll = QTimer(self)
+        self._speed_poll.setInterval(500)
+        self._speed_poll.timeout.connect(self._poll_speed)
+        self._speed_watch = QFileSystemWatcher(self)
+        self._speed_watch.fileChanged.connect(self._on_speed_file)
+        self._speed_watch.directoryChanged.connect(self._on_speed_file)
         self._wallpaper = self._find_wallpaper()
         self._dock = self._find_dock()
         self._rebuild_tokens()
@@ -170,6 +185,7 @@ class Backend(QObject):
             self.refreshTargets()
             self._watch_scheme()
             self._safe_timer.start()
+            self._start_speed_watch()
 
     # ---- safe mode ---------------------------------------------------------------
     def _read_safe_mode(self) -> dict:
@@ -350,6 +366,8 @@ class Backend(QObject):
     def shutdown(self) -> None:
         # Unapplied changes shown live on the desktop go back to the saved look.
         self._live_timer.stop()
+        self._speed_poll.stop()
+        self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
         if self._glass_live and self._s != self._saved:
@@ -393,9 +411,11 @@ class Backend(QObject):
     bleed = _p("bleed", float)
     pointerLight = _p("pointer_light", float)
     liquidMotion = _p("liquid_motion", bool)
+    menuGrow = _p("menu_grow", bool)
     glassPanel = _p("glass_panel", bool)
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)
+    glassQuality = _p("glass_quality", str)
     glassSeeWindows = _p("glass_see_windows", bool)
     headerHeight = _p("header_height", int)
     headerOpacity = _p("header_opacity", float, -1.0)   # -1 means "same glass as the window"
@@ -494,6 +514,110 @@ class Backend(QObject):
         parts = {p: dict(v) for p, v in self._s.parts.items()}
         parts.get(part, {}).pop(key, None)
         self._set_parts(parts)
+
+    # ---- speed -------------------------------------------------------------------
+    def _speed_status_path(self) -> Path:
+        return self._env.cache / "liquid-glass/speed.json"
+
+    def _read_speed_status(self) -> dict:
+        """The extension's status file, read defensively: anything odd counts as no status."""
+        path = self._speed_status_path()
+        try:
+            st = os.lstat(path)
+            if not stat.S_ISREG(st.st_mode) or st.st_size > 64 * 1024:
+                return {}
+            with open(path, "rb") as f:
+                data = json.loads(f.read(64 * 1024 + 1))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _check_of(self, status: dict) -> dict:
+        c = status.get("check")
+        return c if isinstance(c, dict) else {}
+
+    def _start_speed_watch(self) -> None:
+        self._speed_status = self._read_speed_status()
+        # The last finished check shows again when the app opens.
+        c = self._check_of(self._speed_status)
+        if c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]:
+            self._speed_result = c
+            self._speed_state = "done"
+        self._rewatch_speed()
+        self.speedChanged.emit()
+
+    def _rewatch_speed(self) -> None:
+        path = self._speed_status_path()
+        if str(path.parent) not in self._speed_watch.directories() and path.parent.is_dir():
+            self._speed_watch.addPath(str(path.parent))
+        if str(path) not in self._speed_watch.files() and path.exists():
+            self._speed_watch.addPath(str(path))     # an atomic replace drops it, so add it again
+
+    def _on_speed_file(self, _path: str = "") -> None:
+        self._rewatch_speed()
+        self._speed_status = self._read_speed_status()
+        self.speedChanged.emit()
+
+    def _poll_speed(self) -> None:
+        status = self._read_speed_status()
+        self._speed_status = status
+        c = self._check_of(status)
+        if c.get("id") == self._speed_id and c.get("state") in ("done", "failed"):
+            self._speed_poll.stop()
+            self._speed_result = c
+            self._speed_state = c["state"]
+        elif time.monotonic() > self._speed_deadline:
+            self._speed_poll.stop()
+            self._speed_result = {}
+            self._speed_state = "noanswer"
+        self.speedChanged.emit()
+
+    @Slot()
+    def checkSpeed(self) -> None:
+        if self._speed_state == "running":
+            return
+        self._speed_result = {}
+        if not self._glass_live:
+            self._speed_state = "noanswer"
+            self.speedChanged.emit()
+            return
+        from ..engine import atomic_write
+        self._speed_id = secrets.token_hex(8)
+        try:
+            atomic_write(self._env.config / "liquid-glass/speed-check.json",
+                         json.dumps({"id": self._speed_id}).encode())
+        except OSError:
+            self._speed_state = "noanswer"
+            self.speedChanged.emit()
+            return
+        self._speed_state = "running"
+        self._speed_deadline = time.monotonic() + 45
+        self._speed_poll.start()
+        self.speedChanged.emit()
+
+    @Slot(str)
+    def useQuality(self, level: str) -> None:
+        if level in settings_mod.GLASS_QUALITIES:
+            self._set("glass_quality", level)
+
+    def _get_speed_level(self) -> str:
+        v = self._speed_status.get("level")
+        return v if v in ("full", "lighter", "lightest") else ""
+
+    def _get_speed_reason(self) -> str:
+        v = self._speed_status.get("reason")
+        return v if v in ("setting", "slow", "retry", "check") else ""
+
+    def _get_speed_state(self) -> str:
+        return self._speed_state
+
+    def _get_speed_result(self) -> dict:
+        return dict(self._speed_result)
+
+    speedLevel = Property(str, _get_speed_level, notify=speedChanged)
+    speedReason = Property(str, _get_speed_reason, notify=speedChanged)
+    speedState = Property(str, _get_speed_state, notify=speedChanged)
+    speedResult = Property("QVariantMap", _get_speed_result, notify=speedChanged)
 
     @Slot(str)
     def resetPart(self, part: str) -> None:

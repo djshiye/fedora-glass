@@ -42,6 +42,19 @@ export function sourcesFor(behind, x, y, w, h) {
     const out = [Main.layoutManager._backgroundGroup];
     if (behind === 'wallpaper')
         return out;
+    // Only windows on the pane's own screen: the glass never shows across the seam
+    // (see the edge clamp in glass.js), and a window there that repaints all the time
+    // (a full-screen game or video next door) would re-render this pane for nothing.
+    const mons = Main.layoutManager.monitors ?? [];
+    const cx = x + w / 2, cy = y + h / 2;
+    const m = mons.find(o => cx >= o.x && cx < o.x + o.width && cy >= o.y && cy < o.y + o.height);
+    if (m) {
+        const x1 = Math.min(x + w, m.x + m.width), y1 = Math.min(y + h, m.y + m.height);
+        x = Math.max(x, m.x);
+        y = Math.max(y, m.y);
+        w = x1 - x;
+        h = y1 - y;
+    }
     const ws = global.workspace_manager.get_active_workspace();
     for (const actor of global.get_window_actors()) {
         const win = actor.meta_window;
@@ -98,6 +111,8 @@ export class WindowWatch {
 // wallpaper copy and window watcher while the extension is on.
 export const windowWatch = {current: null};
 export const followers = new Set();
+// Menus grow out of the button that opened them and flow back into it on close.
+export const grow = {enabled: true};
 export const motion = {current: null};
 export const wallpaper = {current: null};
 
