@@ -27,7 +27,7 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
-import {Shader, textureFrame} from './glsl.js';
+import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
 const SHADER = `
@@ -496,7 +496,7 @@ void main() {
 const GLASS = new Shader(SHADER);
 
 const GlassEffect = GObject.registerClass(
-class LiquidGlassEffect extends Shell.GLSLEffect {
+withShader(class LiquidGlassEffect extends ShaderBase {
     _init() {
         super._init();
         this._frame = '';
@@ -508,10 +508,6 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         if (this._catchUp)
             GLib.source_remove(this._catchUp);
         this._catchUp = 0;
-    }
-
-    vfunc_build_pipeline() {
-        GLASS.build(this);
     }
 
     vfunc_paint_target(node, paintContext) {
@@ -596,7 +592,7 @@ class LiquidGlassEffect extends Shell.GLSLEffect {
         GLASS.set(this, values);
         this.queue_repaint();
     }
-});
+}, GLASS));
 
 export const DEFAULT_LOOK = Object.freeze({
     blur: 6,            // px

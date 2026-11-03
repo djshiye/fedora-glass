@@ -7,7 +7,7 @@
 
 <p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Glass panel and ArcMenu: the rounded edge bends the stripes behind it and catches the light"></p>
 
-Made for **Fedora 44 with GNOME 50**. It draws its own glass, so you don't need Blur my Shell.
+Made for **Fedora 44 with GNOME 50**, and ready for GNOME 51 (Fedora 45). It draws its own glass, so you don't need Blur my Shell.
 
 ## Install
 
