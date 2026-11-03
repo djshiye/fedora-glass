@@ -237,7 +237,11 @@ export class Motion {
             const now_ = [st.x, st.y, st.k, st.press, st.open];
             // Only what shows: an unlit pointer moving about costs nothing.
             const lit = st.k > 0.003 || prev[2] > 0.003;
-            if (now_.some((v, i) => (i > 1 || lit) && Math.abs(v - prev[i]) > (i < 2 ? 0.25 : 1e-3)))
+            // Settling lands exactly on the rest values: a last step too small to
+            // pass the thresholds would leave a menu at 0.999 of its size (soft
+            // text, and glass a pixel or two off its edge).
+            const landed = settled && now_.some((v, i) => i > 1 && v !== prev[i]);
+            if (landed || now_.some((v, i) => (i > 1 || lit) && Math.abs(v - prev[i]) > (i < 2 ? 0.25 : 1e-3)))
                 f.setMotion({sx: st.x ?? 0, sy: st.y ?? 0, k: st.k, press: st.press, open: st.open});
         }
         if (this._stepItem(dt))
