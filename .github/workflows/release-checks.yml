@@ -33,7 +33,12 @@ jobs:
 
       - name: Summary
         if: always()
-        run: cat "$RUNNER_TEMP/qa-report/report/report.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report: the test desktop did not start." >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          if [ -f "$RUNNER_TEMP/qa-report/report/report.md" ]; then
+            cat "$RUNNER_TEMP/qa-report/report/report.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report: the test desktop did not start." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Keep the report
         if: always()
