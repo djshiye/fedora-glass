@@ -290,3 +290,17 @@ def test_detection(fake_env, monkeypatch):
     (fake_env.data / "applications").mkdir(parents=True)
     (fake_env.data / "applications/io.github.djshiye.Clipperino.desktop").write_text("[Desktop Entry]")
     assert myapps.TARGETS[0].detect(fake_env).available
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_qbittorrent_colours_match_its_style_sheet(fake_env, dark):
+    """qBittorrent picks "colors" or "colors.dark" by its own idea of dark mode, but the
+    style sheet is written for the scheme in use. Both blocks must be that scheme, or a
+    dark style sheet gets a white side list (found by the app scorecard)."""
+    ctx = ctx_for(fake_env, dark=dark)
+    files = by_name(ta.QBittorrent().plan(ctx))
+    cfg = json.loads(files["config.json"].content)
+    want = json.loads(ra.qbittorrent_config(ctx.tokens, ctx.tokens))["colors"]
+    assert cfg["colors"] == cfg["colors.dark"] == want
+    assert files["stylesheet.qss"].content == ra.qt_qss(ctx.tokens)
+    assert ta.QBittorrent().scheme_dependent, "rewritten when GNOME switches dark and light"
