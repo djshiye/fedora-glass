@@ -19,7 +19,7 @@ from typing import Any
 from PySide6.QtCore import Property, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
-from .. import APP_ID, palette
+from .. import APP_ID, login_screen, palette
 from .. import settings as settings_mod
 from ..color import Color
 from ..env import Env
@@ -116,6 +116,7 @@ class Backend(QObject):
     revertFinished = Signal("QVariantList")
     failed = Signal(str)
     headerNoteChanged = Signal()
+    loginGlassChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -145,6 +146,11 @@ class Backend(QObject):
         # Set when the last Apply or Restore changed the header bars, so the card can
         # offer to restart Files (it keeps running with the old style sheet).
         self._header_note = ""
+        # Glass on the login screen (opt in, needs the password): off, on, undone, busy
+        # or unavailable, and a sentence about the last change.
+        self._login_proc: QProcess | None = None
+        self._login_note = ""
+        self._login_state = self._read_login_state()
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
         self._lost: list[str] = []         # targets whose applied files something else replaced
@@ -895,6 +901,80 @@ class Backend(QObject):
             QCoreApplication.processEvents()
             QThread.msleep(5)
         return self._task is None
+
+    # ---- glass on the login screen -------------------------------------------------
+    LOGIN_HELPER = Path("/usr/libexec/liquid-glass-login-screen")
+    PKEXEC = Path("/usr/bin/pkexec")
+
+    def _login_available(self) -> bool:
+        """Only offered when the dnf package put a root-owned helper in place: pkexec
+        would run whatever is at that path as root."""
+        for p in (self.LOGIN_HELPER, self.PKEXEC):
+            try:
+                st = p.stat()
+            except OSError:
+                return False
+            if st.st_uid != 0 or st.st_mode & 0o022:
+                return False
+        return True
+
+    def _read_login_state(self) -> str:
+        if not self._login_available():
+            return "unavailable"
+        try:
+            return login_screen.status()
+        except Exception:  # noqa: BLE001 (a status read never stops the app)
+            return "off"
+
+    @Property(str, notify=loginGlassChanged)
+    def loginGlass(self) -> str:
+        return "busy" if self._login_proc is not None else self._login_state
+
+    @Property(str, notify=loginGlassChanged)
+    def loginGlassNote(self) -> str:
+        return self._login_note
+
+    def login_values(self) -> list[str]:
+        """The three values the helper takes: accent, tint and frost from the current look."""
+        s = self._s.normalized()
+        return [self._dark_t.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
+
+    @Slot()
+    def turnOnLoginGlass(self) -> None:
+        self._run_login(["apply", *self.login_values()], "Glass is on the login screen. You'll see it the next time you restart your PC.")
+
+    @Slot()
+    def turnOffLoginGlass(self) -> None:
+        self._run_login(["undo"], "The normal login screen is back.")
+
+    def _run_login(self, args: list[str], done: str) -> None:
+        if self._login_proc is not None or not self._login_available():
+            return
+        p = QProcess(self)
+        p.setProgram(str(self.PKEXEC))
+        p.setArguments([str(self.LOGIN_HELPER), *args])
+        p.finished.connect(lambda code, _status: self._login_finished(p, code, done))
+        p.errorOccurred.connect(lambda _e: self._login_finished(p, -1, done))
+        self._login_proc = p
+        self._login_note = ""
+        self.loginGlassChanged.emit()
+        p.start()
+
+    def _login_finished(self, p: QProcess, code: int, done: str) -> None:
+        if self._login_proc is not p:
+            return
+        err = bytes(p.readAllStandardError()).decode(errors="replace").strip()
+        self._login_proc = None
+        p.deleteLater()
+        if code == 0:
+            self._login_note = done
+        elif code in (126, 127):          # pkexec: the password dialog was closed or refused
+            self._login_note = "Not changed: the password wasn't given."
+        else:
+            first = err.splitlines()[-1] if err else "the helper didn't finish"
+            self._login_note = first if first.startswith("Nothing was changed") else f"Nothing was changed: {first}"
+        self._login_state = self._read_login_state()
+        self.loginGlassChanged.emit()
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:

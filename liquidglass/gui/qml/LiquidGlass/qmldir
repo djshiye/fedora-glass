@@ -14,6 +14,7 @@ GlassSurface 1.0 GlassSurface.qml
 HeaderBarCard 1.0 HeaderBarCard.qml
 PopupGlass 1.0 PopupGlass.qml
 LockScreenCard 1.0 LockScreenCard.qml
+LoginScreenCard 1.0 LoginScreenCard.qml
 Icon 1.0 Icon.qml
 LabeledSlider 1.0 LabeledSlider.qml
 LgButton 1.0 LgButton.qml
