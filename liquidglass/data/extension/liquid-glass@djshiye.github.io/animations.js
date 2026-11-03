@@ -378,7 +378,9 @@ class LiquidGlassGenie extends Shell.GLSLEffect {
         const a = this.get_actor();
         if (t && a) {
             const [w, h] = [t.get_width(), t.get_height()];
-            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}`;
+            // Its clip counts too: a clipped pane starts later in its texture.
+            const clip = a.has_clip ? a.get_clip().join() : '';
+            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}/${clip}`;
             if (key !== this._frame) {
                 this._frame = key;
                 this._set(textureFrame(w, h, a));

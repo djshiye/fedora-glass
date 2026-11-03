@@ -24,6 +24,11 @@ class FakeEnv(Env):
         }
         self.commands: list[list[str]] = []
         self.glass_loaded = True    # whether the fake GNOME Shell runs our glass extension
+        self.ext_info: dict[str, tuple[str, str]] = {}   # uuid -> (state, error) the fake Shell reports
+        self.naps: list[float] = []
+
+    def sleep(self, seconds):
+        self.naps.append(seconds)
 
     def gsettings_keys(self, schema, path=None):
         return set(self.gs.get((schema, path), {}))
@@ -44,7 +49,13 @@ class FakeEnv(Env):
 
     def run(self, argv, timeout=30):
         self.commands.append(list(argv))
+        for method, state in (("DisableExtension", "2.0"), ("EnableExtension", "1.0")):
+            if f"org.gnome.Shell.Extensions.{method}" in argv and argv[-1] in self.ext_info:
+                self.ext_info[argv[-1]] = (state, "")
         if "org.gnome.Shell.Extensions.GetExtensionInfo" in argv:
+            if argv[-1] in self.ext_info:
+                state, error = self.ext_info[argv[-1]]
+                return RunResult(0, f"({{'uuid': <'{argv[-1]}'>, 'state': <{state}>, 'error': <'{error}'>}},)", "")
             state = "1.0" if self.glass_loaded else "6.0"
             return RunResult(0, f"({{'uuid': <'{argv[-1]}'>, 'state': <{state}>}},)", "")
         return RunResult(0, "", "")

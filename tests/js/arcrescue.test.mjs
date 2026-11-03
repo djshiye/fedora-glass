@@ -44,6 +44,9 @@ class Manager {
     lookup(uuid) { return this.exts.get(uuid); }
     connect(_sig, fn) { const id = this.next++; this.handlers.set(id, fn); return id; }
     disconnect(id) { this.handlers.delete(id); }
+    _unloadExtensionStylesheet(ext) {
+        this.log.push(`unload stylesheet ${ext.uuid}`);
+    }
     _changeExtensionState(ext, state) {
         ext.state = state;
         for (const fn of [...this.handlers.values()])
@@ -95,7 +98,8 @@ test('restarts ArcMenu once Dash to Panel has its panels again', () => {
     dtp.state = 1;
     clock.advance(300);
     assert.deepEqual(manager.enabled, [ARCMENU]);
-    assert.deepEqual(manager.log, [`disable ${ARCMENU}`], 'cleans up what the failed start left');
+    assert.deepEqual(manager.log, [`disable ${ARCMENU}`, `unload stylesheet ${ARCMENU}`],
+        'cleans up what the failed start left, its stylesheet too, so it is not loaded twice');
     assert.equal(manager.lookup(ARCMENU).state, 1);
     assert.equal(manager.lookup(ARCMENU).error, '');
     assert.equal(manager._extensionOrder.filter(u => u === ARCMENU).length, 1, 'listed once in the start order');

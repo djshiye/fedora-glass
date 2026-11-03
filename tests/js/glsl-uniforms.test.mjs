@@ -176,3 +176,11 @@ test('both effects that map a texture onto an actor use textureFrame', () => {
         assert.doesNotMatch(code(f), /tex_w: w/, f);
     }
 });
+
+test('a clipped pane starts where Clutter frames its clip', () => {
+    // Clutter frames the clip, grown as _clutter_actor_box_enlarge_for_effects does.
+    const pane = {width: 300, height: 200, has_clip: true, get_clip: () => [47, 0, 253, 200], get_resource_scale: () => 1};
+    const f = textureFrame(256, 203, pane);
+    assert.equal(f.org_x, -45);    // the texture starts 2 px before the clip, 45 px into the pane
+    assert.equal(f.org_y, 2);
+});
