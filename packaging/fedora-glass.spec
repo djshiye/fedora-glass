@@ -196,6 +196,7 @@ fi
 - After an upgrade your look updates by itself at the next restart, no Apply needed
 - Ready for GNOME 51 (Fedora 45)
 - qBittorrent's side list and btop's background follow the glass colours
+- With the overview off, GNOME no longer sometimes gets stuck starting up (second screen without wallpaper)
 
 * Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.4-1
 - No glass strip on the other screen beside a window maximized on a second screen
