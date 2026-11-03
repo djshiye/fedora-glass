@@ -15,6 +15,7 @@ from ..color import Color, lerp
 from ..palette import Tokens
 from ..radius import scale
 from ..settings import MOTION_EVENTS, Settings
+from . import shell
 
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
@@ -73,13 +74,31 @@ def _shadow(t: Tokens, name: str) -> float:
     return round(v * 1.6, 3) if name == "panel" and not t.dark else v
 
 
+def _rim(t: Tokens, glare: float) -> float:
+    """Strength of the thin bright line along the glass's edge: full on liquid glass,
+    quieter as the glass frosts (glare already falls with frost)."""
+    return round(min(1.0, 0.45 + 1.1 * glare), 3)
+
+
+def _veil(t: Tokens, name: str) -> list[float] | None:
+    """The theme's veil over a part's glass, straight rgba, so the extension can draw
+    the edge line bright enough to read through it. None where the theme paints no veil."""
+    surf = shell.surfaces(t, name)
+    c = surf["chrome"] if name == "panel" else surf["popover"]
+    return [round(c.r, 4), round(c.g, 4), round(c.b, 4), round(c.a, 3)]
+
+
 def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     p = t.parts[name]
     look = {"blur": round(p["blur"] * FROST_SCALE.get(name, 1.0)), "refraction": p["lens_width"], "bend": p["lens_bend"],
             # A thin bar holds its icons close to both edges, so the same glow reads stronger there.
             "bleed": round(p["bleed"] * (0.7 if name == "panel" else 1.0), 3), "highlight": p["glare"],
             # A soft contact shadow, cast away from the light (it follows the pointer light).
-            "shadow": _shadow(t, name), **_milk(t, name)}
+            "shadow": _shadow(t, name), "rim": _rim(t, p["glare"]), **_milk(t, name)}
+    if veiled and name != "overview":
+        look["veil"] = _veil(t, name)
+        # Clear glass has almost no veil: bright text gets a soft shade right behind it.
+        look["textShade"] = round(0.55 * shell.clarity(p["blur"]), 3)
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
@@ -151,7 +170,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
-                           **{k: menus_look[k] for k in ("lift", "milk") if k in menus_look},
+                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim") if k in menus_look},
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.

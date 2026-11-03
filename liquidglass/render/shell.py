@@ -42,15 +42,27 @@ def _thin(c: Color, t: Tokens, frost: float | None = None) -> Color:
     return c.with_alpha(max(0.0, c.a * k))
 
 
-def veil(t: Tokens, kind: str, frost: float | None = None) -> float:
+def clarity(blur: float) -> float:
+    """How clear a part's glass is, 0..1, from its blur: 1 at Apple's clear glass (a blur
+    of 2 px or less), 0 from 6 px up. Clear glass gets almost no veil; its text keeps
+    a soft shade of its own (render/glass.py)."""
+    return max(0.0, min(1.0, (6.0 - blur) / 4.0))
+
+
+def veil(t: Tokens, kind: str, frost: float | None = None, blur: float | None = None) -> float:
     """Alpha of a surface the extension draws glass behind. The extension already darkens,
     frosts and reflects the backdrop itself, so the theme only lays a light veil on top
     (kind is "menu" or "panel"). The glass layer is brightened/darkened to keep text readable
-    over this thin veil, see render/glass.py."""
+    over this thin veil, see render/glass.py. Clear glass (a tiny blur) has the veil cut to
+    about a third, as Apple's clear glass is nearly untinted."""
     f = t.frost if frost is None else frost
     if kind == "panel":
-        return lerp(0.18, 0.45, f)
-    return lerp(0.16, 0.45, f) if t.dark else lerp(0.30, 0.60, f)
+        v = lerp(0.18, 0.45, f)
+    else:
+        v = lerp(0.16, 0.45, f) if t.dark else lerp(0.30, 0.60, f)
+    if blur is not None:
+        v *= lerp(1.0, 0.35, clarity(blur))
+    return v
 
 
 # Which parts the extension draws glass behind as menus; the panel is the other one.
@@ -66,14 +78,14 @@ def surfaces(t: Tokens, part: str | None = None) -> dict[str, Color]:
     out = {k: look[k] for k in ("popover", "dialog", "osd")}
     chrome = look["chrome"] if part else t.chrome
     if name in MENU_PARTS and t.glass_menu_edges:
-        v = veil(t, "menu", f)
+        v = veil(t, "menu", f, look["blur"])
         for k, extra in (("popover", 0.0), ("dialog", 0.04), ("osd", 0.0)):
             if out[k].a < 0.95:
                 out[k] = out[k].with_alpha(min(out[k].a, v + extra))
     else:
         out = {k: _thin(c, t, f) for k, c in out.items()}
     if (part is None or part == "panel") and t.glass_panel_edges and chrome.a < 0.95:
-        chrome = chrome.with_alpha(min(chrome.a, veil(t, "panel", t.parts["panel"]["frost"])))
+        chrome = chrome.with_alpha(min(chrome.a, veil(t, "panel", t.parts["panel"]["frost"], t.parts["panel"]["blur"])))
     out["chrome"] = chrome
     return out
 
