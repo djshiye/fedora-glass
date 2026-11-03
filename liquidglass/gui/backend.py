@@ -336,6 +336,7 @@ class Backend(QObject):
     bleed = _p("bleed", float)
     pointerLight = _p("pointer_light", float)
     liquidMotion = _p("liquid_motion", bool)
+    menuGrow = _p("menu_grow", bool)
     glassPanel = _p("glass_panel", bool)
     glassMenus = _p("glass_menus", bool)
     glassOverview = _p("glass_overview", bool)

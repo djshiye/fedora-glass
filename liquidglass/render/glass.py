@@ -162,6 +162,7 @@ def config(s: Settings, t: Tokens) -> dict:
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,
         "lock": _lock_config(s, off),
+        "grow": {"enabled": s.menu_grow},
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
