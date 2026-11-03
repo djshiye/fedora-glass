@@ -287,9 +287,11 @@ def _is_hex(v: object) -> bool:
 # ---- presets ----------------------------------------------------------
 PRESETS: dict[str, dict] = {
     "Liquid": {"frost": 0.0, "highlight": 0.9, "tint_strength": 0.04},
-    "Clear": {"frost": 0.25, "highlight": 0.8, "tint_strength": 0.05},
+    # Apple's two glasses: clear (almost no blur or tint; text keeps a soft shade of its
+    # own) and frosted (a heavy but not foggy blur, a milky or smoky tint).
+    "Clear": {"frost": 0.1, "blur": 2, "highlight": 0.85, "tint_strength": 0.03},
     "Balanced": {"frost": 0.45, "highlight": 0.7, "tint_strength": 0.06},
-    "Frosted": {"frost": 0.8, "highlight": 0.45, "tint_strength": 0.09},
+    "Frosted": {"frost": 0.8, "blur": 26, "highlight": 0.45, "tint_strength": 0.09},
     "Solid": {"frost": 1.0, "highlight": 0.3, "tint_strength": 0.1, "opacity": 0.92},
 }
 

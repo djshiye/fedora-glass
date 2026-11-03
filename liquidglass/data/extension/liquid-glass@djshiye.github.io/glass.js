@@ -4,7 +4,7 @@
 //
 // The optics are physical, and everything the glass shows comes from real
 // pixels on screen; there is no painted-on light. The pane is a glass slab
-// (IOR 1.5) whose top edge rounds off in a quarter circle, after Kyant's
+// (IOR 1.5) whose top edge rounds off in a squircle, after Kyant's
 // AndroidLiquidGlass (Apache License 2.0, https://github.com/Kyant0/AndroidLiquidGlass):
 // - each view ray is refracted at the surface by Snell's law and travels down
 //   through the glass to the backdrop, so the rim bends light like a real lens;
@@ -17,6 +17,10 @@
 //   colours scatter into the glass around it and reflect inside the glass into
 //   the nearest rim, the way a lit object tints the edge of a glass plate;
 // - Beer-Lambert absorption darkens and greens the slanting paths through the edge.
+//
+// One thing is not from the backdrop: a crisp line of light, about 1.5 px, along
+// the very edge (rimLine), brightest at the corners facing the light. It is the
+// line that makes Apple's glass read as glass; it stays a line, never a glow.
 //
 // Sides that touch the screen edge (a docked panel's bottom) have no rim.
 
@@ -85,6 +89,13 @@ uniform float edge_t;
 uniform float edge_r;
 uniform float edge_b;
 uniform float shadow;
+uniform float rim;               // 0..1, the thin bright line along the very edge
+uniform float veil_r;            // the theme's veil painted over this glass (straight rgb, alpha);
+uniform float veil_g;            // the line is drawn so it still reads as bright through it
+uniform float veil_b;
+uniform float veil_a;
+uniform float text_shade;
+uniform float lens_share;        // 1: the bevel is a share of the short side (panel, menus); 0: refr_h        // 0..1, reflections layer: a soft shade behind bright text (clear glass)
 uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = the surface's own light,
                                  // 3 = the rim over an app window
 
@@ -224,6 +235,42 @@ vec3 caustic(vec3 c, vec2 n, vec2 L, float x, vec2 h) {
     return pow(up, vec3(1.0 / 2.2));
 }
 
+// The rounded edge's profile: a squircle, (1 - x^4)^(1/4) with x 1 at the edge and
+// 0 where the flat top begins. Flat for most of the way, then curving faster
+// and faster towards the edge, with no visible line where the curve starts
+// (a quarter circle bends from its first px). Returns -dz/dr, outward.
+float squircleSlope(float x) {
+    float x3 = x * x * x;
+    float k = max(1.0 - x3 * x, 0.0);
+    return x3 / max(pow(k, 0.75), 0.03);
+}
+
+// A Gaussian-blurred edge: 1 well inside, 0.5 on the edge, 0 well outside, for
+// a signed distance d and a blur sigma. erf by Winitzki's approximation.
+float softEdge(float d, float sigma) {
+    float x = -d / (sigma * 1.41421356);
+    float x2 = x * x;
+    float e = sqrt(1.0 - exp(-x2 * (1.2732395 + 0.147 * x2) / (1.0 + 0.147 * x2)));
+    return 0.5 + 0.5 * sign(x) * e;
+}
+
+// The thin line of light along the very edge. Strongest where the edge faces the
+// light and on the opposite side (at 40%), so it peaks at the corners and fades
+// along straight sides, and a faint trace stays all the way round. 0..1.
+float rimLine(float inside, vec2 n, vec2 L) {
+    float band = smoothstep(1.9, 1.3, inside) * smoothstep(0.0, 0.3, inside);
+    float d = dot(n, L);
+    float k = d > 0.0 ? pow(d, 3.0) : 0.4 * pow(-d, 3.0);
+    return band * (0.22 + 0.78 * k);
+}
+
+// The theme paints a thin veil over the glass. To make a colour c (straight rgb)
+// read through that veil, draw (c - v a) / (1 - a); as far as 0..1 allows.
+vec3 throughVeil(vec3 c) {
+    vec3 v = vec3(veil_r, veil_g, veil_b) * veil_a;
+    return clamp((c - v) / max(1.0 - veil_a, 0.05), 0.0, 1.0);
+}
+
 vec3 vivid(vec3 c, float k) {
     float l = dot(c, vec3(0.213, 0.715, 0.072));
     return max(mix(vec3(l), c, k), 0.0);
@@ -251,11 +298,13 @@ void main() {
     // Outside the pane: only its soft contact shadow, cast away from the light.
     // It also lies under the edge's partly covered pixels, so the rounded edge
     // stays anti-aliased against the shadow.
+    // A true soft shadow (a blurred copy of the shape), set off a few px away from
+    // the light, so it reads as lifted rather than outlined.
     float s = 0.0;
     if (shadow > OFF && pad > 1.0 && sd > -0.5) {
-        float ds = sdRoundRect(cc + L * (pad * 0.25), hh, r);
-        s = 1.0 - smoothstep(-pad * 0.15, pad * 0.85, ds);
-        s = shadow * s * s;
+        float spread = min(10.0, pad * 0.3);
+        float ds = sdRoundRect(cc + L * min(6.0, pad * 0.15), hh, r);
+        s = shadow * 0.55 * softEdge(ds, spread);
     }
     if (sd > 0.5) {
         cogl_color_out = vec4(0.0, 0.0, 0.0, s) * cogl_color_in.a;
@@ -264,23 +313,32 @@ void main() {
 
     float cov = clamp(0.5 - sd, 0.0, 1.0);
     float inside = -min(sd, 0.0);
-    float gr = min(r * 1.5, min(hh.x, hh.y));
-    vec2 n = gradRoundRect(cc, hh, gr);
-
     // The glass: a slab refr_amt thick lying on the backdrop, its top edge
-    // rounded off over the bevel in a quarter ellipse. A thin bar gets a thin
-    // bevel, so a panel is not all rim.
+    // rounded off over the bevel in a squircle. The bevel is a share of the short
+    // side, as on Apple's glass: a quarter of it on a menu, so the backdrop bends
+    // in a wide band you can see, and more on a thin bar, which is nearly all
+    // lens. refr_h (the app's lens width) sets the least it may be.
     vec2 dp = px - vec2(ptr_x, ptr_y);
     float give = max(90.0, 0.6 * min(h.x, h.y));   // px, how wide a press reaches
     float tch = touch(dp, give);
     float th = refr_amt * (1.0 + tch);
     float slope = 0.0;
-    float bevel = min(refr_h, 0.35 * min(h.x, h.y)) * (1.0 + 0.6 * tch);
+    float shortSide = 2.0 * min(h.x, h.y);
+    float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
+    float bevel = lens_share > 0.5
+        ? min(clamp(share * shortSide, refr_h, 2.6 * refr_h), 0.45 * shortSide)
+        : min(refr_h, 0.35 * min(h.x, h.y));
+    bevel *= 1.0 + 0.6 * tch;
+    // The edge's direction rounds off over at least the whole bevel, so a wide
+    // bevel shows no mitred seam running in from its corners.
+    float gr = min(max(r * 1.5, lens_share > 0.5 ? bevel * 1.15 : 0.0), min(hh.x, hh.y));
+    vec2 n = gradRoundRect(cc, hh, gr);
     float x = 0.0;
     if (bevel > OFF && inside < bevel) {
         x = 1.0 - inside / bevel;                   // 1 at the edge, 0 on the flat top
-        float z = sqrt(max(1.0 - x * x, 0.0));
-        slope = x / max(z, 0.06);                   // -dz/dr of the rounded edge, outward
+        // -dz/dr of the rounded edge, outward: the squircle on the panel and menus,
+        // the quarter circle elsewhere (app windows, the lock screen), as before.
+        slope = lens_share > 0.5 ? squircleSlope(x) * 1.6 : x / max(sqrt(max(1.0 - x * x, 0.0)), 0.06);
     }
     vec2 dome = depth * 0.25 * c / max(h.x, h.y);  // a gently domed top
     vec3 N = normalize(vec3(n * slope + dome + dent(dp, give, tch) + jitter(px), 1.0));
@@ -299,7 +357,17 @@ void main() {
         vec3 seen = vivid(env(px + n * env_reach * 0.6), 1.3);
         float lobe = pow(max(dot(n, L), 0.0), 8.0) + 0.3 * pow(max(dot(-n, L), 0.0), 8.0);
         float a = clamp(band * min(1.0, hl * 2.2) * (0.45 + 0.6 * lobe), 0.0, 0.8);
-        cogl_color_out = vec4(min(seen * (1.0 + 0.3 * lobe), vec3(1.0)) * a, a) * cov * cogl_color_in.a;
+        vec3 c3 = min(seen * (1.0 + 0.3 * lobe), vec3(1.0));
+        // The same thin line of light as on the panel and menus, a little quieter:
+        // a window is big, and the line runs right next to its own content.
+        float ln = rimLine(inside, n, L) * rim * 0.75;
+        if (ln > 0.0) {
+            vec3 lc = min(mix(seen, vec3(1.0), 0.6), vec3(dot(seen, vec3(0.213, 0.715, 0.072)) + 0.45));
+            float a2 = a + (1.0 - a) * ln;
+            c3 = (c3 * a * (1.0 - ln) + lc * ln) / max(a2, 1e-3);
+            a = a2;
+        }
+        cogl_color_out = vec4(c3 * a, a) * cov * cogl_color_in.a;
         return;
     }
     if (mode > 1.5) {
@@ -358,7 +426,24 @@ void main() {
         }
         // Additive light: no alpha, so nothing under it is dimmed.
         glow = vec3(1.0) - exp(-glow * bleed * 4.6);   // soft-clip; it sits under the theme's veil
-        cogl_color_out = vec4(glow + edgeLight, 0.0) * cov * cogl_color_in.a;
+        // Clear glass has almost no veil, so bright text gets a soft shade of its own,
+        // only right behind it (the blurred copy of the content is the mask).
+        // A large light area (a button's own fill) is not text and keeps no shade:
+        // where the copy is still light 20 and 40 px away along some direction, the
+        // pixel sits on or beside such an area.
+        float sh = 0.0;
+        float lit = min(g.r, min(g.g, g.b));
+        if (text_shade > OFF && lit > 0.01) {
+            float area = 0.0;
+            for (int i = 0; i < 8; i++) {
+                vec2 d = vec2(cos(float(i) * 0.7853982), sin(float(i) * 0.7853982));
+                vec4 b1 = at(px + d * 20.0);
+                vec4 b2 = at(px + d * 40.0);
+                area = max(area, min(min(b1.r, min(b1.g, b1.b)), min(b2.r, min(b2.g, b2.b))));
+            }
+            sh = text_shade * smoothstep(0.01, 0.12, lit) * (1.0 - smoothstep(0.04, 0.12, area));
+        }
+        cogl_color_out = vec4(glow * (1.0 - sh) + edgeLight, sh) * cov * cogl_color_in.a;
         return;
     }
 
@@ -481,7 +566,29 @@ void main() {
         vec3 base = col.rgb / max(col.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
-        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, x, h) * col.a, vec3(col.a));
+        // The caustic gathers in the outer px of the edge, however wide the bevel is.
+        float xc = bevel > OFF ? clamp(1.0 - inside / min(bevel, 18.0), 0.0, 1.0) : 0.0;
+        col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, L, xc, h) * col.a, vec3(col.a));
+    }
+    // A thick lens is darker inside on its far side, where the light inside it
+    // leaves through the edge instead of reaching the eye: a soft shade across
+    // the middle of the far bevel, inside the caustic's bright band.
+    if (shadow > OFF && x > 0.0) {
+        float away = smoothstep(-0.1, 0.6, dot(-n, L));
+        col.rgb *= 1.0 - 0.08 * away * smoothstep(0.0, 0.6, x) * smoothstep(1.0, 0.7, x);
+    }
+    // The line of light at the very edge: the backdrop's own reflection mixed most
+    // of the way to white, at most a little brighter than the glass around it, so
+    // it is a crisp line over any wallpaper and never a white glare.
+    if (rim > OFF) {
+        float ln = min(1.0, rimLine(inside, n, L) * rim * 1.25);
+        if (ln > 0.0) {
+            vec3 base = col.rgb / max(col.a, 1e-3);
+            vec3 seen = env(px + n * env_reach * 0.5);
+            vec3 lc = min(mix(seen, vec3(1.0), 0.75), base + vec3(0.5 + 0.35 * ln));
+            vec3 want = mix(base * (1.0 - veil_a) + vec3(veil_r, veil_g, veil_b) * veil_a, lc, ln);
+            col.rgb = throughVeil(want) * col.a;
+        }
     }
     // Light glass over a light backdrop has no edge of its own, so a bar can keep
     // a thin dark contact line: darker, never lit. Sides on the screen edge have none.
@@ -615,6 +722,9 @@ export const DEFAULT_LOOK = Object.freeze({
     milk: [0.96, 0.965, 0.98], // the light glass's own body colour, rgb 0..1
     hairline: 0,        // 0..0.3, light glass: a thin dark line at its edge
     shadow: 0,          // 0..1, drawn by the pane itself
+    rim: 0.85,          // 0..1, the thin bright line along the very edge
+    veil: [0, 0, 0, 0], // straight rgba: the theme's veil over this glass, so the line reads through it
+    textShade: 0,       // 0..1, a soft shade right behind bright text (clear glass)
 });
 
 /**
@@ -632,6 +742,13 @@ export const DEFAULT_LOOK = Object.freeze({
  * edge reflection, where the window has no content.
  */
 const LAYERS = {full: 0, glass: 1, reflections: 2, rim: 3};
+
+// The theme's veil over a pane, as uniforms; anything malformed counts as no veil.
+function veilOf(v) {
+    const ok = Array.isArray(v) && v.length === 4 && v.every(Number.isFinite);
+    const [r, g, b, a] = ok ? v.map(x => Math.max(0, Math.min(1, x))) : [0, 0, 0, 0];
+    return [r, g, b, Math.min(a, 0.9)];
+}
 const ENV_REACH = 32;   // px the rim sees beyond the edge
 // How often a pane that stays put re-renders for changes behind it, at each
 // quality level (see setQuality): full, lighter, lightest.
@@ -1103,9 +1220,10 @@ class LiquidGlassPane extends Clutter.Actor {
         this._blur.enabled = blur > 0.5;
         // Room around the surface for the blur and the edge reflections to see past
         // the edge, and for the shadow.
-        this._pad = Math.ceil(Math.min(64, Math.max(blur, top ? 0 : blur * 0.5 + ENV_REACH, L.shadow > 0 ? 18 : 0, 2)));
+        this._pad = Math.ceil(Math.min(64, Math.max(blur, top ? 0 : blur * 0.5 + ENV_REACH, L.shadow > 0 ? 40 : 0, 2)));
         const a = L.lightAngle * Math.PI / 180;
         const [tr, tg, tb, ta] = L.tint;
+        const veil = veilOf(L.veil);
         this._glass.setFloats({
             refr_h: Math.max(0, L.refraction),
             refr_amt: Math.max(0, L.bend),
@@ -1128,6 +1246,10 @@ class LiquidGlassPane extends Clutter.Actor {
             hair: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.3, L.hairline)),
             bleed: this._layer === LAYERS.reflections ? Math.max(0, Math.min(1, L.bleed)) : 0,
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
+            rim: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.rim ?? DEFAULT_LOOK.rim)),
+            veil_r: veil[0], veil_g: veil[1], veil_b: veil[2], veil_a: veil[3],
+            lens_share: this._layer === LAYERS.glass || this._layer === LAYERS.reflections ? 1 : 0,
+            text_shade: this._layer === LAYERS.reflections ? Math.max(0, Math.min(0.6, L.textShade ?? 0)) : 0,
             mode: this._layer,
             cheap: this._cheap ? 1 : 0,
             lite: quality >= 1 ? 1 : 0,
