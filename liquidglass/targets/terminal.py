@@ -135,7 +135,7 @@ class Btop(Target):
     name: str = "btop"
     group: str = "Terminal"
     summary: str = "Glass colour theme; btop's own background is dropped so the terminal glass shows."
-    notes: list[str] = field(default_factory=lambda: ["Restart btop to load the theme. Only color_theme and theme_background are edited in btop.conf."])
+    notes: list[str] = field(default_factory=lambda: ["Restart btop to load the theme. Only color_theme and theme_background are set in btop.conf (made if btop hasn't written one yet)."])
 
     def detect(self, env: Env) -> Detection:
         if env.which("btop") or (env.config / "btop").is_dir():
@@ -146,7 +146,9 @@ class Btop(Target):
         d = ctx.env.config / "btop"
         acts: list[Action] = [WriteFile(d / "themes/liquid-glass.theme", rt.btop_theme(ctx.tokens))]
         conf = d / "btop.conf"
-        text = ra.read_text(conf)
+        # btop writes btop.conf on its first exit. Before that there is none, so start one
+        # with only these two settings: btop fills in the rest with its defaults.
+        text = ra.read_text(conf) if conf.exists() or conf.is_symlink() else "#? Config file for btop\n"
         if text is not None:
             new = ra.conf_set(text, {"color_theme": '"liquid-glass"', "theme_background": "False"})
             acts.append(WriteFile(conf, new))
