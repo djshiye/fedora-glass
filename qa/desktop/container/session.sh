@@ -36,8 +36,9 @@ gsettings set org.gnome.shell favorite-apps "['org.gnome.Nautilus.desktop','org.
 gsettings set org.gnome.shell enabled-extensions "['extension-list@tu.berry', 'arcmenu@arcmenu.com', 'dash-to-panel@jderose9.github.com', 'appindicatorsupport@rgcjonas.gmail.com', 'blur-my-shell@aunetx', 'just-perfection-desktop@just-perfection', 'deja-window@mcast.gnomext.com']"
 dconf load /org/gnome/shell/extensions/ < /opt/lgqa/suite/dino-settings.ini
 
+SCREEN=${LGQA_SCREEN:-2000x1125}
 start_shell() {
-    gnome-shell --headless --virtual-monitor 2000x1125 --virtual-monitor 2000x1125 --unsafe-mode --wayland >> "$OUT/${1:-shell.log}" 2>&1 &
+    gnome-shell --headless --virtual-monitor "$SCREEN" --virtual-monitor "$SCREEN" --unsafe-mode --wayland >> "$OUT/${1:-shell.log}" 2>&1 &
     SHELL_PID=$!
     export WAYLAND_DISPLAY=wayland-0
     for _ in $(seq 90); do

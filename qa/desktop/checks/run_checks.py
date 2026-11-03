@@ -11,6 +11,7 @@ import argparse
 import html
 import json
 import math
+import os
 import re
 import statistics
 import sys
@@ -28,7 +29,9 @@ import lgqa  # noqa: E402
 from lgqa import LG, OUT, Shell, ShellError  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-REFS = HERE.parent / "references"
+# Reference pictures are for the default 2000x1125 screens; other sizes keep their own set.
+SCREEN = os.environ.get("LGQA_SCREEN", "2000x1125")
+REFS = HERE.parent / "references" / ("" if SCREEN == "2000x1125" else SCREEN)
 NEW_REFS = OUT / "new-references"
 REPORT = OUT / "report"
 LIMITS = tomllib.loads((HERE.parent / "limits.toml").read_text())
@@ -133,6 +136,10 @@ def against_reference(ctx: Ctx, chk: Check, name: str, label: str, now: np.ndarr
     if ctx.update:
         lgqa.save(now, NEW_REFS / f"{name}.png")
         return chk.add(True, f"{label}: saved as the new reference picture.", picture(name, now))
+    if not ref_p.exists() and SCREEN != "2000x1125":
+        chk.info(f"{label}: not compared, there are no reference pictures for {SCREEN} screens.")
+        picture(name, now)
+        return True
     if not ref_p.exists():
         return chk.add(False, f"{label}: there is no reference picture yet (run with --update-references once).",
                        picture(name, now))

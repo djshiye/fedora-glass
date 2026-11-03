@@ -4,7 +4,7 @@
 # settings, the overview off, a terminal, Files and an Electron window.
 #
 #   qa/desktop/run.sh [--source DIR] [--only looks,leftovers,resize,speed,lock,restart,log]
-#                     [--update-references] [--out DIR] [--keep] [--start-only]
+#                     [--update-references] [--out DIR] [--keep] [--start-only] [--screen WxH]
 #
 # --source              the Liquid Glass tree to test (default: this checkout). Lets you run
 #                       today's checks against an older release.
@@ -13,11 +13,14 @@
 #                       dnf upgrade brings it, with two restarts and no Apply.
 # --update-references   save this run's pictures as the new reference pictures.
 # --start-only          start the test desktop and leave it running (for working on the checks).
+# --screen WxH          size of each of the two screens in real pixels (default 2000x1125).
+#                       --screen 2560x1440 is Dino's PC. Pictures are compared only at sizes
+#                       that have their own reference pictures (references/WxH/).
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/../.." && pwd)
-SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" NAME=${LGQA_NAME:-lgqa-$$}
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" SCREEN=2000x1125 NAME=${LGQA_NAME:-lgqa-$$}
 while [ $# -gt 0 ]; do
     case $1 in
         --source) SRC=$(cd "$2" && pwd); shift ;;
@@ -26,11 +29,14 @@ while [ $# -gt 0 ]; do
         --update-references) UPDATE=--update-references ;;
         --out) OUT=$2; shift ;;
         --keep) KEEP=1 ;;
+        --screen) SCREEN=$2; shift ;;
         --start-only) KEEP=1 START_ONLY=1 ;;
         *) echo "unknown option $1" >&2; exit 64 ;;
     esac
     shift
 done
+
+if ! [[ $SCREEN =~ ^[1-9][0-9]{2,3}x[1-9][0-9]{2,3}$ ]]; then echo "--screen needs a size like 2560x1440" >&2; exit 64; fi
 
 echo "Building the test desktop image (cached after the first time)..."
 docker build -q -t lgqa-desktop ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
@@ -40,7 +46,7 @@ cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 # No network inside: nothing at run time needs it.
-docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g \
+docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" \
     -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out ${FROM:+-v "$FROM":/from:ro} \
     lgqa-desktop /opt/lgqa/suite/container/start.sh >/dev/null
 
