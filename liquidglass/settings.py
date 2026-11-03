@@ -21,6 +21,8 @@ GNOME_ACCENTS = {
 }
 
 SCHEMES = ("auto", "dark", "light")
+# How much the shell extension draws: auto steps down by itself when frames drop.
+GLASS_QUALITIES = ("auto", "full", "lighter", "lightest")
 PANEL_STYLES = ("floating", "docked")
 # Header bar height limits: below 36 px the buttons no longer fit, above 64 px it is wasted space.
 HEADER_MIN, HEADER_MAX = 36, 64
@@ -68,6 +70,7 @@ class Settings:
     blur: int | None = None         # blur radius in px
     reduce_transparency: bool = False  # accessibility: near-opaque everything
 
+    glass_quality: str = "auto"     # see GLASS_QUALITIES
     panel_style: str = "floating"   # Dash to Panel: floating pill or edge-docked
     panel_margin: int = 8
     blur_app_windows: bool = True   # glass behind translucent app windows
@@ -80,6 +83,7 @@ class Settings:
     bleed: float = 0.6              # 0..1, how much icon and text colours light up the glass around them
     pointer_light: float = 0.5      # 0..1, how far the light on the glass turns towards the pointer
     liquid_motion: bool = True      # glass springs a little when pressed and when a menu opens
+    menu_grow: bool = True          # menus grow out of the button that opened them, and flow back on close
     glass_panel: bool = True
     glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu
     glass_overview: bool = True     # blurred wallpaper behind the overview
@@ -154,6 +158,7 @@ class Settings:
         s.bleed = _clamp(float(s.bleed), Settings.bleed)
         s.pointer_light = _clamp(float(s.pointer_light), Settings.pointer_light)
         s.liquid_motion = bool(s.liquid_motion)
+        s.menu_grow = bool(s.menu_grow)
         s.hover_glide = bool(s.hover_glide)
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
@@ -171,6 +176,8 @@ class Settings:
             s.terminal_opacity = min(1.0, max(0.3, t)) if math.isfinite(t) else None
         if s.scheme not in SCHEMES:
             s.scheme = "auto"
+        if s.glass_quality not in GLASS_QUALITIES:
+            s.glass_quality = "auto"
         if s.panel_style not in PANEL_STYLES:
             s.panel_style = "floating"
         if not (s.accent == "system" or s.accent in GNOME_ACCENTS or _is_hex(s.accent)):

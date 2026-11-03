@@ -1,4 +1,5 @@
-# Builds the RPM and publishes it as a GitHub release, either when a version tag
+# Runs the release checks (release-checks.yml), then builds the RPM and publishes it
+# as a GitHub release, either when a version tag
 # (v1.2.3) is pushed or when run by hand from the Actions tab (that run tags the
 # commit with the version in the spec).
 #
@@ -16,7 +17,14 @@ permissions:
   contents: write   # create the release and upload the RPM; nothing else
 
 jobs:
+  # The desktop checks must pass first; a failed check stops the release here.
+  checks:
+    uses: ./.github/workflows/release-checks.yml
+    permissions:
+      contents: read
+
   rpm:
+    needs: checks
     runs-on: ubuntu-latest
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     steps:

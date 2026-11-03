@@ -218,9 +218,12 @@ class QBittorrent(AppTarget):
     id: str = "qbittorrent"
     name: str = "qBittorrent"
     summary: str = "Folder-based custom UI theme (colours and a rounded style sheet)."
+    # The style sheet can't switch by itself, so the colours follow the same scheme and
+    # both are written again when GNOME switches dark and light.
+    scheme_dependent: bool = True
     notes: list[str] = field(default_factory=lambda: [
         "Close qBittorrent before applying: it rewrites its settings file on exit and would undo this.",
-        "The style sheet follows the scheme in use when you apply; colours switch with the app's own dark mode.",
+        "Colours and style sheet follow the GNOME dark or light style; restart qBittorrent after a switch.",
     ])
 
     def detect(self, env: Env) -> Detection:
@@ -234,7 +237,9 @@ class QBittorrent(AppTarget):
         conf = env.config / "qBittorrent/qBittorrent.conf"
         text = ra.read_text(conf) if conf.exists() else ""
         acts: list[Action] = [
-            WriteFile(d / "config.json", ra.qbittorrent_config(ctx.dark, ctx.light)),
+            # Both blocks from the scheme in use: qBittorrent picks its block by its own
+            # idea of dark mode, which need not match the style sheet's (a white side list).
+            WriteFile(d / "config.json", ra.qbittorrent_config(ctx.tokens, ctx.tokens)),
             WriteFile(d / "stylesheet.qss", ra.qt_qss(ctx.tokens)),
         ]
         if text is not None:

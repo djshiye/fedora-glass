@@ -205,7 +205,7 @@ Window {
         Item {
             id: pages
             anchors.top: header.bottom
-            anchors.bottom: lostBanner.top
+            anchors.bottom: safeBanner.top
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 24
@@ -231,6 +231,55 @@ Window {
                 enabled: win.pageIndex === 1
                 transform: Translate { x: win.pageIndex === 1 ? 0 : 16; Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
                 Behavior on opacity { NumberAnimation { duration: Theme.normal } }
+            }
+        }
+
+        // ------------------------------------- safe mode: the glass kept failing and
+        // turned itself off. Plain panels until the user turns it back on.
+        Rectangle {
+            id: safeBanner
+            objectName: "safeBanner"
+            readonly property bool shown: Backend.safeMode
+            anchors.bottom: lostBanner.top
+            anchors.bottomMargin: shown ? 12 : 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width - 48, 760)
+            height: shown ? 48 : 0
+            visible: height > 0
+            clip: true
+            radius: Theme.rM
+            color: Theme.well
+            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+            Icon {
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                name: "info"
+                color: Theme.warn
+                size: 18
+            }
+            Text {
+                objectName: "safeNote"
+                x: 42
+                width: parent.width - x - resumeGlass.width - 28
+                anchors.verticalCenter: parent.verticalCenter
+                text: Backend.safeModeNote
+                color: Theme.textDim
+                font.pixelSize: Theme.fsSmall
+                elide: Text.ElideRight
+            }
+            LgButton {
+                id: resumeGlass
+                objectName: "resumeGlass"
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                kind: "primary"
+                implicitHeight: 32
+                leftPadding: 14; rightPadding: 14
+                text: "Turn glass back on"
+                iconName: "refresh"
+                tip: "Start the glass again. If it keeps failing, it pauses itself again."
+                onClicked: Backend.resumeGlass()
             }
         }
 

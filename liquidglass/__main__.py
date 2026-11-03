@@ -107,6 +107,55 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
     return not read_pending()
 
 
+def installed_glass_version(eng) -> str | None:
+    """The version of the glass extension Apply last installed for this user, or None."""
+    import json
+    from .render import glass as rg
+    env = getattr(eng, "env", None)
+    if env is None:
+        return None
+    meta = env.data / "gnome-shell/extensions" / rg.UUID / "metadata.json"
+    try:
+        if meta.is_symlink() or meta.stat().st_size > 64 * 1024:
+            return None
+        v = json.loads(meta.read_text(encoding="utf-8")).get("version-name")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return v if isinstance(v, str) else None
+
+
+def update_after_upgrade(eng) -> bool:
+    """After `dnf upgrade` the app is new but the look this user applied (the glass
+    extension in their home folder, the theme files) is still the old version's. At the
+    next login, apply it again with the user's own saved settings, the way pressing Apply
+    would. Nothing happens after Restore original, or when the versions already match.
+    Returns True when it applied."""
+    if not eng.is_applied():
+        return False
+    had = installed_glass_version(eng)
+    if had is None or had == __version__:
+        return False
+    print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
+    eng.apply(settings_mod.load())
+    return True
+
+
+def disk_version() -> str | None:
+    """The app version on disk now; after `dnf upgrade` it differs from the running one."""
+    import re
+    from pathlib import Path
+    try:
+        text = (Path(__file__).resolve().parent / "__init__.py").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", text)
+    return m.group(1) if m else None
+
+
+UPGRADED = "upgraded"
+UPGRADE_POLL_S = 60.0
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
     switch only needs the parts that can't switch by themselves (Shell theme,
@@ -129,6 +178,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
         return 1
     eng = _engine()
     only = {t.id for t in eng.targets if t.scheme_dependent}
+    update_after_upgrade(eng)
     finish_pending(eng)
     changes: queue.Queue[int | None] = queue.Queue()
 
@@ -138,11 +188,24 @@ def cmd_watch(args: argparse.Namespace) -> int:
             changes.put(i)
         changes.put(None)       # that monitor ended
 
+    def notice_upgrade() -> None:
+        while True:
+            time.sleep(UPGRADE_POLL_S)
+            v = disk_version()
+            if v is not None and v != __version__:
+                changes.put(UPGRADED)
+                return
+
     for i, p in enumerate(procs):
         threading.Thread(target=follow, args=(i, p), daemon=True).start()
+    threading.Thread(target=notice_upgrade, daemon=True).start()
     try:
         while True:
             got = _take_all(changes)
+            if UPGRADED in got:
+                # The user service starts the new version's watcher, which brings the look up to date.
+                print(f"fedora-glass watch: Fedora Glass {disk_version()} was installed; starting it", file=sys.stderr)
+                return 75
             if None in got:
                 # Half a watcher would miss switches: stop, and let the user service start a fresh one.
                 print("fedora-glass watch: a gsettings monitor stopped", file=sys.stderr)
