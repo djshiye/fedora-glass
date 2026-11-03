@@ -104,8 +104,8 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
         look["textShade"] = round(0.3 * shell.clarity(p["blur"]), 3)
         # Clear dark glass keeps white text at 4.5:1 or better over any backdrop: over
         # bright things it darkens itself, in their own colour, up to this ceiling.
-        if t.dark and shell.clarity(p["blur"]) > 0:
-            look["ceiling"] = CLEAR_CEILING
+        if t.dark:
+            look["ceiling"] = CLEAR_CEILING if shell.clarity(p["blur"]) > 0 else VEILED_CEILING
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
@@ -122,6 +122,10 @@ WINDOW_CEILING = 0.28
 # Clear dark glass on the panel and menus: almost no veil, so the glass itself must
 # stay dark enough for white text (1.05 / (0.15 + 0.05) is 5.2:1 before the veil).
 CLEAR_CEILING = 0.15
+# The other dark presets keep a thin veil (about 30 %), which already darkens a little,
+# so their glass may stay brighter: 0.22 still gives white text about 5:1 over a white
+# wallpaper (it was 2.2:1). Dark backdrops are not touched.
+VEILED_CEILING = 0.22
 
 
 def _window_look(t: Tokens, name: str) -> dict:
