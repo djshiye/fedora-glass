@@ -29,6 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
+import {report} from './safety.js';
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
 import {freezeSource, thawSource} from './glass.js';
 import {HoverGlide} from './glide.js';
@@ -183,12 +184,12 @@ function finish(anim, finished) {
         // Land on the end state, then hand over.
         setAt(anim, 1);
     } catch (e) {
-        logError(e, 'Liquid Glass: finishing an animation');
+        report('finishing an animation', e);
     }
     try {
         anim.onDone?.(finished, anim);
     } catch (e) {
-        logError(e, 'Liquid Glass: after an animation');
+        report('after an animation', e);
     }
 }
 
@@ -603,7 +604,7 @@ class WindowAnimations {
             const m = this.motion[ev];
             this[`_${kind}`](shellwm, actor, m);
         } catch (e) {
-            logError(e, `Liquid Glass: ${kind} animation`);
+            report(`${kind} animation`, e);
             this._rescue(kind, shellwm, actor, choice);
         }
     }

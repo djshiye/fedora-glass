@@ -5,6 +5,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {windowLanded} from './glass.js';
+import {guarded} from './safety.js';
 
 export const HOLD_MAX_MS = 100;   // a menu waits at most this long for its glass
 const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
@@ -121,7 +122,8 @@ export class Signals {
     }
 
     on(obj, signal, fn) {
-        this._ids.push([obj, obj.connect(signal, fn)]);
+        // An error in a handler is reported to safe mode instead of thrown into GNOME Shell.
+        this._ids.push([obj, obj.connect(signal, guarded(signal, fn))]);
     }
 
     /** Drop obj's connections without disconnecting (it is being disposed). */
