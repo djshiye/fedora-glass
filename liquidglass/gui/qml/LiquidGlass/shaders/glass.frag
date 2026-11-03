@@ -67,11 +67,14 @@ float squircleSlope(float x) {
 }
 
 // The thin line of light along the very edge, as in glass.js. 0..1.
+// As in the Shell's glass.js: iOS 26's rim, gone 1.2 px in, on the sides facing the
+// light and their reflection, fading over the corners between, over a half px edge.
 float rimLine(float inside, vec2 n) {
-    float band = smoothstep(1.9, 1.3, inside) * smoothstep(0.0, 0.3, inside);
-    float d = dot(n, LIGHT);
-    float k = d > 0.0 ? pow(d, 3.0) : 0.4 * pow(-d, 3.0);
-    return band * (0.22 + 0.78 * k);
+    float facing = abs(dot(n, LIGHT));
+    float along = inside / (1.22 * (1.0 + 0.25 * facing));
+    float line = along < 1.0 ? pow(facing, 1.5) * (1.0 - pow(along, 1.5)) * smoothstep(0.0, 0.25, inside) : 0.0;
+    float edge = smoothstep(0.0, 0.2, inside) * (1.0 - smoothstep(0.4, 0.9, inside));
+    return line * 0.42 + edge * 0.12;
 }
 
 vec4 at(vec2 p) {
@@ -260,13 +263,13 @@ void main() {
     }
     // The line of light at the very edge: the backdrop beyond it mixed most of
     // the way to white, at most a little brighter than the glass around it.
-    float ln = hl > 0.0 ? min(1.0, rimLine(inside, n) * min(1.0, 0.45 + 1.1 * hl) * 1.25) : 0.0;
+    float ln = hl > 0.0 ? min(1.0, rimLine(inside, n) * min(1.0, 0.45 + 1.1 * hl)) : 0.0;
     vec3 lc = vec3(0.0);
     if (ln > 0.0) {
         vec4 e = env(px0 + n * REACH * 0.5);
         vec4 under = mode > 1.5 ? at(px0) : col;
         vec3 base = under.rgb / max(under.a, 1e-3);
-        lc = min(mix(e.rgb / max(e.a, 1e-3), vec3(1.0), 0.75), base + vec3(0.5 + 0.35 * ln));
+        lc = mix(e.rgb / max(e.a, 1e-3), vec3(1.0), 0.8);
     }
     vec3 b = mode > 1.5 ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
     if (mode > 1.5) {
