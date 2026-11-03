@@ -8,7 +8,7 @@
 #
 # --source              the Fedora Glass tree to test (default: this checkout). Lets you run
 #                       today's checks against an older release.
-# --from DIR            also check the upgrade from an older Fedora Glass tree (the last
+# --from DIR            also check the upgrade from an older tree (Liquid Glass before 1.5.0) (the last
 #                       release): it is applied first, then this version arrives the way
 #                       dnf upgrade brings it, with two restarts and no Apply.
 # --update-references   save this run's pictures as the new reference pictures.
