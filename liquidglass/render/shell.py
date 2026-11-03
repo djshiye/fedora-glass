@@ -53,14 +53,17 @@ def veil(t: Tokens, kind: str, frost: float | None = None, blur: float | None = 
     """Alpha of a surface the extension draws glass behind. The extension already darkens,
     frosts and reflects the backdrop itself, so the theme only lays a light veil on top
     (kind is "menu" or "panel"). The glass layer is brightened/darkened to keep text readable
-    over this thin veil, see render/glass.py. Clear glass (a tiny blur) has the veil cut to
-    about a third, as Apple's clear glass is nearly untinted."""
+    over this thin veil, see render/glass.py. Clear dark glass (a tiny blur) has the veil cut
+    to about a third, as Apple's clear glass is nearly untinted; it keeps white text readable
+    with a brightness ceiling instead (CLEAR_CEILING in render/glass.py)."""
     f = t.frost if frost is None else frost
     if kind == "panel":
         v = lerp(0.18, 0.45, f)
     else:
         v = lerp(0.16, 0.45, f) if t.dark else lerp(0.30, 0.60, f)
-    if blur is not None:
+    # Light glass carries dark text, which needs the veil's milk under it, so only
+    # dark glass loses it.
+    if blur is not None and t.dark:
         v *= lerp(1.0, 0.35, clarity(blur))
     return v
 

@@ -55,7 +55,10 @@ def _milk(t: Tokens, name: str) -> dict:
     if t.dark or t.blur_radius == 0:
         return {}
     c = t.parts[name]["popover"]
-    out = {"lift": LIFT.get(name, 0.0), "milk": [round(c.r, 4), round(c.g, 4), round(c.b, 4)]}
+    lift = LIFT.get(name, 0.0)
+    if lift > 0 and shell.clarity(t.parts[name]["blur"]) > 0:
+        lift = 1.0     # clear light glass shows the backdrop sharp: its milk thickens fully over dark parts
+    out = {"lift": lift, "milk": [round(c.r, 4), round(c.g, 4), round(c.b, 4)]}
     if name in HAIRLINE:
         out["hairline"] = HAIRLINE[name]
     return out
@@ -98,7 +101,11 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     if veiled and name != "overview":
         look["veil"] = _veil(t, name)
         # Clear glass has almost no veil: bright text gets a soft shade right behind it.
-        look["textShade"] = round(0.55 * shell.clarity(p["blur"]), 3)
+        look["textShade"] = round(0.3 * shell.clarity(p["blur"]), 3)
+        # Clear dark glass keeps white text at 4.5:1 or better over any backdrop: over
+        # bright things it darkens itself, in their own colour, up to this ceiling.
+        if t.dark and shell.clarity(p["blur"]) > 0:
+            look["ceiling"] = CLEAR_CEILING
     if veiled:
         look["brightness"] = _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
@@ -112,6 +119,9 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
 # there, so header and window text keeps 4.5:1 or better. Dark backdrops pass unchanged.
 # Measured on Orchis-Dark GTK 3 apps: 0.28 gives 4.8:1 or more on a white wallpaper.
 WINDOW_CEILING = 0.28
+# Clear dark glass on the panel and menus: almost no veil, so the glass itself must
+# stay dark enough for white text (1.05 / (0.15 + 0.05) is 5.2:1 before the veil).
+CLEAR_CEILING = 0.15
 
 
 def _window_look(t: Tokens, name: str) -> dict:
@@ -170,7 +180,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
-                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim") if k in menus_look},
+                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim", "ceiling") if k in menus_look},
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
