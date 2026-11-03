@@ -8,8 +8,10 @@ root, so the app runs this file through pkexec, which asks for your password.
 
 What it does, as root:
   apply   copies the original file to /var/lib/liquid-glass, then writes a copy of it where
-          only gdm.css differs: a block of Fedora Glass rules added at its end. Every other
-          file inside is checked to be byte for byte the same before the copy goes in.
+          only the login screen's style sheet differs: a block of Fedora Glass rules added at
+          its end. That is gdm.css where there is one (Ubuntu), else gnome-shell-dark.css and
+          gnome-shell-light.css (upstream GNOME 49 and later, so Fedora). Every other file
+          inside is checked to be byte for byte the same before the copy goes in.
   undo    puts the original back, only if the file is still the one this wrote.
   status  says whether the glass is on (no root needed).
 
@@ -36,6 +38,9 @@ STATE_DIR = "/var/lib/liquid-glass"
 BACKUP = "login-screen-original.gresource"
 STATE = "login-screen.json"
 GDM_CSS = "/org/gnome/shell/theme/gdm.css"
+# Upstream GNOME 49+ (Fedora) has no gdm.css: the login screen reads the same dark or
+# light style sheet as the desktop. Ubuntu still adds gdm.css.
+SHARED_CSS = ("/org/gnome/shell/theme/gnome-shell-dark.css", "/org/gnome/shell/theme/gnome-shell-light.css")
 GRESOURCE = "/usr/bin/gresource"
 COMPILE = "/usr/bin/glib-compile-resources"
 RESTORECON = "/usr/sbin/restorecon"
@@ -74,13 +79,17 @@ def check_values(accent: str, tint: str, frost: float) -> tuple[str, str, float]
     return accent.lower(), tint.lower(), round(frost, 3)
 
 
-def css(accent: str, tint: str, frost: float) -> str:
-    """The rules added to gdm.css. Built only from the three checked values.
+def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
+    """The rules added to the login screen's style sheet. Built only from the three checked values.
 
     The login screen can't see a wallpaper, so the backdrop is a deep glow of the glass
     tint, and the user list, password field and buttons are panes of glass on it: a
     little white, a bright top edge and a soft shadow. Text stays GNOME's white, at
     least 7:1 on every pane.
+
+    shared: the style sheet is also the desktop's (no gdm.css). Every rule must then only
+    match the login screen, so the glow goes on the login dialog, which fills the screen,
+    instead of #lockDialogGroup, which the desktop's own lock screen uses too.
     """
     accent, tint, frost = check_values(accent, tint, frost)
     black = (0, 0, 0)
@@ -93,7 +102,7 @@ def css(accent: str, tint: str, frost: float) -> str:
     card = 0.04 + 0.05 * frost          # the card behind the picture and password
     return f"""
 {MARK_START}
-#lockDialogGroup {{
+{".login-dialog" if shared else "#lockDialogGroup"} {{
   background-gradient-direction: radial;
   background-gradient-start: {glow};
   background-gradient-end: {edges}; }}
@@ -180,9 +189,18 @@ def list_files(path: str) -> list[str]:
     for n in names:
         if not RESOURCE_PATH.fullmatch(n) or "/../" in n or n.endswith("/.."):
             raise LoginScreenError(f"unexpected name inside the theme file: {n[:80]}")
-    if GDM_CSS not in names:
-        raise LoginScreenError("the theme file has no gdm.css")
+    sheets(names)
     return sorted(names)
+
+
+def sheets(names: list[str]) -> list[str]:
+    """The style sheets the login screen reads, inside a theme file with these names."""
+    if GDM_CSS in names:
+        return [GDM_CSS]
+    found = [n for n in SHARED_CSS if n in names]
+    if not found:
+        raise LoginScreenError("the theme file has no style sheet for the login screen")
+    return found
 
 
 def extract(path: str, name: str) -> bytes:
@@ -206,16 +224,18 @@ def _check_file(path: str) -> None:
         raise LoginScreenError(f"{path} is unexpectedly large")
 
 
-def build(original: str, block: str, out: str) -> None:
-    """Write to out a copy of original whose gdm.css ends with block; checked."""
+def build(original: str, out: str, accent: str, tint: str, frost: float) -> None:
+    """Write to out a copy of original whose login screen style sheets end with our block; checked."""
     _check_file(original)
     names = list_files(original)
+    targets = sheets(names)
+    block = css(accent, tint, frost, shared=targets != [GDM_CSS])
     work = tempfile.mkdtemp(prefix="liquid-glass-login-")
     try:
         files = {}
         for n in names:
             data = extract(original, n)
-            if n == GDM_CSS:
+            if n in targets:
                 data = (strip_block(data.decode()) + block).encode()
             files[n] = data
             dest = os.path.join(work, "root" + n)
@@ -228,7 +248,7 @@ def build(original: str, block: str, out: str) -> None:
         with open(os.path.join(work, "theme.gresource.xml"), "w") as f:
             f.write("\n".join(xml))
         _run(COMPILE, f"--sourcedir={work}/root", f"--target={out}", os.path.join(work, "theme.gresource.xml"))
-        # The copy must hold exactly the same files, all the same except gdm.css.
+        # The copy must hold exactly the same files, all the same except the login screen's sheets.
         if list_files(out) != names:
             raise LoginScreenError("the new theme file lists different files")
         for n in names:
@@ -279,7 +299,7 @@ def status(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
 
 
 def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> None:
-    block = css(accent, tint, frost)
+    check_values(accent, tint, frost)
     dest = target(shell_dir)
     _check_file(dest)
     os.makedirs(state_dir, mode=0o755, exist_ok=True)
@@ -290,7 +310,8 @@ def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, stat
         original = backup                         # already on: start again from the original
     else:
         # Only ever save a file as "the original" when it really is GNOME's own.
-        if s.get("written") == now or MARK_START in extract(dest, GDM_CSS).decode(errors="replace"):
+        if s.get("written") == now or any(MARK_START in extract(dest, n).decode(errors="replace")
+                                          for n in sheets(list_files(dest))):
             raise LoginScreenError("the login screen file was changed before but its original is missing; "
                                    "run: sudo dnf reinstall gnome-shell")
         shutil.copyfile(dest, backup + ".new")    # the file as GNOME installed it
@@ -300,7 +321,7 @@ def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, stat
     fd, out = tempfile.mkstemp(prefix="liquid-glass-login-", suffix=".gresource")
     os.close(fd)
     try:
-        build(original, block, out)
+        build(original, out, accent, tint, frost)
         written = sha256(out)
         _write_into(out, dest)
     finally:
