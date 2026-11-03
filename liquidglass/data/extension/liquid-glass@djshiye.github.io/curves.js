@@ -1,4 +1,4 @@
-// The shapes of Liquid Glass's window and panel animations, as plain maths: no
+// The shapes of Fedora Glass's window and panel animations, as plain maths: no
 // GNOME imports, so the tests can run it with gjs alone (tests/js/curves.test.js).
 //
 // Every curve maps time u (0 at the start, 1 at the end) to progress (0 → 1).

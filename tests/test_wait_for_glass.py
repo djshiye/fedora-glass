@@ -1,6 +1,6 @@
 """Shell parts wait for the glass extension: GNOME only starts a new extension at login, so a
 first Apply mid-session must not leave a see-through panel and menus with no glass behind
-them, or change Dash to Panel and ArcMenu for nothing. `liquid-glass watch` finishes them."""
+them, or change Dash to Panel and ArcMenu for nothing. `fedora-glass watch` finishes them."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ BLUR_PANEL = f"{ts.GlassEffects.BLUR_SCHEMA}.panel"
 
 def desktop(env):
     """Dino's kind of desktop: User Themes, Blur my Shell, Dash to Panel and ArcMenu, with
-    their own settings in place before Liquid Glass."""
+    their own settings in place before Fedora Glass."""
     install(env, ts.USER_THEME, ts.BLUR, ts.DASH_TO_PANEL, ts.ARCMENU)
     t = Engine(env, ts.TARGETS).context(Settings()).tokens
     env.gs[(DTP, None)] = {k: "'theirs'" for k in rs.dtp_values(t)} | {"animate-appicon-hover": "true"}

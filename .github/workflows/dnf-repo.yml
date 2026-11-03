@@ -2,7 +2,10 @@
 # `sudo dnf upgrade` picks up new versions. It runs after each successful
 # Release, or by hand from the Actions tab for a given release tag. Users add it
 # once with:
-#   sudo dnf config-manager addrepo --from-repofile=https://djshiye.github.io/fedora-liquid-glass/liquid-glass.repo
+#   sudo dnf install https://github.com/djshiye/fedora-liquid-glass/releases/latest/download/fedora-glass.noarch.rpm
+# (the package carries fedora-glass.repo). Older Liquid Glass installs added
+# liquid-glass.repo by hand, which only lets through the liquid-glass package:
+# from 1.5.0 each release also has a liquid-glass package that moves them over.
 #
 # The site serves the release and the two before it (so `dnf downgrade` can roll
 # back), and never goes back to an older version than the one it serves.
@@ -66,7 +69,7 @@ jobs:
           if [ -n "$INPUT_TAG" ]; then
             tag="$INPUT_TAG"
           else
-            ver="$(git show "$RELEASE_SHA:packaging/liquid-glass.spec" | sed -n 's/^Version:[[:space:]]*//p' | head -1)"
+            ver="$(git show "$RELEASE_SHA:packaging/fedora-glass.spec" | sed -n 's/^Version:[[:space:]]*//p' | head -1)"
             tag="v$ver"
             test "$(git rev-parse "$tag^{commit}")" = "$RELEASE_SHA" || { echo "$tag is not $RELEASE_SHA"; exit 1; }
           fi
@@ -86,16 +89,28 @@ jobs:
           for tag in $tags; do
             d="dl/$tag"; mkdir -p "$d"
             base="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag"
-            if ! curl -fsSLo "$d/liquid-glass.noarch.rpm" "$base/liquid-glass.noarch.rpm" \
-               || ! curl -fsSLo "$d/SHA256SUMS" "$base/SHA256SUMS"; then
-              [ "$tag" = "$TAG" ] && { echo "release $TAG has no RPM"; exit 1; }
+            if ! curl -fsSLo "$d/SHA256SUMS" "$base/SHA256SUMS"; then
+              [ "$tag" = "$TAG" ] && { echo "release $TAG has no SHA256SUMS"; exit 1; }
               echo "skipping $tag: no release files"; continue
             fi
-            (cd "$d" && grep ' liquid-glass.noarch.rpm$' SHA256SUMS | sha256sum -c -)
-            test "$(rpm -qp --qf '%{name} v%{version}' "$d/liquid-glass.noarch.rpm")" = "liquid-glass $tag"
-            nvr="$(rpm -qp --qf '%{name}-%{version}-%{release}' "$d/liquid-glass.noarch.rpm")"
-            cp "$d/liquid-glass.noarch.rpm" "site/rpms/$nvr.noarch.rpm"
-            [ "$tag" = "$TAG" ] && echo "EVR=$(rpm -qp --qf '%{evr}' "$d/liquid-glass.noarch.rpm")" >> "$GITHUB_ENV"
+            # From 1.5.0: fedora-glass, plus liquid-glass that moves old installs over.
+            # Before: only liquid-glass.
+            names=""
+            for n in fedora-glass liquid-glass; do
+              grep -q " $n.noarch.rpm\$" "$d/SHA256SUMS" && names="$names $n"
+            done
+            [ -n "$names" ] || { [ "$tag" = "$TAG" ] && { echo "release $TAG has no RPM"; exit 1; }; echo "skipping $tag: no RPM"; continue; }
+            if [ "$tag" = "$TAG" ]; then
+              case "$names" in *fedora-glass*) ;; *) echo "release $TAG has no fedora-glass RPM"; exit 1 ;; esac
+            fi
+            for n in $names; do
+              curl -fsSLo "$d/$n.noarch.rpm" "$base/$n.noarch.rpm"
+              (cd "$d" && grep " $n.noarch.rpm\$" SHA256SUMS | sha256sum -c -)
+              test "$(rpm -qp --qf '%{name} v%{version}' "$d/$n.noarch.rpm")" = "$n $tag"
+              nvr="$(rpm -qp --qf '%{name}-%{version}-%{release}' "$d/$n.noarch.rpm")"
+              cp "$d/$n.noarch.rpm" "site/rpms/$nvr.noarch.rpm"
+            done
+            [ "$tag" = "$TAG" ] && echo "EVR=$(rpm -qp --qf '%{evr}' "$d/fedora-glass.noarch.rpm")" >> "$GITHUB_ENV"
           done
           ls site/rpms
 
@@ -120,9 +135,9 @@ jobs:
       - name: Build the repository
         run: |
           createrepo_c site/rpms
-          cp packaging/liquid-glass.repo site/
+          cp packaging/fedora-glass.repo packaging/liquid-glass.repo site/
           echo "$EVR" > site/version.txt
-          printf '<!doctype html><meta charset="utf-8"><title>Liquid Glass DNF repository</title><pre>sudo dnf config-manager addrepo --from-repofile=%s/liquid-glass.repo\nsudo dnf install liquid-glass</pre><p>Serving %s.</p>\n' "$SITE" "$TAG" > site/index.html
+          printf '<!doctype html><meta charset="utf-8"><title>Fedora Glass DNF repository</title><pre>sudo dnf install https://github.com/%s/releases/latest/download/fedora-glass.noarch.rpm</pre><p>Serving %s.</p>\n' "$GITHUB_REPOSITORY" "$TAG" > site/index.html
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa  # v3.0.1
         with:

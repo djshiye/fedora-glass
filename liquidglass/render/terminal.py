@@ -110,7 +110,7 @@ def derive(t: Tokens) -> TermPalette:
 
 
 # ---- Ptyxis ---------------------------------------------------------------
-PTYXIS_PALETTE_NAME = "Liquid Glass"
+PTYXIS_PALETTE_NAME = "Fedora Glass"
 
 
 def _ptyxis_section(name: str, p: TermPalette, titlebar: Color | None = None) -> str:
@@ -178,7 +178,7 @@ def btop_theme(t: Tokens) -> str:
     for k, (a, b, c) in grads.items():
         rows += [(f"{k}_start", a.hex6), (f"{k}_mid", b.hex6), (f"{k}_end", c.hex6)]
     body = "\n".join(f'theme[{k}]="{v}"' for k, v in rows)
-    return f"# Liquid Glass for btop\n{body}\n"
+    return f"# Fedora Glass for btop\n{body}\n"
 
 
 # ---- micro --------------------------------------------------------------------
@@ -236,4 +236,4 @@ def micro_colorscheme(t: Tokens) -> str:
         ("selection", fb(p.selection_fg, p.selection_bg)),
     ]
     body = "\n".join(f"color-link {k} {v}" for k, v in links)
-    return f"# Liquid Glass for micro\n{body}\n"
+    return f"# Fedora Glass for micro\n{body}\n"

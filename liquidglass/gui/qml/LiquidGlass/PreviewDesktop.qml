@@ -388,7 +388,7 @@ Item {
                 readonly property string blue: root.t.accent_text ? root.t.accent_text.toString() : "#78aeed"
                 readonly property string dim: root.t.fg_faint ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.55).toString() : "#888"
                 readonly property string yellow: root.t.warning ? root.t.warning.toString() : "#f5c04f"
-                Line { text: "<font color='" + parent.green + "'><b>" + Backend.userName + "@" + Backend.hostName + "</b></font>:<font color='" + parent.blue + "'><b>~</b></font>$ liquid-glass apply" }
+                Line { text: "<font color='" + parent.green + "'><b>" + Backend.userName + "@" + Backend.hostName + "</b></font>:<font color='" + parent.blue + "'><b>~</b></font>$ fedora-glass apply" }
                 Line { text: "<font color='" + parent.green + "'>✓</font> GNOME Shell           <font color='" + parent.dim + "'>applied</font>" }
                 Line { text: "<font color='" + parent.green + "'>✓</font> GTK 4 and libadwaita  <font color='" + parent.dim + "'>applied</font>" }
                 Line { text: "<font color='" + parent.green + "'>✓</font> Dash to Panel         <font color='" + parent.dim + "'>applied</font>" }

@@ -130,7 +130,7 @@ export class LockGlass {
         try {
             fn();
         } catch (e) {
-            console.error(`Liquid Glass: lock screen glass turned off: ${e}`);
+            console.error(`Fedora Glass: lock screen glass turned off: ${e}`);
             this._detach();
         }
     }

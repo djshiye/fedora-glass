@@ -202,7 +202,7 @@ export class HoverGlide {
                 try {
                     tile = new Tile(panel, this._look);
                 } catch (e) {
-                    console.error(`Liquid Glass: no hover glide on a panel: ${e}`);
+                    console.error(`Fedora Glass: no hover glide on a panel: ${e}`);
                     continue;
                 }
                 this._tiles.set(panel, tile);

@@ -49,7 +49,7 @@ def test_ptyxis_palette_is_valid_keyfile():
     cp = configparser.ConfigParser(interpolation=None)
     cp.optionxform = str
     cp.read_string(txt)
-    assert cp["Palette"]["Name"] == "Liquid Glass"
+    assert cp["Palette"]["Name"] == "Fedora Glass"
     for sec in ("Light", "Dark"):
         keys = set(cp[sec])
         assert {"Background", "Foreground", "Cursor"} <= keys
@@ -79,10 +79,10 @@ def test_micro_colorscheme(dark, frost):
 
 def test_conf_set_only_touches_wanted_lines():
     conf = '#comment\r\nupdate_ms = 2000\ncolor_theme = "Default"\ntheme_background = True\nshown_boxes = "cpu mem"\n'
-    new = ra.conf_set(conf, {"color_theme": '"liquid-glass"', "theme_background": "False"})
+    new = ra.conf_set(conf, {"color_theme": '"fedora-glass"', "theme_background": "False"})
     assert new.splitlines(keepends=True)[0] == "#comment\r\n"
-    assert 'color_theme = "liquid-glass"\n' in new and "theme_background = False\n" in new
-    assert new.replace('"liquid-glass"', '"Default"').replace("False", "True") == conf
+    assert 'color_theme = "fedora-glass"\n' in new and "theme_background = False\n" in new
+    assert new.replace('"fedora-glass"', '"Default"').replace("False", "True") == conf
     assert ra.conf_set("a = 1\n", {"b": "2"}) == "a = 1\nb = 2\n"
 
 
@@ -94,14 +94,14 @@ def test_ptyxis_plan(fake_env):
     }
     plan = tt.Ptyxis().plan(ctx_for(fake_env, dark=True))
     wf = [a for a in plan if isinstance(a, WriteFile)]
-    assert len(wf) == 1 and wf[0].path.name == "Liquid Glass.palette"
+    assert len(wf) == 1 and wf[0].path.name == "Fedora Glass.palette"
     assert wf[0].path.parent.parts[-2:] == ("org.gnome.Ptyxis", "palettes")
     gs = [a for a in plan if isinstance(a, GSet)]
     assert {a.path for a in gs} == {"/org/gnome/Ptyxis/Profiles/76cf880fca2d7db1aa047b0c6a3ae60f/"}
-    # The user's own palette stays unless they opt in to the Liquid Glass colours.
+    # The user's own palette stays unless they opt in to the Fedora Glass colours.
     assert "palette" not in {a.key for a in gs}
     plan = tt.Ptyxis().plan(ctx_for(fake_env, dark=True, terminal_colors=True))
-    assert {a.key: a.value for a in plan if isinstance(a, GSet)}["palette"] == "'Liquid Glass'"
+    assert {a.key: a.value for a in plan if isinstance(a, GSet)}["palette"] == "'Fedora Glass'"
 
 
 def test_ptyxis_palette_in_use(fake_env):
@@ -143,13 +143,13 @@ def test_btop_target_keeps_rest_of_conf(fake_env):
     (d / "btop.conf").write_text(conf)
     plan = tt.Btop().plan(ctx_for(fake_env))
     new = next(a.content for a in plan if a.path.name == "btop.conf")
-    assert new == 'color_theme = "liquid-glass"\ntheme_background = False\nvim_keys = False\n'
-    assert any(a.path.name == "liquid-glass.theme" for a in plan)
+    assert new == 'color_theme = "fedora-glass"\ntheme_background = False\nvim_keys = False\n'
+    assert any(a.path.name == "fedora-glass.theme" for a in plan)
 
 
 def test_btop_without_conf_skips_conf(fake_env):
     plan = tt.Btop().plan(ctx_for(fake_env))
-    assert [a.path.name for a in plan] == ["liquid-glass.theme"]
+    assert [a.path.name for a in plan] == ["fedora-glass.theme"]
 
 
 def test_micro_merges_settings(fake_env):
@@ -158,7 +158,7 @@ def test_micro_merges_settings(fake_env):
     (d / "settings.json").write_text('{"tabsize": 2, "colorscheme": "default"}')
     plan = tt.Micro().plan(ctx_for(fake_env))
     new = json.loads(next(a.content for a in plan if a.path.name == "settings.json"))
-    assert new == {"tabsize": 2, "colorscheme": "liquid-glass"}
+    assert new == {"tabsize": 2, "colorscheme": "fedora-glass"}
 
 
 def test_micro_leaves_broken_settings_alone(fake_env):
@@ -166,7 +166,7 @@ def test_micro_leaves_broken_settings_alone(fake_env):
     d.mkdir(parents=True)
     (d / "settings.json").write_text("{ not json")
     plan = tt.Micro().plan(ctx_for(fake_env))
-    assert [a.path.name for a in plan] == ["liquid-glass.micro"]
+    assert [a.path.name for a in plan] == ["fedora-glass.micro"]
 
 
 def test_detect_missing(fake_env, monkeypatch):
@@ -196,7 +196,7 @@ def test_ptyxis_follows_light_and_dark_only_when_asked(fake_env):
     fake_env.gs[("org.gnome.Ptyxis", None)]["interface-style"] = "'light'"
     engine.apply(Settings(terminal_follows_style=False))
     assert style() == "'light'"
-    # Restore original brings back the value from before Liquid Glass.
+    # Restore original brings back the value from before Fedora Glass.
     fake_env.gs[("org.gnome.Ptyxis", None)]["interface-style"] = "'dark'"
     engine.apply(Settings(terminal_follows_style=True))
     engine.revert()

@@ -37,9 +37,9 @@ class Ptyxis(Target):
     id: str = "ptyxis"
     name: str = "Ptyxis"
     group: str = "Terminal"
-    summary: str = "Window opacity on every profile, and the Liquid Glass colour palette if you turn it on."
+    summary: str = "Window opacity on every profile, and the Fedora Glass colour palette if you turn it on."
     notes: list[str] = field(default_factory=lambda: [
-        "Profiles keep their own colours unless you choose Liquid Glass terminal colours.",
+        "Profiles keep their own colours unless you choose Fedora Glass terminal colours.",
         "Profiles are changed in place; reverting restores each profile's old palette and opacity.",
         "Ptyxis creates its first profile on first launch: open it once, then Apply again."])
 
@@ -49,7 +49,7 @@ class Ptyxis(Target):
         return Detection(False, "Ptyxis is not installed")
 
     def palette_path(self, env: Env) -> Path:
-        return env.data / "org.gnome.Ptyxis/palettes/Liquid Glass.palette"
+        return env.data / "org.gnome.Ptyxis/palettes/Fedora Glass.palette"
 
     def profiles(self, env: Env) -> list[str]:
         uuids = _list_values(env.gsettings_get("org.gnome.Ptyxis", "profile-uuids"))
@@ -144,11 +144,11 @@ class Btop(Target):
 
     def plan(self, ctx: Context) -> list[Action]:
         d = ctx.env.config / "btop"
-        acts: list[Action] = [WriteFile(d / "themes/liquid-glass.theme", rt.btop_theme(ctx.tokens))]
+        acts: list[Action] = [WriteFile(d / "themes/fedora-glass.theme", rt.btop_theme(ctx.tokens))]
         conf = d / "btop.conf"
         text = ra.read_text(conf)
         if text is not None:
-            new = ra.conf_set(text, {"color_theme": '"liquid-glass"', "theme_background": "False"})
+            new = ra.conf_set(text, {"color_theme": '"fedora-glass"', "theme_background": "False"})
             acts.append(WriteFile(conf, new))
         return acts
 
@@ -168,11 +168,11 @@ class Micro(Target):
 
     def plan(self, ctx: Context) -> list[Action]:
         d = ctx.env.config / "micro"
-        acts: list[Action] = [WriteFile(d / "colorschemes/liquid-glass.micro", rt.micro_colorscheme(ctx.tokens))]
+        acts: list[Action] = [WriteFile(d / "colorschemes/fedora-glass.micro", rt.micro_colorscheme(ctx.tokens))]
         sp = d / "settings.json"
         existing = ra.read_text(sp) if sp.exists() else None
         if not sp.exists() or existing is not None:
-            merged = ra.merge_json_text(existing, {"colorscheme": "liquid-glass"})
+            merged = ra.merge_json_text(existing, {"colorscheme": "fedora-glass"})
             if merged is not None:
                 acts.append(WriteFile(sp, merged))
         return acts

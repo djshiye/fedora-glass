@@ -1,4 +1,4 @@
-"""Config and files for the Liquid Glass GNOME Shell extension.
+"""Config and files for the Fedora Glass GNOME Shell extension.
 
 The extension (data/extension/) draws the glass itself: a live, blurred copy
 of what is behind the panel, menus and windows, bent along a refracting rim.

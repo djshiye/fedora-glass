@@ -1,1 +1,1 @@
-"""The Liquid Glass customizer (PySide6 + Qt Quick)."""
+"""The Fedora Glass customizer (PySide6 + Qt Quick)."""

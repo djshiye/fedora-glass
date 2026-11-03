@@ -113,7 +113,7 @@ export class Popups {
         try {
             f = new Follower(surface, anchor, this._settings(part), () => this._followers.delete(surface));
         } catch (e) {
-            console.error(`Liquid Glass: menu shown without glass: ${e}`);
+            console.error(`Fedora Glass: menu shown without glass: ${e}`);
             return null;
         }
         f.part = part;

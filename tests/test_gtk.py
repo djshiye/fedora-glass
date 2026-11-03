@@ -261,7 +261,7 @@ def test_engine_replaces_symlinked_gtk_css(fake_env):
     Engine(fake_env, targets=[by_id("gtk4")]).apply(Settings(frost=0.3))
     assert not (d / "gtk.css").is_symlink()
     assert (theme / "gtk.css").read_text() == "/* orchis */"
-    assert "Liquid Glass" in (d / "gtk.css").read_text()
+    assert "Fedora Glass" in (d / "gtk.css").read_text()
     assert Engine(fake_env, targets=[by_id("gtk4")]).revert("gtk4") == []
     assert (d / "gtk.css").is_symlink()
 

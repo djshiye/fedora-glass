@@ -1,4 +1,4 @@
-// Desktop behaviour set in the Liquid Glass app: start on the desktop instead
+// Desktop behaviour set in the Fedora Glass app: start on the desktop instead
 // of the Activities overview, and optionally keep the overview closed for good.
 //
 // Dash to Panel and Just Perfection have their own "start on the desktop"

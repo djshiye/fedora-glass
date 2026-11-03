@@ -152,7 +152,7 @@ test('at most a few times per session, however often it fails', () => {
     r.destroy();
 });
 
-test('switching Liquid Glass off stops it cleanly', () => {
+test('switching Fedora Glass off stops it cleanly', () => {
     manager.add(ARCMENU, 1);
     manager.add(DASH_TO_PANEL, 1);
     const r = new ArcMenuRescue();

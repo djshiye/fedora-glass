@@ -361,7 +361,7 @@ def test_terminal_palette_is_reported_not_changed(make_backend, home, monkeypatc
     b = make_backend(targets=[Ptyxis()], start=True)
     assert b.waitIdle()
     assert b.property("terminalPalette") == "gooey"
-    assert b.property("liquidGlassPalette") == "Liquid Glass"
+    assert b.property("liquidGlassPalette") == "Fedora Glass"
     assert b.property("terminalColors") is False
     b.setProperty("terminalColors", True)
     assert b.settings().terminal_colors is True
@@ -396,7 +396,7 @@ def test_replaced_files_show_a_reapply_note(make_backend, home):
     out.symlink_to(home / "elsewhere.css")
     b.refreshTargets()
     assert b.waitIdle()
-    assert b.property("lostNote") == "Another app replaced the Liquid Glass look for Alpha. Apply again to bring it back."
+    assert b.property("lostNote") == "Another app replaced the Fedora Glass look for Alpha. Apply again to bring it back."
     assert out.is_symlink()                     # only reported, nothing rewritten
     b.apply()
     assert b.waitIdle()

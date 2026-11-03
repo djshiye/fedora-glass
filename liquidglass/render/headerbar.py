@@ -37,7 +37,7 @@ _BUTTON = 34            # libadwaita header bar button height
 _SLIM_BUTTON = 30       # button height used for bars under 40 px
 _COLLAPSE = 3           # padding libadwaita puts above and below bars in a .collapse-spacing box
 
-COMMENT = "/* ---- header bars: height and glass (Liquid Glass settings) ---- */\n"
+COMMENT = "/* ---- header bars: height and glass (Fedora Glass settings) ---- */\n"
 
 
 def header_color(s: Settings, t: Tokens):

@@ -359,6 +359,6 @@ def test_tokens_json_exports_parts():
 def test_version_is_the_same_everywhere():
     # The app, the RPM and the Shell extension must ship one version.
     root = Path(__file__).resolve().parent.parent
-    spec = re.search(r"^Version:\s*(\S+)", (root / "packaging/liquid-glass.spec").read_text(), re.M).group(1)
+    spec = re.search(r"^Version:\s*(\S+)", (root / "packaging/fedora-glass.spec").read_text(), re.M).group(1)
     meta = json.loads((root / "liquidglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
     assert liquidglass.__version__ == spec == meta["version-name"]
