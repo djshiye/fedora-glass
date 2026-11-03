@@ -120,6 +120,7 @@ class Backend(QObject):
     revertFinished = Signal("QVariantList")
     failed = Signal(str)
     headerNoteChanged = Signal()
+    safeModeChanged = Signal()
     speedChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
@@ -160,6 +161,11 @@ class Backend(QObject):
         self._live_timer.setSingleShot(True)
         self._live_timer.setInterval(120)
         self._live_timer.timeout.connect(lambda: self._write_live_glass(self._s))
+        # Safe mode: the extension turned the glass off after it kept failing.
+        self._safe = self._read_safe_mode()
+        self._safe_timer = QTimer(self)
+        self._safe_timer.setInterval(3000)
+        self._safe_timer.timeout.connect(self._poll_safe_mode)
         # Speed: what the extension reports, and the check the user can ask for.
         self._speed_status: dict = {}
         self._speed_state = "idle"
@@ -178,7 +184,56 @@ class Backend(QObject):
         if start:
             self.refreshTargets()
             self._watch_scheme()
+            self._safe_timer.start()
             self._start_speed_watch()
+
+    # ---- safe mode ---------------------------------------------------------------
+    def _read_safe_mode(self) -> dict:
+        """The extension's safe mode state, or {} when the glass runs normally. Only small,
+        well-formed files from this user count."""
+        path = self._env.cache / "liquid-glass/safe-mode.json"
+        try:
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024:
+                return {}
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(data, dict) or data.get("tripped") is not True:
+            return {}
+        reason = data.get("reason") if data.get("reason") in ("errors", "restarts", "start") else "errors"
+        return {"reason": reason, "resetId": str(data.get("resetId", ""))[:16]}
+
+    def _poll_safe_mode(self) -> None:
+        state = self._read_safe_mode()
+        if state != self._safe:
+            self._safe = state
+            self.safeModeChanged.emit()
+
+    @Property(bool, notify=safeModeChanged)
+    def safeMode(self) -> bool:
+        return bool(self._safe)
+
+    @Property(str, notify=safeModeChanged)
+    def safeModeNote(self) -> str:
+        why = {"restarts": "GNOME Shell restarted twice right after starting it",
+               "start": "it could not start",
+               "errors": "it hit errors"}.get(self._safe.get("reason", ""), "it hit errors")
+        return f"Glass is paused because {why}. Your desktop works as usual."
+
+    @Slot()
+    def resumeGlass(self) -> None:
+        """Ask the extension to turn the glass back on (it watches this file)."""
+        d = self._env.config / "liquid-glass"
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            tmp = d / ".safe-mode-reset.json.tmp"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"id": secrets.token_hex(8)}, f)
+            os.replace(tmp, d / "safe-mode-reset.json")
+        except OSError:
+            return
+        QTimer.singleShot(800, self._poll_safe_mode)
 
     # ---- helpers -----------------------------------------------------------------
     @staticmethod
