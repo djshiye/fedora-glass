@@ -1,0 +1,69 @@
+// Overview off (desktop.js): while GNOME is still starting, the overview on screen is
+// GNOME's startup animation. Closing it then left GNOME waiting for good, so the second
+// screen kept no wallpaper. It must be closed only once start-up has finished.
+import assert from 'node:assert/strict';
+import {test, beforeEach} from 'node:test';
+
+class Signals {
+    constructor() { this.handlers = new Map(); this.next = 1; }
+    connect(sig, fn) { const id = this.next++; this.handlers.set(id, [sig, fn]); return id; }
+    disconnect(id) { this.handlers.delete(id); }
+    emit(sig) { for (const [s, fn] of [...this.handlers.values()]) if (s === sig) fn(); }
+    count(sig) { return [...this.handlers.values()].filter(([s]) => s === sig).length; }
+}
+
+const overview = {
+    visible: false, hides: 0,
+    show() { this.visible = true; },
+    hide() { this.hides++; this.visible = false; },
+};
+const sessionMode = {hasOverview: true};
+const extensionManager = {lookup: () => ({state: 1})};
+globalThis.fake = {ui: {}, overview, sessionMode, extensionManager};
+globalThis.global = {settings: {get_strv: () => ['dash-to-panel@jderose9.github.com', 'arcmenu@arcmenu.com']}};
+
+const Main = await import('resource:///org/gnome/shell/ui/main.js');
+const lm = Main.layoutManager;
+Object.assign(lm, new Signals());
+for (const k of ['connect', 'disconnect', 'emit', 'count'])
+    lm[k] = Signals.prototype[k].bind(lm);
+const {DesktopBehaviour} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/desktop.js');
+
+const CFG = {desktop: {overviewOff: true, startOnDesktop: true}};
+
+beforeEach(() => {
+    lm.handlers.clear();
+    lm._startingUp = false;
+    overview.visible = false;
+    overview.hides = 0;
+    delete overview.show;     // drop any patch left by a previous test
+});
+
+test('during start-up the startup overview is left alone until start-up finishes', () => {
+    lm._startingUp = true;
+    overview.visible = true;          // GNOME's startup animation is running
+    const d = new DesktopBehaviour(CFG);
+    assert.equal(overview.hides, 0, 'closed the overview while GNOME was still starting');
+    lm._startingUp = false;
+    lm.emit('startup-complete');
+    assert.equal(overview.visible, false, 'the overview stayed open after start-up');
+    assert.equal(lm.count('startup-complete'), 0, 'left a start-up handler connected');
+    d.destroy();
+});
+
+test('after start-up an open overview is closed at once', () => {
+    overview.visible = true;
+    const d = new DesktopBehaviour({desktop: {overviewOff: true, startOnDesktop: false}});
+    assert.equal(overview.hides, 1);
+    d.destroy();
+});
+
+test('turning Fedora Glass off during start-up leaves no handler behind', () => {
+    lm._startingUp = true;
+    overview.visible = true;
+    const d = new DesktopBehaviour({desktop: {overviewOff: true, startOnDesktop: false}});
+    d.destroy();
+    assert.equal(lm.count('startup-complete'), 0);
+    lm.emit('startup-complete');
+    assert.equal(overview.hides, 0, 'closed the overview after Fedora Glass was turned off');
+});
