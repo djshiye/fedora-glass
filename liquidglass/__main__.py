@@ -107,6 +107,39 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
     return not read_pending()
 
 
+def installed_glass_version(eng) -> str | None:
+    """The version of the glass extension Apply last installed for this user, or None."""
+    import json
+    from .render import glass as rg
+    env = getattr(eng, "env", None)
+    if env is None:
+        return None
+    meta = env.data / "gnome-shell/extensions" / rg.UUID / "metadata.json"
+    try:
+        if meta.is_symlink() or meta.stat().st_size > 64 * 1024:
+            return None
+        v = json.loads(meta.read_text(encoding="utf-8")).get("version-name")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return v if isinstance(v, str) else None
+
+
+def update_after_upgrade(eng) -> bool:
+    """After `dnf upgrade` the app is new but the look this user applied (the glass
+    extension in their home folder, the theme files) is still the old version's. At the
+    next login, apply it again with the user's own saved settings, the way pressing Apply
+    would. Nothing happens after Restore original, or when the versions already match.
+    Returns True when it applied."""
+    if not eng.is_applied():
+        return False
+    had = installed_glass_version(eng)
+    if had is None or had == __version__:
+        return False
+    print(f"liquid-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
+    eng.apply(settings_mod.load())
+    return True
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
     switch only needs the parts that can't switch by themselves (Shell theme,
@@ -129,6 +162,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
         return 1
     eng = _engine()
     only = {t.id for t in eng.targets if t.scheme_dependent}
+    update_after_upgrade(eng)
     finish_pending(eng)
     changes: queue.Queue[int | None] = queue.Queue()
 
