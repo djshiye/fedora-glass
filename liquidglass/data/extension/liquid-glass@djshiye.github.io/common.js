@@ -110,6 +110,8 @@ export class WindowWatch {
 // wallpaper copy and window watcher while the extension is on.
 export const windowWatch = {current: null};
 export const followers = new Set();
+// Menus grow out of the button that opened them and flow back into it on close.
+export const grow = {enabled: true};
 export const motion = {current: null};
 export const wallpaper = {current: null};
 

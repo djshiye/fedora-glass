@@ -123,6 +123,8 @@ export function parse(text) {
     cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);
     cfg.glide = cleanGlide(raw.glide);
+    // Menus grow out of the button that opened them (follower.js).
+    cfg.grow = {enabled: !(raw.grow && typeof raw.grow === 'object' && raw.grow.enabled === false)};
     // Glass quality: auto, full, lighter or lightest (speed.js).
     cfg.speed = {quality: cleanQuality(raw.speed)};
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
