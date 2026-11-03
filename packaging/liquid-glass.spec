@@ -16,6 +16,10 @@ Requires:       python3-gobject
 Requires:       python3-pyside6
 Requires:       gnome-shell
 Requires:       gnome-shell-extension-user-theme
+# For the login screen glass (whichever package has them).
+Requires:       /usr/bin/gresource
+Requires:       /usr/bin/glib-compile-resources
+Requires:       polkit
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
@@ -48,6 +52,11 @@ install -Dm644 data/io.github.djshiye.LiquidGlass.desktop %{buildroot}%{_datadir
 sed -i 's|^Exec=.*|Exec=liquid-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 
+# Opt-in glass on the login screen: the only part that runs as root, through pkexec
+# after your password. Standard library only, run with python3 -I -S.
+install -Dm755 liquidglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-glass-login-screen
+install -Dm644 data/io.github.djshiye.LiquidGlass.policy %{buildroot}%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
+
 # Re-applies the parts that can't follow GNOME's dark/light switch by themselves.
 install -d %{buildroot}%{_userunitdir}
 cat > %{buildroot}%{_userunitdir}/liquid-glass-watch.service <<'UNIT'
@@ -79,6 +88,10 @@ python3 -m pytest -q tests
 
 %preun
 %systemd_user_preun liquid-glass-watch.service
+# Removing the app puts the normal login screen back if the glass was on.
+if [ $1 -eq 0 ]; then
+    %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+fi
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
@@ -89,6 +102,8 @@ python3 -m pytest -q tests
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
+%{_libexecdir}/liquid-glass-login-screen
+%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 
 %changelog
 * Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.4.4-1
