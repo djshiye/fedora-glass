@@ -25,6 +25,7 @@ LgSwitch 1.0 LgSwitch.qml
 LgToolTip 1.0 LgToolTip.qml
 LookPage 1.0 LookPage.qml
 MotionCard 1.0 MotionCard.qml
+SpeedCard 1.0 SpeedCard.qml
 OverrideSlider 1.0 OverrideSlider.qml
 PreviewDesktop 1.0 PreviewDesktop.qml
 ResultsSheet 1.0 ResultsSheet.qml
