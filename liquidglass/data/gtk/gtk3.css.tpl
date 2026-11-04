@@ -27,6 +27,10 @@ headerbar, .titlebar, headerbar:backdrop, .titlebar:backdrop {
   border-radius: 0;
 }
 window.csd > .titlebar, window.csd > headerbar { border-top-left-radius: $r_l; border-top-right-radius: $r_l; box-shadow: inset 0 -1px 0 @lg_divider; }
+/* A title bar made of several header bars (gedit: side panel and document): the outer one paints
+   the glass with the rounded corners, so the inner ones stay clear instead of painting square
+   corners over it and a second, darker layer. */
+.titlebar headerbar:not(.selection-mode), .titlebar .titlebar:not(.selection-mode) { background-color: transparent; box-shadow: none; }
 headerbar.selection-mode { background-color: @accent_bg_color; color: @accent_fg_color; }
 searchbar, .search-bar, actionbar { background-color: @lg_bar; border: none; box-shadow: inset 0 -1px 0 @lg_divider; }
 actionbar { box-shadow: inset 0 1px 0 @lg_divider; }

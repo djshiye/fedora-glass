@@ -129,6 +129,7 @@ export function parse(text) {
     cfg.grow = {enabled: !(raw.grow && typeof raw.grow === 'object' && raw.grow.enabled === false)};
     // Glass quality: auto, full, lighter or lightest (speed.js).
     cfg.speed = {quality: cleanQuality(raw.speed)};
+    cfg.popupCss = cleanPopupCss(raw.popupCss);
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};
@@ -139,6 +140,16 @@ export function parse(text) {
             ? {...base, look: cleanLook(part.look, base.look)} : base;
     }
     return cfg;
+}
+
+// The pop-up rules the extension loads as its own stylesheet (popupstyle.js). Plain
+// rules only: no @import, url() or escapes, so it can never pull in another file.
+export const POPUP_CSS_MAX = 16 * 1024;
+
+export function cleanPopupCss(raw) {
+    if (typeof raw !== 'string' || raw.length > POPUP_CSS_MAX || /@|url\s*\(|\\/i.test(raw))
+        return '';
+    return raw;
 }
 
 // The hover highlight that glides along the taskbar. The colour goes into a
