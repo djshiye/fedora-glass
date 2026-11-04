@@ -58,6 +58,24 @@ stop_session() {
 # which always happens without a graphics card, so the checks pin full quality (versions
 # without the setting ignore it).
 echo '{"overview_off": true, "start_on_desktop": true, "glass_quality": "full"}' > "$HOME/.config/liquid-glass/settings.json"
+# Safe mode (safety.js) counts a GNOME Shell that stops within a minute of starting the
+# glass as a crash, and turns the glass off after two in a row. The test's upgrade sessions
+# are short stand-ins for a whole day on Dino's PC, so each one is marked as having run
+# long enough (only a clean stop gets here; a crash would still count).
+session_ran_long() {
+    python3 - "$HOME/.cache/liquid-glass/safe-mode.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+try:
+    d = json.load(open(p))
+except (OSError, ValueError):
+    sys.exit(0)
+if d.get("running") and not d.get("tripped"):
+    d["stable"] = True
+    d["restarts"] = 0
+    json.dump(d, open(p, "w"))
+PY
+}
 if [ -d /from/liquidglass ]; then
     # The upgrade check: Dino's PC on the last release, then `dnf upgrade` and a restart.
     # The older version is applied and runs for one session; then the new app arrives
@@ -72,6 +90,7 @@ if [ -d /from/liquidglass ]; then
     for _ in $(seq 60); do [ -e "$HOME/.config/liquid-glass/pending-shell.json" ] || break; sleep 1; done
     sleep 5
     stop_session
+    session_ran_long
     # The older app saved the settings without glass_quality (it didn't know it), so the
     # new glass would run on auto and step itself down to wallpaper-only glass under the
     # software renderer. Pin full quality again before the new version brings the look up
@@ -85,6 +104,7 @@ if [ -d /from/liquidglass ]; then
     for _ in $(seq 90); do grep -q "updating the applied look" "$OUT/watch-upgrade.txt" 2>/dev/null && break; sleep 1; done
     sleep 20      # the update itself, and any Shell parts it leaves for the glass
     stop_session
+    session_ran_long
     if grep -q "updating the applied look" "$OUT/watch-upgrade.txt"; then
         echo "apply exit 0 (the login helper applied it after the upgrade)" > "$OUT/apply.txt"
     else
