@@ -22,7 +22,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "safety.js",
-         "speed.js", "tuning.js", "prefs.js")
+         "speed.js", "tuning.js", "popupstyle.js", "prefs.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -212,6 +212,9 @@ def config(s: Settings, t: Tokens) -> dict:
         "animations": {ev: s.motion_for(ev) for ev in MOTION_EVENTS},
         # One hover highlight that glides along the Dash to Panel taskbar (glide.js).
         "glide": {"enabled": s.hover_glide, "color": t.hover.css, "radius": scale(t.panel_radius)["xs"]},
+        # The theme's pop-up rules (OSD, Alt+Tab) again, loaded by the extension as its own
+        # stylesheet so they win over other extensions' sheets (popupstyle.js).
+        "popupCss": shell.render_extension_css(t),
     }
 
 

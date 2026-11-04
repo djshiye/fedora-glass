@@ -61,6 +61,7 @@ export class Popups {
         this._signals = new Signals();
         const ui = Main.layoutManager.uiGroup;
         this._laters = new Set();
+        this._switchers = new Map();   // Alt+Tab pop-up -> [signal ids]
         // Some pop-ups (Alt+Tab) are added before they finish building, so look a moment later.
         this._signals.on(ui, 'child-added', (_p, child) => {
             const laters = global.compositor.get_laters();
@@ -103,8 +104,23 @@ export class Popups {
             return;
         }
         // Alt+Tab and friends.
-        if (child._switcherList)
+        if (child._switcherList) {
             this._follow(child._switcherList, child, 'quicksettings');
+            this._watchSwitcher(child);
+        }
+    }
+
+    // Alt+Tab shows an app's windows in a second list under the first one, made only
+    // when that app is picked: glass for it too.
+    _watchSwitcher(popup) {
+        if (this._switchers.has(popup))
+            return;
+        const added = popup.connect('child-added', (_p, c) => {
+            if (c !== popup._switcherList && c.has_style_class_name?.('switcher-list'))
+                this._follow(c, popup, 'quicksettings');
+        });
+        const gone = popup.connect('destroy', () => this._switchers.delete(popup));
+        this._switchers.set(popup, [added, gone]);
     }
 
     _follow(surface, anchor, part = 'menus', source = null) {
@@ -186,6 +202,9 @@ export class Popups {
         this._laters.clear();
         for (const surface of [...this._waiting.keys()])
             this._stopWaiting(surface);
+        for (const [popup, ids] of this._switchers)
+            ids.forEach(id => popup.disconnect(id));
+        this._switchers.clear();
         for (const f of [...this._followers.values()])
             f.destroy();
         this._followers.clear();

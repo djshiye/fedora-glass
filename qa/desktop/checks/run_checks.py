@@ -1109,6 +1109,122 @@ def check_restore(ctx: Ctx) -> Check:
 # ---------------------------------------------------------------------------------------------
 # 7. Log and Apply
 # ---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
+# Pop-ups and title bars that other themes or apps could paint over the glass
+# ---------------------------------------------------------------------------------------------
+# The surface's own fill (alpha) and whether a shown glass pane of about its size lies under it
+# (covers at least 90 % of it and reaches at most 60 px past each side, which leaves out other glass).
+SURFACE_JS = """const a = %s; if (!a || !a.mapped) return null;
+ const [x, y] = a.get_transformed_position(), [w, h] = a.get_transformed_size();
+ let glass = false; const walk = b => { if (!b.visible) return; if (b.constructor.name === 'LiquidGlassPane' && b.mapped && b.opacity > 0) {
+   const [px, py] = b.get_transformed_position(), [pw, ph] = b.get_transformed_size();
+   const ix = Math.max(0, Math.min(x + w, px + pw) - Math.max(x, px)), iy = Math.max(0, Math.min(y + h, py + ph) - Math.max(y, py));
+   if (ix * iy >= 0.9 * w * h && pw <= w + 120 && ph <= h + 120) glass = true; } b.get_children().forEach(walk); };
+ walk(Main.layoutManager.uiGroup);
+ return {alpha: a.get_theme_node().get_background_color().alpha / 255, glass, box: [x, y, w, h]};"""
+SWITCHER = "Main.layoutManager.uiGroup.get_children().find(c => c._switcherList)"
+KEYS = {"alt": 0xffe9, "tab": 0xff09, "down": 0xff54, "escape": 0xff1b}
+
+
+def _key(ctx: Ctx, name: str, down: bool) -> None:
+    ctx.sh.eval("(globalThis._lgqaKb ||= global.stage.context.get_backend().get_default_seat()"
+                ".create_virtual_device(imports.gi.Clutter.InputDeviceType.KEYBOARD_DEVICE))"
+                ".notify_keyval(imports.gi.GLib.get_monotonic_time(), %d, imports.gi.Clutter.KeyState.%s); 1"
+                % (KEYS[name], "PRESSED" if down else "RELEASED"))
+
+
+def _glass_surface(c: Check, ctx: Ctx, label: str, js: str, lim: dict, shot: str) -> None:
+    # A pop-up's glass is built when it first shows, so give it a moment.
+    s = None
+    for _ in range(8):
+        s = ctx.sh.json(SURFACE_JS % js) or s
+        if s and s["glass"] and s["alpha"] <= lim["max_surface_alpha"]:
+            break
+        settle(0.25)
+    if not s:
+        c.add(False, f"{label} did not show.")
+        return
+    img = picture(shot, lgqa.crop(lgqa.load(ctx.sh.shot(shot)), [v - 40 for v in ctx.px(s["box"][:2])]
+                                  + [v + 80 for v in ctx.px(s["box"][2:])]), width=700)
+    ok = s["glass"] and s["alpha"] <= lim["max_surface_alpha"]
+    c.add(ok, f"{label} is glass (its own fill {s['alpha'] * 100:.0f} % opaque, glass under it: "
+          f"{'yes' if s['glass'] else 'no'})." if ok else
+          f"{label} is not glass: its own fill is {s['alpha'] * 100:.0f} % opaque (limit "
+          f"{lim['max_surface_alpha'] * 100:.0f} %), glass under it: {'yes' if s['glass'] else 'no'}.", img)
+
+
+def check_popups(ctx: Ctx) -> Check:
+    c = Check("popups", "Pop-ups and title bars show the glass",
+              "Shows the volume pop-up and Alt+Tab (with an app's window previews) under Dino's Just Perfection "
+              "theme, which paints them near-black, and opens gedit, whose title bar is made of several bars.")
+    sh, lim = ctx.sh, LIMITS["popups"]
+    sh.close_all()
+    lgqa.kill_apps()
+    log0 = ctx.log_lines()
+
+    # Volume pop-up.
+    sh.eval("Main.osdWindowManager.showAll(imports.gi.Gio.Icon.new_for_string('audio-volume-medium-symbolic'), 'Volume', 0.5, 1); 1")
+    settle(0.4)     # it hides itself after about 1.5 seconds
+    _glass_surface(c, ctx, "The volume pop-up",
+                   "(() => { let o = null; const w = b => { if (!o && b.has_style_class_name?.('osd-window') && b.mapped) o = b;"
+                   " b.get_children().forEach(w); }; w(Main.layoutManager.uiGroup); return o; })()", lim, "popup-osd")
+
+    # Alt+Tab, held down like a person does, with two Files windows for the previews.
+    for d in ("/home/dino", "/home/dino/Documents"):
+        lgqa.launch(["nautilus", "--new-window", d], log="nautilus")
+        settle(2.5)
+    lgqa.launch(["ptyxis", "--new-window"], log="ptyxis")
+    term = sh.wait_window(r"ptyxis|terminal|dino@")
+    sh.focus(term["id"])
+    settle(2)
+    _key(ctx, "alt", True)
+    try:
+        settle(0.2)
+        _key(ctx, "tab", True)
+        _key(ctx, "tab", False)
+        settle(1.5)
+        _glass_surface(c, ctx, "Alt+Tab", f"{SWITCHER}?._switcherList", lim, "popup-alttab")
+        _key(ctx, "down", True)
+        _key(ctx, "down", False)
+        settle(1.5)
+        _glass_surface(c, ctx, "Alt+Tab's window previews", f"{SWITCHER}?._thumbnails", lim, "popup-alttab-previews")
+        _key(ctx, "escape", True)
+        _key(ctx, "escape", False)
+    finally:
+        _key(ctx, "alt", False)
+    settle(1.5)
+    gone = sh.eval(f"String(!{SWITCHER})") == "true"
+    c.add(gone, "Alt+Tab closes." if gone else "Alt+Tab stayed on screen after it was closed.")
+    sh.close_all()
+    lgqa.kill_apps()
+
+    # gedit's title bar: two header bars inside a title bar. Nothing may paint the
+    # square corner outside the window's rounded corner.
+    lgqa.launch(["gedit", "--new-window"], log="gedit")
+    w = sh.wait_window("gedit")
+    sh.put(w["id"], 200, 150, 900, 500, focus=True)
+    settle(2.5)
+    w = sh.window_by_id(w["id"])
+    a = lgqa.load(sh.shot("popup-gedit"))
+    fx, fy, fw, _ = ctx.px(w["frame"])
+    lift = []
+    for inside, outside in (((fx + 9, fy + 2), (fx - 12, fy + 2)), ((fx + fw - 12, fy + 2), (fx + fw + 9, fy + 2))):
+        lin = float(lgqa.lum(lgqa.crop(a, (*inside, 3, 3))).mean())
+        lout = float(lgqa.lum(lgqa.crop(a, (*outside, 3, 3))).mean())
+        lift.append(lin - lout)
+    img = picture("popup-gedit-top", lgqa.crop(a, (fx - 30, fy - 30, fw + 60, 200)), width=900)
+    worst = max(lift)
+    c.add(worst <= lim["max_corner_lift"],
+          "gedit's title bar has clean rounded corners." if worst <= lim["max_corner_lift"] else
+          f"gedit's title bar paints square corners outside its rounded ones ({worst:.0f} brighter than the "
+          f"desktop next to it, limit {lim['max_corner_lift']:.0f}).", img)
+    sh.close_all()
+    lgqa.kill_apps()
+    errs = [e for e in ctx.new_errors(log0) if ours(e)]
+    c.add(not errs, "No Fedora Glass errors." if not errs else f"{len(errs)} Fedora Glass errors, first: {errs[0][-160:]}")
+    return c
+
+
 def check_log(ctx: Ctx) -> Check:
     c = Check("log", "No errors from Fedora Glass",
               "Reads GNOME Shell's log for the whole run and the output of Apply.")
@@ -1180,7 +1296,8 @@ def check_upgrade(ctx: Ctx) -> Check:
 
 
 ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
-       "restart": check_restart, "restore": check_restore, "lock": check_lock, "log": check_log,
+       "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
+       "log": check_log,
        "upgrade": check_upgrade}
 
 

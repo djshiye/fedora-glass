@@ -441,6 +441,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   link-color: ${accent_text}; }
 
 /* ---------------------------------------------------------------- OSD, switchers */
+/* @extension: also in the extension's own stylesheet, where it wins over other extensions
+   (Just Perfection's theme paints these black, which would cover the glass) */
 .osd-window {
   color: ${fg};
   border-radius: ${r_m}px;
@@ -490,6 +492,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border-radius: ${r_l}px; }
 .osd-monitor-label, .osd-break-countdown-label {
   color: ${accent_fg}; }
+/* @end-extension */
 
 /* ---------------------------------------------------------------- modal dialogs, polkit, end session */
 .modal-dialog, .run-dialog {
