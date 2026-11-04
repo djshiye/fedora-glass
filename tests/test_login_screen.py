@@ -188,9 +188,16 @@ def test_fedora_theme_without_gdm_css_gets_glass_in_its_dark_and_light_sheets(tm
         text = ls.extract(path, f"/org/gnome/shell/theme/{name}").decode()
         assert text.startswith(orig) and text.count(ls.MARK_START) == 1
         block = text[len(orig):]
-        # The desktop reads these sheets too: every rule only matches the login screen.
-        assert "#lockDialogGroup" not in block
-        for sel in __import__("re").findall(r"([^{}]+)\{", block.split(ls.MARK_START, 1)[1]):
+        # The desktop reads these sheets too: every rule only matches the login screen,
+        # except the backdrop of every screen, which the desktop's lock screen covers
+        # with the wallpaper: there only its colour may change.
+        rules = __import__("re").findall(r"([^{}]+)\{([^{}]*)\}", block.split(ls.MARK_START, 1)[1])
+        for sel, body in rules:
+            if sel.strip() == "#lockDialogGroup":
+                props = {p.split(":")[0].strip() for p in body.split(";") if p.strip()}
+                assert props <= {"background-color", "background-gradient-direction",
+                                 "background-gradient-start", "background-gradient-end"}, props
+                continue
             assert all(".login-dialog" in part for part in sel.split(",")), sel
     assert ls.extract(path, "/org/gnome/shell/theme/icon.svg") == OTHER
     ls.apply("#e62d42", "#203050", 1, shell, state)       # again: still one block
@@ -214,3 +221,16 @@ def test_a_theme_file_with_no_login_sheet_changes_nothing(tmp_path):
     with pytest.raises(ls.LoginScreenError, match="no style sheet for the login screen"):
         ls.apply("#3584e4", "#6a3fb5", 0.4, str(shell), str(tmp_path / "state"))
     assert (shell / "gnome-shell-theme.gresource").read_bytes() == before
+
+
+def test_every_screen_gets_the_glass_backdrop_not_only_the_main_one():
+    """1.5.1 on Fedora: the glow was on the login dialog, which only fills the main screen."""
+    for shared in (False, True):
+        block = ls.css("#3584e4", "#6a3fb5", 0.4, shared=shared)
+        # #lockDialogGroup spans every screen: a top-to-bottom tint looks the same on each
+        # (a radial glow there would centre on the seam between two screens).
+        group = block.split("#lockDialogGroup {", 1)[1].split("}", 1)[0]
+        assert "background-gradient-direction: vertical" in group
+        assert "radial" not in group
+        dialog = block.split(".login-dialog {", 1)[1].split("}", 1)[0]
+        assert "background-gradient-direction: radial" in dialog

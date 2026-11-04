@@ -525,6 +525,14 @@ class WindowAnimations {
             wm.connect('minimize', (shellwm, actor) => this._run('minimize', shellwm, actor)),
             wm.connect('unminimize', (shellwm, actor) => this._run('unminimize', shellwm, actor)),
             wm.connect('destroy', (shellwm, actor) => this._run('close', shellwm, actor)),
+            // A window that is maximized (or otherwise resized) while it is still opening:
+            // GNOME's own resize animation moves the same scale and translation, and the two
+            // fought, leaving the window at opacity 1, all but invisible (1.5.1, Claude
+            // Desktop coming back maximized). Ours lands first; GNOME's then plays alone.
+            wm.connect('size-change', (_shellwm, actor) => {
+                if (running.has(actor) || guards.has(actor))
+                    stop(actor, true);
+            }),
         ];
     }
 

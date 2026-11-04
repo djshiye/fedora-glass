@@ -87,22 +87,34 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
     little white, a bright top edge and a soft shadow. Text stays GNOME's white, at
     least 7:1 on every pane.
 
-    shared: the style sheet is also the desktop's (no gdm.css). Every rule must then only
-    match the login screen, so the glow goes on the login dialog, which fills the screen,
-    instead of #lockDialogGroup, which the desktop's own lock screen uses too.
+    The login dialog only fills the main screen. Every screen shows #lockDialogGroup,
+    which spans them all, so it gets a tint that deepens from near black at the top (each screen
+    the same, where a radial glow would centre on the seam between two screens), and
+    the login dialog draws the glow over it on the main screen.
+
+    shared: the style sheet is also the desktop's (no gdm.css). Every rule must then match
+    only the login screen, or be one the desktop never shows: the desktop's lock screen
+    covers #lockDialogGroup with your wallpaper, so only its colour changes there, from
+    GNOME's flat near black to a near-black tint.
     """
     accent, tint, frost = check_values(accent, tint, frost)
     black = (0, 0, 0)
     t = _rgb(tint)
     glow = _mix(t, black, 0.45)          # the glow behind the password, in the tint colour
     edges = _mix(t, black, 0.92)         # near black at the edges, so the top bar reads
+    deep = _mix(t, black, 0.72)          # the other screens: the glow's colour, deeper
     pane = 0.07 + 0.07 * frost           # white in each pane: clear glass to frost
     hover = pane + 0.05
     edge = 0.16 + 0.10 * frost
     card = 0.04 + 0.05 * frost          # the card behind the picture and password
     return f"""
 {MARK_START}
-{".login-dialog" if shared else "#lockDialogGroup"} {{
+#lockDialogGroup {{
+  background-color: {edges};
+  background-gradient-direction: vertical;
+  background-gradient-start: {edges};
+  background-gradient-end: {deep}; }}
+.login-dialog {{
   background-gradient-direction: radial;
   background-gradient-start: {glow};
   background-gradient-end: {edges}; }}
