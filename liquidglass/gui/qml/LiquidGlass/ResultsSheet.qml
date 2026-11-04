@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic as C
+import LiquidGlass.Core
 
 // What happened on Apply: applied, info, skipped, reverted and failed, with messages.
 Sheet {

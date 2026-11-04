@@ -34,18 +34,15 @@ by itself, and the themes and the Shell extension carry the new name.
 ## Undo or remove
 
 - **Restore original** in the app puts your desktop back exactly as it was before the first Apply.
-- To remove it completely, run these as your normal user:
+- **Remove Fedora Glass…** (at the bottom of the Look page) does Restore original, then removes
+  the app after your password.
+- `sudo dnf remove fedora-glass` does the same: before the app goes, it puts back the original
+  look of everyone who applied one. To keep the look after removing the app, turn off
+  **Put my original look back** in the app first.
 
-  ```sh
-  fedora-glass revert
-  sudo dnf remove fedora-glass
-  ```
-
-  Removing it also puts the normal login screen back if you turned on glass there.
-
-  Run `fedora-glass revert` first: the glass lives in your home folder, so `dnf remove` on its own
-  takes the app away but leaves the glass on. Your Fedora Glass settings stay in
-  `~/.config/liquid-glass`, so a later install remembers them; delete that folder for a clean slate.
+Removing it also puts the normal login screen back if you turned on glass there. Restart your PC
+afterwards so GNOME lets go of the glass completely. Your Fedora Glass settings stay in
+`~/.config/liquid-glass`, so a later install remembers them; delete that folder for a clean slate.
 
 ## Blur my Shell
 

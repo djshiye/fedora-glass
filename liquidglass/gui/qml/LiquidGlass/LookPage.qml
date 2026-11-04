@@ -841,6 +841,8 @@ Item {
                     }
                 }
             }
+
+            RemoveCard { width: parent.width }
             Item { width: 1; height: 8 }
         }
     }
