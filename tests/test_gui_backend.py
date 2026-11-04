@@ -280,6 +280,24 @@ def test_live_glass_follows_sliders_and_falls_back_on_quit(make_backend, home):
     assert json.loads(path.read_text())["look"]["bend"] > 0
 
 
+def test_live_glass_stays_solid_under_high_contrast(make_backend, home):
+    """Apply turns the glass off while High Contrast is on; moving a slider, or closing
+    the app with changes unapplied, must not bring it back (1.5.2 did)."""
+    import json
+    b = make_backend()
+    path = home / "config/liquid-glass/shell-glass.json"
+    b._env.high_contrast = lambda: True
+    b._glass_live = True
+    b.setProperty("refraction", 0.2)
+    b._write_live_glass(b.settings())
+    cfg = json.loads(path.read_text())
+    assert cfg["panel"]["enabled"] is False and cfg["menus"]["enabled"] is False
+    b.shutdown()                           # unapplied: back to the saved look, still solid
+    cfg = json.loads(path.read_text())
+    assert cfg["panel"]["enabled"] is False and cfg["windows"]["enabled"] is False
+    assert b.settings().reduce_transparency is False, "the user's own setting is left as it is"
+
+
 def test_part_overrides(make_backend):
     b = make_backend()
     seen = []
@@ -425,3 +443,46 @@ def test_login_glass_gets_only_the_current_colours(make_backend):
     from liquidglass import login_screen as ls
     ls.check_values(accent, tint, float(frost))
     assert tint == b.settings().normalized().tint.lower()
+
+
+def test_undo_on_remove_saves_straight_away(make_backend, home):
+    b = make_backend()
+    assert b.property("undoOnRemove") is True
+    b.setProperty("undoOnRemove", False)
+    assert settings_mod.load(home / "config/liquid-glass/settings.json").undo_on_remove is False
+    assert not b.property("dirty")        # nothing left to Apply
+    assert b.property("canRemoveApp") is False   # not installed by dnf in tests
+
+
+def _wait_for(sig_list, app, ms=10000):
+    from PySide6.QtCore import QElapsedTimer, QThread
+    t = QElapsedTimer()
+    t.start()
+    while not sig_list and t.elapsed() < ms:
+        app.processEvents()
+        QThread.msleep(5)
+    return sig_list
+
+
+@pytest.mark.parametrize("code, removed", [(0, True), (126, False)])
+def test_remove_app_restores_then_removes_the_package(make_backend, home, app, tmp_path, monkeypatch, code, removed):
+    from liquidglass.gui.backend import Backend
+    log = tmp_path / "pkexec.log"
+    pkexec = tmp_path / "pkexec"
+    pkexec.write_text(f"#!/bin/sh\necho \"$@\" > {log}\nexit {code}\n")
+    pkexec.chmod(0o755)
+    monkeypatch.setattr(Backend, "PKEXEC", pkexec)
+    b = make_backend(start=True)
+    assert b.waitIdle()
+    b.apply()
+    assert b.waitIdle() and (home / "out/alpha.css").exists()
+    b._remove_package = "fedora-glass"          # as when installed by dnf
+    done, errors = [], []
+    b.removeFinished.connect(done.append)
+    b.failed.connect(errors.append)
+    b.removeApp()
+    assert _wait_for(done, app) == [removed]
+    assert not (home / "out/alpha.css").exists()          # the original look came back first
+    assert log.read_text().split() == ["/usr/bin/dnf", "remove", "-y", "--no-autoremove", "fedora-glass"]
+    assert b.property("removing") is False
+    assert bool(errors) == (not removed) and (removed or "password wasn't given" in errors[0])

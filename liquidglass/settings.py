@@ -93,6 +93,10 @@ class Settings:
     start_on_desktop: bool = True   # log in to the desktop, not the Activities overview
     overview_off: bool = False      # Activities never opens: no hot corner, Super key or swipe
 
+    # When the app is removed (`dnf remove fedora-glass`), put the original look back
+    # first, as Restore original does. Off: the look stays as it is after removal.
+    undo_on_remove: bool = True
+
     # Per-part overrides: {"panel": {"tint": "#rrggbb", "radius": 12}, ...}.
     # Parts: panel, arcmenu, quicksettings, calendar (and notifications), overview (dash and
     # overview), windows, terminal. Keys: tint, tint_strength (0..1), radius (0..32 px),
@@ -189,6 +193,7 @@ class Settings:
         s.targets = {str(k): bool(v) for k, v in dict(s.targets).items()}
         s.header_height = _int(s.header_height, HEADER_MIN, HEADER_MAX, Settings.header_height)
         s.lock_glass, s.lock_card = bool(s.lock_glass), bool(s.lock_card)
+        s.undo_on_remove = bool(s.undo_on_remove)
         s.lock_blur = _int(s.lock_blur, 10, 100, Settings.lock_blur)
         s.lock_dim = min(0.65, _clamp(float(s.lock_dim), Settings.lock_dim))
         s.lock_tint = _clamp(float(s.lock_tint), Settings.lock_tint)
@@ -324,10 +329,21 @@ def load(path: Path | None = None) -> Settings:
     if not isinstance(raw, dict):
         return Settings()
     known = {f.name for f in fields(Settings)}
+    data = {k: v for k, v in raw.items() if k in known}
     try:
-        return Settings(**{k: v for k, v in raw.items() if k in known}).normalized()
+        return Settings(**data).normalized()
     except (TypeError, ValueError, OverflowError):
-        return Settings()
+        pass
+    # One damaged value (a hand edit, a half-written file) costs only that setting, not all
+    # of them: the next Apply would otherwise save the defaults over the user's choices.
+    good: dict = {}
+    for k, v in data.items():
+        try:
+            Settings(**{**good, k: v}).normalized()
+        except (TypeError, ValueError, OverflowError):
+            continue
+        good[k] = v
+    return Settings(**good).normalized()
 
 
 def save(s: Settings, path: Path | None = None) -> Path:

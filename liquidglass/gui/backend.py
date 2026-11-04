@@ -123,6 +123,8 @@ class Backend(QObject):
     loginGlassChanged = Signal()
     safeModeChanged = Signal()
     speedChanged = Signal()
+    removingChanged = Signal()
+    removeFinished = Signal(bool)
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -157,6 +159,10 @@ class Backend(QObject):
         self._login_proc: QProcess | None = None
         self._login_note = ""
         self._login_state = self._read_login_state()
+        # Removing the app (Restore original, then dnf remove through pkexec).
+        self._remove_proc: QProcess | None = None
+        self._removing = False
+        self._remove_package = self._installed_package()
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
         self._lost: list[str] = []         # targets whose applied files something else replaced
@@ -317,6 +323,14 @@ class Backend(QObject):
         from ..engine import atomic_write
         from ..render import glass as rg
         s = s.normalized()
+        try:
+            hc = self._env.high_contrast()
+        except Exception:
+            hc = False
+        if hc and not s.reduce_transparency:
+            # As Apply does (Engine.context): with High Contrast on the glass stays solid,
+            # also while a slider moves and when the app closes with changes unapplied.
+            s = replace(s, reduce_transparency=True)
         dark = s.scheme == "dark" or (s.scheme == "auto" and self._system_dark)
         t = palette.build(s, dark=dark, system_accent=self._system_accent)
         try:
@@ -1156,6 +1170,114 @@ class Backend(QObject):
             self._login_note = first if first.startswith("Nothing was changed") else f"Nothing was changed: {first}"
         self._login_state = self._read_login_state()
         self.loginGlassChanged.emit()
+
+    # ---- removing the app --------------------------------------------------------
+    @Property(bool, notify=settingsChanged)
+    def undoOnRemove(self) -> bool:
+        return self._s.undo_on_remove
+
+    @undoOnRemove.setter
+    def undoOnRemove(self, on: bool) -> None:
+        """Saved straight away, without Apply: `dnf remove` reads it from the saved settings."""
+        on = bool(on)
+        if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
+            return
+        saved = replace(self._saved, undo_on_remove=on)
+        try:
+            settings_mod.save(saved, self._path)
+        except OSError as e:
+            self.failed.emit(f"Could not save settings: {e}")
+            return
+        self._saved = saved
+        self._s = replace(self._s, undo_on_remove=on)
+        self.settingsChanged.emit()
+        self.savedChanged.emit()
+
+    APP_DIR = Path("/usr/share/fedora-glass")
+    DNF = Path("/usr/bin/dnf")
+
+    def _installed_package(self) -> str:
+        """The dnf package this app came from ("fedora-glass", or "liquid-glass" before the
+        second upgrade), or "" when it runs from anywhere else (a source install, tests)."""
+        try:
+            if not Path(__file__).resolve().is_relative_to(self.APP_DIR):
+                return ""
+            for p in (self.DNF, self.PKEXEC):
+                st = p.stat()
+                if st.st_uid != 0 or st.st_mode & 0o022:
+                    return ""
+        except OSError:
+            return ""
+        r = self._env.run(["rpm", "-qf", "--qf", "%{NAME}", str(self.APP_DIR)], timeout=10)
+        name = r.out.strip() if r.ok else ""
+        return name if name in ("fedora-glass", "liquid-glass") else ""
+
+    @Property(bool, constant=True)
+    def canRemoveApp(self) -> bool:
+        return bool(self._remove_package)
+
+    @Property(bool, notify=removingChanged)
+    def removing(self) -> bool:
+        return self._removing
+
+    def _set_removing(self, on: bool) -> None:
+        if on != self._removing:
+            self._removing = on
+            self.removingChanged.emit()
+
+    @Slot()
+    def removeApp(self) -> None:
+        """Restore original first (so problems show here, with the app still installed),
+        then remove the package: pkexec asks for the password."""
+        if self._task is not None or self._removing or not self._remove_package:
+            return
+        self._set_removing(True)
+        self._live_timer.stop()
+        self._glass_live = False
+
+        def job(report):
+            engine = self._engine_obj()
+            report(0.3, "Restoring")
+            problems = engine.revert()
+            return list(problems), self._backup_exists(engine)
+
+        def done(out):
+            if isinstance(out, Exception):
+                self._set_removing(False)
+                self.failed.emit(f"Restore stopped, so Fedora Glass was not removed: {out}")
+                return
+            problems, self._has_backup = out
+            self._lost = []
+            self.targetsChanged.emit()
+            if problems:
+                self._set_removing(False)
+                self.revertFinished.emit(problems)      # shows what could not be restored
+                return
+            proc = QProcess(self)
+            proc.setProgram(str(self.PKEXEC))
+            proc.setArguments([str(self.DNF), "remove", "-y", "--no-autoremove", self._remove_package])
+            proc.finished.connect(lambda code, _status: self._remove_done(proc, code))
+            proc.errorOccurred.connect(lambda _e: self._remove_done(proc, -1))
+            self._remove_proc = proc
+            proc.start()
+        self._run("revert", job, done)
+
+    def _remove_done(self, p: QProcess, code: int) -> None:
+        if self._remove_proc is not p:
+            return
+        err = bytes(p.readAllStandardError()).decode(errors="replace").strip()
+        self._remove_proc = None
+        p.deleteLater()
+        self._set_removing(False)
+        if code == 0:
+            self.removeFinished.emit(True)
+            return
+        if code in (126, 127):
+            self.failed.emit("Your original look is back, but Fedora Glass was not removed: the password wasn't given.")
+        else:
+            last = err.splitlines()[-1] if err else "dnf did not finish"
+            self.failed.emit(f"Your original look is back, but removing Fedora Glass failed: {last}")
+        self.removeFinished.emit(False)
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:

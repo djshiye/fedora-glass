@@ -925,8 +925,57 @@ def check_lock(ctx: Ctx) -> Check:
           f"{len(errs)} Fedora Glass errors while locking, first: {errs[0][-160:]}")
     sh.close_all()
     lgqa.kill_apps()
+    lock_screens_change(ctx, c)
     login_backdrop(ctx, c)
     return c
+
+
+LOCK_SHEETS_JS = """
+const d = Main.screenShield._dialog;
+const sheets = (d ? d.get_children() : []).filter(a => a.name === 'liquid-glass-lock-sheet').map(a => {
+    const [x, y] = a.get_transformed_position(); const [w, h] = a.get_transformed_size();
+    return [x, y, w, h].map(Math.round); });
+return {monitors: Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]), sheets};
+"""
+
+
+def _sheets_fit(g: dict, pad: int = 120) -> bool:
+    """One sheet for each screen, covering it, and not much bigger (a sheet has a margin)."""
+    if len(g["sheets"]) != len(g["monitors"]):
+        return False
+    for mx, my, mw, mh in g["monitors"]:
+        if not any(x <= mx and y <= my and x + w >= mx + mw and y + h >= my + mh
+                   and w <= mw + 2 * pad and h <= mh + 2 * pad for x, y, w, h in g["sheets"]):
+            return False
+    return True
+
+
+def lock_screens_change(ctx: Ctx, c: Check) -> None:
+    """A screen rescaled (or plugged in, woken, taken away) while locked: the glass sheets
+    must follow (1.5.2 kept the old places, leaving part of a screen without glass)."""
+    sh = ctx.sh
+    scale = os.environ.get("LGQA_SCALE", "1.25")
+    sh.eval("Main.screenShield._lockScreenState = 0; Main.screenShield.lock(true); 1")
+    if not sh.wait_for("return Main.screenShield.locked;", 10):
+        c.add(False, "Lock 4: the screen did not lock.")
+        return
+    settle(2.5)
+    before = sh.json(LOCK_SHEETS_JS)
+    try:
+        for want in ("1.0", scale):
+            lgqa.subprocess.run(["python3", str(Path(__file__).with_name("scale.py")), want], env=lgqa.ENV,
+                                capture_output=True, timeout=30)
+            settle(3)
+            g = sh.json(LOCK_SHEETS_JS)
+            ok = _sheets_fit(g)
+            c.add(ok, f"Screens changed to {float(want) * 100:.0f} % while locked: the lock screen glass covers each "
+                  "screen again." if ok else
+                  f"Screens changed to {float(want) * 100:.0f} % while locked: the glass sheets {g['sheets']} don't "
+                  f"match the screens {g['monitors']} (before: {before['sheets']}).")
+    finally:
+        sh.eval("Main.screenShield.deactivate(true); 1")
+        sh.wait_for("return !Main.screenShield.locked && Main.sessionMode.currentMode === 'user';", 15)
+        settle(3)
 
 
 GNOME_LOCK_GREY = (0x22, 0x22, 0x26)
@@ -1070,6 +1119,114 @@ def run_lg(*args: str) -> tuple[int, str]:
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
+# Keys GNOME, the apps and the other extensions write by themselves while the test desktop
+# runs, not Fedora Glass: window sizes, a terminal's first profile, the order GNOME restarts
+# extensions in, Blur my Shell's and Dash to Panel's own settings upgrades (panel keys move
+# to monitor names), Deja Window's remembered windows, ArcMenu taking the Super key.
+RESTORE_IGNORE = re.compile(r"^/org/gnome/(Ptyxis/|nautilus/|portal/|evolution-data-server/|shell/(enabled-extensions|"
+                            r"disabled-extensions|app-picker-layout|command-history|welcome-dialog-last-shown-version)$)"
+                            r"|^/org/gtk/|^/org/gnome/desktop/(notifications/application|app-folders)"
+                            r"|^/org/gnome/mutter/overlay-key$|^/org/gnome/shell/extensions/deja-window/"
+                            r"|^/org/gnome/shell/extensions/blur-my-shell/(pipelines|settings-version)$"
+                            r"|^/org/gnome/shell/extensions/dash-to-panel/(extension-version|panel-(anchors|element-positions|lengths|positions|sizes))$")
+
+
+def dconf_keys(text: str) -> dict[str, str]:
+    """`dconf dump /` as {"/path/key": value}."""
+    out, section = {}, "/"
+    for line in text.splitlines():
+        if line.startswith("[") and line.endswith("]"):
+            section = "/" + line[1:-1].strip("/") + "/"
+            section = "/" if section == "//" else section
+        elif "=" in line:
+            k, v = line.split("=", 1)
+            out[section + k] = v
+    return out
+
+
+def as_set(v: str | None) -> set[str]:
+    return set(re.findall(r"'([^']*)'", v or ""))
+
+
+def schema_defaults() -> dict[str, str]:
+    """{"/dconf/path/key": default value as dconf prints it} for every installed schema with a
+    fixed path, the extensions' own schemas included."""
+    import gi
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio
+    sources = [Gio.SettingsSchemaSource.get_default()]
+    for sd in sorted((lgqa.HOME / ".local/share/gnome-shell/extensions").glob("*/schemas")):
+        if (sd / "gschemas.compiled").exists():
+            sources.append(Gio.SettingsSchemaSource.new_from_directory(str(sd), None, False))
+    out = {}
+    for src in sources:
+        for sid in src.list_schemas(True)[0]:
+            sch = src.lookup(sid, False)
+            if sch is None or not sch.get_path():
+                continue
+            for k in sch.list_keys():
+                out[sch.get_path() + k] = sch.get_key(k).get_default_value().print_(True)
+    return out
+
+
+def back_as_before(c: Check) -> None:
+    """After Restore original, Dino's settings are what they were before the first Apply,
+    and no Fedora Glass file is left in the home folder."""
+    before_file = OUT / "dconf-before.ini"
+    if not before_file.exists():
+        c.info("No record of the settings from before the first Apply, so they were not compared.")
+        return
+    before = dconf_keys(before_file.read_text(errors="replace"))
+    now = dconf_keys(lgqa.subprocess.run(["dconf", "dump", "/"], env=lgqa.ENV, capture_output=True,
+                                         text=True, timeout=30).stdout)
+    defaults = schema_defaults()
+
+    def same(a: str | None, b: str | None) -> bool:
+        if a == b:
+            return True
+        try:        # 0.40000000000000002 and 0.4, @as [] and []: the same value printed two ways
+            from gi.repository import GLib
+            return GLib.Variant.parse(None, a, None, None).equal(GLib.Variant.parse(None, b, None, None))
+        except Exception:
+            return False
+
+    # A key that is not set has its default value: compare what GNOME and the apps see.
+    changed, pinned = [], []
+    for k in sorted(set(before) | set(now)):
+        if RESTORE_IGNORE.search(k):
+            continue
+        was, isnow = before.get(k, defaults.get(k)), now.get(k, defaults.get(k))
+        if not same(was, isnow):
+            changed.append(f"{k} was {str(was)[:60]}, now {str(isnow)[:60]}")
+        elif k not in before and k in now:
+            pinned.append(k)
+    c.add(not changed, "Every setting is back to what it was before the first Apply." if not changed else
+          f"{len(changed)} settings differ from before the first Apply, first: " + "; ".join(changed[:3]))
+    if pinned:
+        c.info(f"{len(pinned)} settings that followed their default are now set to that same default "
+               f"(no visible change): {', '.join(pinned[:4])}")
+    # GNOME restarts the extensions in its own order, so only which ones are on counts.
+    key = "/org/gnome/shell/enabled-extensions"
+    on = as_set(before.get(key)) == as_set(now.get(key))
+    c.add(on, "The same extensions are switched on as before the first Apply." if on else
+          f"Switched-on extensions differ: before {sorted(as_set(before.get(key)))}, now {sorted(as_set(now.get(key)))}")
+    ext = lgqa.HOME / ".local/share/gnome-shell/extensions" / LG
+    leftovers = [str(ext.relative_to(lgqa.HOME))] if ext.exists() else []
+    for base in (lgqa.HOME / ".config", lgqa.HOME / ".local/share"):
+        for f in base.rglob("*"):
+            # Fedora Glass's own settings folder stays on purpose; other extensions are not ours.
+            if "liquid-glass" in f.parts or "extensions" in f.parts or not f.is_file() or f.is_symlink():
+                continue
+            try:
+                head = f.open("rb").read(512)
+            except OSError:
+                continue
+            if b"Fedora Glass" in head or b"Liquid Glass" in head:
+                leftovers.append(str(f.relative_to(lgqa.HOME)))
+    c.add(not leftovers, "No Fedora Glass files are left in the home folder (its own settings folder aside)."
+          if not leftovers else f"{len(leftovers)} Fedora Glass files left behind, first: {', '.join(leftovers[:3])}")
+
+
 def check_restore(ctx: Ctx) -> Check:
     c = Check("restore", "Restore original and Apply keep the desktop working",
               "Runs Restore original (it switches Fedora Glass off, so GNOME restarts the extensions after it), "
@@ -1094,16 +1251,57 @@ def check_restore(ctx: Ctx) -> Check:
     bad, took = wait_healthy(ctx, others, False, lim["settle_seconds"])
     c.add(not bad, f"After Restore original, Dino's other extensions were all working in {took:.0f} s." if not bad else
           "After Restore original: " + "; ".join(bad) + f" after {lim['settle_seconds']} s.")
+    back_as_before(c)
     rc, out = run_lg("apply")
     c.add(rc == 0, "Apply finished." if rc == 0 else f"Apply failed: {out[-200:]}")
     expected = others + [LG]
     bad, took = wait_healthy(ctx, expected, True, lim["settle_seconds"] + 15)
     c.add(not bad, f"After Apply, the glass and every extension were back in {took:.0f} s." if not bad else
           "After Apply: " + "; ".join(bad) + ".")
+    glass_part_off(ctx, c, others)
     errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Fedora Glass errors during Restore original and Apply." if not errs else
           f"{len(errs)} Fedora Glass errors, first: {errs[0][-160:]}")
     return c
+
+
+def _set_target(name: str, on: bool) -> None:
+    p = lgqa.HOME / ".config/liquid-glass/settings.json"
+    d = json.loads(p.read_text())
+    d.setdefault("targets", {})[name] = on
+    p.write_text(json.dumps(d, indent=2))
+
+
+def glass_part_off(ctx: Ctx, c: Check, others: list[str]) -> None:
+    """Only "Fedora Glass effects" turned off in the app, then Apply: the glass extension goes
+    off mid-session like in Restore original, so ArcMenu must survive that too (1.5.2 left
+    it red), and the Shell theme's User Themes stays on (it shares GNOME's list)."""
+    sh, lim = ctx.sh, LIMITS["restart"]
+    for u in ("arcmenu@arcmenu.com", LG, "arcmenu@arcmenu.com", "dash-to-panel@jderose9.github.com"):
+        sh.eval(f"Main.extensionManager.disableExtension('{u}'); 1")
+        time.sleep(2)
+        sh.eval(f"Main.extensionManager.enableExtension('{u}'); 1")
+        wait_healthy(ctx, others + [LG], True, lim["settle_seconds"])
+    _set_target("glass", False)
+    try:
+        rc, out = run_lg("apply")
+        c.add(rc == 0, "Apply with only Fedora Glass effects turned off finished." if rc == 0 else
+              f"Apply with Fedora Glass effects off failed: {out[-200:]}")
+        bad, took = wait_healthy(ctx, others, False, lim["settle_seconds"])
+        c.add(not bad, f"With Fedora Glass effects turned off, Dino's other extensions were all working in {took:.0f} s."
+              if not bad else "With Fedora Glass effects turned off: " + "; ".join(bad) + ".")
+        on = sh.json("return global.settings.get_strv('enabled-extensions');")
+        theme = "user-theme@gnome-shell-extensions.gcampax.github.com"
+        ok = theme in on and LG not in on
+        c.add(ok, "GNOME's extension list lost only the glass extension; User Themes stayed on." if ok else
+              f"GNOME's extension list is wrong after turning the glass off: glass {'on' if LG in on else 'off'}, "
+              f"User Themes {'on' if theme in on else 'off'}.")
+    finally:
+        _set_target("glass", True)
+    rc, out = run_lg("apply")
+    bad, took = wait_healthy(ctx, others + [LG], True, lim["settle_seconds"] + 15)
+    c.add(rc == 0 and not bad, f"Turned back on, the glass and every extension were back in {took:.0f} s." if rc == 0 and not bad
+          else "Turning Fedora Glass effects back on: " + ("; ".join(bad) or out[-200:]) + ".")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1240,6 +1438,29 @@ def check_log(ctx: Ctx) -> Check:
     return c
 
 
+def check_safe(ctx: Ctx) -> Check:
+    c = Check("safe", "Quick restarts keep the glass on",
+              "Before this login the PC was restarted twice within seconds of logging in (GNOME Shell started the "
+              "glass and stopped cleanly). That is not a crash, so safe mode must stay off and the glass must draw "
+              "(1.5.2 turned the glass off after two quick restarts).")
+    try:
+        quick = int((OUT / "quick-restarts.txt").read_text().strip())
+    except (OSError, ValueError):
+        quick = 0
+    c.add(quick >= 2, f"The PC was restarted {quick} times right after logging in." if quick >= 2 else
+          "The quick restarts did not run before this login.")
+    try:
+        state = json.loads((lgqa.HOME / ".cache/liquid-glass/safe-mode.json").read_text())
+    except (OSError, ValueError):
+        state = {}
+    tripped = state.get("tripped") is True
+    c.add(not tripped, "Safe mode stayed off." if not tripped else
+          f"Safe mode turned on (reason: {state.get('reason', '?')}): the glass is off.")
+    panes = ctx.sh.glass_panes()
+    c.add(panes > 0, f"The glass draws ({panes} glass pieces)." if panes > 0 else "Fedora Glass draws no glass.")
+    return c
+
+
 # ---------------------------------------------------------------------------------------------
 # 8. Upgrade from the last release (only with run.sh --from)
 # ---------------------------------------------------------------------------------------------
@@ -1297,8 +1518,7 @@ def check_upgrade(ctx: Ctx) -> Check:
 
 ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
        "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
-       "log": check_log,
-       "upgrade": check_upgrade}
+       "log": check_log, "safe": check_safe, "upgrade": check_upgrade}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1362,7 +1582,8 @@ def main() -> int:
     # The upgrade check needs the older tree (run.sh --from) and goes first, before other
     # checks Apply or Restore.
     upgrade = ["upgrade"] if Path("/from/liquidglass").is_dir() else []
-    ap.add_argument("--only", default=",".join(upgrade + [k for k in ALL if k != "upgrade"]))
+    # "safe" looks at how this login started, so it goes before anything restarts the glass.
+    ap.add_argument("--only", default=",".join(upgrade + ["safe"] + [k for k in ALL if k not in ("upgrade", "safe")]))
     ap.add_argument("--update-references", action="store_true")
     ap.add_argument("--version", default="")
     args = ap.parse_args()

@@ -34,14 +34,15 @@ by itself, and the themes and the Shell extension carry the new name.
 ## Undo or remove
 
 - **Restore original** in the app puts your desktop back exactly as it was before the first Apply.
-- To remove it completely, run these as your normal user:
+- **Remove Fedora Glass…** (at the bottom of the Look page) does Restore original, then removes
+  the app after your password.
+- `sudo dnf remove fedora-glass` does the same: before the app goes, it puts back the original
+  look of everyone who applied one. To keep the look after removing the app, turn off
+  **Put my original look back** in the app first.
 
-  ```sh
-  fedora-glass revert
-  sudo dnf remove fedora-glass
-  ```
-
-  Removing it also puts the normal login screen back if you turned on glass there.
+Removing it also puts the normal login screen back if you turned on glass there. Restart your PC
+afterwards so GNOME lets go of the glass completely. Your Fedora Glass settings stay in
+`~/.config/liquid-glass`, so a later install remembers them; delete that folder for a clean slate.
 
 ## Blur my Shell
 
@@ -55,7 +56,7 @@ gnome-extensions uninstall blur-my-shell@aunetx   # or: sudo dnf remove gnome-sh
 
 ## Straight to the desktop
 
-GNOME logs in to your desktop instead of the Activities overview (**Start on the desktop**, on by
+GNOME starts on your desktop instead of the Activities overview (**Start on the desktop**, on by
 default). **Turn off the overview** goes further: the hot corner, the Super key and the three-finger
 swipe stop opening Activities, and you start apps from ArcMenu or Dash to Panel. Without ArcMenu the
 app grid still opens, so there is always a way to start an app. If Dash to Panel or Just Perfection
@@ -67,6 +68,7 @@ GNOME Shell, Dash to Panel, ArcMenu, GTK 4 and libadwaita apps (Nautilus include
 Flatpak apps, Ptyxis and GNOME Terminal, Qt apps (through Kvantum), btop, micro, Discord (Vencord),
 VS Code, Obsidian, qBittorrent, Prism Launcher, Brave, Helium, Clipperino, RGBeast and Wheelguard.
 The app's **Apps** page lists every part, shows which you have installed, and has a switch for each.
+Apply also gives the lock screen a glass sheet; you can turn it off under **Lock screen**.
 
 The login screen is opt in: **Use glass on the login screen** (under Lock screen) asks for your
 password, then gives it a glow in your tint colour with glass panes for your name and password.

@@ -123,7 +123,7 @@ class GlassEffects(Target):
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
         if not self.running(ctx.env):
-            notes.append("Restart your PC once (or log out and back in) so GNOME Shell starts the Fedora Glass extension. "
+            notes.append("Restart your PC once so GNOME Shell starts the Fedora Glass extension. "
                          "The panel, menus and ArcMenu switch to glass then. After that, changes show up instantly.")
         return notes
 
@@ -170,9 +170,27 @@ def _wait_state(env: Env, uuid: str, done, wait_s: float, step_s: float = 0.1) -
     return True
 
 
+def _known_state(env: Env, uuid: str, wait_s: float = 15.0, step_s: float = 0.25) -> float | None:
+    """The Shell's state for an extension, asking again while the Shell is too busy to answer
+    (reloading the Shell theme on a slow PC can hold it for seconds). None when the Shell
+    doesn't know the extension, or never answers."""
+    waited = 0.0
+    while True:
+        r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+                     "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", uuid], timeout=5)
+        if r.code == 0:
+            m = re.search(r"'state': <([\d.]+)>", r.out)
+            return float(m.group(1)) if m else None
+        if waited >= wait_s:
+            return None
+        env.sleep(step_s)
+        waited += step_s
+
+
 def park_arcmenu(env: Env) -> bool:
     """Switch ArcMenu off before the glass extension goes. True if it was running."""
-    if extension_info(env, ARCMENU)[0] != 1.0 or extension_info(env, rg.UUID)[0] != 1.0:
+    # A missed answer here would leave ArcMenu in place for GNOME's restart, and red.
+    if _known_state(env, ARCMENU) != 1.0 or _known_state(env, rg.UUID) != 1.0:
         return False
     _shell_ext(env, "DisableExtension", ARCMENU)
     # A busy desktop can take seconds to switch extensions; GNOME restarts the ones
@@ -185,8 +203,9 @@ def unpark_arcmenu(env: Env) -> None:
     """Start ArcMenu again once the glass extension is off: it then comes after Dash to Panel."""
     # Not just "switching off" (7): GNOME restarts the others only after that, and
     # Dash to Panel must have its panels back. On a busy desktop that takes seconds.
-    _wait_state(env, rg.UUID, lambda st: st not in (1.0, 7.0), 20.0)
-    if extension_info(env, DASH_TO_PANEL)[0] is not None:
+    # No answer (None) is a Shell still busy with it, not "off".
+    _wait_state(env, rg.UUID, lambda st: st is not None and st not in (1.0, 7.0), 20.0)
+    if _known_state(env, DASH_TO_PANEL, 5.0) is not None:
         _wait_state(env, DASH_TO_PANEL, lambda st: st == 1.0, 10.0)
     _shell_ext(env, "EnableExtension", ARCMENU)
     _wait_state(env, ARCMENU, lambda st: st in (1.0, 3.0), 10.0)
