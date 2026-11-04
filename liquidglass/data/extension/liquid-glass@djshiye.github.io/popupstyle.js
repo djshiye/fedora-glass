@@ -56,7 +56,8 @@ export class PopupStyle {
             // A theme reload copies our sheet into the new theme already. Loading it
             // again would make every widget on screen restyle twice more, and theme
             // reloads come in bursts (Restore original, light and dark).
-            if (!theme.get_custom_stylesheets().some(f => f.equal(FILE)))
+            // The list can hold empty entries (seen while the screen is locked).
+            if (!theme.get_custom_stylesheets().some(f => f?.equal(FILE)))
                 theme.load_stylesheet(FILE);
             this._theme = theme;
         } catch (e) {
