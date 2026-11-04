@@ -33,7 +33,10 @@ export class Motion {
         this._cursorId = this._cursor.connect('position-invalidated', () => {
             const [x, y] = global.get_pointer();
             this._pointer = [x, y];
-            this._kick();
+            // Nothing on screen the pointer can light (no glass shown, or pointer light
+            // off) and nothing still settling: skip the step, and the frame it asks for.
+            if (this._later || this._last || this._lightable())
+                this._kick();
         });
         this._stage = global.stage.connect('captured-event', (_s, event) => {
             this.event(event);
@@ -168,6 +171,17 @@ export class Motion {
 
     forget(f) {
         this._state.delete(f);
+    }
+
+    _lightable() {
+        for (const f of followers) {
+            if (f.rect && this._animate && (this._look(f).pointerLight ?? 0) > 0)
+                return true;
+            // A light still on (left lit when the pane hid) must fade out.
+            if ((this._state.get(f)?.k ?? 0) > 0.003)
+                return true;
+        }
+        return false;
     }
 
     _kick() {

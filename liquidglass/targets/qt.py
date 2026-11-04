@@ -62,7 +62,7 @@ class QtKvantum(Target):
         actions: list[Action] = [
             WriteFile(theme / f"{kvantum.THEME}.kvconfig", kvantum.build_config(ctx.tokens)),
             WriteFile(theme / f"{kvantum.THEME}.svg", kvantum.build_svg(ctx.tokens)),
-            WriteFile(main, kvantum.build_main_config(existing)),
+            WriteFile(main, kvantum.build_main_config(existing), edits=("ini", "General", ("theme",))),
             WriteFile(env.config / "environment.d/90-liquid-glass-qt.conf", environment(ctx.settings)),
         ]
         if env.which("flatpak"):

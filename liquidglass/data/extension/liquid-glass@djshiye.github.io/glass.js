@@ -1137,6 +1137,11 @@ class LiquidGlassPane extends Clutter.Actor {
                 this._clones.set(src, clone);
                 this.add_child(clone);
             }
+            // Restack only when the order changed: owners call this for every window
+            // move anywhere, and each restack queues a relayout of the pane.
+            // Always restack, even in the same order: the relayout it queues is what
+            // redraws the whole pane when a window grows under a corner drag (skipping
+            // it left a black patch below a growing terminal in the release checks).
             if (below)
                 this.set_child_above_sibling(clone, below);
             else
@@ -1340,9 +1345,10 @@ class LiquidGlassPane extends Clutter.Actor {
             refr_amt: Math.max(0, L.bend) * (1 + 0.3 * m.press),
             depth: Math.max(0, Math.min(1, L.depth + 0.25 * m.press)),
         });
-        // All of the pane shows the new shape in the same frame, not only the part
-        // the stage happens to redraw (around a pressed button, say).
-        this.queue_redraw();
+        // setFloats queued a repaint of the lens over all of the pane, so it shows the
+        // new shape in one frame. Never queue_redraw() the pane here: that marks it
+        // dirty, and the backdrop is copied and blurred again for every pointer step
+        // (1.5.3 did, so a pointer near the panel kept re-rendering its glass).
     }
 
     _applyShape() {

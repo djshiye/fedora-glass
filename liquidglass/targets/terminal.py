@@ -81,6 +81,9 @@ class Ptyxis(Target):
             path = f"/org/gnome/Ptyxis/Profiles/{u}/"
             if ctx.settings.terminal_colors:
                 acts.append(GSet("org.gnome.Ptyxis.Profile", "palette", f"'{rt.PTYXIS_PALETTE_NAME}'", path))
+            else:
+                # Turned off: the profile gets its own palette back (a no-op if we never set it).
+                acts.append(GReset("org.gnome.Ptyxis.Profile", "palette", path))
             acts.append(GSet("org.gnome.Ptyxis.Profile", "opacity", f"{opacity}", path))
         # Ptyxis's own style switch, only when the user asks; a value they pick later is kept.
         if ctx.settings.terminal_follows_style:
@@ -151,7 +154,7 @@ class Btop(Target):
         text = ra.read_text(conf) if conf.exists() or conf.is_symlink() else "#? Config file for btop\n"
         if text is not None:
             new = ra.conf_set(text, {"color_theme": '"fedora-glass"', "theme_background": "False"})
-            acts.append(WriteFile(conf, new))
+            acts.append(WriteFile(conf, new, edits=("conf", ("color_theme", "theme_background"))))
         return acts
 
 
@@ -176,7 +179,7 @@ class Micro(Target):
         if not sp.exists() or existing is not None:
             merged = ra.merge_json_text(existing, {"colorscheme": "fedora-glass"})
             if merged is not None:
-                acts.append(WriteFile(sp, merged))
+                acts.append(WriteFile(sp, merged, edits=("json", ("colorscheme",))))
         return acts
 
 

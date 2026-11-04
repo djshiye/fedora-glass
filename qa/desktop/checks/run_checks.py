@@ -738,6 +738,31 @@ MOVE_JS = """(() => { const GLib = imports.gi.GLib; const a = global.get_window_
  return 1; })()"""
 
 
+POINTER_NEAR_JS = """(() => { const {Clutter, GLib} = imports.gi; const be = global.stage.context.get_backend();
+ const v = globalThis._lgqaVp || (globalThis._lgqaVp = be.get_default_seat().create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE));
+ let i = 0; globalThis._lgqaMoving = 1;
+ GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => { i++; const t = i / 120 * Math.PI * 2;
+   v.notify_absolute_motion(GLib.get_monotonic_time(), %f + 300 * Math.cos(t), %f + 40 * Math.sin(t));
+   if (i >= 120) { globalThis._lgqaMoving = 0; return GLib.SOURCE_REMOVE; } return GLib.SOURCE_CONTINUE; });
+ return 1; })()"""
+
+
+def pointer_near_panel(ctx: Ctx, x: float, y: float) -> dict:
+    """Glass redraws while the pointer moves just above a panel, near enough to light its rim."""
+    sh = ctx.sh
+    panes0 = sh.json(PANES_JS)
+    t0 = time.monotonic()
+    sh.eval(POINTER_NEAR_JS % (x, y))
+    sh.wait_for("return !globalThis._lgqaMoving;", 60, 0.2)
+    wall = time.monotonic() - t0
+    worst = 0.0
+    for p in sh.json(PANES_JS):
+        before = next((q for q in panes0 if abs(q["x"] - p["x"]) < 1 and abs(q["y"] - p["y"]) < 1 and q["name"] == p["name"]), None)
+        if p["name"] != "liquid-glass-reflections":    # the panel's own content may light up under the pointer
+            worst = max(worst, (p["renders"] - (before["renders"] if before else 0)) / wall)
+    return {"rate": worst, "seconds": wall}
+
+
 def timed(ctx: Ctx, seconds: float) -> dict:
     sh = ctx.sh
     panes0 = sh.json(PANES_JS)
@@ -806,6 +831,10 @@ def check_speed(ctx: Ctx) -> Check:
         settle(3)
         quiet(ctx)
         idle = timed(ctx, 10)
+        # The pointer just above the second screen's panel, where it lights the rim.
+        H = float(sh.eval("global.display.get_monitor_geometry(1).y + global.display.get_monitor_geometry(1).height"))
+        pointer = pointer_near_panel(ctx, W + 700, H - 260) if state == "on" else None
+        settle(1)
         sh.win_js(el["id"], "w.unminimize(); return 1;")
         settle(1)
         # Deja Window can put the window back where it was saved when it comes back from
@@ -824,7 +853,7 @@ def check_speed(ctx: Ctx) -> Check:
         sh.wait_for("return !globalThis._lgqaMoving;", 90, 0.2)
         wall = time.monotonic() - t0
         frames = json.loads(sh.eval(STOP_JS))
-        results[state] = {"idle": idle, "busy": stream,
+        results[state] = {"idle": idle, "busy": stream, "pointer": pointer,
                           "move": {"fps": len(frames) / wall, "cpu": (lgqa.shell_cpu_seconds() - cpu0) / wall * 100}}
     set_glass(ctx, True)
     (OUT / "speed.json").write_text(json.dumps(results, indent=2))
@@ -843,6 +872,11 @@ def check_speed(ctx: Ctx) -> Check:
     c.add(idle_glass <= lim["max_idle_glass_redraws"],
           f"While nothing moves, the busiest piece of glass redraws {idle_glass:.1f} times a second "
           f"(limit {lim['max_idle_glass_redraws']}).")
+
+    pr = on["pointer"]["rate"]
+    c.add(pr <= lim["max_pointer_glass_redraws"],
+          f"While the pointer moves near a panel (lighting its rim), its glass redraws {pr:.1f} times a second "
+          f"(limit {lim['max_pointer_glass_redraws']}; only the light should change, not the glass behind it).")
 
     b = on["busy"]
     real_box = stream_boxes[0]

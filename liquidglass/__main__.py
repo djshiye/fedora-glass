@@ -241,7 +241,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
             contrast = 1 in got
             # After Restore original, stay out of the way.
             if eng.is_applied() and (contrast or s.scheme == "auto"):
-                eng.apply(s, only=None if contrast else only)
+                eng.apply(s, only=None if contrast else only, if_applied=True)
     finally:
         stop_all()
 
