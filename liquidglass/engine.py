@@ -44,7 +44,7 @@ class Result:
 
 
 # Shown for a Shell part that waits for the glass extension (see Engine._apply).
-WAITING = ("Finishes after you restart your PC. GNOME only starts the Fedora Glass extension at login, "
+WAITING = ("Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, "
            "and this part needs the glass behind it.")
 
 
@@ -409,7 +409,7 @@ class Backup:
         if self.changed_since(env, key, e):
             del self.data["gsettings"][key]     # the user's own choice now; leave it
             return None
-        r = env.gsettings_set(g.schema, g.key, e["value"], g.path)
+        r = _put_back(env, g.schema, g.key, g.path, e)
         if not r.ok:
             return f"{g.schema} {g.key}: {r.err.strip()}"
         if not env.dry_run:
@@ -448,7 +448,7 @@ class Backup:
             if self.changed_since(self.env, key, e):
                 del self.data["gsettings"][key]
                 continue
-            r = self.env.gsettings_set(schema, k, e["value"], path or None)
+            r = _put_back(self.env, schema, k, path or None, e)
             if r.ok:
                 del self.data["gsettings"][key]
             else:
@@ -557,6 +557,15 @@ class Backup:
                 else:
                     out.add(e["target"])
         return out
+
+
+def _put_back(env: Env, schema: str, key: str, path: str | None, e: dict):
+    """Give a key back the value it had before Apply. When that was the key's default, reset
+    it, so it follows its default again instead of pinning today's default as the user's own
+    value (an app update can then still change it)."""
+    if env.gsettings_is_default(schema, key, e["value"], path):
+        return env.gsettings_reset(schema, key, path)
+    return env.gsettings_set(schema, key, e["value"], path)
 
 
 # ---- Flatpak global override (a GLib keyfile flatpak itself reads) ---------------

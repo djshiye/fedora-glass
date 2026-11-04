@@ -38,6 +38,38 @@ class FakeEnv(Env):
 
     def gsettings_set(self, schema, key, value, path=None):
         self.gs.setdefault((schema, path), {})[key] = value
+        self.unset.discard((schema, path, key))
+        return RunResult(0, "", "")
+
+    # Keys named in `defaults` follow their default value until something sets them.
+    @property
+    def defaults(self):
+        return self.__dict__.setdefault("_defaults", {})
+
+    @property
+    def unset(self):
+        return self.__dict__.setdefault("_unset", set())
+
+    def follow_default(self, schema, key, value, path=None):
+        self.defaults[(schema, path, key)] = value
+        self.gs.setdefault((schema, path), {})[key] = value
+        self.unset.add((schema, path, key))
+
+    def gsettings_user_set(self, schema, key, path=None):
+        if (schema, path, key) in self.defaults:
+            return (schema, path, key) not in self.unset
+        return None
+
+    def gsettings_is_default(self, schema, key, value, path=None):
+        d = self.defaults.get((schema, path, key))
+        return None if d is None else d == value
+
+    def gsettings_reset(self, schema, key, path=None):
+        if (schema, path, key) in self.defaults:
+            self.gs.setdefault((schema, path), {})[key] = self.defaults[(schema, path, key)]
+            self.unset.add((schema, path, key))
+        else:
+            self.gs.get((schema, path), {}).pop(key, None)
         return RunResult(0, "", "")
 
     def which(self, name):

@@ -123,6 +123,32 @@ class Env:
             return RunResult(0, "", "")
         return self.run(argv + ["set", sid, key, value])
 
+    def gsettings_reset(self, schema: str, key: str, path: str | None = None) -> RunResult:
+        """Take the user's own value away, so the key follows its default again."""
+        argv, sid = self._gs(schema, path)
+        if self.dry_run:
+            return RunResult(0, "", "")
+        return self.run(argv + ["reset", sid, key])
+
+    def gsettings_is_default(self, schema: str, key: str, value: str, path: str | None = None) -> bool | None:
+        """Whether `value` (as `gsettings get` prints it) is the key's default. None when
+        that can't be told (no PyGObject, an unknown schema); then nothing changes."""
+        try:
+            import gi
+            gi.require_version("GLib", "2.0")
+            gi.require_version("Gio", "2.0")
+            from gi.repository import Gio, GLib
+            default = Gio.SettingsSchemaSource.get_default()
+            sd = self._schemadir_for(schema)
+            src = Gio.SettingsSchemaSource.new_from_directory(str(sd), default, False) if sd else default
+            found = src.lookup(schema, True) if src is not None else None
+            if found is None or not found.has_key(key):
+                return None
+            k = found.get_key(key)
+            return GLib.Variant.parse(k.get_value_type(), value, None, None).equal(k.get_default_value())
+        except Exception:      # a broken schema or value: keep the old way
+            return None
+
     # ---- desktop state -----------------------------------------------------
     def prefers_dark(self) -> bool:
         v = self.gsettings_get("org.gnome.desktop.interface", "color-scheme") or ""
