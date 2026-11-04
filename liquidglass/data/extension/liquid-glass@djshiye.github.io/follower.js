@@ -239,7 +239,12 @@ export class Follower {
         if (this.condense && m.open !== undefined && this.target) {
             if (m.open <= 0)
                 this._from = this._growFrom();
-            if (!this._applyGrow(m.open)) {
+            if (m.open === 1) {
+                // Landed: exactly full size, and anything GNOME measured through our
+                // scale while the menu grew is measured again.
+                this.target.set_scale(1, 1);
+                this.onFullSize?.();
+            } else if (!this._applyGrow(m.open)) {
                 const sc = 0.96 + 0.04 * Math.min(m.open, 1.0) + 0.02 * Math.max(0, m.open - 1);
                 this.target.set_pivot_point(0.5, 0.5);
                 this.target.set_scale(sc, sc);
