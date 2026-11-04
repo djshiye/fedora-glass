@@ -123,7 +123,7 @@ class GlassEffects(Target):
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
         if not self.running(ctx.env):
-            notes.append("Restart your PC once (or log out and back in) so GNOME Shell starts the Fedora Glass extension. "
+            notes.append("Restart your PC once so GNOME Shell starts the Fedora Glass extension. "
                          "The panel, menus and ArcMenu switch to glass then. After that, changes show up instantly.")
         return notes
 

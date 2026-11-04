@@ -5,7 +5,7 @@
      Only this one helper can run, and only for the user at the screen. -->
 <policyconfig>
   <vendor>Fedora Glass</vendor>
-  <vendor_url>https://github.com/djshiye/fedora-liquid-glass</vendor_url>
+  <vendor_url>https://github.com/djshiye/fedora-glass</vendor_url>
   <action id="io.github.djshiye.LiquidGlass.login-screen">
     <description>Change the look of the login screen</description>
     <message>Fedora Glass needs your password to change the look of the login screen</message>

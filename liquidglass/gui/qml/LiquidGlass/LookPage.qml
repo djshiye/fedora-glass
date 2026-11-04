@@ -766,8 +766,8 @@ Item {
                     SwitchRow {
                         objectName: "startOnDesktop"
                         label: "Start on the desktop"
-                        caption: "Log in straight to your desktop, not the Activities overview"
-                        tip: "When you log in, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
+                        caption: "Start straight on your desktop, not the Activities overview"
+                        tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
                         enabled: !Backend.overviewOff
                         checked: Backend.startOnDesktop || Backend.overviewOff
                         onToggled: (on) => Backend.startOnDesktop = on
@@ -841,6 +841,8 @@ Item {
                     }
                 }
             }
+
+            RemoveCard { width: parent.width }
             Item { width: 1; height: 8 }
         }
     }
