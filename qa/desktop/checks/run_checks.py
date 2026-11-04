@@ -1123,7 +1123,7 @@ def run_lg(*args: str) -> tuple[int, str]:
 # runs, not Fedora Glass: window sizes, a terminal's first profile, the order GNOME restarts
 # extensions in, Blur my Shell's and Dash to Panel's own settings upgrades (panel keys move
 # to monitor names), Deja Window's remembered windows, ArcMenu taking the Super key.
-RESTORE_IGNORE = re.compile(r"^/org/gnome/(Ptyxis/|nautilus/|portal/|evolution-data-server/|shell/(enabled-extensions|"
+RESTORE_IGNORE = re.compile(r"^/org/gnome/(Ptyxis/|nautilus/|gedit/state/|portal/|evolution-data-server/|shell/(enabled-extensions|"
                             r"disabled-extensions|app-picker-layout|command-history|welcome-dialog-last-shown-version)$)"
                             r"|^/org/gtk/|^/org/gnome/desktop/(notifications/application|app-folders)"
                             r"|^/org/gnome/mutter/overlay-key$|^/org/gnome/shell/extensions/deja-window/"
