@@ -12,7 +12,8 @@ export const MIN_FRAMES = 20;      // fewer than this says nothing
 export const LATE_SHARE = 0.4;     // this share of them late: step down
 export const SETTLE_US = 5e6;      // after a change, give the new level this long
 export const RETRY_US = 180e6;     // a while after stepping down, try one level up
-export const RELAPSE_US = 60e6;    // slow again this soon after a try: stay down
+export const RELAPSE_US = 60e6;
+export const FRAME_60HZ_US = 1e6 / 60;    // slow again this soon after a try: stay down
 
 /** The setting as the extension uses it: unknown values mean 'auto'. */
 export function cleanQuality(raw) {
@@ -30,6 +31,10 @@ export function cleanQuality(raw) {
 export function frameLate(gapUs, paintUs, intervalUs) {
     if (!(intervalUs > 0))
         return null;
+    // On a fast screen (120, 144 Hz) glass that keeps 60 frames a second is not slow:
+    // judge against a 60 Hz frame at most. 1.5.0 held a 144 Hz screen to 6.9 ms, so a
+    // busy moment on a gaming PC stepped the glass down and back up every few minutes.
+    intervalUs = Math.max(intervalUs, FRAME_60HZ_US);
     if (paintUs > intervalUs)
         return true;
     if (!(gapUs > 0) || gapUs > 4 * intervalUs)
@@ -107,6 +112,8 @@ export class Tuner {
  * screen while every frame was asked for; refreshHz: that screen's rate.
  */
 export function scorePhase(level, gaps, refreshHz) {
+    // As in frameLate: 60 frames a second is smooth, however fast the screen.
+    refreshHz = Math.min(refreshHz, 60);
     const interval = 1e6 / refreshHz;
     const total = gaps.reduce((a, b) => a + b, 0);
     const fps = total > 0 ? gaps.length / (total / 1e6) : 0;

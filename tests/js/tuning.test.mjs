@@ -23,6 +23,11 @@ test('frames after a pause never read as slow, slow paints always do', () => {
     assert.equal(T.frameLate(100e3, 2000, HZ60), null);   // typing: one frame now and then
     assert.equal(T.frameLate(100e3, 40e3, HZ60), true);    // but that frame took 40 ms to draw
     assert.equal(T.frameLate(0, 1000, 0), null);
+    // A 144 Hz screen: glass at 60 frames a second or better is on time.
+    const HZ144 = 1e6 / 144;
+    assert.equal(T.frameLate(2 * HZ144, 9000, HZ144), false);
+    assert.equal(T.frameLate(HZ60 * 2, 9000, HZ144), true);
+    assert.equal(T.frameLate(HZ144, 20000, HZ144), true);
 });
 
 test('smooth frames keep full glass', () => {
