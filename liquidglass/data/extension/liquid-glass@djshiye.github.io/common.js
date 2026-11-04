@@ -72,7 +72,7 @@ export class WindowWatch {
     constructor() {
         this.listeners = new Set();
         this._signals = new Signals();
-        this._windows = new Signals();
+        this._windows = new Map();    // window actor -> its Signals
         const changed = () => this.listeners.forEach(fn => fn());
         this._changed = changed;
         this._signals.on(global.display, 'restacked', () => {
@@ -84,24 +84,33 @@ export class WindowWatch {
         this._watchAll();
     }
 
+    // Connects to windows not watched yet. Restacks come with every focus change, so
+    // windows already watched keep their connections (1.5.3 remade them all each time).
     _watchAll() {
-        this._windows.clear();
         for (const actor of global.get_window_actors()) {
             const win = actor.meta_window;
-            if (!win)
+            if (!win || this._windows.has(actor))
                 continue;
+            const sigs = new Signals();
+            this._windows.set(actor, sigs);
             for (const sig of ['position-changed', 'size-changed', 'notify::minimized'])
-                this._windows.on(win, sig, this._changed);
-            this._windows.on(actor, 'notify::visible', this._changed);
+                sigs.on(win, sig, this._changed);
+            sigs.on(actor, 'notify::visible', this._changed);
             // Minimized windows keep their old place, so this is where the effect was.
-            this._windows.on(actor, 'effects-completed', () => windowLanded(win.get_buffer_rect()));
-            // A closed window's actor is disposed before the next restack: never touch it again.
-            this._windows.on(actor, 'destroy', () => this._windows.forget(actor));
+            sigs.on(actor, 'effects-completed', () => windowLanded(win.get_buffer_rect()));
+            // A closed window's actor is disposed: never touch it or its window again.
+            sigs.on(actor, 'destroy', () => {
+                sigs.forget(actor);
+                sigs.forget(win);
+                this._windows.delete(actor);
+            });
         }
     }
 
     destroy() {
         this._signals.clear();
+        for (const sigs of this._windows.values())
+            sigs.clear();
         this._windows.clear();
         this.listeners.clear();
     }

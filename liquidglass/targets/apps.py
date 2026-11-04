@@ -60,7 +60,7 @@ def _json_edit(path: Path, updates: dict) -> Action | None:
     if path.exists() and text is None:
         return None
     merged = ra.merge_json_text(text, updates)
-    return None if merged is None else WriteFile(path, merged)
+    return None if merged is None else WriteFile(path, merged, edits=("json", tuple(updates)))
 
 
 # ---- Discord (Vencord) ------------------------------------------------------------
@@ -112,7 +112,7 @@ class Discord(AppTarget):
                 enabled.append(ra.DISCORD_THEME_FILE)
             merged = ra.merge_json_text(text, {"enabledThemes": enabled})
             if merged is not None:
-                acts.append(WriteFile(sp, merged))
+                acts.append(WriteFile(sp, merged, edits=("json", ("enabledThemes",))))
         return acts
 
 
@@ -243,11 +243,12 @@ class QBittorrent(AppTarget):
             WriteFile(d / "stylesheet.qss", ra.qt_qss(ctx.tokens)),
         ]
         if text is not None:
-            new = ra.ini_set(text, "Preferences", {
+            keys = {
                 "General\\UseCustomUITheme": "true",
                 "General\\CustomUIThemePath": str(d / "config.json"),
-            })
-            acts.append(WriteFile(conf, new))
+            }
+            new = ra.ini_set(text, "Preferences", keys)
+            acts.append(WriteFile(conf, new, edits=("ini", "Preferences", tuple(keys))))
         return acts
 
 
@@ -284,7 +285,8 @@ class Prism(AppTarget):
         cfg = d / "prismlauncher.cfg"
         text = ra.read_text(cfg) if cfg.exists() else None
         if text is not None:
-            acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID})))
+            acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID}),
+                                  edits=("ini", "General", ("ApplicationTheme",))))
         return acts
 
 

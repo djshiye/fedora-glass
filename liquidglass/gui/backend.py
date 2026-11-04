@@ -150,7 +150,9 @@ class Backend(QObject):
         self._task_done: Callable[[Any], None] = lambda out: None
         self._task_busy = False
         self._monitor: QProcess | None = None
-        self._pending_apply = False
+        # Apply, Restore or Review asked for while the app was still busy in the
+        # background (checking the system after a start or an Apply): runs right after.
+        self._pending_action: str | None = None
         # Set when the last Apply or Restore changed the header bars, so the card can
         # offer to restart Files (it keeps running with the old style sheet).
         self._header_note = ""
@@ -323,10 +325,16 @@ class Backend(QObject):
         from ..engine import atomic_write
         from ..render import glass as rg
         s = s.normalized()
-        try:
-            hc = self._env.high_contrast()
-        except Exception:
-            hc = False
+        # Asked at most every few seconds: this runs on the window's own thread every
+        # 120 ms while a slider moves, and each ask starts a gsettings process.
+        now = time.monotonic()
+        if now - getattr(self, "_hc_at", -1e9) > 3.0:
+            try:
+                self._hc = bool(self._env.high_contrast())
+            except Exception:
+                self._hc = False
+            self._hc_at = now
+        hc = self._hc
         if hc and not s.reduce_transparency:
             # As Apply does (Engine.context): with High Contrast on the glass stays solid,
             # also while a slider moves and when the app closes with changes unapplied.
@@ -949,9 +957,9 @@ class Backend(QObject):
             self._busy = ""
             self.busyChanged.emit()
         done(out)
-        if self._pending_apply and self._task is None:
-            self._pending_apply = False
-            self.apply()
+        if self._pending_action and self._task is None:
+            name, self._pending_action = self._pending_action, None
+            getattr(self, name)()
 
     @Slot(float, str)
     def _on_progress(self, f: float, text: str) -> None:
@@ -960,6 +968,9 @@ class Backend(QObject):
 
     @Slot()
     def requestPlan(self) -> None:
+        if self._task is not None:
+            self._pending_action = self._pending_action or "requestPlan"
+            return
         s = self._s.normalized()
 
         def job(report):
@@ -983,7 +994,7 @@ class Backend(QObject):
     def apply(self) -> None:
         if self._task is not None:
             # Still checking the system in the background: apply as soon as that ends.
-            self._pending_apply = True
+            self._pending_action = "apply"
             return
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
@@ -1024,6 +1035,11 @@ class Backend(QObject):
 
     @Slot()
     def revert(self) -> None:
+        if self._task is not None:
+            # Right after an Apply the app re-checks the system: restore once that ends
+            # (1.5.3 dropped the click without a word).
+            self._pending_action = "revert"
+            return
         # From here on the extension's config is the engine's to remove; stop writing it.
         self._live_timer.stop()
         self._glass_live = False

@@ -104,6 +104,9 @@ function safeFns(actor, fns) {
     return out;
 }
 
+// Animated actors that went away mid-animation.
+const destroyed = new WeakSet();
+
 function animate(actor, ms, rawFns, onDone) {
     stop(actor, false, true);
     // A window in motion: glass that shows it from behind keeps its last picture.
@@ -146,6 +149,16 @@ function animate(actor, ms, rawFns, onDone) {
         anim.transitions.push(['liquid-glass-hold', hold]);
         actor.add_transition('liquid-glass-hold', hold);
     }
+    // An icon Dash to Panel rebuilds mid-hop goes away with its animation: finish it
+    // now, without touching the gone actor, instead of from the watchdog later.
+    // (A window actor outlives its effects: Mutter waits for them.)
+    if (!actor.meta_window) {
+        anim.destroyId = actor.connect('destroy', () => {
+            destroyed.add(actor);
+            anim.dead = true;
+            finish(anim, false);
+        });
+    }
     // A timeline only moves while the stage draws frames; if it ever stops, this finishes it.
     anim.watchdog = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(WATCHDOG_MIN_MS, ms * 2), () => {
         anim.watchdog = 0;
@@ -175,6 +188,16 @@ function finish(anim, finished) {
         running.delete(actor);
         thawSource(actor);
     }
+    unwatchDestroy(anim);
+    if (anim.dead) {
+        anim.timeline?.stop();
+        try {
+            anim.onDone?.(false, anim);
+        } catch (e) {
+            report('after an animation', e);
+        }
+        return;
+    }
     try {
         if (!finished)
             anim.cut = Object.fromEntries(Object.keys(anim.fns).map(p => [p, actor[FIELD[p]]]));
@@ -191,6 +214,17 @@ function finish(anim, finished) {
     } catch (e) {
         report('after an animation', e);
     }
+}
+
+function unwatchDestroy(anim) {
+    if (!anim.destroyId)
+        return;
+    if (!anim.dead) {
+        try {
+            anim.actor.disconnect(anim.destroyId);
+        } catch {}
+    }
+    anim.destroyId = 0;
 }
 
 /** Stop the animation on an actor. With jump, it lands on its end state and reports done. */
@@ -211,6 +245,7 @@ function stop(actor, jump = true, replacing = false) {
     // Replaced by a new animation: drop it without reporting.
     running.delete(actor);
     anim.done = true;
+    unwatchDestroy(anim);
     if (anim.watchdog)
         GLib.source_remove(anim.watchdog);
     anim.watchdog = 0;
@@ -813,6 +848,8 @@ class WindowAnimations {
 }
 
 function reset(actor) {
+    if (destroyed.has(actor))
+        return;    // touching a disposed actor only fills the log
     try {
         actor.set_pivot_point(0, 0);
         actor.set_scale(1, 1);
@@ -865,6 +902,7 @@ class PanelAnimations {
         this._launching = new Map();  // app -> {icons, timer, start}
         this._apps = Shell.AppSystem.get_default();
         this._appSignals = new Signals();
+        this._dtp = null;
         this._dtpId = 0;
         this._refreshLater = 0;
     }
@@ -888,8 +926,31 @@ class PanelAnimations {
                 this._endLaunch(app, false);
         }
         // Dash to Panel builds its panels again when its settings change.
-        if ((hover || launch) && !this._dtpId && global.dashToPanel?.connect)
-            this._dtpId = global.dashToPanel.connect('panels-created', () => this._queueRefresh());
+        if (hover || launch)
+            this._watchDtp();
+    }
+
+    // Dash to Panel makes a new object each time it is turned on: follow the current
+    // one, and disconnect from the object the handler was made on, never another.
+    _watchDtp() {
+        const dtp = global.dashToPanel;
+        if (dtp === this._dtp)
+            return;
+        this._unwatchDtp();
+        if (typeof dtp?.connect !== 'function')
+            return;
+        this._dtp = dtp;
+        this._dtpId = dtp.connect('panels-created', () => this._queueRefresh());
+    }
+
+    _unwatchDtp() {
+        if (this._dtp && this._dtpId) {
+            try {
+                this._dtp.disconnect(this._dtpId);
+            } catch {}    // Dash to Panel already went
+        }
+        this._dtp = null;
+        this._dtpId = 0;
     }
 
     _queueRefresh() {
@@ -897,8 +958,11 @@ class PanelAnimations {
             return;
         this._refreshLater = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             this._refreshLater = 0;
+            // _watchHover only adds what is new and drops what went: an icon the
+            // pointer is on keeps its lift (and a launching app its landing) when a
+            // window opens or closes.
             if (this.motion.hover.preset !== 'off') {
-                this._unwatchHover();
+                this._watchDtp();
                 this._watchHover();
             }
             return GLib.SOURCE_REMOVE;
@@ -914,9 +978,12 @@ class PanelAnimations {
                 this._unwatch(item);
         }
         for (const item of items) {
-            if (this._watched.has(item))
-                continue;
             const target = inner(item);
+            const had = this._watched.get(item);
+            if (had && had.target === target)
+                continue;
+            if (had)
+                this._unwatch(item);    // its inner widget was rebuilt
             if (!target)
                 continue;
             const signals = new Signals();
@@ -1112,12 +1179,7 @@ class PanelAnimations {
         if (this._refreshLater)
             GLib.source_remove(this._refreshLater);
         this._refreshLater = 0;
-        if (this._dtpId) {
-            try {
-                global.dashToPanel?.disconnect(this._dtpId);
-            } catch {}
-        }
-        this._dtpId = 0;
+        this._unwatchDtp();
         this._appSignals.clear();
         this.finishAll();
         this._unwatchHover();

@@ -30,6 +30,15 @@ class RunResult:
 class Env:
     home: Path = field(default_factory=Path.home)
     dry_run: bool = False
+    # Per Apply/Restore (Engine._locked clears them): where each schema lives and its
+    # keys. Without them every key set read every extension's schema files again and
+    # ran `gsettings list-keys`, about 170 extra runs per Apply.
+    _schemadirs: dict = field(default_factory=dict, repr=False, compare=False)
+    _keys: dict = field(default_factory=dict, repr=False, compare=False)
+
+    def forget_cache(self) -> None:
+        self._schemadirs.clear()
+        self._keys.clear()
 
     # ---- XDG paths ----------------------------------------------------
     @property
@@ -83,6 +92,11 @@ class Env:
     # ---- gsettings --------------------------------------------------------
     def _schemadir_for(self, schema: str) -> Path | None:
         """Extension schemas often live only inside the extension folder."""
+        if schema not in self._schemadirs:
+            self._schemadirs[schema] = self._find_schemadir(schema)
+        return self._schemadirs[schema]
+
+    def _find_schemadir(self, schema: str) -> Path | None:
         for d in self.extension_dirs():
             if not d.is_dir():
                 continue
@@ -108,9 +122,14 @@ class Env:
         return argv, f"{schema}:{path}" if path else schema
 
     def gsettings_keys(self, schema: str, path: str | None = None) -> set[str]:
+        if (schema, path) in self._keys:
+            return set(self._keys[(schema, path)])
         argv, sid = self._gs(schema, path)
         r = self.run(argv + ["list-keys", sid])
-        return set(r.out.split()) if r.ok else set()
+        keys = set(r.out.split()) if r.ok else set()
+        if r.ok:
+            self._keys[(schema, path)] = keys
+        return set(keys)
 
     def gsettings_get(self, schema: str, key: str, path: str | None = None) -> str | None:
         argv, sid = self._gs(schema, path)

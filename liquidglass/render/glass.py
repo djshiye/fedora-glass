@@ -219,4 +219,6 @@ def config(s: Settings, t: Tokens) -> dict:
 
 
 def render_config(s: Settings, t: Tokens) -> str:
-    return json.dumps(config(s, t), indent=2) + "\n"
+    # The marker key first: the app's live preview rewrites this file while a slider
+    # moves, and Apply's backup must still see it as ours (engine._has_header).
+    return json.dumps({"generator": "Fedora Glass", **config(s, t)}, indent=2) + "\n"
