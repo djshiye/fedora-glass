@@ -1,6 +1,8 @@
 // Glass behind popup menus, notification banners, the OSD and the window switcher.
 
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -21,6 +23,33 @@ function partOf(bp) {
     if (bp.has_style_class_name?.('arcmenu-menu'))
         return 'arcmenu';
     return 'quicksettings';      // app menus and the rest look like quick settings
+}
+
+/**
+ * Quick Settings places its toggle menus (Wired, Wi-Fi, ...) in an overlay beside the
+ * box pointer, offset by where its grid is inside the box pointer. GNOME measures
+ * that offset through the transforms in between, which includes the scale of a menu
+ * that is still growing open: the toggle menus then land too low and to the side,
+ * over the panel, with an empty gap where they belong. Measure it again at full size.
+ */
+export function placeToggleMenus(menu) {
+    const ov = menu?._overlay, grid = menu?._grid, bp = menu?._boxPointer;
+    if (!ov || !grid || !bp)
+        return false;
+    const at = grid.apply_relative_transform_to_point(bp, new Graphene.Point3D());
+    let n = 0;
+    for (const c of ov.get_constraints()) {
+        if (!(c instanceof Clutter.BindConstraint) || c.source !== bp)
+            continue;
+        if (c.coordinate === Clutter.BindCoordinate.X)
+            c.offset = at.x;
+        else if (c.coordinate === Clutter.BindCoordinate.Y)
+            c.offset = at.y;
+        else
+            continue;
+        n++;
+    }
+    return n > 0;
 }
 
 export class Popups {
@@ -120,6 +149,15 @@ export class Popups {
         }
         f.part = part;
         f.condense = true;
+        const qs = Main.panel.statusArea.quickSettings?.menu;
+        if (qs && anchor === qs.actor)
+            f.onFullSize = () => {
+                try {
+                    placeToggleMenus(qs);
+                } catch (e) {
+                    report('placing the Quick Settings toggle menus', e);
+                }
+            };
         f.source = source;
         this._followers.set(surface, f);
         return f;

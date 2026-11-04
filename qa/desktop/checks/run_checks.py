@@ -215,6 +215,50 @@ def settle(sec: float = 1.0) -> None:
 ARC = "Main.extensionManager.lookup('arcmenu@arcmenu.com').stateObj.menuControllers[0]"
 
 
+QS_GRID = "Main.panel.statusArea.quickSettings.menu._grid"
+QS_TOGGLES = ("NMWiredToggle", "NMWirelessToggle", "BluetoothToggle")
+QS_PLACE_JS = """const m = Main.panel.statusArea.quickSettings.menu, g = m._grid;
+ const t = g.get_children().find(c => c.constructor.name === 'NMWiredToggle');
+ const box = a => { const [x, y] = a.get_transformed_position(); const [w, h] = a.get_transformed_size(); return [x, y, w, h]; };
+ const c = m._overlay?.get_children().find(k => k.visible && k.has_style_class_name?.('quick-toggle-menu-container'));
+ return {grid: box(g), toggle: box(t), menu: c ? box(c) : null};"""
+
+
+def quick_settings_toggle_menu(ctx: Ctx, c: Check) -> None:
+    """A toggle's own menu (Wired, Wi-Fi) opens in place, under its toggle (1.5.1 put it low and off to
+    the side, over the panel, when the menu had grown open)."""
+    sh = ctx.sh
+    find = f"{QS_GRID}.get_children().find(c => c.constructor.name === %s)"
+    shown = [n for n in QS_TOGGLES if sh.eval(
+        f"(() => {{ const t = {find % json.dumps(n)}; if (!t || t.visible) return 0; t.visible = true;"
+        f" if (!t.title) t.title = {json.dumps(n[2:].replace('Toggle', ''))}; return 1; }})()") == "1"]
+    wired = find % json.dumps("NMWiredToggle")
+    try:
+        # The test desktop has no network cards, so these toggles are hidden: showing them
+        # moves the grid, and the menu measures again while it grows open, as on a real PC.
+        sh.eval("Main.panel.statusArea.quickSettings.menu.open(); 1")
+        settle(1.5)
+        sh.eval(f"{wired}.menu.open(); 1")
+        settle(1.5)
+        g = sh.json(QS_PLACE_JS)
+        now = lgqa.load(sh.shot("looks-quick-settings-wired"))
+        if not g["menu"]:
+            c.add(False, "Quick Settings: the Wired menu did not open.", picture("quick-settings-wired", now))
+            return
+        gx, menu, tog = g["grid"][0], g["menu"], g["toggle"]
+        off_x, off_y = menu[0] - gx, menu[1] - (tog[1] + tog[3])
+        c.add(abs(off_x) <= 2 and abs(off_y) <= 4,
+              f"Quick Settings: the Wired menu opens right under its toggle (off by {off_x:.0f}, {off_y:.0f} px; "
+              "limit 2, 4).", picture("quick-settings-wired", now))
+    finally:
+        sh.eval(f"(() => {{ const t = {wired}; t?.menu.close(); return 1; }})()")
+        settle(0.5)
+        sh.eval("Main.panel.statusArea.quickSettings.menu.close(); 1")
+        for n in shown:
+            sh.eval(f"(() => {{ const t = {find % json.dumps(n)}; if (t) t.visible = false; return 1; }})()")
+        settle(1)
+
+
 def check_looks(ctx: Ctx) -> Check:
     c = Check("looks", "The glass looks right",
               "Compares the desktop, panel, menus and windows with reference pictures, at 125 % scaling. "
@@ -246,6 +290,7 @@ def check_looks(ctx: Ctx) -> Check:
     against_reference(ctx, c, "quick-settings", "Quick Settings", now, mask)
     sh.eval("Main.panel.statusArea.quickSettings.menu.close(); 1")
     settle(1)
+    quick_settings_toggle_menu(ctx, c)
 
     # Extension List's menu (where 1.4.2 showed a dark box at 125 %)
     opened = sh.eval("(() => { const b = Main.panel.statusArea['extension-list@tu.berry']; if (!b || !b.menu) return 0;"
@@ -476,6 +521,34 @@ def seam_check(ctx: Ctx, c: Check, kind: str, tag: str, wid: int, seam: int) -> 
         None if ok else triptych(f"leftovers-{tag}-seam", wide(b), wide(a), wide(d.image)))
 
 
+def maximized_while_opening(ctx: Ctx, c: Check) -> None:
+    """A window maximized while it is still opening ends up fully shown (1.5.1 left Claude Desktop at
+    opacity 1 of 255, see-through, until it was minimized and restored)."""
+    sh = ctx.sh
+    for ms in (150, 300):
+        title = f"LGQA Claude {ms}"
+        lgqa.open_electron(title=title, maximize_after_ms=ms)
+        try:
+            w = sh.wait_window(re.escape(title))
+        except ShellError:
+            c.add(False, f"Electron maximized {ms} ms after it shows: the window did not open.")
+            continue
+        settle(3)
+        st = sh.json(f"const a = global.get_window_actors().find(a => a.meta_window.get_id() === {w['id']});"
+                     " return a ? {op: a.opacity, sx: a.scale_x, sy: a.scale_y, tx: a.translation_x, ty: a.translation_y,"
+                     " max: a.meta_window.maximized_horizontally && a.meta_window.maximized_vertically} : null;")
+        ok = bool(st) and st["op"] == 255 and abs(st["sx"] - 1) < 1e-3 and abs(st["sy"] - 1) < 1e-3 and \
+            abs(st["tx"]) < 0.5 and abs(st["ty"]) < 0.5
+        img = lgqa.load(sh.shot(f"leftovers-maximized-{ms}"))
+        c.add(ok, f"Electron maximized {ms} ms after it shows (like Claude Desktop): "
+              + ("it is fully shown." if ok else f"it is left at opacity {st and st['op']} of 255, scale "
+                 f"{st and round(st['sx'], 3)}, moved {st and round(st['tx'])} px."),
+              picture(f"leftovers-maximized-{ms}", img))
+    sh.close_all()
+    lgqa.kill_apps()
+    settle(1.5)
+
+
 def check_leftovers(ctx: Ctx) -> Check:
     c = Check("leftovers", "No leftover pieces of windows",
               "Moves, resizes, minimizes and closes an Electron window (like Claude Desktop) on Wayland and on "
@@ -485,6 +558,7 @@ def check_leftovers(ctx: Ctx) -> Check:
     sh.close_all()
     lgqa.kill_apps()
     settle(1.5)
+    maximized_while_opening(ctx, c)
     lgqa.launch(["ptyxis", "--new-window"], log="ptyxis")
     term = sh.wait_window(r"ptyxis|terminal")
     sh.put(term["id"], 40, 60, 700, 460)
@@ -851,7 +925,53 @@ def check_lock(ctx: Ctx) -> Check:
           f"{len(errs)} Fedora Glass errors while locking, first: {errs[0][-160:]}")
     sh.close_all()
     lgqa.kill_apps()
+    login_backdrop(ctx, c)
     return c
+
+
+GNOME_LOCK_GREY = (0x22, 0x22, 0x26)
+LOGIN_MOCK_JS = """(() => { const {St, Gio} = imports.gi;
+ globalThis._lgqaLoginCss = Gio.File.new_for_path(%s);
+ St.ThemeContext.get_for_stage(global.stage).get_theme().load_stylesheet(globalThis._lgqaLoginCss);
+ const [W, H] = global.stage.get_size(), m = Main.layoutManager.primaryMonitor;
+ const g = new St.Widget({name: 'lockDialogGroup', x: 0, y: 0, width: W, height: H});
+ g.add_child(new St.Widget({style_class: 'login-dialog', x: m.x, y: m.y, width: m.width, height: m.height}));
+ Main.layoutManager.uiGroup.add_child(g); globalThis._lgqaLogin = g; return 1; })()"""
+LOGIN_UNMOCK_JS = """(() => { globalThis._lgqaLogin?.destroy();
+ if (globalThis._lgqaLoginCss) imports.gi.St.ThemeContext.get_for_stage(global.stage).get_theme()
+   .unload_stylesheet(globalThis._lgqaLoginCss); return 1; })()"""
+
+
+def login_backdrop(ctx: Ctx, c: Check) -> None:
+    """The login screen's glass reaches every screen (1.5.1 on Fedora left the second one GNOME's grey).
+
+    GDM can't run here, so this draws the parts the login screen has, the screen-wide
+    #lockDialogGroup with the login dialog on the main screen, with the rules Apply adds
+    on Fedora (no gdm.css, the desktop's sheet shared), and looks at each screen.
+    """
+    sh = ctx.sh
+    sys.path.insert(0, "/src")
+    from liquidglass import login_screen
+    css = Path("/tmp/lgqa-login.css")
+    css.write_text(login_screen.css("#3584e4", "#6a3fb5", 0.4, shared=True))
+    css.chmod(0o644)
+    try:
+        sh.eval(LOGIN_MOCK_JS % json.dumps(str(css)))
+        settle(1)
+        now = lgqa.load(sh.shot("login-screens"))
+    finally:
+        sh.eval(LOGIN_UNMOCK_JS)
+    mons = json.loads(sh.eval("JSON.stringify(Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]))"))
+    k = sh.scale
+    grey = []
+    for i, (x, y, w, h) in enumerate(mons):
+        patch = now[int((y + h * 0.4) * k):int((y + h * 0.6) * k), int((x + w * 0.05) * k):int((x + w * 0.2) * k), :3]
+        mean = patch.reshape(-1, 3).mean(0)
+        if np.abs(mean - np.array(GNOME_LOCK_GREY)).max() < 6:
+            grey.append(i + 1)
+    c.add(not grey, "The login screen's glass backdrop covers every screen (drawn with the Fedora rules)." if not grey
+          else f"The login screen's glass backdrop is missing on screen {', '.join(map(str, grey))}: GNOME's plain "
+          "grey shows there.", picture("login-screens", now))
 
 
 # ---------------------------------------------------------------------------------------------

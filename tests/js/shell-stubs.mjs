@@ -23,7 +23,9 @@ const STUBS = {
     'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
     'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},
         ActorBox: class { constructor(b) { Object.assign(this, b); } },
-        Actor: globalThis.fake?.Actor ?? class {}, ShaderEffect: class {}};`,
+        Actor: globalThis.fake?.Actor ?? class {}, ShaderEffect: class {},
+        BindCoordinate: {X: 0, Y: 1, WIDTH: 2, HEIGHT: 3},
+        BindConstraint: class { constructor(p = {}) { Object.assign(this, {offset: 0}, p); } }};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},
         WindowTracker: {get_default: () => globalThis.fake.windowTracker},
