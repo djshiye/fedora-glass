@@ -227,11 +227,14 @@ def open_files() -> None:
     launch(["nautilus", "--new-window", str(HOME)], log="nautilus")
 
 
-def open_electron(x11: bool = False, busy: bool = False) -> None:
+def open_electron(x11: bool = False, busy: bool = False, title: str = "", maximize_after_ms: int = 0) -> None:
+    """maximize_after_ms: open like Claude Desktop (no frame, shown once drawn), then maximize it that
+    long after it shows, while it is still opening."""
     flags = ["--ozone-platform=x11"] if x11 else ["--ozone-platform=wayland"]
-    title = "LGQA Electron X11" if x11 else "LGQA Electron"
+    title = title or ("LGQA Electron X11" if x11 else "LGQA Electron")
+    like = {"LGQA_LIKE_CLAUDE": "1", "LGQA_MAXIMIZE_AFTER_MS": str(maximize_after_ms)} if maximize_after_ms else {}
     launch(["/opt/electron/electron", "--no-sandbox", "--disable-gpu-sandbox", *flags, "/opt/lgqa/suite/electron-app"],
-           {"LGQA_TITLE": title, "LGQA_BUSY": "1" if busy else "0", **(XENV if x11 else {})},
+           {"LGQA_TITLE": title, "LGQA_BUSY": "1" if busy else "0", **like, **(XENV if x11 else {})},
            log="electron-x11" if x11 else "electron")
 
 

@@ -521,6 +521,34 @@ def seam_check(ctx: Ctx, c: Check, kind: str, tag: str, wid: int, seam: int) -> 
         None if ok else triptych(f"leftovers-{tag}-seam", wide(b), wide(a), wide(d.image)))
 
 
+def maximized_while_opening(ctx: Ctx, c: Check) -> None:
+    """A window maximized while it is still opening ends up fully shown (1.5.1 left Claude Desktop at
+    opacity 1 of 255, see-through, until it was minimized and restored)."""
+    sh = ctx.sh
+    for ms in (150, 300):
+        title = f"LGQA Claude {ms}"
+        lgqa.open_electron(title=title, maximize_after_ms=ms)
+        try:
+            w = sh.wait_window(re.escape(title))
+        except ShellError:
+            c.add(False, f"Electron maximized {ms} ms after it shows: the window did not open.")
+            continue
+        settle(3)
+        st = sh.json(f"const a = global.get_window_actors().find(a => a.meta_window.get_id() === {w['id']});"
+                     " return a ? {op: a.opacity, sx: a.scale_x, sy: a.scale_y, tx: a.translation_x, ty: a.translation_y,"
+                     " max: a.meta_window.maximized_horizontally && a.meta_window.maximized_vertically} : null;")
+        ok = bool(st) and st["op"] == 255 and abs(st["sx"] - 1) < 1e-3 and abs(st["sy"] - 1) < 1e-3 and \
+            abs(st["tx"]) < 0.5 and abs(st["ty"]) < 0.5
+        img = lgqa.load(sh.shot(f"leftovers-maximized-{ms}"))
+        c.add(ok, f"Electron maximized {ms} ms after it shows (like Claude Desktop): "
+              + ("it is fully shown." if ok else f"it is left at opacity {st and st['op']} of 255, scale "
+                 f"{st and round(st['sx'], 3)}, moved {st and round(st['tx'])} px."),
+              picture(f"leftovers-maximized-{ms}", img))
+    sh.close_all()
+    lgqa.kill_apps()
+    settle(1.5)
+
+
 def check_leftovers(ctx: Ctx) -> Check:
     c = Check("leftovers", "No leftover pieces of windows",
               "Moves, resizes, minimizes and closes an Electron window (like Claude Desktop) on Wayland and on "
@@ -530,6 +558,7 @@ def check_leftovers(ctx: Ctx) -> Check:
     sh.close_all()
     lgqa.kill_apps()
     settle(1.5)
+    maximized_while_opening(ctx, c)
     lgqa.launch(["ptyxis", "--new-window"], log="ptyxis")
     term = sh.wait_window(r"ptyxis|terminal")
     sh.put(term["id"], 40, 60, 700, 460)
