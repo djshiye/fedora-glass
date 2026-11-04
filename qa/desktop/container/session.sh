@@ -59,9 +59,10 @@ stop_session() {
 # without the setting ignore it).
 echo '{"overview_off": true, "start_on_desktop": true, "glass_quality": "full"}' > "$HOME/.config/liquid-glass/settings.json"
 # Safe mode (safety.js) counts a GNOME Shell that stops within a minute of starting the
-# glass as a crash, and turns the glass off after two in a row. The test's upgrade sessions
-# are short stand-ins for a whole day on Dino's PC, so each one is marked as having run
-# long enough (only a clean stop gets here; a crash would still count).
+# glass as a crash, and turns the glass off after two in a row. After 1.5.2 a clean stop
+# does not count (GNOME's 'shutdown' signal); older versions counted it, so the upgrade
+# check's sessions on the older glass are marked as having run long enough (only a clean
+# stop gets here; a crash would still count).
 session_ran_long() {
     python3 - "$HOME/.cache/liquid-glass/safe-mode.json" <<'PY'
 import json, sys
@@ -117,6 +118,24 @@ else
     (cd "$HOME/liquid-glass-src" && python3 -m liquidglass apply) > "$OUT/apply.txt" 2>&1
     echo "apply exit $?" >> "$OUT/apply.txt"
 fi
+
+# Dino restarting the PC twice in a row right after logging in (to finish an Apply, say):
+# GNOME Shell starts the glass and stops cleanly within seconds, twice. That is not a
+# crash, so the glass must still be on at the next login (1.5.2 turned on safe mode).
+quick=0
+for i in 1 2; do
+    start_shell "shell-quick-$i.log"
+    for _ in $(seq 30); do
+        gdbus call --session -d org.gnome.Shell -o /org/gnome/Shell -m org.gnome.Shell.Eval \
+            "Main.extensionManager.lookup('liquid-glass@djshiye.github.io')?.state === 1 ? 1 : 0" 2>/dev/null | grep -q "'1'" && break
+        sleep 1
+    done
+    sleep 2
+    WATCH_PID=""
+    stop_session
+    quick=$((quick + 1))
+done
+echo "$quick" > "$OUT/quick-restarts.txt"
 
 # The fresh login: GNOME Shell, then the Fedora Glass login helper (finishes held parts).
 start_shell

@@ -94,8 +94,26 @@ export class LockGlass {
             }
             // GNOME swaps the Shell theme as the screen locks; keep the stylesheet in the one in use.
             this._signals.on(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this._safe(() => this._loadStyle()));
+            // A screen plugged in, taken away, woken up or rescaled while locked: one sheet
+            // per screen again, in the new places (GNOME redoes its own backgrounds too).
+            this._signals.on(Main.layoutManager, 'monitors-changed', () => {
+                if (this._monitorsLater)
+                    return;
+                this._monitorsLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+                    this._monitorsLater = 0;
+                    this._safe(() => this._rebuild());
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
             this._attach();
         });
+    }
+
+    _rebuild() {
+        if (this._ended || !this._dialog)
+            return;
+        this._detach();
+        this._attach();
     }
 
     _loadStyle() {
@@ -153,6 +171,7 @@ export class LockGlass {
         const above = dialog._backgroundGroup;
         for (const m of Main.layoutManager.monitors) {
             const sheet = new GlassPane('full');
+            sheet.name = 'liquid-glass-lock-sheet';
             sheet.setLook(sheetLook(this.cfg));
             dialog.insert_child_above(sheet, above);
             sheet.setSources([this._wall.actor]);
@@ -364,6 +383,9 @@ export class LockGlass {
         if (this._addLater)
             global.compositor.get_laters().remove(this._addLater);
         this._addLater = 0;
+        if (this._monitorsLater)
+            global.compositor.get_laters().remove(this._monitorsLater);
+        this._monitorsLater = 0;
         this._signals.clear();
         this._detach();
         this._ended = true;

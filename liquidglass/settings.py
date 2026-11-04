@@ -329,10 +329,21 @@ def load(path: Path | None = None) -> Settings:
     if not isinstance(raw, dict):
         return Settings()
     known = {f.name for f in fields(Settings)}
+    data = {k: v for k, v in raw.items() if k in known}
     try:
-        return Settings(**{k: v for k, v in raw.items() if k in known}).normalized()
+        return Settings(**data).normalized()
     except (TypeError, ValueError, OverflowError):
-        return Settings()
+        pass
+    # One damaged value (a hand edit, a half-written file) costs only that setting, not all
+    # of them: the next Apply would otherwise save the defaults over the user's choices.
+    good: dict = {}
+    for k, v in data.items():
+        try:
+            Settings(**{**good, k: v}).normalized()
+        except (TypeError, ValueError, OverflowError):
+            continue
+        good[k] = v
+    return Settings(**good).normalized()
 
 
 def save(s: Settings, path: Path | None = None) -> Path:
