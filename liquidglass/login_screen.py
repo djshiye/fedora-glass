@@ -88,9 +88,10 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
     least 7:1 on every pane.
 
     The login dialog only fills the main screen. Every screen shows #lockDialogGroup,
-    which spans them all, so it gets a tint that deepens from near black at the top (each screen
-    the same, where a radial glow would centre on the seam between two screens), and
-    the login dialog draws the glow over it on the main screen.
+    which spans them all, so the backdrop lives there and the login dialog stays clear:
+    each screen gets the same tint, near black at the top (so the top bar reads) and
+    deepening into the glass colour at the bottom. A radial glow would only light the main
+    screen, or centre on the seam between two.
 
     shared: the style sheet is also the desktop's (no gdm.css). Every rule must then match
     only the login screen, or be one the desktop never shows: the desktop's lock screen
@@ -100,24 +101,22 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
     accent, tint, frost = check_values(accent, tint, frost)
     black = (0, 0, 0)
     t = _rgb(tint)
-    glow = _mix(t, black, 0.45)          # the glow behind the password, in the tint colour
-    edges = _mix(t, black, 0.92)         # near black at the edges, so the top bar reads
-    deep = _mix(t, black, 0.72)          # the other screens: the glow's colour, deeper
+    top = _mix(t, black, 0.90)           # near black at the top, so the top bar reads
+    bottom = _mix(t, black, 0.52)        # the glass colour at the bottom of every screen
     pane = 0.07 + 0.07 * frost           # white in each pane: clear glass to frost
     hover = pane + 0.05
-    edge = 0.16 + 0.10 * frost
-    card = 0.04 + 0.05 * frost          # the card behind the picture and password
+    edge = 0.20 + 0.10 * frost          # a bright rim, as on the desktop's glass
+    card = 0.08 + 0.06 * frost          # the card behind the picture and password
     return f"""
 {MARK_START}
 #lockDialogGroup {{
-  background-color: {edges};
+  background-color: {top};
   background-gradient-direction: vertical;
-  background-gradient-start: {edges};
-  background-gradient-end: {deep}; }}
+  background-gradient-start: {top};
+  background-gradient-end: {bottom}; }}
 .login-dialog {{
-  background-gradient-direction: radial;
-  background-gradient-start: {glow};
-  background-gradient-end: {edges}; }}
+  background-color: transparent;
+  background-gradient-direction: none; }}
 .login-dialog > .login-dialog-prompt-layout {{
   padding: 28px 24px 12px;
   background-color: rgba(255, 255, 255, {card:.3f});
