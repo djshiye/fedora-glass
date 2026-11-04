@@ -935,7 +935,11 @@ LOGIN_MOCK_JS = """(() => { const {St, Gio} = imports.gi;
  St.ThemeContext.get_for_stage(global.stage).get_theme().load_stylesheet(globalThis._lgqaLoginCss);
  const [W, H] = global.stage.get_size(), m = Main.layoutManager.primaryMonitor;
  const g = new St.Widget({name: 'lockDialogGroup', x: 0, y: 0, width: W, height: H});
- g.add_child(new St.Widget({style_class: 'login-dialog', x: m.x, y: m.y, width: m.width, height: m.height}));
+ const d = new St.Widget({style_class: 'login-dialog', x: m.x, y: m.y, width: m.width, height: m.height});
+ const card = new St.BoxLayout({style_class: 'login-dialog-prompt-layout', vertical: true,
+   x: Math.round(m.width / 2 - 180), y: Math.round(m.height / 2 - 90), width: 360, height: 180});
+ card.add_child(new St.Entry({style_class: 'login-dialog-prompt-entry', hint_text: 'Password', x_expand: true}));
+ d.add_child(card); g.add_child(d);
  Main.layoutManager.uiGroup.add_child(g); globalThis._lgqaLogin = g; return 1; })()"""
 LOGIN_UNMOCK_JS = """(() => { globalThis._lgqaLogin?.destroy();
  if (globalThis._lgqaLoginCss) imports.gi.St.ThemeContext.get_for_stage(global.stage).get_theme()
@@ -943,7 +947,8 @@ LOGIN_UNMOCK_JS = """(() => { globalThis._lgqaLogin?.destroy();
 
 
 def login_backdrop(ctx: Ctx, c: Check) -> None:
-    """The login screen's glass reaches every screen (1.5.1 on Fedora left the second one GNOME's grey).
+    """The login screen's glass reaches every screen and looks the same on each (1.5.1 on Fedora
+    left the second one GNOME's grey; 1.5.2 lit only the main one with a spotlight).
 
     GDM can't run here, so this draws the parts the login screen has, the screen-wide
     #lockDialogGroup with the login dialog on the main screen, with the rules Apply adds
@@ -963,15 +968,27 @@ def login_backdrop(ctx: Ctx, c: Check) -> None:
         sh.eval(LOGIN_UNMOCK_JS)
     mons = json.loads(sh.eval("JSON.stringify(Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]))"))
     k = sh.scale
-    grey = []
-    for i, (x, y, w, h) in enumerate(mons):
-        patch = now[int((y + h * 0.4) * k):int((y + h * 0.6) * k), int((x + w * 0.05) * k):int((x + w * 0.2) * k), :3]
-        mean = patch.reshape(-1, 3).mean(0)
-        if np.abs(mean - np.array(GNOME_LOCK_GREY)).max() < 6:
-            grey.append(i + 1)
+
+    def patch(x, y, w, h, fx, fy):
+        p = now[int((y + h * fy) * k):int((y + h * (fy + 0.1)) * k), int((x + w * fx) * k):int((x + w * (fx + 0.1)) * k), :3]
+        return p.reshape(-1, 3).mean(0)
+
+    grey = [i + 1 for i, m in enumerate(mons) if np.abs(patch(*m, 0.05, 0.45) - np.array(GNOME_LOCK_GREY)).max() < 6]
     c.add(not grey, "The login screen's glass backdrop covers every screen (drawn with the Fedora rules)." if not grey
           else f"The login screen's glass backdrop is missing on screen {', '.join(map(str, grey))}: GNOME's plain "
           "grey shows there.", picture("login-screens", now))
+    # Same spots on each screen, around the password card and in the corners: no spotlight on one screen only.
+    spots = [(0.05, 0.05), (0.25, 0.45), (0.65, 0.45), (0.45, 0.15), (0.45, 0.75), (0.85, 0.85)]
+    worst = 0.0
+    if len(mons) > 1:
+        for fx, fy in spots:
+            base = patch(*mons[0], fx, fy)
+            for m in mons[1:]:
+                worst = max(worst, float(np.abs(patch(*m, fx, fy) - base).max()))
+    lim = 4
+    c.add(worst <= lim, f"The login backdrop looks the same on every screen (largest difference {worst:.0f} of 255; "
+          f"limit {lim})." if worst <= lim else f"The login backdrop differs between screens by up to {worst:.0f} of "
+          f"255 (limit {lim}): one screen is lit differently.")
 
 
 # ---------------------------------------------------------------------------------------------

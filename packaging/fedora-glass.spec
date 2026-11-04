@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.2
+Version:        1.5.3
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -184,6 +184,8 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.3-1
+- Login screen: the same glass on every screen, with no spotlight on the main one, and a brighter glass card
 * Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.2-1
 - Claude Desktop and other apps that maximize as they open are no longer invisible until minimized
 - The Wired and Wi-Fi menus in Quick Settings open right under their toggle again
