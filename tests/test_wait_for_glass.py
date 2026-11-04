@@ -239,3 +239,41 @@ def test_a_part_turned_off_before_the_restart_is_not_left_waiting(fake_env):
     assert "arcmenu" in read_pending()
     engine.apply(Settings(targets={"arcmenu": False}))
     assert "arcmenu" not in read_pending() and "dash-to-panel" in read_pending()
+
+
+def test_a_busy_shell_that_misses_an_answer_still_gets_arcmenu_set_aside(fake_env):
+    """Apply reloads the Shell theme just before the glass goes, and a slow Shell can then
+    miss the question "is ArcMenu running?" (the release check caught that)."""
+    from liquidglass.env import RunResult
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    fake_env.ext_info = {ts.ARCMENU: ("1.0", ""), ts.DASH_TO_PANEL: ("1.0", ""), rg_uuid(): ("1.0", "")}
+    real_run, busy = fake_env.run, {"left": 3}
+
+    def run(argv, timeout=30):
+        if "org.gnome.Shell.Extensions.GetExtensionInfo" in argv and busy["left"] > 0:
+            busy["left"] -= 1
+            fake_env.commands.append(list(argv))
+            return RunResult(1, "", "Timeout was reached")
+        return real_run(argv, timeout)
+    fake_env.run = run
+    fake_env.commands.clear()
+    engine.apply(Settings(targets={"glass": False}))
+    assert _toggles(fake_env) == ["DisableExtension", "EnableExtension"]
+
+
+def test_without_arcmenu_turning_the_glass_off_does_not_wait(fake_env):
+    """A Shell that answers "no such extension" is an answer: nothing to wait for."""
+    from liquidglass.env import RunResult
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    real_run = fake_env.run
+
+    def run(argv, timeout=30):
+        if "org.gnome.Shell.Extensions.GetExtensionInfo" in argv and argv[-1] == ts.ARCMENU:
+            return RunResult(0, "({},)", "")
+        return real_run(argv, timeout)
+    fake_env.run = run
+    fake_env.naps.clear()
+    engine.apply(Settings(targets={"glass": False}))
+    assert sum(fake_env.naps) < 1
