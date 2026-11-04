@@ -28,9 +28,16 @@ const RESET = '/home/u/.config/liquid-glass/safe-mode-reset.json';
 const {Safety, report, guarded, ERROR_LIMIT, STABLE_S, RESTART_LIMIT} = await import(
     '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/safety.js');
 
-let calls;
+let calls, shutdown;
 beforeEach(() => {
     const clock = new Clock();
+    // GNOME Shell's 'shutdown' signal: it says the Shell is stopping on purpose.
+    shutdown = new Map();
+    let next = 1;
+    globalThis.global = {
+        connect: (sig, fn) => { assert.equal(sig, 'shutdown'); shutdown.set(next, fn); return next++; },
+        disconnect: id => shutdown.delete(id),
+    };
     Object.assign(globalThis.fake, {timeouts: clock, now: () => clock.now * 1000, fs: new Map(), monitors: []});
     calls = [];
     console.error = () => {};
@@ -136,4 +143,46 @@ test('a reset written while GNOME Shell was down counts at the next start', () =
     s = make();
     assert.equal(s.tripped, false);
     s.destroy();
+});
+
+const stopCleanly = () => [...shutdown.values()].forEach(fn => fn());
+
+test('restarting the PC twice right after logging in is not a crash loop', () => {
+    // Shell stopped by a restart or log out within a minute of starting: GNOME emits
+    // 'shutdown' and never calls disable(). 1.5.2 counted that as a crash.
+    for (let i = 0; i < RESTART_LIMIT + 1; i++) {
+        make();
+        assert.equal(state().running, true);
+        stopCleanly();
+        assert.equal(state().running, false, 'a clean stop is written down');
+        shutdown.clear();   // that Shell is gone
+    }
+    const s = make();
+    assert.equal(s.tripped, false);
+    assert.equal(state().restarts, 0);
+    s.destroy();
+});
+
+test('a crash after clean restarts still counts', () => {
+    make();
+    stopCleanly();
+    shutdown.clear();
+    for (let i = 0; i < RESTART_LIMIT; i++) {
+        make();          // crashes: no 'shutdown', no disable()
+        shutdown.clear();
+    }
+    const s = make();
+    assert.equal(s.tripped, true, 'two real crashes in a row still turn the glass off');
+    s.destroy();
+});
+
+test('safe mode stays on across a clean restart', () => {
+    let s = make();
+    s.startFailed();
+    stopCleanly();
+    shutdown.clear();
+    s = make();
+    assert.equal(s.tripped, true);
+    s.destroy();
+    assert.equal(shutdown.size, 0, 'the shutdown handler is let go on disable');
 });

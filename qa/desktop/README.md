@@ -33,8 +33,9 @@ quality (which steps down when frames are late) is not exercised here.
 | Window content stays in place while resizing | Corner drags, app resizes, maximize and restore for the terminal, Files and Electron | app content sliding away from the window corner (a general guard) |
 | Light on the processor | Waits for the desktop to settle, then: almost no redraws while nothing moves, and no redraws of glass that a streaming app (like Claude writing) does not touch. Processor use and frame rates are shown for information | redraw loops |
 | Extensions come back after restarts | Switches each extension off and on in Dino's order | 1.4.2 ArcMenu red |
-| Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3 | 1.4.3 ArcMenu red after Restore |
-| Locking the screen works | Lock screen and password screen against references, unlock, three times | |
+| Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3; then only "Fedora Glass effects" turned off and Apply, and back on | 1.4.3 ArcMenu red after Restore; 1.5.2 ArcMenu red and the glass left on GNOME's list after turning the effects off |
+| Locking the screen works | Lock screen and password screen against references, unlock, three times; then the screens change scale while locked | 1.5.2 left part of a screen without lock glass after a screen change |
+| Quick restarts keep the glass on | Before the test login the PC restarts twice within seconds of logging in; safe mode must stay off and the glass must draw | 1.5.2 counted a clean restart as a crash and switched the glass off |
 | No errors from Fedora Glass | Apply output and GNOME Shell's log | |
 | Upgrading from the last release | With `--from` (CI passes the last release tag): the last release is applied and used for one session, then this version arrives the way `dnf upgrade` brings it, nobody presses Apply, and the PC restarts twice. The new glass must run with Dino's settings kept | every release up to 1.4.4: after `dnf upgrade` the glass stayed the old version until Apply |
 

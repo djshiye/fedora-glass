@@ -365,3 +365,15 @@ def test_version_is_the_same_everywhere():
     spec = re.search(r"^Version:\s*(\S+)", (root / "packaging/fedora-glass.spec").read_text(), re.M).group(1)
     meta = json.loads((root / "liquidglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
     assert liquidglass.__version__ == spec == meta["version-name"]
+
+
+def test_one_damaged_value_costs_only_that_setting(tmp_path):
+    """A bad value used to reset every setting to the defaults (and the next Apply saved them)."""
+    import json
+    from liquidglass import settings as settings_mod
+    p = tmp_path / "settings.json"
+    p.write_text(json.dumps({"frost": "lots", "radius": 9, "overview_off": True, "lock_dim": None,
+                             "targets": {"terminal": False}}))
+    s = settings_mod.load(p)
+    assert s.radius == 9 and s.overview_off is True and s.targets == {"terminal": False}
+    assert s.frost == settings_mod.Settings.frost and s.lock_dim == settings_mod.Settings.lock_dim

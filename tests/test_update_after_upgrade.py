@@ -62,3 +62,23 @@ def test_a_linked_metadata_file_is_not_trusted(fake_env, tmp_path):
     m.symlink_to(elsewhere)
     assert cli.installed_glass_version(engine) is None
     assert cli.update_after_upgrade(engine) is False
+
+
+def test_with_the_glass_part_off_the_other_parts_are_still_updated(fake_env):
+    """No glass extension to read the version from: the version of the last Apply counts."""
+    from liquidglass.engine import applied_version_path
+    engine = desktop(fake_env)
+    mine = Settings(targets={"glass": False})
+    settings_mod.save(mine)
+    engine.apply(mine)
+    assert not _meta(fake_env).exists()
+    assert cli.update_after_upgrade(engine) is False          # same version
+    applied_version_path(fake_env).write_text("1.0.0\n")      # applied by an older release
+    css = ts.GnomeShell().css_path(fake_env)
+    css.write_text("/* Fedora Glass 1.0.0 */\n")
+    assert cli.update_after_upgrade(engine) is True
+    assert css.read_text() != "/* Fedora Glass 1.0.0 */\n", "the Shell theme is written again"
+    assert applied_version_path(fake_env).read_text().strip() == __version__
+    engine.revert()
+    assert not applied_version_path(fake_env).exists()
+    assert cli.update_after_upgrade(engine) is False

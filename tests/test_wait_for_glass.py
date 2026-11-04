@@ -132,6 +132,29 @@ def test_restore_original_starts_arcmenu_again_after_dash_to_panel(fake_env):
     assert "liquid-glass@djshiye.github.io" not in fake_env.gs[("org.gnome.shell", None)]["enabled-extensions"]
 
 
+def test_turning_the_glass_off_starts_arcmenu_again_after_dash_to_panel(fake_env):
+    """Turning off just "Fedora Glass effects" and pressing Apply takes the glass
+    extension away mid-session too, so ArcMenu is set aside the same way (1.5.2 left
+    it red: GNOME restarted it before Dash to Panel)."""
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    fake_env.ext_info = {ts.ARCMENU: ("1.0", ""), ts.DASH_TO_PANEL: ("1.0", ""), rg_uuid(): ("1.0", "")}
+    seen = []
+    real_set = fake_env.gsettings_set
+
+    def gset(schema, key, value, path=None):
+        if key == "enabled-extensions":
+            seen.append(_toggles(fake_env)[:])
+        return real_set(schema, key, value, path)
+    fake_env.gsettings_set = gset
+    fake_env.commands.clear()
+    results = engine.apply(Settings(targets={"glass": False}))
+    assert any(r.target == "glass" and r.status == "reverted" for r in results)
+    assert _toggles(fake_env) == ["DisableExtension", "EnableExtension"]
+    assert seen and all(t == ["DisableExtension"] for t in seen)
+    assert rg_uuid() not in fake_env.gs[("org.gnome.shell", None)]["enabled-extensions"]
+
+
 def test_restore_original_with_the_glass_not_running_leaves_arcmenu_alone(fake_env):
     engine = desktop(fake_env)
     engine.apply(Settings())
@@ -164,3 +187,55 @@ def test_reads_the_error_as_gnome_prints_it(fake_env):
     state, error = ts.extension_info(fake_env, ts.ARCMENU)
     assert state == 3.0
     assert "this.panel is undefined" in error
+
+
+def _enabled(env):
+    from liquidglass.engine import parse_strv
+    return parse_strv(env.gs[("org.gnome.shell", None)]["enabled-extensions"])
+
+
+def test_turning_one_shell_part_off_keeps_the_other_parts_extension(fake_env):
+    """The Shell theme and the glass both add an extension to GNOME's list. Turning one
+    of them off takes away only its own (1.5.2 kept both or dropped both, depending on
+    which part had touched the list first)."""
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    assert set(_enabled(fake_env)) == {ts.USER_THEME, rg_uuid()}
+    engine.apply(Settings(targets={"glass": False}))
+    assert _enabled(fake_env) == [ts.USER_THEME]
+    engine.apply(Settings())
+    engine.apply(Settings(targets={"shell": False}))
+    assert _enabled(fake_env) == [rg_uuid()]
+    from liquidglass.engine import Backup
+    changed = Backup(fake_env).targets_with_changes()
+    assert "glass" in changed and "shell" not in changed
+    engine.revert()
+    assert _enabled(fake_env) == []
+
+
+def test_a_list_record_from_an_older_version_is_split_by_owner(fake_env):
+    """Dino's backup from 1.5.2 and older has one record for enabled-extensions, tagged with
+    the Shell theme, holding the glass extension too."""
+    import json
+    from liquidglass.engine import Backup
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    b = Backup(fake_env)
+    for rec in b.data["lists"].values():
+        rec.pop("by", None)
+        rec["target"] = "shell"
+    b.save()
+    assert "glass" in Backup(fake_env).targets_with_changes()
+    engine.apply(Settings(targets={"glass": False}))
+    assert _enabled(fake_env) == [ts.USER_THEME]
+    manifest = json.loads(Backup(fake_env).manifest_path.read_text())
+    assert all(rg_uuid() not in r["added"] for r in manifest["lists"].values())
+
+
+def test_a_part_turned_off_before_the_restart_is_not_left_waiting(fake_env):
+    engine = desktop(fake_env)
+    fake_env.glass_loaded = False
+    engine.apply(Settings())
+    assert "arcmenu" in read_pending()
+    engine.apply(Settings(targets={"arcmenu": False}))
+    assert "arcmenu" not in read_pending() and "dash-to-panel" in read_pending()
