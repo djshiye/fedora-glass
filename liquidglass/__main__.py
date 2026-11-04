@@ -6,6 +6,7 @@
   fedora-glass status          list targets and whether they're available
   fedora-glass revert [TARGET] restore the original look (everything, or one target)
   fedora-glass watch           re-apply when GNOME switches dark/light or High Contrast (run by a user service)
+  fedora-glass on-remove       restore the original look before `dnf remove` takes the app away (run by dnf)
 """
 
 from __future__ import annotations
@@ -75,6 +76,27 @@ def cmd_revert(args: argparse.Namespace) -> int:
     if not problems:
         print("Original look restored." if not args.target else f"Restored {args.target}.")
     return 1 if problems else 0
+
+
+def cmd_on_remove(args: argparse.Namespace) -> int:
+    """Run by `dnf remove fedora-glass`, as each person with a look applied (never as root),
+    before the app's files go: Restore original, unless they turned that off in the app."""
+    s = settings_mod.load()
+    if not s.undo_on_remove:
+        print("Fedora Glass: your look stays as it is (you turned off undo on removal).")
+        return 0
+    eng = _engine()
+    if not eng.is_applied():
+        return 0
+    problems = eng.revert()
+    for p in problems:
+        print(f"Fedora Glass: could not restore {p}")
+    if problems:
+        print("Fedora Glass: the rest of your original look is back. The backup of what could not "
+              "be restored is kept in ~/.local/state/liquid-glass.")
+        return 1
+    print("Fedora Glass: your original look is back. Restart your PC to finish.")
+    return 0
 
 
 def _take_all(q: queue.Queue) -> set:
@@ -246,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("target", nargs="?")
     r.set_defaults(func=cmd_revert)
     sub.add_parser("watch", help="follow dark/light and High Contrast switches").set_defaults(func=cmd_watch)
+    sub.add_parser("on-remove", help="restore the original look before the app is removed (run by dnf)").set_defaults(func=cmd_on_remove)
     g = sub.add_parser("gui", help="open the customizer")
     g.add_argument("qt_args", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_gui)

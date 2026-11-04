@@ -12,7 +12,7 @@ Sheet {
         return n
     }
     title: "What Apply will change"
-    subtitle: total === 0 ? "Nothing: no enabled target is available on this system."
+    subtitle: total === 0 ? "Nothing to change: none of the parts that are switched on are installed here."
                           : total + " change" + (total === 1 ? "" : "s") + " in " + plan.length + " place" + (plan.length === 1 ? "" : "s")
                             + ". Each one is backed up first, and Restore original undoes all of it."
     iconName: "list"

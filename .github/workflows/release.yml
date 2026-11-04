@@ -5,7 +5,6 @@
 #
 # When it succeeds, the "DNF repository" workflow (dnf-repo.yml) publishes the RPM
 # to the DNF repository on GitHub Pages, so `sudo dnf upgrade` picks it up.
-# Once COPR is set up (docs/COPR.md), the new tag also starts a signed COPR build.
 name: Release
 
 on:

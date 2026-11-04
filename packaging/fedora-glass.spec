@@ -22,6 +22,8 @@ Requires:       gnome-shell-extension-user-theme
 Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
+# runuser: dnf remove puts each person's original look back as that person (undo-for-users).
+Requires:       util-linux-core
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
@@ -52,6 +54,7 @@ Requires:       gnome-shell-extension-user-theme
 Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
+Requires:       util-linux-core
 
 %description -n liquid-glass
 Liquid Glass is now called Fedora Glass. This is the same app under the old
@@ -88,6 +91,9 @@ install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datad
 install -Dm755 liquidglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-glass-login-screen
 install -Dm644 data/io.github.djshiye.LiquidGlass.policy %{buildroot}%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 
+# dnf remove runs this first: Restore original for each person with a look applied, as them.
+install -Dm755 packaging/undo-for-users.sh %{buildroot}%{_libexecdir}/fedora-glass-undo-for-users
+
 # Re-applies the parts that can't follow GNOME's dark/light switch by themselves.
 # The unit keeps its old file name, so an upgrade leaves it turned on as it was.
 install -d %{buildroot}%{_userunitdir}
@@ -123,8 +129,10 @@ python3 -m pytest -q tests
 
 %preun
 %systemd_user_preun liquid-glass-watch.service
-# Removing the app puts the normal login screen back if the glass was on.
+# Removing the app (not an upgrade) puts each person's original look back, unless they
+# turned that off in the app, and the normal login screen if the glass was on there.
 if [ $1 -eq 0 ]; then
+    %{_libexecdir}/fedora-glass-undo-for-users || :
     %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
 fi
 
@@ -166,6 +174,7 @@ fi
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
+%{_libexecdir}/fedora-glass-undo-for-users
 %{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
@@ -180,6 +189,7 @@ fi
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
+%{_libexecdir}/fedora-glass-undo-for-users
 %{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 

@@ -119,6 +119,29 @@ def test_apply_then_revert_restores_symlink_and_settings(fake_env):
     assert ["flatpak", "undo"] in fake_env.commands
 
 
+def test_revert_resets_a_key_that_followed_its_default(fake_env):
+    """Restore original leaves a key that was never set unset again, instead of pinning
+    today's default as the user's own value (an app update can then change it)."""
+    schema = ("org.gnome.desktop.interface", None)
+    fake_env.follow_default("org.gnome.desktop.interface", "gtk-theme", "'Adwaita'")
+    eng = make_engine(fake_env)
+    eng.apply(Settings())
+    assert fake_env.gsettings_user_set("org.gnome.desktop.interface", "gtk-theme") is True
+    assert eng.revert() == []
+    assert fake_env.gs[schema]["gtk-theme"] == "'Adwaita'"
+    assert fake_env.gsettings_user_set("org.gnome.desktop.interface", "gtk-theme") is False
+
+
+def test_revert_keeps_a_key_the_user_had_set(fake_env):
+    fake_env.follow_default("org.gnome.desktop.interface", "gtk-theme", "'Adwaita'")
+    fake_env.gsettings_set("org.gnome.desktop.interface", "gtk-theme", "'Orchis-Dark'")
+    eng = make_engine(fake_env)
+    eng.apply(Settings())
+    assert eng.revert() == []
+    assert fake_env.gs[("org.gnome.desktop.interface", None)]["gtk-theme"] == "'Orchis-Dark'"
+    assert fake_env.gsettings_user_set("org.gnome.desktop.interface", "gtk-theme") is True
+
+
 def test_new_file_is_removed_on_revert(fake_env):
     eng = make_engine(fake_env)
     eng.apply(Settings())
