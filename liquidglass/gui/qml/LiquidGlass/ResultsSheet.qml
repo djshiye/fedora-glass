@@ -10,10 +10,10 @@ Sheet {
     readonly property int appliedCount: count("applied")
 
     title: failedCount > 0 ? "Applied, with " + failedCount + " problem" + (failedCount === 1 ? "" : "s")
-         : results.length === 0 ? "Settings saved" : "Fedora Glass is on"
-    subtitle: results.length === 0 ? "No targets are available yet, so only the token files were written."
+         : results.length === 0 ? "Settings saved" : Backend.glassLive ? "Fedora Glass is on" : "Applied. Restart your PC to finish"
+    subtitle: results.length === 0 ? "Nothing to theme was found yet, so only your settings were saved."
             : failedCount > 0 ? "Everything else was applied. The details are below."
-            : "Some apps pick the new look up when they restart."
+            : Backend.glassLive ? "Open apps pick up the new look when you reopen them." : "GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them."
     iconName: failedCount > 0 ? "alert" : "okCircle"
     iconColor: failedCount > 0 ? Theme.warn : Theme.good
     buttons: [ LgButton { text: "Done"; kind: "primary"; onClicked: sheet.close() } ]

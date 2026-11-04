@@ -33,7 +33,7 @@ quality (which steps down when frames are late) is not exercised here.
 | Window content stays in place while resizing | Corner drags, app resizes, maximize and restore for the terminal, Files and Electron | app content sliding away from the window corner (a general guard) |
 | Light on the processor | Waits for the desktop to settle, then: almost no redraws while nothing moves, and no redraws of glass that a streaming app (like Claude writing) does not touch. Processor use and frame rates are shown for information | redraw loops |
 | Extensions come back after restarts | Switches each extension off and on in Dino's order | 1.4.2 ArcMenu red |
-| Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3 | 1.4.3 ArcMenu red after Restore |
+| Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3. After Restore original, every setting must be what it was before the first Apply, the same extensions switched on, and no Fedora Glass file left in the home folder | 1.4.3 ArcMenu red after Restore; a Restore that leaves something behind |
 | Locking the screen works | Lock screen and password screen against references, unlock, three times | |
 | No errors from Fedora Glass | Apply output and GNOME Shell's log | |
 | Upgrading from the last release | With `--from` (CI passes the last release tag): the last release is applied and used for one session, then this version arrives the way `dnf upgrade` brings it, nobody presses Apply, and the PC restarts twice. The new glass must run with Dino's settings kept | every release up to 1.4.4: after `dnf upgrade` the glass stayed the old version until Apply |

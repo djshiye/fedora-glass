@@ -76,6 +76,9 @@ if d.get("running") and not d.get("tripped"):
     json.dump(d, open(p, "w"))
 PY
 }
+# Dino's settings before Fedora Glass ever ran: Restore original must bring these back
+# (the restore check compares them).
+dconf dump / > "$OUT/dconf-before.ini"
 if [ -d /from/liquidglass ]; then
     # The upgrade check: Dino's PC on the last release, then `dnf upgrade` and a restart.
     # The older version is applied and runs for one session; then the new app arrives

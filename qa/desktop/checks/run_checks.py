@@ -1053,6 +1053,114 @@ def run_lg(*args: str) -> tuple[int, str]:
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
+# Keys GNOME, the apps and the other extensions write by themselves while the test desktop
+# runs, not Fedora Glass: window sizes, a terminal's first profile, the order GNOME restarts
+# extensions in, Blur my Shell's and Dash to Panel's own settings upgrades (panel keys move
+# to monitor names), Deja Window's remembered windows, ArcMenu taking the Super key.
+RESTORE_IGNORE = re.compile(r"^/org/gnome/(Ptyxis/|nautilus/|portal/|evolution-data-server/|shell/(enabled-extensions|"
+                            r"disabled-extensions|app-picker-layout|command-history|welcome-dialog-last-shown-version)$)"
+                            r"|^/org/gtk/|^/org/gnome/desktop/(notifications/application|app-folders)"
+                            r"|^/org/gnome/mutter/overlay-key$|^/org/gnome/shell/extensions/deja-window/"
+                            r"|^/org/gnome/shell/extensions/blur-my-shell/(pipelines|settings-version)$"
+                            r"|^/org/gnome/shell/extensions/dash-to-panel/(extension-version|panel-(anchors|element-positions|lengths|positions|sizes))$")
+
+
+def dconf_keys(text: str) -> dict[str, str]:
+    """`dconf dump /` as {"/path/key": value}."""
+    out, section = {}, "/"
+    for line in text.splitlines():
+        if line.startswith("[") and line.endswith("]"):
+            section = "/" + line[1:-1].strip("/") + "/"
+            section = "/" if section == "//" else section
+        elif "=" in line:
+            k, v = line.split("=", 1)
+            out[section + k] = v
+    return out
+
+
+def as_set(v: str | None) -> set[str]:
+    return set(re.findall(r"'([^']*)'", v or ""))
+
+
+def schema_defaults() -> dict[str, str]:
+    """{"/dconf/path/key": default value as dconf prints it} for every installed schema with a
+    fixed path, the extensions' own schemas included."""
+    import gi
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio
+    sources = [Gio.SettingsSchemaSource.get_default()]
+    for sd in sorted((lgqa.HOME / ".local/share/gnome-shell/extensions").glob("*/schemas")):
+        if (sd / "gschemas.compiled").exists():
+            sources.append(Gio.SettingsSchemaSource.new_from_directory(str(sd), None, False))
+    out = {}
+    for src in sources:
+        for sid in src.list_schemas(True)[0]:
+            sch = src.lookup(sid, False)
+            if sch is None or not sch.get_path():
+                continue
+            for k in sch.list_keys():
+                out[sch.get_path() + k] = sch.get_key(k).get_default_value().print_(True)
+    return out
+
+
+def back_as_before(c: Check) -> None:
+    """After Restore original, Dino's settings are what they were before the first Apply,
+    and no Fedora Glass file is left in the home folder."""
+    before_file = OUT / "dconf-before.ini"
+    if not before_file.exists():
+        c.info("No record of the settings from before the first Apply, so they were not compared.")
+        return
+    before = dconf_keys(before_file.read_text(errors="replace"))
+    now = dconf_keys(lgqa.subprocess.run(["dconf", "dump", "/"], env=lgqa.ENV, capture_output=True,
+                                         text=True, timeout=30).stdout)
+    defaults = schema_defaults()
+
+    def same(a: str | None, b: str | None) -> bool:
+        if a == b:
+            return True
+        try:        # 0.40000000000000002 and 0.4, @as [] and []: the same value printed two ways
+            from gi.repository import GLib
+            return GLib.Variant.parse(None, a, None, None).equal(GLib.Variant.parse(None, b, None, None))
+        except Exception:
+            return False
+
+    # A key that is not set has its default value: compare what GNOME and the apps see.
+    changed, pinned = [], []
+    for k in sorted(set(before) | set(now)):
+        if RESTORE_IGNORE.search(k):
+            continue
+        was, isnow = before.get(k, defaults.get(k)), now.get(k, defaults.get(k))
+        if not same(was, isnow):
+            changed.append(f"{k} was {str(was)[:60]}, now {str(isnow)[:60]}")
+        elif k not in before and k in now:
+            pinned.append(k)
+    c.add(not changed, "Every setting is back to what it was before the first Apply." if not changed else
+          f"{len(changed)} settings differ from before the first Apply, first: " + "; ".join(changed[:3]))
+    if pinned:
+        c.info(f"{len(pinned)} settings that followed their default are now set to that same default "
+               f"(no visible change): {', '.join(pinned[:4])}")
+    # GNOME restarts the extensions in its own order, so only which ones are on counts.
+    key = "/org/gnome/shell/enabled-extensions"
+    on = as_set(before.get(key)) == as_set(now.get(key))
+    c.add(on, "The same extensions are switched on as before the first Apply." if on else
+          f"Switched-on extensions differ: before {sorted(as_set(before.get(key)))}, now {sorted(as_set(now.get(key)))}")
+    ext = lgqa.HOME / ".local/share/gnome-shell/extensions" / LG
+    leftovers = [str(ext.relative_to(lgqa.HOME))] if ext.exists() else []
+    for base in (lgqa.HOME / ".config", lgqa.HOME / ".local/share"):
+        for f in base.rglob("*"):
+            # Fedora Glass's own settings folder stays on purpose; other extensions are not ours.
+            if "liquid-glass" in f.parts or "extensions" in f.parts or not f.is_file() or f.is_symlink():
+                continue
+            try:
+                head = f.open("rb").read(512)
+            except OSError:
+                continue
+            if b"Fedora Glass" in head or b"Liquid Glass" in head:
+                leftovers.append(str(f.relative_to(lgqa.HOME)))
+    c.add(not leftovers, "No Fedora Glass files are left in the home folder (its own settings folder aside)."
+          if not leftovers else f"{len(leftovers)} Fedora Glass files left behind, first: {', '.join(leftovers[:3])}")
+
+
 def check_restore(ctx: Ctx) -> Check:
     c = Check("restore", "Restore original and Apply keep the desktop working",
               "Runs Restore original (it switches Fedora Glass off, so GNOME restarts the extensions after it), "
@@ -1077,6 +1185,7 @@ def check_restore(ctx: Ctx) -> Check:
     bad, took = wait_healthy(ctx, others, False, lim["settle_seconds"])
     c.add(not bad, f"After Restore original, Dino's other extensions were all working in {took:.0f} s." if not bad else
           "After Restore original: " + "; ".join(bad) + f" after {lim['settle_seconds']} s.")
+    back_as_before(c)
     rc, out = run_lg("apply")
     c.add(rc == 0, "Apply finished." if rc == 0 else f"Apply failed: {out[-200:]}")
     expected = others + [LG]
