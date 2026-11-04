@@ -280,6 +280,24 @@ def test_live_glass_follows_sliders_and_falls_back_on_quit(make_backend, home):
     assert json.loads(path.read_text())["look"]["bend"] > 0
 
 
+def test_live_glass_stays_solid_under_high_contrast(make_backend, home):
+    """Apply turns the glass off while High Contrast is on; moving a slider, or closing
+    the app with changes unapplied, must not bring it back (1.5.2 did)."""
+    import json
+    b = make_backend()
+    path = home / "config/liquid-glass/shell-glass.json"
+    b._env.high_contrast = lambda: True
+    b._glass_live = True
+    b.setProperty("refraction", 0.2)
+    b._write_live_glass(b.settings())
+    cfg = json.loads(path.read_text())
+    assert cfg["panel"]["enabled"] is False and cfg["menus"]["enabled"] is False
+    b.shutdown()                           # unapplied: back to the saved look, still solid
+    cfg = json.loads(path.read_text())
+    assert cfg["panel"]["enabled"] is False and cfg["windows"]["enabled"] is False
+    assert b.settings().reduce_transparency is False, "the user's own setting is left as it is"
+
+
 def test_part_overrides(make_backend):
     b = make_backend()
     seen = []

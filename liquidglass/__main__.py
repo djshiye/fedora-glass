@@ -155,6 +155,11 @@ def update_after_upgrade(eng) -> bool:
     if not eng.is_applied():
         return False
     had = installed_glass_version(eng)
+    if had is None and getattr(eng, "env", None) is not None:
+        # The glass part is off, so there is no extension to ask: the other parts still
+        # need the new version's look (1.5.2 never updated them).
+        from .engine import read_applied_version
+        had = read_applied_version(eng.env)
     if had is None or had == __version__:
         return False
     print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)

@@ -4,7 +4,9 @@
 // It turns on when
 //  - the glass code hits ERROR_LIMIT errors within ERROR_WINDOW_US, or
 //  - GNOME Shell stopped within STABLE_S of starting the glass, RESTART_LIMIT
-//    times in a row (a crash loop), so the next start is a safe one.
+//    times in a row (a crash loop), so the next start is a safe one. A clean stop
+//    (restarting the PC, logging out) is not a crash: GNOME says so with its
+//    'shutdown' signal, the same one it uses for its own crash check.
 // Desktop behaviour (start on the desktop, no overview), the ArcMenu helper and
 // the lock screen keep working. The Fedora Glass app shows a note with a button
 // that writes ~/.config/liquid-glass/safe-mode-reset.json ({"id": "<16 hex>"}),
@@ -109,6 +111,19 @@ export class Safety {
         } catch {
             this._monitor = null;
         }
+        // GNOME Shell is stopping on purpose (the PC restarts, the user logs out). Without
+        // this, two quick restarts after logging in read as a crash loop (1.5.2).
+        try {
+            this._shutdownId = global.connect('shutdown', () => this._cleanStop());
+        } catch {
+            this._shutdownId = 0;
+        }
+    }
+
+    _cleanStop() {
+        this._running = false;
+        this._restarts = 0;
+        this._write();
     }
 
     _clearState() {
@@ -201,9 +216,10 @@ export class Safety {
             this._monitor.cancel();
             this._monitor = null;
         }
-        this._running = false;
-        this._restarts = 0;
-        this._write();
+        if (this._shutdownId)
+            global.disconnect(this._shutdownId);
+        this._shutdownId = 0;
+        this._cleanStop();
         if (current === this)
             current = null;
         this._onChange = null;

@@ -26,11 +26,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import palette
+from . import __version__, palette
 from .env import Env
 from .settings import Settings, config_dir
 from .targets import all_targets
-from .targets.shell import GlassEffects, park_arcmenu, unpark_arcmenu
+from .render.glass import UUID as GLASS_UUID
+from .targets.shell import USER_THEME, GlassEffects, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 
 
@@ -89,6 +90,23 @@ def _write_pending(ids: set[str]) -> None:
             path.unlink()
 
 
+def applied_version_path(env: Env) -> Path:
+    """The app version of the last Apply, for `fedora-glass watch` after an upgrade (the
+    glass extension's own version says the same, but only while the glass part is on)."""
+    return env.state / "liquid-glass/applied-version"
+
+
+def read_applied_version(env: Env) -> str | None:
+    p = applied_version_path(env)
+    try:
+        if p.is_symlink() or p.stat().st_size > 64:
+            return None
+        v = p.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return v or None
+
+
 def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
     """Write via a fresh temp file in the same folder (O_EXCL, so a planted link can't redirect it)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,6 +129,20 @@ def _remove_empty(dirs: set[str]) -> None:
     for d in sorted(dirs, key=len, reverse=True):
         with contextlib.suppress(OSError):
             os.rmdir(d)
+
+
+# Items of a shared list (enabled-extensions) and the target that put them there, for
+# records written before each item kept its own owner: then the whole list went with
+# whichever target touched it first (1.5.2 and older).
+LIST_OWNERS = {GLASS_UUID: "glass", USER_THEME: "shell"}
+
+
+def list_owner(rec: dict, item: str) -> str:
+    """The target that added or removed `item` in a shared gsettings list."""
+    by = rec.get("by")
+    if isinstance(by, dict) and isinstance(by.get(item), str):
+        return by[item]
+    return LIST_OWNERS.get(item, rec["target"])
 
 
 def parse_strv(text: str | None) -> list[str]:
@@ -422,17 +454,30 @@ class Backup:
             else:
                 problems.append(f"{schema} {k}: {r.err.strip()}")
         for key, e in list(self.data["lists"].items()):
-            if not mine(e):
+            # Several targets share one list (the Shell theme and the glass both add an
+            # extension to enabled-extensions): only this target's own items go back.
+            ours = lambda i: not target or list_owner(e, i) == target  # noqa: E731
+            added = [i for i in e["added"] if ours(i)]
+            removed = [i for i in e["removed"] if ours(i)]
+            if not added and not removed:
                 continue
             schema, path, k = key.split("|", 2)
             items = parse_strv(self.env.gsettings_get(schema, k, path or None))
-            items = [i for i in items if i not in e["added"]]
-            items += [i for i in e["removed"] if i not in items]
+            items = [i for i in items if i not in added]
+            items += [i for i in removed if i not in items]
             r = self.env.gsettings_set(schema, k, format_strv(items), path or None)
-            if r.ok:
+            if not r.ok:
+                problems.append(f"{schema} {k}: {r.err.strip()}")
+                continue
+            e["added"] = [i for i in e["added"] if i not in added]
+            e["removed"] = [i for i in e["removed"] if i not in removed]
+            left = e["added"] + e["removed"]
+            if not left:
                 del self.data["lists"][key]
             else:
-                problems.append(f"{schema} {k}: {r.err.strip()}")
+                # Keep owners explicit for what stays, then the record's own target is theirs.
+                e["by"] = {i: list_owner(e, i) for i in left}
+                e["target"] = e["by"][left[0]]
         for tid, e in list(self.data["flatpak"].items()):
             if not mine(e):
                 continue
@@ -504,7 +549,14 @@ class Backup:
         return None
 
     def targets_with_changes(self) -> set[str]:
-        return {e["target"] for section in self.data.values() for e in section.values()}
+        out = set()
+        for name, section in self.data.items():
+            for e in section.values():
+                if name == "lists" and (e.get("added") or e.get("removed")):
+                    out |= {list_owner(e, i) for i in e.get("added", []) + e.get("removed", [])}
+                else:
+                    out.add(e["target"])
+        return out
 
 
 def _put_back(env: Env, schema: str, key: str, path: str | None, e: dict):
@@ -655,12 +707,22 @@ class Engine:
             if only and t.id not in only:
                 continue
             if not settings.target_enabled(t.id):
+                waiting.discard(t.id)           # turned off: nothing left to finish at login
                 if t.id in backup.targets_with_changes():
-                    probs = backup.restore(t.id)
+                    # Turning the glass off takes the extension off GNOME's list, which
+                    # restarts the extensions after it: ArcMenu is set aside for that
+                    # moment, as in Restore original (see park_arcmenu).
+                    parked = isinstance(t, GlassEffects) and not self.env.dry_run and park_arcmenu(self.env)
+                    try:
+                        probs = backup.restore(t.id)
+                    finally:
+                        if parked:
+                            unpark_arcmenu(self.env)
                     results.append(Result(t.id, t.name, "failed" if probs else "reverted", "; ".join(probs)))
                 continue
             det = t.detect(self.env)
             if not det.available:
+                waiting.discard(t.id)
                 results.append(Result(t.id, t.name, "skipped", det.detail))
                 continue
             # A see-through panel or menu with no glass behind it looks broken, and changing
@@ -690,6 +752,9 @@ class Engine:
         if waiting != pending and not self.env.dry_run:
             _write_pending(waiting)
         self._write_tokens(ctx)
+        if not self.env.dry_run:
+            with contextlib.suppress(OSError):
+                atomic_write(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
         return results
 
     def revert(self, target: str | None = None) -> list[str]:
@@ -706,6 +771,8 @@ class Engine:
                 for name in ("tokens.json", "tokens-dark.json", "tokens-light.json"):
                     with contextlib.suppress(OSError):
                         (config_dir() / name).unlink()   # apps that read them go back to their own look
+                with contextlib.suppress(OSError):
+                    applied_version_path(self.env).unlink()
             return problems
 
     # ---- internals ------------------------------------------------------------
@@ -740,6 +807,8 @@ class Engine:
                 items = parse_strv(self.env.gsettings_get(a.schema, a.key, a.path))
                 key = f"{a.schema}|{a.path or ''}|{a.key}"
                 rec = backup.data["lists"].get(key, {"target": tid, "added": [], "removed": []})
+                # Each item remembers its own target, so turning one target off undoes only its items.
+                by = {i: list_owner(rec, i) for i in rec["added"] + rec["removed"]}
                 changed = False
                 for i in a.add:
                     if i not in items:
@@ -747,14 +816,17 @@ class Engine:
                         changed = True
                         if i not in rec["added"]:
                             rec["added"].append(i)
+                            by[i] = tid
                 for i in a.remove:
                     if i in items:
                         items.remove(i)
                         changed = True
                         if i not in rec["removed"]:
                             rec["removed"].append(i)
+                            by[i] = tid
                 if changed:
                     # Only a real change is recorded, so an untouched list doesn't count as applied.
+                    rec["by"] = by
                     backup.data["lists"][key] = rec
                     r = self.env.gsettings_set(a.schema, a.key, format_strv(items), a.path)
                     if not r.ok:

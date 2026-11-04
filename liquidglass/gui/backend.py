@@ -323,6 +323,14 @@ class Backend(QObject):
         from ..engine import atomic_write
         from ..render import glass as rg
         s = s.normalized()
+        try:
+            hc = self._env.high_contrast()
+        except Exception:
+            hc = False
+        if hc and not s.reduce_transparency:
+            # As Apply does (Engine.context): with High Contrast on the glass stays solid,
+            # also while a slider moves and when the app closes with changes unapplied.
+            s = replace(s, reduce_transparency=True)
         dark = s.scheme == "dark" or (s.scheme == "auto" and self._system_dark)
         t = palette.build(s, dark=dark, system_accent=self._system_accent)
         try:
