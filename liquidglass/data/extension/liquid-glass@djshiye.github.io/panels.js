@@ -132,9 +132,16 @@ export class Panels {
 
     rescan() {
         this._quietIcons();
+        // Any extension turning on or off asks for a rescan. When the panels are the
+        // same ones, keep their glass: rebuilding it costs a full render of every
+        // panel, and the glass would blink.
+        const pairs = this._panels();
+        if (pairs.length && pairs.length === this._followers.length &&
+            pairs.every(([t, a], i) => this._followers[i].pane && this._followers[i].target === t && this._followers[i].anchor === a))
+            return;
         this._followers.forEach(f => f.destroy());
         this._followers = [];
-        for (const [target, anchor] of this._panels()) {
+        for (const [target, anchor] of pairs) {
             this._followers.push(new Follower(target, anchor, this.cfg.parts.panel,
                 f => (this._followers = this._followers.filter(x => x !== f))));
         }
@@ -152,6 +159,7 @@ export class Panels {
     destroy() {
         if (this._rescanId)
             GLib.source_remove(this._rescanId);
+        this._rescanId = 0;
         this._disconnectDtp();
         this._unquietIcons();
         this._signals.clear();

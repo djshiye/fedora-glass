@@ -43,6 +43,9 @@ max_idle_frames = 6
 max_idle_glass_redraws = 0.5
 # Redraws per second of glass that a busy, streaming window does not touch.
 max_unrelated_glass_redraws = 1.0
+# Redraws per second of a panel's glass while the pointer moves near it. The pointer only
+# moves the light on the rim; 1.5.3 re-rendered the whole glass for it (about 12 a second).
+max_pointer_glass_redraws = 1.0
 
 [restart]
 # Seconds every extension gets to come back after one is switched off and on.

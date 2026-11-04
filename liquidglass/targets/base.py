@@ -24,6 +24,9 @@ class WriteFile:
     path: Path
     content: str | bytes
     mode: int = 0o644
+    # When only some keys of another app's own file are ours: which ones (see
+    # unmerge.py), so Restore can take just those back out of a file changed since.
+    edits: tuple = ()
 
     def describe(self) -> str:
         return f"write {self.path}"

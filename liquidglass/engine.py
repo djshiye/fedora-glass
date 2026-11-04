@@ -27,12 +27,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import __version__, palette
-from .env import Env
+from .env import Env, RunResult
 from .settings import Settings, config_dir
 from .targets import all_targets
 from .render.glass import UUID as GLASS_UUID
 from .targets.shell import USER_THEME, GlassEffects, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
+from .unmerge import unmerge
 
 
 @dataclass
@@ -107,6 +108,17 @@ def read_applied_version(env: Env) -> str | None:
     return v or None
 
 
+def _kept_mode(path: Path, mode: int) -> int:
+    """The mode for rewriting `path`: never more open than the file is now. An app's own
+    settings file kept private (qBittorrent.conf holds its web password hash) stays so."""
+    try:
+        if path.is_file() and not path.is_symlink():
+            return mode & path.stat().st_mode & 0o777
+    except OSError:
+        pass
+    return mode
+
+
 def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
     """Write via a fresh temp file in the same folder (O_EXCL, so a planted link can't redirect it)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,6 +183,9 @@ class Backup:
         self.root = env.state / "liquid-glass/backup"
         self.manifest_path = self.root / "manifest.json"
         self.data: dict[str, dict] = {k: {} for k in self.SECTIONS}
+        # Stored originals put back, deleted at the next save() once the manifest no longer
+        # points at them: a Restore cut short (the app closed, the PC off) can run again.
+        self._used_copies: list[str] = []
         try:
             loaded = json.loads(self.manifest_path.read_text())
             if isinstance(loaded, dict):
@@ -185,6 +200,12 @@ class Backup:
         self.root.mkdir(parents=True, exist_ok=True)
         os.chmod(self.root, 0o700)
         atomic_write(self.manifest_path, json.dumps(self.data, indent=1).encode(), 0o600)
+        still = {e.get("copy") for e in self.data["files"].values()}
+        for copy in self._used_copies:
+            if copy not in still:
+                with contextlib.suppress(OSError):
+                    os.unlink(copy)
+        self._used_copies = []
 
     # ---- recording ----------------------------------------------------------
     def linked_folder(self, path: Path) -> Path | None:
@@ -489,6 +510,11 @@ class Backup:
         for key, e in list(self.data["commands"].items()):
             if not mine(e):
                 continue
+            if not self.env.which(e["undo"][0]):
+                # The app is gone (VS Code removed): nothing of ours is left to undo, and a
+                # record kept for it would count as "still applied" for ever.
+                del self.data["commands"][key]
+                continue
             r = self.env.run(e["undo"])
             if r.ok:
                 del self.data["commands"][key]
@@ -509,6 +535,10 @@ class Backup:
                 return None
             # Read the copy first, so a lost backup never costs the current file.
             original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
+            if e.get("edits") and e.get("wrote") and e["kind"] in ("file", "missing") and \
+                    p.is_file() and not p.is_symlink() and not self.is_ours(p, e):
+                # Another app's settings, changed since Apply: take only our keys out.
+                return self._unmerge_file(key, p, e, original)
             if p.is_symlink() or p.exists():
                 p.unlink()
             if e["kind"] == "symlink":
@@ -516,12 +546,29 @@ class Backup:
                 p.symlink_to(e["link"])
             elif original is not None:
                 atomic_write(p, original, e.get("mode", 0o644))
-                with contextlib.suppress(OSError):
-                    os.unlink(e["copy"])
+                self._used_copies.append(e["copy"])
             new_dirs.update(e.get("new_dirs", []))
             del self.data["files"][key]
         except OSError as err:
             return f"{p}: {err}"
+        return None
+
+    def _unmerge_file(self, key: str, p: Path, e: dict, original: bytes | None) -> str | None:
+        try:
+            current = p.read_text(encoding="utf-8")
+            before = original.decode("utf-8") if original is not None else None
+        except (OSError, UnicodeDecodeError):
+            current = before = None
+        out = unmerge(current, before, e["edits"]) if current is not None else None
+        if e.get("copy"):
+            self._used_copies.append(e["copy"])
+        del self.data["files"][key]
+        if out is None:
+            # Can't read it any more (VS Code allows comments): leave the user's file as
+            # it is rather than wipe what they changed since.
+            return f"{p}: changed since Apply and can't be read, so it was left as it is"
+        if out != current:
+            atomic_write(p, out.encode("utf-8"), p.stat().st_mode & 0o777)
         return None
 
     def _restore_folder(self, key: str, e: dict) -> str | None:
@@ -652,6 +699,7 @@ class Engine:
         d.mkdir(parents=True, exist_ok=True)
         with open(d / "lock", "w") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
+            self.env.forget_cache()     # extensions may have come or gone since last time
             try:
                 yield
             finally:
@@ -692,8 +740,12 @@ class Engine:
         """True while anything Fedora Glass changed is still in place."""
         return bool(Backup(self.env).targets_with_changes())
 
-    def apply(self, settings: Settings, only: set[str] | None = None) -> list[Result]:
+    def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False) -> list[Result]:
+        """`if_applied`: only while the look is applied, checked once the lock is held (the
+        dark/light watcher can wait on a Restore or `dnf remove` and must not re-apply after)."""
         with self._locked():
+            if if_applied and not self.is_applied():
+                return []
             return self._apply(settings, only)
 
     def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
@@ -783,9 +835,13 @@ class Engine:
                 backup.record_file(tid, a.path)
                 if not self.env.dry_run:
                     data = a.content.encode() if isinstance(a.content, str) else a.content
-                    atomic_write(a.path, data, a.mode)
+                    atomic_write(a.path, data, _kept_mode(a.path, a.mode))
                     if (rec := backup.data["files"].get(str(a.path))) is not None:
                         rec["wrote"] = hashlib.sha256(data).hexdigest()
+                        if a.edits:
+                            rec["edits"] = json.loads(json.dumps(a.edits))
+                        else:
+                            rec.pop("edits", None)
             elif isinstance(a, GSet):
                 if a.key not in self.env.gsettings_keys(a.schema, a.path):
                     if not a.optional:
@@ -793,7 +849,12 @@ class Engine:
                     continue
                 if not backup.record_gsetting(tid, self.env, a):
                     continue
-                r = self.env.gsettings_set(a.schema, a.key, a.value, a.path)
+                if self.env.gsettings_get(a.schema, a.key, a.path) == a.value:
+                    # Already so: setting it again would still tell every listener (Dash to
+                    # Panel rebuilds its panels for some keys) on each Apply and dark/light switch.
+                    r = RunResult(0, "", "")
+                else:
+                    r = self.env.gsettings_set(a.schema, a.key, a.value, a.path)
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
                 elif a.keep_user_change and not self.env.dry_run:

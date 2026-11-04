@@ -255,10 +255,22 @@ export class Windows {
         this.cfg = cfg;
         this._glass = new Map();
         this._signals = new Signals();
-        this._pending = new Signals();
+        this._pending = new Set();    // Signals waiting for a new window's first show
         this._signals.on(global.display, 'window-created', (_d, win) => {
-            // The actor exists once the window is shown for the first time.
-            this._pending.on(win, 'shown', () => this._add(win.get_compositor_private()));
+            // The actor exists once the window is shown for the first time. Only that
+            // first time: a handler kept for the window's whole life would pile up,
+            // one per window ever opened, until the glass is turned off.
+            const ids = new Signals();
+            const done = () => {
+                ids.clear();
+                this._pending.delete(ids);
+            };
+            ids.on(win, 'shown', () => {
+                done();
+                this._add(win.get_compositor_private());
+            });
+            ids.on(win, 'unmanaged', done);
+            this._pending.add(ids);
         });
         global.get_window_actors().forEach(a => this._add(a));
         // A window moved, raised or closed changes what the windows above it show.
@@ -293,6 +305,7 @@ export class Windows {
     destroy() {
         windowWatch.current?.listeners.delete(this._onWindows);
         this._signals.clear();
+        this._pending.forEach(p => p.clear());
         this._pending.clear();
         for (const g of [...this._glass.values()])
             g.destroy();

@@ -42,7 +42,7 @@ class FakeEngine:
     def is_applied(self):
         return True
 
-    def apply(self, s, only=None):
+    def apply(self, s, only=None, if_applied=False):
         self.applies += 1
 
 
