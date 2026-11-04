@@ -539,6 +539,17 @@ class Backup:
                     p.is_file() and not p.is_symlink() and not self.is_ours(p, e):
                 # Another app's settings, changed since Apply: take only our keys out.
                 return self._unmerge_file(key, p, e, original)
+            if e.get("wrote") and (p.exists() or p.is_symlink()) and \
+                    not self.is_ours(p, e) and not self._has_header(p):
+                # Something else replaced what we wrote since Apply (a theme installer
+                # writing its own gtk.css, a link to its folder): that is the user's look
+                # now, as at the next Apply (see record_file). Deleting it, or putting the
+                # older original over it, would lose it. A link planted in a shared folder
+                # (an Obsidian vault) is never followed into someone else's file either.
+                if e.get("copy"):
+                    self._used_copies.append(e["copy"])
+                del self.data["files"][key]
+                return None
             if p.is_symlink() or p.exists():
                 p.unlink()
             if e["kind"] == "symlink":

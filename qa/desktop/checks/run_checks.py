@@ -957,11 +957,92 @@ def check_lock(ctx: Ctx) -> Check:
     errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Fedora Glass errors while locking." if not errs else
           f"{len(errs)} Fedora Glass errors while locking, first: {errs[0][-160:]}")
+    theme_reloads_after_locks(ctx, c)
     sh.close_all()
     lgqa.kill_apps()
     lock_screens_change(ctx, c)
+    screen_unplugged(ctx, c)
     login_backdrop(ctx, c)
     return c
+
+
+def _theme_reloads(log: Path) -> int:
+    try:
+        return sum(1 for line in log.read_text(errors="replace").splitlines()
+                   if "loading user theme" in line or "loading default theme" in line)
+    except OSError:
+        return 0
+
+
+def theme_reloads_after_locks(ctx: Ctx, c: Check) -> None:
+    """GNOME's User Themes leaves one more listener behind at every lock, and each one
+    reloads the whole Shell theme when the theme name changes (Fedora Glass changes it
+    twice at every dark/light switch). After the three locks above, one change of the
+    name must reload the theme once."""
+    log = lgqa.OUT / "shell.log"
+    key = ["org.gnome.shell.extensions.user-theme", "name"]
+    name = lgqa.subprocess.run(["gsettings", "get", *key], env=lgqa.ENV, capture_output=True, text=True).stdout.strip()
+    if not name.strip("'"):
+        c.add(False, "User Themes has no theme name set, so the theme reloads could not be counted.")
+        return
+    n0 = _theme_reloads(log)
+    lgqa.subprocess.run(["gsettings", "set", *key, "''"], env=lgqa.ENV, check=False)
+    settle(2)
+    lgqa.subprocess.run(["gsettings", "set", *key, name], env=lgqa.ENV, check=False)
+    settle(3)
+    n = _theme_reloads(log) - n0
+    c.add(n <= 2, f"After three locks, two theme changes reload the Shell theme {n} times (one each)." if n <= 2 else
+          f"After three locks, two theme changes reload the Shell theme {n} times instead of 2: User Themes' "
+          "leftover listeners from each lock are back (every dark/light switch gets slower with each lock).")
+
+
+UNPLUG_PY = r"""
+import sys
+from gi.repository import Gio, GLib
+bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+def call(m, a=None, s=None):
+    return bus.call_sync("org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+                         "org.gnome.Mutter.DisplayConfig", m, a, s and GLib.VariantType(s), Gio.DBusCallFlags.NONE,
+                         10000, None).unpack()
+serial, monitors, _l, _p = call("GetCurrentState")
+keep = int(sys.argv[2])
+layout, x = [], 0
+for i, ((conn, *_), modes, _mp) in enumerate(sorted(monitors, key=lambda m: m[0][0])[:keep]):
+    mode = next((m for m in modes if m[6].get("is-current")), None) or \
+        next((m for m in modes if m[6].get("is-preferred")), modes[0])
+    scale = min(mode[5], key=lambda v: abs(v - float(sys.argv[1])))
+    layout.append((x, 0, scale, 0, i == 0, [(conn, mode[0], {})]))
+    x += round(mode[1] / scale)
+call("ApplyMonitorsConfig", GLib.Variant("(uua(iiduba(ssa{sv}))a{sv})", (serial, 1, layout, {})))
+"""
+
+PANEL_GLASS_JS = """(() => { let n = 0; const w = a => { if (a.constructor.name === 'LiquidGlassPane' && a.mapped
+  && a.name === 'liquid-glass-glass' && a.height < 200 && a.width > 400) n++; a.get_children().forEach(w); };
+  w(global.stage); return JSON.stringify({screens: global.display.get_n_monitors(),
+  panels: global.dashToPanel?.panels?.length ?? 0, glass: n}); })()"""
+
+
+def _screens(sh, keep: int) -> dict:
+    scale = os.environ.get("LGQA_SCALE", "1.25")
+    lgqa.subprocess.run(["python3", "-c", UNPLUG_PY, scale, str(keep)], env=lgqa.ENV, capture_output=True, timeout=30)
+    settle(4)
+    return sh.json(f"return JSON.parse({PANEL_GLASS_JS});")
+
+
+def screen_unplugged(ctx: Ctx, c: Check) -> None:
+    """The second screen unplugged (or switched off) and plugged back in: the panel
+    that stays keeps its glass (1.5.4 left it in Dash to Panel's old box, with none)."""
+    try:
+        one = _screens(ctx.sh, 1)
+        ok = one["screens"] == 1 and one["glass"] == one["panels"] >= 1
+        c.add(ok, "Second screen unplugged: the panel left keeps its glass." if ok else
+              f"Second screen unplugged: {one['glass']} of {one['panels']} panels have glass "
+              f"({one['screens']} screens).")
+    finally:
+        two = _screens(ctx.sh, 2)
+    ok = two["screens"] == 2 and two["glass"] == two["panels"] == 2
+    c.add(ok, "Plugged back in: both panels have glass." if ok else
+          f"Plugged back in: {two['glass']} of {two['panels']} panels have glass ({two['screens']} screens).")
 
 
 LOCK_SHEETS_JS = """
