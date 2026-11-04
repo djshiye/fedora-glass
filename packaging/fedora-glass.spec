@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.0
+Version:        1.5.1
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -184,6 +184,12 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.1-1
+- Glass you can see through: less blur on Balanced menus, a stronger bend at the edge, and smoked dark glass that reads as a pane over dark wallpapers
+- A thin iOS-style rim instead of the hard white line along the panel
+- Smoother on fast screens: automatic glass quality no longer steps down on 120 and 144 Hz screens, and each frame redraws less
+- Glass on the login screen now works on Fedora (GNOME 50 has no gdm.css)
+- Terminal colours: prompt segments (starship, powerline) are readable again
 * Tue Nov 03 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.0-1
 - Liquid Glass is now Fedora Glass: the app, the Shell extension and the themes it adds to other apps
 - The package is now fedora-glass; dnf upgrade moves to it by itself and keeps your settings

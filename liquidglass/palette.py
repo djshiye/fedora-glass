@@ -147,6 +147,16 @@ def _lens(s: Settings, f: float, refraction: float, bleed: float, reflections: f
     }
 
 
+def frost_blur(f: float) -> int:
+    """Blur behind the glass, px, for a frost of 0..1. It rises slowly at first, so the
+    middle of the range is Apple's glass: the backdrop still shows through, softened, and
+    the lens at its edge can be seen bending it (1.5.0 gave Balanced 30 px, which left
+    only a smooth gradient: glass that read as a flat dark box). The frosted end stays
+    heavy."""
+    f = min(1.0, max(0.0, f))
+    return round(lerp(4, 48, f * f))
+
+
 def _part_look(s: Settings, dark: bool, part: str) -> dict:
     """Everything one part of the desktop needs: its surfaces (tint, strength and frost
     applied), corner radius, blur and lens. A key the part doesn't override follows the global one."""
@@ -159,7 +169,7 @@ def _part_look(s: Settings, dark: bool, part: str) -> dict:
     elif s.blur is not None and "frost" not in o:
         blur = s.blur             # the Blur fine-tune covers every part that doesn't set its own frost
     else:
-        blur = round(lerp(8, 56, f))
+        blur = frost_blur(f)
     out.update(tint=tint.with_alpha(0.0), frost=f, radius=o.get("radius", s.radius), blur=int(blur))
     out.update(_lens(s, f, o.get("refraction", s.refraction), o.get("bleed", s.bleed),
                      o.get("reflections", s.highlight)))
@@ -209,7 +219,7 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
     panel, menus, wins = parts["panel"], parts["quicksettings"], parts["windows"]
     lens = _lens(s, f, s.refraction, s.bleed, s.highlight)
 
-    blur = s.blur if s.blur is not None else round(lerp(8, 56, f))
+    blur = s.blur if s.blur is not None else frost_blur(f)
     if s.reduce_transparency:
         blur = 0
 

@@ -34,7 +34,12 @@ def test_palette_is_legible(dark, frost):
     assert p.fg.contrast(p.bg) >= 7
     for i in (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15):
         assert p.ansi[i].contrast(p.bg) >= 4.5, i
-    assert p.ansi[8].contrast(p.bg) >= 4.0
+    if dark:
+        # Bright black is both dim text and the background of prompt segments.
+        assert p.ansi[8].contrast(p.bg) >= 2.8
+        assert p.fg.contrast(p.ansi[8]) >= 4.5 and p.ansi[7].contrast(p.ansi[8]) >= 3.0
+    else:
+        assert p.ansi[8].contrast(p.bg) >= 4.0
     assert len({c.hex6 for c in p.ansi}) == 16
 
 

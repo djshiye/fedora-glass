@@ -384,7 +384,11 @@ def test_glass_config_has_parts_and_bleed():
     assert cfg["parts"]["panel"]["tint"][:3] == pytest.approx([0x10 / 255, 0x20 / 255, 0x30 / 255])
     for k in ("blur", "refraction", "bend", "bleed", "highlight"):
         assert k in cfg["parts"]["arcmenu"]["look"]
-    assert cfg["menus"]["look"]["brightness"] < 1 and "panel" in cfg and "overview" in cfg
+    # Dark glass is smoked, not darkened: a grey of its own, under a brightness ceiling.
+    m = cfg["menus"]["look"]
+    assert m["brightness"] == 1 and m["haze"] > 0 and m["ceiling"] > 0 and "panel" in cfg and "overview" in cfg
+    light = rg.config(s, palette.build(s, dark=False))["menus"]["look"]
+    assert "haze" not in light
 
 
 def test_veil_is_light_and_text_stays_readable():
@@ -395,8 +399,9 @@ def test_veil_is_light_and_text_stays_readable():
             t = palette.build(Settings(frost=f), dark=dark)
             assert t.glass_menu_edges and t.glass_panel_edges
             surf = rs.surfaces(t)
-            assert surf["popover"].a == pytest.approx(rs.veil(t, "menu"), abs=1e-6)
-            assert surf["chrome"].a == pytest.approx(rs.veil(t, "panel"), abs=1e-6)
+            menus, bar = t.parts["quicksettings"], t.parts["panel"]
+            assert surf["popover"].a == pytest.approx(rs.veil(t, "menu", menus["frost"], menus["blur"]), abs=1e-6)
+            assert surf["chrome"].a == pytest.approx(rs.veil(t, "panel", bar["frost"], bar["blur"]), abs=1e-6)
             assert surf["popover"].a <= 0.62 and surf["chrome"].a <= 0.45
             b = rg._brightness(t, f)
             assert (b < 1) if dark else (b >= 1)

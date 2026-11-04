@@ -23,13 +23,22 @@ GDM = "#lockDialogGroup { background-color: #222226; }\n"
 OTHER = b"<svg xmlns='http://www.w3.org/2000/svg'/>"
 
 
-def make_theme(path: Path, gdm: str = GDM) -> None:
+DARK = ".login-dialog { color: #ffffff; }\n#lockDialogGroup { background-color: #222226; }\n"
+LIGHT = ".login-dialog { color: #000000; }\n"
+
+
+def make_theme(path: Path, gdm: str | None = GDM) -> None:
+    """A theme file like Ubuntu's (with gdm.css), or like upstream GNOME 49+ and Fedora
+    (gdm=None: the login screen reads gnome-shell-dark.css or -light.css)."""
     src = path.parent / "src"
     (src / "org/gnome/shell/theme").mkdir(parents=True, exist_ok=True)
-    (src / "org/gnome/shell/theme/gdm.css").write_text(gdm)
+    css = {"gdm.css": gdm} if gdm is not None else {"gnome-shell-dark.css": DARK, "gnome-shell-light.css": LIGHT}
+    for name, text in css.items():
+        (src / "org/gnome/shell/theme" / name).write_text(text)
     (src / "org/gnome/shell/theme/icon.svg").write_bytes(OTHER)
     xml = src / "t.xml"
-    xml.write_text('<gresources><gresource prefix="/"><file>org/gnome/shell/theme/gdm.css</file>'
+    files = "".join(f"<file>org/gnome/shell/theme/{n}</file>" for n in css)
+    xml.write_text(f'<gresources><gresource prefix="/">{files}'
                    '<file compressed="true">org/gnome/shell/theme/icon.svg</file></gresource></gresources>')
     subprocess.run(["glib-compile-resources", f"--sourcedir={src}", f"--target={path}", str(xml)], check=True)
 
@@ -162,3 +171,46 @@ def test_state_file_holds_only_hashes(dirs):
     s = json.loads(Path(state, ls.STATE).read_text())
     assert set(s) == {"original", "written", "target"}
     assert all(len(s[k]) == 64 for k in ("original", "written"))
+
+
+@needs_tools
+def test_fedora_theme_without_gdm_css_gets_glass_in_its_dark_and_light_sheets(tmp_path):
+    """GNOME 49+ (Fedora 44) dropped gdm.css: 1.5.0 said "the theme file has no gdm.css"."""
+    shell, state = tmp_path / "gnome-shell", tmp_path / "state"
+    shell.mkdir()
+    make_theme(shell / "gnome-shell-theme.gresource", gdm=None)
+    shell, state = str(shell), str(state)
+    path = ls.target(shell)
+    before = Path(path).read_bytes()
+    ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    assert ls.status(shell, state) == "on"
+    for name, orig in (("gnome-shell-dark.css", DARK), ("gnome-shell-light.css", LIGHT)):
+        text = ls.extract(path, f"/org/gnome/shell/theme/{name}").decode()
+        assert text.startswith(orig) and text.count(ls.MARK_START) == 1
+        block = text[len(orig):]
+        # The desktop reads these sheets too: every rule only matches the login screen.
+        assert "#lockDialogGroup" not in block
+        for sel in __import__("re").findall(r"([^{}]+)\{", block.split(ls.MARK_START, 1)[1]):
+            assert all(".login-dialog" in part for part in sel.split(",")), sel
+    assert ls.extract(path, "/org/gnome/shell/theme/icon.svg") == OTHER
+    ls.apply("#e62d42", "#203050", 1, shell, state)       # again: still one block
+    assert ls.extract(path, "/org/gnome/shell/theme/gnome-shell-dark.css").decode().count(ls.MARK_START) == 1
+    assert ls.undo(shell, state) == "the normal login screen is back"
+    assert Path(path).read_bytes() == before
+
+
+@needs_tools
+def test_a_theme_file_with_no_login_sheet_changes_nothing(tmp_path):
+    shell = tmp_path / "gnome-shell"
+    shell.mkdir()
+    src = tmp_path / "src" / "org/gnome/shell/theme"
+    src.mkdir(parents=True)
+    (src / "pad-osd.css").write_text("x {}\n")
+    xml = tmp_path / "src" / "t.xml"
+    xml.write_text('<gresources><gresource prefix="/"><file>org/gnome/shell/theme/pad-osd.css</file></gresource></gresources>')
+    subprocess.run(["glib-compile-resources", f"--sourcedir={tmp_path / 'src'}",
+                    f"--target={shell / 'gnome-shell-theme.gresource'}", str(xml)], check=True)
+    before = (shell / "gnome-shell-theme.gresource").read_bytes()
+    with pytest.raises(ls.LoginScreenError, match="no style sheet for the login screen"):
+        ls.apply("#3584e4", "#6a3fb5", 0.4, str(shell), str(tmp_path / "state"))
+    assert (shell / "gnome-shell-theme.gresource").read_bytes() == before

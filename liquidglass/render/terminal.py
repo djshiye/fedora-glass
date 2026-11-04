@@ -64,6 +64,22 @@ def ensure_contrast(c: Color, bg: Color, ratio: float) -> Color:
     return c
 
 
+def _chip_grey(bg: Color, fg: Color, white: Color) -> Color:
+    """Bright black on dark glass. Prompts such as starship and powerline use it as the
+    background of their segments, with normal and white text on it; it is also dim text
+    (comments, suggestions) on the terminal's own background. A grey between the two:
+    the lightest one that still carries normal text at 4.5:1 and white at 3:1, and never
+    below 2.8:1 on the background. 1.5.0 used a mid grey for dim text only (4.3:1), so
+    the text inside segments read at about 2:1."""
+    best, score = fg.mix(bg, 0.6), -1.0
+    for i in range(101):
+        c = fg.mix(bg, 0.40 + 0.005 * i)
+        s = min(fg.contrast(c) / 4.5, white.contrast(c) / 3.0, c.contrast(bg) / 2.8)
+        if s > score:
+            best, score = c, s
+    return best
+
+
 def _hue_of(c: Color) -> float:
     return colorsys.rgb_to_hls(c.r, c.g, c.b)[0]
 
@@ -93,8 +109,8 @@ def derive(t: Tokens) -> TermPalette:
 
     if dark:
         ansi[0] = ensure_contrast(bg.mix(fg, 0.20), bg, 2.4)
-        ansi[7] = fg.mix(bg, 0.18)
-        ansi[8] = ensure_contrast(fg.mix(bg, 0.52), bg, 4.2)
+        ansi[7] = fg.mix(bg, 0.12)
+        ansi[8] = _chip_grey(bg, fg, ansi[7])
         ansi[15] = fg
     else:
         ansi[0] = fg.mix(bg, 0.10)

@@ -67,6 +67,9 @@ def _milk(t: Tokens, name: str) -> dict:
 
 # Frost per part: a thin bar shows the lens best with a light blur, menus hold
 # text and want more.
+# Grey smoke in dark glass (Glisse's dark glass is 40 grey at 62 %, ours adds the
+# theme's light veil on top), so over a black wallpaper the glass reads as a pane.
+DARK_HAZE = 0.45
 CONTACT_SHADOW = {"panel": 0.2, "arcmenu": 0.28, "quicksettings": 0.28, "calendar": 0.28}
 FROST_SCALE = {"panel": 0.35, "arcmenu": 1.2, "quicksettings": 1.2, "calendar": 1.2, "overview": 1.0}
 
@@ -107,8 +110,13 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
         # bright things it darkens itself, in their own colour, up to this ceiling.
         if t.dark:
             look["ceiling"] = CLEAR_CEILING if shell.clarity(p["blur"]) > 0 else VEILED_CEILING
+            # Smoked glass: a grey of its own, so over a black wallpaper it still
+            # reads as a pane, with what is behind showing through it.
+            look["haze"] = DARK_HAZE
     if veiled:
-        look["brightness"] = _brightness(t, p["frost"])
+        # Dark glass is smoked instead of darkened (DARK_HAZE); the ceiling keeps
+        # white text readable over bright backdrops.
+        look["brightness"] = 1.0 if t.dark else _brightness(t, p["frost"])
         # Darkening dulls colour, so glass under a veil is a little more vivid.
         look["saturation"] = round(min(3.0, t.vibrancy * 1.3), 3)
     c = p["tint"]
@@ -185,7 +193,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
-                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim", "ceiling") if k in menus_look},
+                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim", "ceiling", "haze") if k in menus_look},
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
