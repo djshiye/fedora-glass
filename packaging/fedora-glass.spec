@@ -196,6 +196,13 @@ fi
 %changelog
 * Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.3-1
 - Login screen: the same glass on every screen, with no spotlight on the main one, and a brighter glass card
+- Two quick restarts no longer switch the glass off (a clean restart was counted as a crash)
+- Turning off only the glass effects no longer turns ArcMenu red or leaves the glass extension behind
+- The lock screen glass follows screen changes while locked
+- Alt+Tab and the volume pop-up show the glass again with Just Perfection's theme on; gedit's title bar has round corners
+- Restore original now puts every setting back exactly, and a new Remove Fedora Glass button removes it cleanly
+- dnf remove puts your original look back (can be turned off)
+- Settings survive one damaged value, and High Contrast stays solid while you change sliders
 * Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.2-1
 - Claude Desktop and other apps that maximize as they open are no longer invisible until minimized
 - The Wired and Wi-Fi menus in Quick Settings open right under their toggle again
