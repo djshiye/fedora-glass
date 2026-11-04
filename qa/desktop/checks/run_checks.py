@@ -149,8 +149,17 @@ def against_reference(ctx: Ctx, chk: Check, name: str, label: str, now: np.ndarr
     if not ref_p.exists():
         return chk.add(False, f"{label}: there is no reference picture yet (run with --update-references once).",
                        picture(name, now))
-    ref = lgqa.load(ref_p)
-    d = lgqa.compare(now, ref, ignore, lim["pixel_threshold"])
+    # GNOME lays some menus out a pixel or two differently from one session to the next
+    # (Quick Settings at 125 %). Such a menu keeps one checked-in picture per layout
+    # (name.alt.png); the closest one counts, and each is a picture of correct glass.
+    best = None
+    for p in (ref_p, REFS / f"{name}.alt.png"):
+        if p.exists():
+            r = lgqa.load(p)
+            dd = lgqa.compare(now, r, ignore, lim["pixel_threshold"])
+            if best is None or dd.blob < best[1].blob:
+                best = (r, dd)
+    ref, d = best
     img = triptych(name, ref, now, d.image)
     problems = []
     if d.mean_l > lim["max_mean_brightness_change"]:
