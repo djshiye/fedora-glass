@@ -224,7 +224,8 @@ def test_a_theme_file_with_no_login_sheet_changes_nothing(tmp_path):
 
 
 def test_every_screen_gets_the_glass_backdrop_not_only_the_main_one():
-    """1.5.1 on Fedora: the glow was on the login dialog, which only fills the main screen."""
+    """1.5.1 on Fedora: the glow was on the login dialog, which only fills the main screen.
+    1.5.2 then lit only the main screen with a spotlight; every screen must look the same."""
     for shared in (False, True):
         block = ls.css("#3584e4", "#6a3fb5", 0.4, shared=shared)
         # #lockDialogGroup spans every screen: a top-to-bottom tint looks the same on each
@@ -232,5 +233,8 @@ def test_every_screen_gets_the_glass_backdrop_not_only_the_main_one():
         group = block.split("#lockDialogGroup {", 1)[1].split("}", 1)[0]
         assert "background-gradient-direction: vertical" in group
         assert "radial" not in group
+        # The login dialog (main screen only) draws nothing of its own: no spotlight.
+        assert "radial" not in block
         dialog = block.split(".login-dialog {", 1)[1].split("}", 1)[0]
-        assert "background-gradient-direction: radial" in dialog
+        assert "background-color: transparent" in dialog
+        assert "background-gradient-direction: none" in dialog
