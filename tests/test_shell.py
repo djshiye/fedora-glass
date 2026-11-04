@@ -94,6 +94,40 @@ def test_extension_rules_outrank_extension_stylesheets():
     assert "\n.popup-menu-content, .candidate-popup-content {" in css
 
 
+@pytest.mark.parametrize("frost,dark", GRID)
+def test_extension_stylesheet_carries_the_popup_rules_behind_ui_group(frost, dark):
+    """GNOME ranks extension stylesheets above the Shell theme, so Just Perfection's theme
+    painted Alt+Tab and the volume pop-up near-black over the glass (1.5.2). The glass
+    extension's own stylesheet repeats those rules, where #uiGroup outranks it."""
+    t = tokens(frost, dark)
+    css = rs.render_extension_css(t)
+    assert css.count("{") == css.count("}") > 5
+    assert "$" not in css
+    rules = re.findall(r"([^{}]+)\{", re.sub(r"/\*.*?\*/", "", css, flags=re.S))
+    sels = [s.strip() for r in rules for s in r.split(",")]
+    assert sels and all(s.startswith("#uiGroup ") for s in sels), sels
+    for sel in ("#uiGroup .switcher-list", "#uiGroup .osd-window", "#uiGroup .switcher-list .item-box:selected"):
+        assert sel in sels
+    # The same fill as the theme gives them (thin, so the glass shows).
+    theme = rs.render_css(t)
+    fill = re.search(r"\n\.switcher-list \{[^}]*background-color: ([^;]+);", theme).group(1)
+    assert f"background-color: {fill};" in css
+
+
+def test_glass_target_sends_the_popup_stylesheet_in_the_config(fake_env):
+    """The pop-up rules go in shell-glass.json, never as the extension's stylesheet.css:
+    GNOME re-reads that file whenever the theme reloads, so Restore original deleting it
+    left the Shell logging errors."""
+    acts = ts.GlassEffects().plan(context(fake_env))
+    d = fake_env.data / "gnome-shell/extensions" / rg.UUID
+    writes = {a.path: a.content for a in acts if isinstance(a, WriteFile)}
+    assert d / "stylesheet.css" not in writes
+    assert "popupstyle.js" in {p.name for p in writes}
+    cfg = json.loads(writes[ts.GlassEffects().config_path(fake_env)])
+    assert "#uiGroup .switcher-list" in cfg["popupCss"]
+    assert len(cfg["popupCss"].encode()) < 16 * 1024   # popupstyle.js refuses anything bigger
+
+
 def test_frost_changes_the_css():
     assert rs.render_css(tokens(0, True)) != rs.render_css(tokens(1, True))
     assert rs.render_css(tokens(0.5, True)) != rs.render_css(tokens(0.5, False))

@@ -16,6 +16,7 @@ import {ArcMenuRescue} from './arcrescue.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
+import {PopupStyle} from './popupstyle.js';
 import {Safety, guarded} from './safety.js';
 import {Speed} from './speed.js';
 import {GlassManager} from './surfaces.js';
@@ -33,6 +34,7 @@ export default class LiquidGlassExtension extends Extension {
             this._desktop?.update(cfg);
             this._lock?.update(cfg);
             this._animations?.update(cfg);
+            this._popupStyle?.update(cfg);
         }));
         this._modeId = Main.sessionMode.connect('updated', () => this._sync());
         this._sync();
@@ -101,10 +103,24 @@ export default class LiquidGlassExtension extends Extension {
             logError(e, 'Fedora Glass: starting the glass');
             this._stopGlass();
             this._safety?.startFailed();
+            return;
+        }
+        // Only with the glass: without it these see-through pop-ups would have nothing behind them.
+        try {
+            this._popupStyle = new PopupStyle(cfg);
+        } catch (e) {
+            console.error(`Fedora Glass: no pop-up styles: ${e}`);
+            this._popupStyle = null;
         }
     }
 
     _stopGlass() {
+        try {
+            this._popupStyle?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the pop-up styles');
+        }
+        this._popupStyle = null;
         // Animations first, so windows and icons mid-animation land at once and
         // GNOME's own window animations are back.
         try {

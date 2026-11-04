@@ -11,6 +11,7 @@ const STUBS = {
         timeout_add_seconds: (_p, s, fn) => globalThis.fake.timeouts.add(s * 1000, fn),
         get_user_cache_dir: () => '/home/u/.cache',
         get_user_config_dir: () => '/home/u/.config',
+        get_user_runtime_dir: () => '/run/user/1000',
         build_filenamev: parts => parts.join('/'),
         mkdir_with_parents: () => 0,
         FileSetContentsFlags: {CONSISTENT: 1},
@@ -44,6 +45,15 @@ const STUBS = {
                 return {get_file_type: () => 1, get_size: () => f.text.length};
             }
             load_contents() { return [true, new TextEncoder().encode(fs().get(this.path).text)]; }
+            replace_contents(bytes, _etag, _backup, flags) {
+                fs().set(this.path, {text: new TextDecoder().decode(bytes), flags});
+                return [true, null];
+            }
+            delete() {
+                if (!fs().delete(this.path)) throw new Error('No such file');
+                return true;
+            }
+            equal(other) { return other?.path === this.path; }
             monitor_directory() {
                 const m = {handlers: [], connect(_s, fn) { this.handlers.push(fn); return this.handlers.length; },
                     disconnect() { this.handlers = []; }, cancel() { this.cancelled = true; }};
@@ -54,9 +64,11 @@ const STUBS = {
         export default {
             File: {new_for_path: p => new File(p)},
             FileQueryInfoFlags: {NOFOLLOW_SYMLINKS: 1}, FileType: {REGULAR: 1}, FileMonitorFlags: {WATCH_MOVES: 8},
+            FileCreateFlags: {PRIVATE: 1, REPLACE_DESTINATION: 2},
         };`,
     'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},
         Settings: {get: () => globalThis.fake.stSettings},
+        ThemeContext: {get_for_stage: () => globalThis.fake.themeContext},
         Widget: globalThis.fake?.Widget ?? class {}};`,
     'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;

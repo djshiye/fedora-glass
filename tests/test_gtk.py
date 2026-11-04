@@ -112,6 +112,14 @@ def test_gtk3_renders(dark, frost):
     assert "var(" not in css and "color-mix" not in css and "@media" not in css
 
 
+def test_gtk3_inner_header_bars_leave_the_rounded_corners_to_the_title_bar():
+    """gedit's title bar holds two header bars; each painted its own square glass over the
+    window's rounded corners (1.5.2)."""
+    css = gtk3.render(toks(True, 0.5))
+    m = re.search(r"\.titlebar headerbar:not\(\.selection-mode\), \.titlebar \.titlebar:not\(\.selection-mode\) \{([^}]*)\}", css)
+    assert m and "background-color: transparent" in m.group(1)
+
+
 @pytest.mark.parametrize("dark", (True, False))
 def test_gtk3_named_colours_are_all_defined(dark):
     css = gtk3.render(toks(dark, 0.4))

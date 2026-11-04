@@ -12,7 +12,7 @@ A release is only built when all of them pass (`.github/workflows/release.yml` w
   (`dino-settings.ini`, layout keys only): Extension List, ArcMenu, Dash to Panel,
   AppIndicator, Blur my Shell, Just Perfection, Deja Window, then Fedora Glass
 - The overview off and "start on the desktop", as Dino uses it
-- Apps: Ptyxis (terminal), Files, and an **Electron** window (like Claude Desktop) on
+- Apps: Ptyxis (terminal), Files, gedit (GTK 3), and an **Electron** window (like Claude Desktop) on
   Wayland and on XWayland
 - Fedora Glass is applied the way an update does it: Apply, then a fresh login
 
@@ -34,6 +34,7 @@ quality (which steps down when frames are late) is not exercised here.
 | Light on the processor | Waits for the desktop to settle, then: almost no redraws while nothing moves, and no redraws of glass that a streaming app (like Claude writing) does not touch. Processor use and frame rates are shown for information | redraw loops |
 | Extensions come back after restarts | Switches each extension off and on in Dino's order | 1.4.2 ArcMenu red |
 | Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3. After Restore original, every setting must be what it was before the first Apply, the same extensions switched on, and no Fedora Glass file left in the home folder; then only "Fedora Glass effects" turned off and Apply, and back on | 1.4.3 ArcMenu red after Restore; a Restore that leaves something behind; 1.5.2 ArcMenu red and the glass left on GNOME's list after turning the effects off |
+| Pop-ups and title bars show the glass | The volume pop-up and Alt+Tab (with an app's window previews) under Just Perfection's theme; gedit's title bar corners | 1.5.2: Alt+Tab and the volume pop-up near-black with Just Perfection's theme on; square grey corners behind gedit's title bar |
 | Locking the screen works | Lock screen and password screen against references, unlock, three times; then the screens change scale while locked; the login screen's glass must look the same on every screen | 1.5.2 left part of a screen without lock glass after a screen change; 1.5.2 lit only the main login screen |
 | Quick restarts keep the glass on | Before the test login the PC restarts twice within seconds of logging in; safe mode must stay off and the glass must draw | 1.5.2 counted a clean restart as a crash and switched the glass off |
 | No errors from Fedora Glass | Apply output and GNOME Shell's log | |
