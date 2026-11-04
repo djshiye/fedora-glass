@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.3
+Version:        1.5.4
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,14 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.4-1
+- Much smoother with the pointer near the panel or a menu: only the light on the rim is redrawn, not all of the glass
+- Taskbar icons keep their hover lift when a window opens or closes, and the panel glass no longer blinks when another extension restarts
+- Restore original keeps settings you changed in other apps after Apply (VS Code, qBittorrent, btop and others)
+- Apply never makes a private settings file readable by other users
+- A Restore that was cut short can run again, and Restore sticks for apps removed since Apply
+- Restore clicked right after Apply works; turning off terminal colours gives Ptyxis its own palette back
+- Apply is quicker and no longer rewrites settings that are already right
 * Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.3-1
 - Login screen: the same glass on every screen, with no spotlight on the main one, and a brighter glass card
 - Two quick restarts no longer switch the glass off (a clean restart was counted as a crash)
