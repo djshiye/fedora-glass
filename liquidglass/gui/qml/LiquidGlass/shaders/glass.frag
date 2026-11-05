@@ -77,6 +77,17 @@ float rimLine(float inside, vec2 n) {
     return line * 0.42 + edge * 0.12;
 }
 
+// The glint, as in glass.js: a light caught on the curve of the edge, a few px in,
+// bright at the corner towards the light and (at 45 %) the one across from it,
+// almost nothing along straight sides. 0..1.
+float glint(float inside, vec2 n, float w) {
+    float d = dot(n, LIGHT);
+    float corner = smoothstep(0.15, 0.85, 1.0 - abs(abs(n.x) - abs(n.y)));
+    float lobe = (pow(max(d, 0.0), 8.0) + 0.45 * pow(max(-d, 0.0), 8.0)) * mix(0.3, 1.0, corner);
+    float u = (inside - w) / (0.5 * w);
+    return lobe * exp(-u * u) * smoothstep(0.2, 1.0, inside);
+}
+
 vec4 at(vec2 p) {
     return texture(source, (p + vec2(pad)) / (size + vec2(2.0 * pad)));
 }
@@ -231,6 +242,9 @@ void main() {
         float xc = bev > 0.0 ? clamp(1.0 - inside / min(bev, 18.0), 0.0, 1.0) : 0.0;
         col.rgb = min(caustic(col.rgb / max(col.a, 1e-3), n, xc, c) * col.a, vec3(col.a));
         col = over(col, tint, 1.0);
+        // The calm sheen on the side of the top that faces the light, as in glass.js.
+        if (rim.a > 0.0)
+            col.rgb = min(col.rgb + vec3(0.07 * min(1.0, 0.45 + 1.1 * rim.a) * smoothstep(-0.4, 1.1, dot(p / c, LIGHT))) * col.a, vec3(col.a));
     }
     if (mode > 0.5 && mode < 1.5) {
         col.rgb += vec3(grain(px0) / 255.0) * col.a;
@@ -272,16 +286,21 @@ void main() {
         lc = mix(e.rgb / max(e.a, 1e-3), vec3(1.0), 0.8);
     }
     vec3 b = mode > 1.5 ? glow(px0, n, inside, bev, F, crest) : vec3(0.0);
+    float gw = clamp(0.008 * shortSide, 1.8, 3.5);
+    float gl = hl > 0.0 && inside < 2.2 * gw ? min(1.0, glint(inside, n, gw) * 0.85 * min(1.0, 0.45 + 1.1 * hl)) : 0.0;
     if (mode > 1.5) {
         // Over the content: the reflection and the line blend in, the bleed adds light.
         vec3 c2 = min(seen * a, vec3(1.0));
         float a2 = a + (1.0 - a) * ln;
         c2 = c2 * (1.0 - ln) + lc * ln;
+        c2 = c2 * (1.0 - gl) + vec3(gl);
+        a2 = a2 + (1.0 - a2) * gl;
         fragColor = vec4(c2 + b, a2) * cov * qt_Opacity;
         return;
     }
     col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
     col.rgb = mix(col.rgb, lc * col.a, ln);
+    col.rgb += (vec3(col.a) - col.rgb) * gl;
     col.rgb += vec3(grain(px0) / 255.0) * col.a;
     fragColor = col * cov * qt_Opacity;
 }
