@@ -132,7 +132,7 @@ class Target:
     # False when the output already covers dark and light by itself, so the
     # dark/light watcher can skip it.
     scheme_dependent: bool = True
-    # True for Shell parts (Shell theme, Dash to Panel, ArcMenu) whose look only works
+    # True for Shell parts (Shell theme, Dash to Panel, ArcMenu, Spawn) whose look only works
     # with the glass behind it. They wait until the glass extension runs.
     waits_for_glass: bool = False
 

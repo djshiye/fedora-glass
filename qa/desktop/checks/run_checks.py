@@ -46,8 +46,10 @@ NAMES = {
     "dash-to-panel@jderose9.github.com": "Dash to Panel", "appindicatorsupport@rgcjonas.gmail.com": "AppIndicator",
     "blur-my-shell@aunetx": "Blur my Shell", "just-perfection-desktop@just-perfection": "Just Perfection",
     "deja-window@mcast.gnomext.com": "Deja Window", "user-theme@gnome-shell-extensions.gcampax.github.com": "User Themes",
-    LG: "Fedora Glass",
+    LG: "Fedora Glass", "spawn@djshiye.github.io": "Spawn",
 }
+SPAWN = "spawn@djshiye.github.io"
+ARCMENU_UUID = "arcmenu@arcmenu.com"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1307,6 +1309,16 @@ def schema_defaults() -> dict[str, str]:
     return out
 
 
+def same_value(a: str | None, b: str | None) -> bool:
+    if a == b:
+        return True
+    try:        # 0.40000000000000002 and 0.4, @as [] and []: the same value printed two ways
+        from gi.repository import GLib
+        return GLib.Variant.parse(None, a, None, None).equal(GLib.Variant.parse(None, b, None, None))
+    except Exception:
+        return False
+
+
 def back_as_before(c: Check) -> None:
     """After Restore original, Dino's settings are what they were before the first Apply,
     and no Fedora Glass file is left in the home folder."""
@@ -1319,14 +1331,7 @@ def back_as_before(c: Check) -> None:
                                          text=True, timeout=30).stdout)
     defaults = schema_defaults()
 
-    def same(a: str | None, b: str | None) -> bool:
-        if a == b:
-            return True
-        try:        # 0.40000000000000002 and 0.4, @as [] and []: the same value printed two ways
-            from gi.repository import GLib
-            return GLib.Variant.parse(None, a, None, None).equal(GLib.Variant.parse(None, b, None, None))
-        except Exception:
-            return False
+    same = same_value
 
     # A key that is not set has its default value: compare what GNOME and the apps see.
     changed, pinned = [], []
@@ -1654,9 +1659,218 @@ def check_upgrade(ctx: Ctx) -> Check:
     return c
 
 
+# ---------------------------------------------------------------------------------------------
+# 9. Spawn (the other start menu)
+# ---------------------------------------------------------------------------------------------
+# Dino's PC runs ArcMenu, so the test desktop does too; this check switches to Spawn the way a
+# person does (ArcMenu off, Spawn on) and back at the end, so it runs last.
+SPAWN_KEYS = "/org/gnome/shell/extensions/spawn/"
+# The glass parts of the popups that sit inside Spawn's menu: which look Fedora Glass gave each.
+SPAWN_PARTS_JS = """const ext = Main.extensionManager.lookup('%s')?.stateObj;
+ const pops = ext?._manager?._parts?.find(p => p.constructor.name === 'Popups');
+ if (!pops?._followers) return null;
+ const parts = [];
+ for (const [surface, f] of pops._followers) {
+   let a = surface; while (a && !a.has_style_class_name?.('spawn-menu-popup')) a = a.get_parent();
+   if (a) parts.push(f.part); }
+ return parts;""" % LG
+# Spawn's menu is a PopupMenu: the box pointer carries `spawn-menu-popup`, its content is the surface.
+SPAWN_SURFACE_JS = """(() => { let bp = null; const w = b => { if (!bp && b.mapped && b.has_style_class_name?.('spawn-menu-popup')) bp = b;
+ b.get_children().forEach(w); }; w(Main.layoutManager.uiGroup); return bp?.bin?.get_child() ?? bp; })()"""
+
+
+def spawn_keys() -> dict[str, str]:
+    dump = lgqa.subprocess.run(["dconf", "dump", "/"], env=lgqa.ENV, capture_output=True, text=True, timeout=30).stdout
+    return {k: v for k, v in dconf_keys(dump).items() if k.startswith(SPAWN_KEYS)}
+
+
+def spawn_toggle(ctx: Ctx) -> None:
+    """What the Super key and a click on the panel button do: D-Bus Toggle on Spawn's public interface."""
+    ctx.sh.bus.call_sync("io.github.djshiye.Spawn", "/io/github/djshiye/Spawn", "io.github.djshiye.Spawn", "Toggle",
+                         None, None, lgqa.Gio.DBusCallFlags.NONE, 8000, None)
+
+
+def spawn_popup_boxes(ctx: Ctx) -> list:
+    return actor_boxes(ctx, "spawn-menu-popup")
+
+
+def spawn_wait_popup(ctx: Ctx, shown: bool, seconds: float = 8) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if bool(spawn_popup_boxes(ctx)) == shown:
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def spawn_bad(ctx: Ctx, expected: list[str], glass: bool = True) -> list[str]:
+    """What is wrong with the desktop: an extension that is not running (an error shows as such), no panel, no glass."""
+    h = health(ctx, expected)
+    bad = [NAMES.get(u, u) + (" is in an error state" if h[u] == 3 else " is not running") for u in expected if h[u] != 1]
+    if not h["panels"]:
+        bad.append("Dash to Panel has no panel")
+    if glass and not h["panes"]:
+        bad.append("Fedora Glass draws no glass")
+    return bad
+
+
+def spawn_wait_ok(ctx: Ctx, expected: list[str], seconds: float, glass: bool = True) -> tuple[list[str], float]:
+    t0, bad = time.monotonic(), ["not checked"]
+    while time.monotonic() - t0 < seconds:
+        time.sleep(1)
+        bad = spawn_bad(ctx, expected, glass)
+        if not bad:
+            break
+    return bad, time.monotonic() - t0
+
+
+def spawn_menu_glass(ctx: Ctx, c: Check, label: str, shot: str, look: str = "") -> None:
+    """Open Spawn's menu: its box pointer has the glass, and Fedora Glass treated it as the ArcMenu part.
+    With `look`, also the picture, compared with the reference picture of that name."""
+    sh, lim = ctx.sh, LIMITS["popups"]
+    spawn_toggle(ctx)
+    if not spawn_wait_popup(ctx, True):
+        c.add(False, f"{label}: Spawn's menu did not open.")
+        return
+    try:
+        settle(1.5)
+        if look:
+            mask = clock_mask(ctx, lgqa.load(sh.shot(shot)).shape)
+            now = steady_shot(sh, shot, mask)
+            against_reference(ctx, c, look, "Spawn's menu", now, mask)
+        # The glass under the menu's box pointer (a pane of about its size, drawn when it first shows).
+        s = None
+        for _ in range(8):
+            s = sh.json(SURFACE_JS % SPAWN_SURFACE_JS) or s
+            if s and s["glass"] and s["alpha"] <= lim["max_surface_alpha"]:
+                break
+            settle(0.25)
+        if not s:
+            c.add(False, f"{label}: could not find Spawn's menu on screen.")
+        else:
+            ok = s["glass"] and s["alpha"] <= lim["max_surface_alpha"]
+            c.add(ok, f"{label}: Spawn's menu is glass (its own fill {s['alpha'] * 100:.0f} % opaque, glass under it: "
+                  f"{'yes' if s['glass'] else 'no'})." if ok else
+                  f"{label}: Spawn's menu is not glass: its own fill is {s['alpha'] * 100:.0f} % opaque (limit "
+                  f"{lim['max_surface_alpha'] * 100:.0f} %), glass under it: {'yes' if s['glass'] else 'no'}.",
+                  picture(shot + "-glass", lgqa.crop(lgqa.load(sh.shot(shot + "-glass")), [v - 40 for v in ctx.px(s["box"][:2])]
+                                                    + [v + 80 for v in ctx.px(s["box"][2:])]), width=700))
+        parts = sh.json(SPAWN_PARTS_JS)
+        c.add(parts == ["arcmenu"],
+              f"{label}: Fedora Glass gave Spawn's menu the ArcMenu look (part 'arcmenu')." if parts == ["arcmenu"] else
+              f"{label}: Fedora Glass gave Spawn's menu {parts if parts is not None else 'no glass at all'} "
+              "instead of the 'arcmenu' part.")
+    finally:
+        if spawn_popup_boxes(ctx):
+            spawn_toggle(ctx)
+        spawn_wait_popup(ctx, False)
+        settle(1)
+
+
+def check_spawn(ctx: Ctx) -> Check:
+    c = Check("spawn", "Spawn, the other start menu, gets the glass",
+              "Switches ArcMenu off and Spawn on (the way a person changes menus), Applies Fedora Glass with its "
+              "Spawn target, opens Spawn's menu and looks at it, switches the glass off and on, then Restore original, "
+              "and puts ArcMenu back. Spawn must come back running (not red) each time and the menu must be glass.")
+    sh, lim = ctx.sh, LIMITS["restart"]
+    sh.close_all()
+    lgqa.kill_apps()
+    settle(2)
+    states = sh.ext_states()
+    if states.get(SPAWN) is None:
+        c.add(False, "Spawn is not installed on the test desktop.")
+        return c
+    log0 = ctx.log_lines()
+    others = [u for u in DINO_EXTENSIONS if u not in (ARCMENU_UUID, LG, "user-theme@gnome-shell-extensions.gcampax.github.com")
+              and states.get(u) == 1]
+    running = others + [SPAWN, LG]
+    c.add(states.get(SPAWN) != 1 and states.get(ARCMENU_UUID) == 1,
+          "At the start ArcMenu is running and Spawn is off, like Dino's PC." if states.get(SPAWN) != 1 and
+          states.get(ARCMENU_UUID) == 1 else "At the start ArcMenu is not the menu that runs (Spawn is on or ArcMenu is off).")
+    try:
+        # The theme keys start from scratch, so Apply has to write them.
+        lgqa.subprocess.run(["dconf", "reset", "-f", SPAWN_KEYS], env=lgqa.ENV, capture_output=True, timeout=30)
+        # Change menus.
+        sh.eval(f"Main.extensionManager.disableExtension('{ARCMENU_UUID}'); 1")
+        time.sleep(2)
+        sh.eval(f"Main.extensionManager.enableExtension('{SPAWN}'); 1")
+        on = sh.wait_for(f"return Main.extensionManager.lookup('{SPAWN}')?.state === 1;", 20)
+        end = time.monotonic() + 20
+        while on and not actor_boxes(ctx, "spawn-button") and time.monotonic() < end:
+            time.sleep(0.5)
+        button = bool(actor_boxes(ctx, "spawn-button"))
+        c.add(on and button, "ArcMenu switched off and Spawn on: Spawn runs and has its button in the panel." if on and button
+              else f"After switching to Spawn it is {'running but has no panel button' if on else 'not running (state ' + str(sh.ext_states().get(SPAWN)) + ')'}.")
+        bad, took = spawn_wait_ok(ctx, others + [SPAWN, LG], lim["settle_seconds"])
+        c.add(not bad, f"With Spawn instead of ArcMenu everything is running in {took:.0f} s." if not bad else
+              "With Spawn instead of ArcMenu: " + "; ".join(bad) + ".")
+
+        # Apply, with Fedora Glass's Spawn target.
+        rc, out = run_lg("apply")
+        failed = [l for l in out.splitlines() if l.startswith("✗")]
+        c.add(rc == 0 and not failed, "Apply finished." if rc == 0 and not failed else
+              f"Apply failed (exit {rc}): {(failed[0] if failed else out[-200:])}")
+        keys = spawn_keys()
+        wrote = keys.get(SPAWN_KEYS + "override-menu-theme") == "true" and SPAWN_KEYS + "menu-background-color" in keys
+        c.add(wrote, f"Apply wrote the glass look into Spawn's settings ({len(keys)} keys set)." if wrote else
+              "Apply did not write the glass look into Spawn's settings (override-menu-theme / menu-background-color not set).")
+        bad, took = spawn_wait_ok(ctx, running, lim["settle_seconds"] + 15)
+        c.add(not bad, f"After Apply, Spawn, the glass and every extension were running in {took:.0f} s." if not bad else
+              "After Apply: " + "; ".join(bad) + ".")
+
+        # Spawn's menu: the picture and the glass.
+        sh.close_all()
+        settle(1)
+        spawn_menu_glass(ctx, c, "Spawn", "looks-spawn", look="spawn")
+
+        # The glass switched off and on: GNOME restarts the extensions after it, Spawn included.
+        sh.eval(f"Main.extensionManager.disableExtension('{LG}'); 1")
+        time.sleep(3)
+        sh.eval(f"Main.extensionManager.enableExtension('{LG}'); 1")
+        bad, took = spawn_wait_ok(ctx, running, lim["settle_seconds"])
+        c.add(not bad, f"After switching Fedora Glass off and on, Spawn was running again (state 1, not red) and the glass "
+              f"was back in {took:.0f} s." if not bad else "After switching Fedora Glass off and on: " + "; ".join(bad) + ".")
+        spawn_menu_glass(ctx, c, "After the restart", "spawn-restarted")
+
+        # Restore original: Spawn's keys go back to what they were before the first Apply.
+        rc, out = run_lg("revert")
+        c.add(rc == 0, "Restore original finished." if rc == 0 else f"Restore original failed: {out[-200:]}")
+        bad, took = spawn_wait_ok(ctx, others + [SPAWN], lim["settle_seconds"], glass=False)
+        c.add(not bad, f"After Restore original, Spawn and Dino's other extensions were running in {took:.0f} s." if not bad
+              else "After Restore original: " + "; ".join(bad) + ".")
+        before_file = OUT / "dconf-before.ini"
+        if before_file.exists():
+            before = {k: v for k, v in dconf_keys(before_file.read_text(errors="replace")).items() if k.startswith(SPAWN_KEYS)}
+            now = spawn_keys()
+            defaults = schema_defaults()
+            changed = []
+            for k in sorted(set(before) | set(now)):
+                was, isnow = before.get(k, defaults.get(k)), now.get(k, defaults.get(k))
+                if not same_value(was, isnow):
+                    changed.append(f"{k.rsplit('/', 1)[1]} was {str(was)[:50]}, now {str(isnow)[:50]}")
+            c.add(not changed, "Every one of Spawn's settings is back to what it was before Apply." if not changed else
+                  f"{len(changed)} of Spawn's settings differ from before Apply, first: " + "; ".join(changed[:3]))
+        else:
+            c.info("No record of the settings from before the first Apply, so Spawn's were not compared.")
+        rc, out = run_lg("apply")
+        c.add(rc == 0, "Apply finished again." if rc == 0 else f"Apply failed: {out[-200:]}")
+    finally:
+        # ArcMenu is the menu again, so the checks and the desktop are as they were.
+        sh.eval(f"Main.extensionManager.disableExtension('{SPAWN}'); 1")
+        time.sleep(2)
+        sh.eval(f"Main.extensionManager.enableExtension('{ARCMENU_UUID}'); 1")
+    bad, took = wait_healthy(ctx, others + [ARCMENU_UUID, LG], True, lim["settle_seconds"] + 15)
+    spawn_off = sh.ext_states().get(SPAWN) != 1
+    c.add(not bad and spawn_off, f"Spawn switched off and ArcMenu on again: everything was back in {took:.0f} s." if not bad and spawn_off
+          else "Putting ArcMenu back: " + "; ".join(bad + ([] if spawn_off else ["Spawn is still running"])) + ".")
+    errs = [e for e in ctx.new_errors(log0) if ours(e) or "spawn" in e.lower()]
+    c.add(not errs, "No Fedora Glass or Spawn errors." if not errs else f"{len(errs)} Fedora Glass or Spawn errors, first: {errs[0][-160:]}")
+    return c
+
+
 ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
        "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
-       "log": check_log, "safe": check_safe, "upgrade": check_upgrade}
+       "log": check_log, "safe": check_safe, "upgrade": check_upgrade, "spawn": check_spawn}
 
 
 # ---------------------------------------------------------------------------------------------
