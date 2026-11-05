@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.5
+Version:        1.5.6
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,11 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Thu Nov 05 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.6-1
+- Spawn, the ArcMenu replacement, gets the same glass as ArcMenu: its own entry in the app, glass colours, corners and search pill, the start-menu glass, and tight shadows on its right-click menus
+- With the overview off, the app grid stays closed while Spawn runs, as it does with ArcMenu
+- The menu's look is now called "Start menu"; your settings for it carry over
+
 * Thu Nov 05 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.5-1
 - Glassier look: small glints of light on the corners facing the light, a faint sheen on top, and a clearer lens edge on the panel and menus
 - Switching between dark and light no longer gets slower after each screen lock (GNOME's User Themes left a listener behind at every lock)
