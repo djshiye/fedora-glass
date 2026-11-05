@@ -50,7 +50,8 @@ def test_css_never_asks_for_multiple_shadows(frost, dark):
 
 
 GLASS_SURFACES = (".popup-menu-content", ".quick-settings", ".notification-banner", ".osd-window",
-                  ".switcher-list", ".arcmenu-menu .popup-menu-content")
+                  ".switcher-list", ".arcmenu-menu .popup-menu-content",
+                  ".spawn-menu-popup .popup-menu-content", ".spawn-context-menu .popup-menu-content")
 
 
 @pytest.mark.parametrize("dark", [True, False])
@@ -148,16 +149,26 @@ def context(env, frost=0.5, dark=True, **kw):
 
 
 def test_targets_order_and_ids():
-    assert [t.id for t in ts.TARGETS] == ["shell", "glass", "dash-to-panel", "arcmenu"]
-    assert [t.group for t in ts.TARGETS] == ["Desktop", "Desktop", "Panel", "Panel"]
+    assert [t.id for t in ts.TARGETS] == ["shell", "glass", "dash-to-panel", "arcmenu", "spawn"]
+    assert [t.group for t in ts.TARGETS] == ["Desktop", "Desktop", "Panel", "Panel", "Panel"]
 
 
 def test_detect_needs_the_extension(fake_env):
     for t in ts.TARGETS:
         assert t.detect(fake_env).available == (t.id == "glass")   # ours ships with Fedora Glass
-    install(fake_env, ts.USER_THEME, ts.BLUR, ts.DASH_TO_PANEL, ts.ARCMENU)
+    install(fake_env, ts.USER_THEME, ts.BLUR, ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN)
     for t in ts.TARGETS:
         assert t.detect(fake_env).available
+
+
+def test_spawn_and_arcmenu_are_detected_on_their_own(fake_env):
+    install(fake_env, ts.SPAWN)
+    assert ts.Spawn().detect(fake_env).available
+    arc = ts.ArcMenu().detect(fake_env)
+    assert not arc.available and "gnome-shell-extension-arcmenu" in arc.detail
+    (fake_env.data / "gnome-shell/extensions" / ts.SPAWN / "metadata.json").unlink()
+    gone = ts.Spawn().detect(fake_env)
+    assert not gone.available and "gnome-shell-extension-spawn" in gone.detail
 
 
 def test_shell_target_writes_theme_and_enables_user_themes(fake_env):
@@ -313,10 +324,65 @@ def test_arcmenu_values_have_the_schema_types(fake_env):
     assert v["menu-border-radius"].isdigit()
 
 
+def test_spawn_values_are_arcmenus_for_the_same_tokens(fake_env):
+    """Spawn's theme keys have ArcMenu's names and types, so it is given the very same values,
+    in its own schema, and follows the same part (`arcmenu`)."""
+    install(fake_env, ts.ARCMENU, ts.SPAWN)
+    for dark in (True, False):
+        ctx = context(fake_env, frost=0.3, dark=dark)
+        arc = [a for a in ts.ArcMenu().plan(ctx) if isinstance(a, GSet)]
+        spawn = [a for a in ts.Spawn().plan(ctx) if isinstance(a, GSet)]
+        assert {a.schema for a in arc} == {"org.gnome.shell.extensions.arcmenu"}
+        assert {a.schema for a in spawn} == {"org.gnome.shell.extensions.spawn"} == {ts.Spawn.SCHEMA}
+        assert {a.key: a.value for a in spawn} == {a.key: a.value for a in arc} == rs.arcmenu_values(ctx.tokens)
+        assert len(spawn) == 21
+
+
+def test_spawn_values_have_the_schema_types(fake_env):
+    install(fake_env, ts.SPAWN)
+    v = {a.key: a.value for a in ts.Spawn().plan(context(fake_env, frost=0.0, dark=False)) if isinstance(a, GSet)}
+    assert v["override-menu-theme"] == "true"
+    assert re.fullmatch(r"'rgba\(\d+,\d+,\d+,[\d.]+\)'", v["menu-background-color"])
+    assert v["search-entry-border-radius"] == "(true, 999)"
+    assert re.fullmatch(r"\(true, 'rgba?\([^)]*\)'\)", v["menu-button-bg-color"])
+    assert v["menu-border-radius"].isdigit()
+
+
+def test_spawn_is_a_panel_target_that_waits_for_the_glass_like_arcmenu():
+    spawn, arc = ts.Spawn(), ts.ArcMenu()
+    assert (spawn.id, spawn.name, spawn.group, spawn.waits_for_glass) == ("spawn", "Spawn", "Panel", True)
+    assert spawn.summary == arc.summary and spawn.waits_for_glass == arc.waits_for_glass
+    assert Settings().target_enabled("spawn")          # on by default, like every target
+    assert not Settings(targets={"spawn": False}).target_enabled("spawn")
+
+
+def test_the_glass_css_covers_spawns_menu_and_tooltip():
+    css = rs.render_css(tokens(0.5, True))
+    plain = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    rules = {s.strip(): body for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", plain)
+             for s, body in [(m.group(1), m.group(2))]}
+    menu = next(b for s, b in rules.items() if ".spawn-menu-popup .popup-menu-content" in s and "#uiGroup" not in s)
+    assert "border-top-color" in menu and "box-shadow" in menu
+    assert any(".spawn-tooltip" in s and "background-color" in b for s, b in rules.items())
+
+
+def test_spawns_own_stylesheet_does_not_beat_the_glass_rim_and_shadow(fake_env):
+    """GNOME ranks an extension's stylesheet above the Shell theme, and Spawn's sets a border and a
+    shadow on its context menu (and a border colour on its menu with its colour option on). So these
+    are repeated in the glass extension's own stylesheet behind #uiGroup, which outranks Spawn's."""
+    cfg = json.loads(next(a.content for a in ts.GlassEffects().plan(context(fake_env)) if isinstance(a, WriteFile)
+                          and a.path == ts.GlassEffects().config_path(fake_env)))
+    css = cfg["popupCss"]
+    for sel in ("#uiGroup .spawn-menu-popup .popup-menu-content", "#uiGroup .spawn-context-menu .popup-menu-content"):
+        assert sel in css
+    block = css[css.index("#uiGroup .spawn-context-menu .popup-menu-content"):]
+    assert "box-shadow: 0 2px 6px" in block.split("}")[0]
+
+
 # ---- through the engine -------------------------------------------------------------------------
 def seeded_env(env):
     """A fake gsettings store that knows every key the shell targets set."""
-    install(env, ts.USER_THEME, ts.BLUR, ts.DASH_TO_PANEL, ts.ARCMENU)
+    install(env, ts.USER_THEME, ts.BLUR, ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN)
     ctx = context(env)
     for t in ts.TARGETS:
         for a in t.plan(ctx):
@@ -331,7 +397,7 @@ def test_apply_then_revert_restores_everything(fake_env):
     before = {k: dict(v) for k, v in fake_env.gs.items()}
     engine = Engine(fake_env, ts.TARGETS)
     results = engine.apply(Settings(frost=0.3))
-    assert [r.status for r in results] == ["applied"] * 4, results
+    assert [r.status for r in results] == ["applied"] * 5, results
     gs = fake_env.gs
     assert gs[(ts.GlassEffects.BLUR_SCHEMA + ".panel", None)]["blur"] == "false"
     assert rg.UUID in gs[("org.gnome.shell", None)]["enabled-extensions"]

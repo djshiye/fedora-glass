@@ -1,4 +1,4 @@
-"""GNOME Shell and its extensions: User Themes CSS, our glass extension, Dash to Panel, ArcMenu."""
+"""GNOME Shell and its extensions: User Themes CSS, our glass extension, Dash to Panel, ArcMenu, Spawn."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ USER_THEME = "user-theme@gnome-shell-extensions.gcampax.github.com"
 BLUR = "blur-my-shell@aunetx"
 DASH_TO_PANEL = "dash-to-panel@jderose9.github.com"
 ARCMENU = "arcmenu@arcmenu.com"
+SPAWN = "spawn@djshiye.github.io"
 JUST_PERFECTION = "just-perfection-desktop@just-perfection"
 THEME_NAME = "FedoraGlass"
 
@@ -72,7 +73,7 @@ class GlassEffects(Target):
     id: str = "glass"
     name: str = "Fedora Glass effects"
     group: str = "Desktop"
-    summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu, app windows and the overview: "
+    summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu or Spawn, app windows and the overview: "
                     "live blur, a refracting rim, rim light and a rainbow edge.")
     notes: list[str] = field(default_factory=lambda: [
         "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."])
@@ -124,7 +125,7 @@ class GlassEffects(Target):
         notes = list(self.notes)
         if not self.running(ctx.env):
             notes.append("Restart your PC once so GNOME Shell starts the Fedora Glass extension. "
-                         "The panel, menus and ArcMenu switch to glass then. After that, changes show up instantly.")
+                         "The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly.")
         return notes
 
     @staticmethod
@@ -258,4 +259,23 @@ class ArcMenu(Target):
         return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))
 
 
-TARGETS: list[Target] = [GnomeShell(), GlassEffects(), DashToPanel(), ArcMenu()]
+@dataclass
+class Spawn(Target):
+    """Spawn, the other start menu. Its theme keys are ArcMenu's (same names and types), and it
+    has none of ArcMenu's restart bug, so nothing parks it (see park_arcmenu)."""
+    id: str = "spawn"
+    name: str = "Spawn"
+    waits_for_glass: bool = True
+    group: str = "Panel"
+    summary: str = "Glass menu and menu button; colours, radius, search pill and hover washes."
+
+    SCHEMA = "org.gnome.shell.extensions.spawn"
+
+    def detect(self, env: Env) -> Detection:
+        return _need_extension(env, SPAWN, "Spawn", "gnome-shell-extension-spawn")
+
+    def plan(self, ctx: Context) -> list[Action]:
+        return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))
+
+
+TARGETS: list[Target] = [GnomeShell(), GlassEffects(), DashToPanel(), ArcMenu(), Spawn()]

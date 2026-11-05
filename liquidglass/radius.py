@@ -14,7 +14,7 @@ Roles, and the only places each step may be used:
           linked group get s, the inner ones 0), text entries, dropdown/combo buttons,
           spin buttons, tabs, Qt QPushButton, QToolButton, QLineEdit and QComboBox.
   m   16  popovers, menus, cards and boxed lists, notification banners, the OSD, the
-          Alt+Tab switcher, ArcMenu, the quick settings menu, the calendar menu, Qt QMenu,
+          Alt+Tab switcher, ArcMenu, Spawn, the quick settings menu, the calendar menu, Qt QMenu,
           QGroupBox and the QTabWidget pane.
   l   24  app windows, dialogs and sheets, the floating Dash to Panel panel and the big
           Shell surfaces (overview folders and the like). The Calculator keypad also uses

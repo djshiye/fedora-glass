@@ -13,7 +13,7 @@ import {ControlsState} from 'resource:///org/gnome/shell/ui/overviewControls.js'
 const MANAGES_STARTUP = ['dash-to-panel@jderose9.github.com', 'just-perfection-desktop@just-perfection'];
 // Menus that can launch apps. Without one, the app grid stays reachable even with
 // the overview off, so there is always a way to open an app.
-const LAUNCHERS = ['arcmenu@arcmenu.com'];
+const LAUNCHERS = ['arcmenu@arcmenu.com', 'spawn@djshiye.github.io'];
 const ACTIVE = 1;
 
 // Modules stay loaded for the whole Shell session, so this tells the first enable

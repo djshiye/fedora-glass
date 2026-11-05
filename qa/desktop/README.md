@@ -8,6 +8,7 @@ A release is only built when all of them pass (`.github/workflows/release.yml` w
 
 - GNOME 50 on Wayland, two screens side by side at **125 %** scaling
 - **Orchis Dark**, with `~/.config/gtk-4.0` linked into it
+- Spawn is installed but switched off, as Dino's PC runs ArcMenu; only the Spawn check switches to it
 - Dino's extensions in Dino's order, with Dino's panel, menu and blur settings
   (`dino-settings.ini`, layout keys only): Extension List, ArcMenu, Dash to Panel,
   AppIndicator, Blur my Shell, Just Perfection, Deja Window, then Fedora Glass
@@ -39,6 +40,7 @@ quality (which steps down when frames are late) is not exercised here.
 | Quick restarts keep the glass on | Before the test login the PC restarts twice within seconds of logging in; safe mode must stay off and the glass must draw | 1.5.2 counted a clean restart as a crash and switched the glass off |
 | No errors from Fedora Glass | Apply output and GNOME Shell's log | |
 | Upgrading from the last release | With `--from` (CI passes the last release tag): the last release is applied and used for one session, then this version arrives the way `dnf upgrade` brings it, nobody presses Apply, and the PC restarts twice. The new glass must run with Dino's settings kept | every release up to 1.4.4: after `dnf upgrade` the glass stayed the old version until Apply |
+| Spawn gets the glass | Switches ArcMenu off and Spawn (the owner's own start menu) on mid-session, Applies with the Spawn target, opens Spawn's menu: picture against a reference, glass under its box pointer, and Fedora Glass treated it as the ArcMenu part. Then Fedora Glass off and on (Spawn must come back running, not red), Restore original (every Spawn setting back to before Apply), and ArcMenu back. Runs last | Spawn's menu without the glass, or Spawn red after a restart of the glass |
 
 The limits are in `limits.toml`, with a note on each.
 
@@ -52,11 +54,12 @@ The limits are in `limits.toml`, with a note on each.
 
 ## Running it
 
-Needs Docker. From the repository folder:
+Needs Docker (podman works as `docker`; on SELinux add `LGQA_RUN_ARGS="--security-opt label=disable"`). From the repository folder:
 
 ```sh
 qa/desktop/run.sh                          # everything, about 15 minutes
 qa/desktop/run.sh --only looks,leftovers   # some checks
+qa/desktop/run.sh --only spawn             # just the Spawn check, about a minute
 qa/desktop/run.sh --source ../old-tree     # today's checks against another version
 qa/desktop/run.sh --from ../last-release   # also check the upgrade from the last release
 qa/desktop/run.sh --screen 2560x1440       # at the size of Dino's two screens
@@ -83,6 +86,7 @@ new pictures, and commit them with the change so the review shows the old and ne
 ## Pinned downloads
 
 Everything the test desktop downloads is pinned: the base image by digest, each extension
-and Orchis by git commit (checked after cloning), and Electron by SHA-256 (see the
-`Dockerfile`). Extensions are assembled with glib tools only; no third-party build script
+and Orchis by git commit (checked after cloning), and Electron and Spawn by SHA-256 (see the
+`Dockerfile`; Spawn's RPM is fetched from its gh-pages commit, because its DNF repository keeps only the
+newest 3 builds). Extensions are assembled with glib tools only; no third-party build script
 runs. The container has no network while the checks run.

@@ -33,7 +33,7 @@ Provides:       liquid-glass = %{fg_evr}
 Obsoletes:      liquid-glass < %{fg_evr}
 
 %description
-A glass look for GNOME Shell, GTK and Qt apps, Dash to Panel and ArcMenu,
+A glass look for GNOME Shell, GTK and Qt apps, Dash to Panel, ArcMenu and Spawn,
 drawn by its own GNOME Shell extension, with a Qt app to tune it from clear
 liquid glass to calm frost. The app changes only your own user settings and
 can restore your original look at any time. Formerly called Liquid Glass.

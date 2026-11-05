@@ -85,7 +85,7 @@ class Settings:
     liquid_motion: bool = True      # glass springs a little when pressed and when a menu opens
     menu_grow: bool = True          # menus grow out of the button that opened them, and flow back on close
     glass_panel: bool = True
-    glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu
+    glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu, Spawn
     glass_overview: bool = True     # blurred wallpaper behind the overview
     glass_see_windows: bool = True  # panel and menus show the windows behind them, not just the wallpaper
 

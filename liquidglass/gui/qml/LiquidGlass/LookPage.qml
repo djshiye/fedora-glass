@@ -376,8 +376,8 @@ Item {
                 readonly property var partList: [
                     { id: "panel", label: "Panel", caption: "Dash to Panel or the top bar",
                       tip: "Look of the Dash to Panel bar or the top bar only" },
-                    { id: "arcmenu", label: "ArcMenu", caption: "The ArcMenu application menu",
-                      tip: "Look of the ArcMenu application menu only" },
+                    { id: "arcmenu", label: "Start menu", caption: "The ArcMenu or Spawn application menu",
+                      tip: "Look of the ArcMenu or Spawn application menu only" },
                     { id: "quicksettings", label: "Quick settings", caption: "Quick settings, app menus, on-screen pop-ups and dialogs",
                       tip: "Look of quick settings, menus, volume pop-ups and dialogs" },
                     { id: "calendar", label: "Calendar", caption: "The calendar and notification pop-ups",
@@ -703,7 +703,7 @@ Item {
                     SwitchRow {
                         objectName: "menuGrow"
                         label: "Menus grow from their button"
-                        caption: "ArcMenu, quick settings and the calendar flow out of what you clicked"
+                        caption: "The start menu, quick settings and the calendar flow out of what you clicked"
                         tip: "A menu opens as if it pours out of the button you clicked, and flows back into it when it closes. Off, menus open in place. It stays off when Reduce animation is on in Settings."
                         enabled: Backend.liquidMotion
                         checked: Backend.menuGrow
@@ -721,7 +721,7 @@ Item {
                         }
                         SwitchRow {
                             label: "Menus"
-                            caption: "Quick settings, calendar, ArcMenu and app menus"
+                            caption: "Quick settings, calendar, the start menu and app menus"
                             tip: "Draws real glass behind menus and pop-ups. Off leaves plain tinted panes."
                             checked: Backend.glassMenus
                             onToggled: (on) => Backend.glassMenus = on
@@ -776,7 +776,7 @@ Item {
                         objectName: "overviewOff"
                         label: "Turn off the overview"
                         caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
-                        tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu or Dash to Panel. Without ArcMenu, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
+                        tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn or Dash to Panel. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
                         checked: Backend.overviewOff
                         onToggled: (on) => Backend.overviewOff = on
                     }

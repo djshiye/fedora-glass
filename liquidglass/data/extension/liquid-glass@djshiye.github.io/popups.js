@@ -14,13 +14,14 @@ import {Follower} from './follower.js';
 
 // ---- popup menus, notification banners, OSD and the window switcher ----------------
 // Which part of the Shell a menu belongs to, for its own look.
-function partOf(bp) {
+export function partOf(bp) {
     const sa = Main.panel.statusArea;
     if (bp === sa.quickSettings?.menu?.actor)
         return 'quicksettings';
     if (bp === sa.dateMenu?.menu?.actor)
         return 'calendar';
-    if (bp.has_style_class_name?.('arcmenu-menu'))
+    // ArcMenu's and Spawn's start menus share one look, the part called 'arcmenu'.
+    if (bp.has_style_class_name?.('arcmenu-menu') || bp.has_style_class_name?.('spawn-menu-popup'))
         return 'arcmenu';
     return 'quicksettings';      // app menus and the rest look like quick settings
 }
