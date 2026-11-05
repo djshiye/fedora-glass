@@ -18,9 +18,11 @@
 //   the nearest rim, the way a lit object tints the edge of a glass plate;
 // - Beer-Lambert absorption darkens and greens the slanting paths through the edge.
 //
-// One thing is not from the backdrop: a crisp line of light, about 1.5 px, along
-// the very edge (rimLine), brightest at the corners facing the light. It is the
-// line that makes Apple's glass read as glass; it stays a line, never a glow.
+// Three things are not from the backdrop, all from one room light: a crisp line of
+// light, about 1.5 px, along the very edge (rimLine); a glint, a small crescent of
+// that light caught on the curve of the edge at the corner facing it (glint); and a
+// faint sheen across the top on that side. They are what make Apple's glass read as
+// glass you could touch; each stays a line or a hint, never a glow.
 //
 // Sides that touch the screen edge (a docked panel's bottom) have no rim.
 
@@ -274,6 +276,23 @@ float rimLine(float inside, vec2 n, vec2 L) {
 // The glass's own edge: a half px line all the way round, faint white on dark glass.
 float edgeLine(float inside) {
     return smoothstep(0.0, 0.2, inside) * (1.0 - smoothstep(0.4, 0.9, inside));
+}
+
+// The glint: a studio light caught on the rounded edge, the soft crescent that makes
+// thick glass look like you could touch it. It lies a few px inside the edge, on the
+// curve of the bevel, and is bright only where the edge turns to face the light (the
+// corner towards it) and, at 40 %, the corner across from it. Along the straight
+// sides it fades to almost nothing, so a long bar never gets a white line.
+// inside: px in from the edge; reach: how far in the crescent lies (px). 0..1.
+float glint(float inside, vec2 n, vec2 L, float w) {
+    float d = dot(n, L);
+    // 1 where the edge runs diagonally (a corner), 0 along a straight side.
+    float corner = smoothstep(0.15, 0.85, 1.0 - abs(abs(n.x) - abs(n.y)));
+    float lobe = (pow(max(d, 0.0), 8.0) + 0.45 * pow(max(-d, 0.0), 8.0)) * mix(0.3, 1.0, corner);
+    if (lobe < 0.004)
+        return 0.0;
+    float u = (inside - w) / (0.5 * w);
+    return lobe * exp(-u * u) * smoothstep(0.2, 1.0, inside);
 }
 
 // The theme paints a thin veil over the glass. To make a colour c (straight rgb)
@@ -538,8 +557,23 @@ void main() {
 
     // Dark smoked glass (Glisse's dark glass is 40 grey at 62 %): over black it is a
     // visible grey pane, and what is behind still shows through it, sharp.
+    // Toward the rounded edge the light has crossed the glass at a slant and is
+    // gathered by the lens, so the smoke thins there: the outer part of the bevel
+    // shows what it bends, in its own colours, like the rim of a thick lens. The
+    // ceiling below still holds, so text near the edge keeps its contrast.
+    float clearEdge = lens_share > 0.5 ? smoothstep(0.35, 0.95, x) : 0.0;
+    if (clearEdge > 0.0)
+        col.rgb = min(vivid(col.rgb, 1.0 + 0.3 * clearEdge), vec3(col.a));
     if (haze > OFF)
-        col.rgb = mix(col.rgb, vec3(0.157, 0.157, 0.165) * col.a, haze);
+        col.rgb = mix(col.rgb, vec3(0.157, 0.157, 0.165) * col.a, haze * (1.0 - 0.75 * clearEdge));
+
+    // The top of the slab catches a little of the room's light on the side that
+    // faces it, fading across the pane: a calm sheen, so even over a black
+    // wallpaper the glass reads as a polished surface, not a flat dark box.
+    // Dark glass only (light glass is already milky white), and before the ceiling,
+    // so over a bright backdrop white text keeps its contrast.
+    if (rim > OFF && light_glass < 0.5)
+        col.rgb = min(col.rgb + vec3(0.07 * rim * smoothstep(-0.4, 1.1, dot(c / h, L))) * col.a, vec3(col.a));
 
     // A ceiling on brightness, for glass that carries white text over any backdrop
     // (the lock screen). Dark backdrops pass unchanged; brighter ones ease into
@@ -555,9 +589,12 @@ void main() {
         vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
         float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
         float Yl = max(min(Yp, Ya * 1.5), 1e-5);
-        float knee = 0.6 * ceil_y;
+        // The outer part of the lens holds no text: there it may stay brighter,
+        // so the bent backdrop reads in its own colours.
+        float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge);
+        float knee = 0.6 * cy;
         if (Yl > knee) {
-            float room = ceil_y - knee;
+            float room = cy - knee;
             float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
             col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
         }
@@ -612,11 +649,18 @@ void main() {
         // About 0.35 white at the lit edge (rim 0.85), as iOS lays on dark glass, over
         // a 0.1 edge line all round.
         float ln = min(1.0, (rimLine(inside, n, L) * 0.42 + edgeLine(inside) * 0.12) * rim);
-        if (ln > 0.0) {
+        // The glint sits on the curve of the bevel, a little further in than the line.
+        float gw = clamp(0.008 * shortSide, 1.8, 3.5);
+        float gl = inside < 2.2 * gw ? glint(inside, n, L, gw) * 0.85 * rim * (1.0 - 0.6 * light_glass) : 0.0;
+        if (ln > 0.0 || gl > 0.004) {
             vec3 base = col.rgb / max(col.a, 1e-3);
             vec3 seen = env(px + n * env_reach * 0.5);
             vec3 lc = mix(seen, vec3(1.0), 0.8);
-            vec3 want = mix(base * (1.0 - veil_a) + vec3(veil_r, veil_g, veil_b) * veil_a, lc, ln);
+            vec3 under = base * (1.0 - veil_a) + vec3(veil_r, veil_g, veil_b) * veil_a;
+            // Light adds: the glint screens over what is there, in the light's own
+            // colour (mostly white, a little of the room), never darkening it.
+            under = vec3(1.0) - (vec3(1.0) - under) * (vec3(1.0) - mix(seen, vec3(1.0), 0.85) * min(gl, 1.0));
+            vec3 want = mix(under, lc, ln);
             col.rgb = throughVeil(want) * col.a;
         }
     }
