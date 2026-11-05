@@ -47,7 +47,10 @@ const timeouts = {fns: [], add(_ms, fn) { this.fns.push(fn); return this.fns.len
     run() { const f = this.fns; this.fns = []; f.forEach(fn => fn()); }};
 const manager = {handlers: [], connect(_s, fn) { this.handlers.push(fn); return 1; }, disconnect() {},
     lookup: uuid => (uuid === UT ? ext : null)};
-globalThis.fake = {Settings, signalTrackers: trackers, timeouts, extensionManager: manager};
+const themeContext = {handlers: [], connect(_s, fn) { this.handlers.push(fn); return this.handlers.length; },
+    disconnect(id) { this.handlers[id - 1] = null; }, emit() { this.handlers.forEach(fn => fn?.()); }};
+globalThis.global = {stage: {}};
+globalThis.fake = {Settings, signalTrackers: trackers, timeouts, extensionManager: manager, themeContext};
 globalThis.console = {...console, log: () => {}};
 const {UserThemesTidy, tidyTrackers} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/themetidy.js');
 
@@ -77,6 +80,20 @@ test('the tidy-up lets go of the stale listeners and keeps the current one', () 
     assert.equal(tm.reloads, 1);
     assert.equal(tidy.tidied, 5);
     tidy.destroy();
+});
+
+test('a User Themes restart with no state change is tidied when the theme reloads', () => {
+    trackers.clear();
+    const tm = ext.stateObj;
+    tm.enable();
+    const tidy = new UserThemesTidy();
+    const before = tidy.tidied;
+    tm.disable(); tm.enable();                 // GNOME rebases extensions: no state change
+    themeContext.emit();                       // its enable() loaded the theme
+    assert.equal(tidy.tidied - before, 1);
+    assert.equal(trackers.size, 1);
+    tidy.destroy();
+    assert.ok(themeContext.handlers.every(h => h === null));
 });
 
 test('other settings and other listeners are never touched', () => {

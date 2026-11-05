@@ -15,6 +15,7 @@
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as SignalTracker from 'resource:///org/gnome/shell/misc/signalTracker.js';
@@ -59,6 +60,11 @@ export class UserThemesTidy {
             if (ext?.uuid === USER_THEME && ext.state === ACTIVE)
                 this.tidy();
         });
+        // GNOME also restarts User Themes without a state change (when an extension
+        // before it is switched off). Its enable() always loads the theme, and the
+        // theme context says so: tidy then too.
+        this._context = St.ThemeContext.get_for_stage(global.stage);
+        this._themeId = this._context.connect('changed', () => this.tidy());
         this._soon();
     }
 
@@ -96,5 +102,8 @@ export class UserThemesTidy {
         if (this._id)
             Main.extensionManager.disconnect(this._id);
         this._id = 0;
+        if (this._themeId)
+            this._context.disconnect(this._themeId);
+        this._themeId = 0;
     }
 }
