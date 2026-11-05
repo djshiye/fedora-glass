@@ -3,7 +3,7 @@
 # container can: GNOME 50 on Wayland, 125 % scaling, Orchis Dark, Dino's extensions and
 # settings, the overview off, a terminal, Files and an Electron window.
 #
-#   qa/desktop/run.sh [--source DIR] [--only looks,leftovers,resize,speed,lock,restart,log]
+#   qa/desktop/run.sh [--source DIR] [--only looks,leftovers,resize,speed,lock,restart,log,spawn]
 #                     [--update-references] [--out DIR] [--keep] [--start-only] [--screen WxH]
 #
 # --source              the Fedora Glass tree to test (default: this checkout). Lets you run
@@ -16,6 +16,8 @@
 # --screen WxH          size of each of the two screens in real pixels (default 2000x1125).
 #                       --screen 2560x1440 is Dino's PC. Pictures are compared only at sizes
 #                       that have their own reference pictures (references/WxH/).
+# LGQA_BUILD_ARGS / LGQA_RUN_ARGS: extra arguments for docker build / docker run (podman on SELinux
+#                       needs LGQA_RUN_ARGS="--security-opt label=disable" to read the mounted folders).
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
@@ -46,7 +48,7 @@ cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 # No network inside: nothing at run time needs it.
-docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" \
+docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" ${LGQA_RUN_ARGS:-} \
     -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out ${FROM:+-v "$FROM":/from:ro} \
     lgqa-desktop /opt/lgqa/suite/container/start.sh >/dev/null
 

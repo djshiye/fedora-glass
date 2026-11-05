@@ -118,7 +118,7 @@ globalThis.fake = fake;
 const laters = new Laters();
 globalThis.global = {compositor: {get_laters: () => laters}, stage: Object.assign(new Actor(), {queue_redraw() {}})};
 
-const {Popups} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
+const {Popups, partOf} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
 const {HOLD_MAX_MS} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/common.js');
 
 const cfg = {menus: {enabled: true, look: {}}, calendar: {enabled: true, look: {}},
@@ -187,4 +187,21 @@ test('if the glass never comes up, the menu shows after HOLD_MAX_MS', () => {
     laters.run();
     assert.equal(surface.opacity, 255, 'shown without its glass');
     p.destroy();
+});
+
+// The start menus of ArcMenu and Spawn share the part called 'arcmenu'.
+test('the ArcMenu and Spawn start menus are the arcmenu part, other menus are not', () => {
+    const menu = (...classes) => {
+        const bp = new Actor();
+        bp.has_style_class_name = c => classes.includes(c);
+        return bp;
+    };
+    assert.equal(partOf(menu('arcmenu-menu')), 'arcmenu');
+    assert.equal(partOf(menu('spawn-popup', 'spawn-menu-popup')), 'arcmenu');
+    assert.equal(partOf(menu('spawn-popup', 'spawn-menu-popup', 'spawn-popup-above')), 'arcmenu');
+    // Spawn's runner, power and context menus are app menus, like any other pop-up.
+    assert.equal(partOf(menu('spawn-popup')), 'quicksettings');
+    assert.equal(partOf(menu('spawn-popup', 'spawn-power-popup')), 'quicksettings');
+    assert.equal(partOf(menu('spawn-context-menu')), 'quicksettings');
+    assert.equal(partOf(menu()), 'quicksettings');
 });

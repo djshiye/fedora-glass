@@ -2,8 +2,8 @@
 # with Dino's extension set, Orchis, Ptyxis, Files, and an Electron window.
 #
 # Every download is pinned: the base image by digest, each extension by git commit
-# (checked after cloning), Orchis by tag commit, Electron by SHA-256. Extensions are
-# put together with glib tools only; no third-party build script runs.
+# (checked after cloning), Orchis by tag commit, Electron and Spawn by SHA-256. Extensions
+# are put together with glib tools only; no third-party build script runs.
 FROM mirror.gcr.io/library/ubuntu@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -21,7 +21,7 @@ RUN apt-get install -y -qq --no-install-recommends \
       gnome-shell gnome-shell-extensions gnome-shell-extension-prefs mutter xwayland dbus dbus-x11 gjs gnome-menus \
       gsettings-desktop-schemas libglib2.0-bin libglib2.0-dev-bin dconf-cli \
       nautilus ptyxis gedit adwaita-icon-theme fonts-cantarell fonts-dejavu-core \
-      python3 python3-gi python3-numpy python3-pil git curl unzip libxml2-utils procps xz-utils \
+      python3 python3-gi python3-numpy python3-pil git curl unzip libxml2-utils procps xz-utils libarchive-tools \
       libnss3 libatk-bridge2.0-0t64 libgtk-3-0t64 libgbm1 libasound2t64 libcups2t64 libxss1 libxtst6 libsecret-1-0 \
       libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libnotify4 >/dev/null \
     && rm -rf /var/lib/apt/lists/*
@@ -37,6 +37,13 @@ ARG DEJA=c2cac5444a1bd56e6a287f0d688728cfea4bf7c4       # Deja Window (no tags; 
 ARG ORCHIS=29975e38624ec93d8e460f8ea17129bcb68c05ef     # Orchis 2026-07-07
 ARG ELECTRON=v44.10.1
 ARG ELECTRON_SHA256=2be868b71b0aa71f30e6b5567a106a35a049385e963183c074aad1975ead5167
+# Spawn (the owner's own ArcMenu replacement) is only published as a noarch RPM in a DNF repository,
+# which keeps just its newest 3 builds. The URL is that build's file at a fixed gh-pages commit,
+# which stays reachable however many builds follow. Content is checked by SHA-256 as well.
+ARG SPAWN_RPM=gnome-shell-extension-spawn-1.0.0-1.46.fc45.noarch.rpm
+# (gh-pages commit "Publish gnome-shell-extension-spawn-1.0.0-1.46")
+ARG SPAWN_REPO_COMMIT=9fcbc1b9c946992643fbbc82ba04a031a09d4657
+ARG SPAWN_SHA256=c9eeec61d2e4d603223caef0347ca812619f62a880ce62eebdaca28e739491a6
 
 COPY assemble-extensions.sh /opt/lgqa/assemble-extensions.sh
 RUN bash /opt/lgqa/assemble-extensions.sh \
@@ -48,6 +55,19 @@ RUN set -e; cd /tmp; \
     curl -sSfL -o electron.zip "https://github.com/electron/electron/releases/download/$ELECTRON/electron-$ELECTRON-linux-x64.zip"; \
     echo "$ELECTRON_SHA256  electron.zip" | sha256sum -c --quiet; \
     mkdir -p /opt/electron && unzip -q electron.zip -d /opt/electron && rm electron.zip
+
+# Spawn: unpacked from its RPM the way dnf puts it on a PC, extension and schema in the system
+# folders (bsdtar reads RPM files; no scriptlet runs). It stays switched off in the normal session,
+# because Dino's PC runs ArcMenu; the "spawn" check switches it on.
+RUN set -e; d=$(mktemp -d); cd "$d"; \
+    curl -sSfL -o spawn.rpm "https://raw.githubusercontent.com/djshiye/spawn/$SPAWN_REPO_COMMIT/fedora-45/$SPAWN_RPM"; \
+    echo "$SPAWN_SHA256  spawn.rpm" | sha256sum -c --quiet; \
+    mkdir root && bsdtar -xf spawn.rpm -C root; \
+    cp -r root/usr/share/gnome-shell/extensions/spawn@djshiye.github.io /usr/share/gnome-shell/extensions/; \
+    cp root/usr/share/glib-2.0/schemas/org.gnome.shell.extensions.spawn.gschema.xml /usr/share/glib-2.0/schemas/; \
+    glib-compile-schemas --strict /usr/share/glib-2.0/schemas; \
+    test -f /usr/share/gnome-shell/extensions/spawn@djshiye.github.io/metadata.json; \
+    rm -rf "$d"
 
 # Ptyxis starts shells through systemd-run, which a container does not have.
 RUN printf '#!/bin/sh\nwhile [ "${1#-}" != "$1" ]; do shift; done\nexec "$@"\n' > /usr/local/bin/systemd-run && chmod 755 /usr/local/bin/systemd-run

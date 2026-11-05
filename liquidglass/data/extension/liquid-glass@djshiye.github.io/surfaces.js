@@ -1,6 +1,6 @@
 // Puts glass panes behind Shell surfaces and keeps them in step: the top bar
-// or Dash to Panel, every popup menu (quick settings, calendar, ArcMenu and
-// app menus), notification banners, the volume OSD, Alt+Tab, app windows and
+// or Dash to Panel, every popup menu (quick settings, calendar, ArcMenu, Spawn
+// and app menus), notification banners, the volume OSD, Alt+Tab, app windows and
 // the overview background.
 
 import Clutter from 'gi://Clutter';

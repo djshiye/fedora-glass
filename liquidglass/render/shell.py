@@ -1,4 +1,4 @@
-"""GNOME Shell theme: CSS for St and the Dash to Panel / ArcMenu values.
+"""GNOME Shell theme: CSS for St and the Dash to Panel / ArcMenu / Spawn values.
 
 St cannot blur, so every Shell surface is a translucent token colour and the
 Fedora Glass extension (render/glass.py) supplies the glass behind it. St also draws a single box-shadow, which
@@ -25,7 +25,7 @@ LIGHT_HAIRLINE = BLACK.with_alpha(0.11)
 
 def radii(t: Tokens, r: int | None = None) -> dict[str, int]:
     """The corner ladder (radius.py) under the template's `r_*` names, shared by the CSS and the
-    Dash to Panel / ArcMenu keys so the blur clip always matches the painted surface. `r` is the
+    Dash to Panel / ArcMenu / Spawn keys so the blur clip always matches the painted surface. `r` is the
     base radius (the menus' by default); each part of the desktop gets its own ladder."""
     sc = scale(t.menu_radius if r is None else r)
     return {"r_xs": sc["xs"], "r_s": sc["s"], "r_m": sc["m"], "r_l": sc["l"]}
@@ -251,7 +251,7 @@ def _dtp_radius(t: Tokens) -> int:
 
 # ---- ArcMenu -----------------------------------------------------------------------------------
 def arcmenu_values(t: Tokens) -> dict[str, str]:
-    """gsettings text per ArcMenu key (colours are CSS strings; (bs)/(bi) are enable flags + value)."""
+    """gsettings text per ArcMenu key, which Spawn shares as is (colours are CSS strings; (bs)/(bi) are enable flags + value)."""
     r = radii(t, t.parts["arcmenu"]["radius"])
     ink = WHITE if t.dark else BLACK
     bg = surfaces(t, "arcmenu")["popover"]

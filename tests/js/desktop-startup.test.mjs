@@ -67,3 +67,21 @@ test('turning Fedora Glass off during start-up leaves no handler behind', () => 
     lm.emit('startup-complete');
     assert.equal(overview.hides, 0, 'closed the overview after Fedora Glass was turned off');
 });
+
+// With the overview off, the app grid stays reachable only while no start menu (ArcMenu, Spawn) is running.
+for (const [name, uuid] of [['ArcMenu', 'arcmenu@arcmenu.com'], ['Spawn', 'spawn@djshiye.github.io']]) {
+    test(`${name} running counts as a way to start apps: the app grid stays closed`, () => {
+        const was = extensionManager.lookup;
+        let shown = 0;
+        overview.show = () => { shown++; };
+        extensionManager.lookup = id => ({state: id === uuid ? 1 : 2});
+        const d = new DesktopBehaviour(CFG);
+        overview.show(2);                       // ControlsState.APP_GRID
+        assert.equal(shown, 0, `the app grid opened with ${name} running`);
+        extensionManager.lookup = () => ({state: 2});
+        overview.show(2);
+        assert.equal(shown, 1, 'no start menu running: the app grid must open');
+        d.destroy();
+        extensionManager.lookup = was;
+    });
+}

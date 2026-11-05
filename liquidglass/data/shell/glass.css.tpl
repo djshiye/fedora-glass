@@ -710,11 +710,12 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 
 /* @end */
 
-/* ---------------------------------------------------------------- ArcMenu (surfaces; its own theme options colour the rest) */
-.arcmenu-menu .popup-menu-content {
+/* ---------------------------------------------------------------- ArcMenu and Spawn (surfaces; their own theme options colour the rest) */
+.arcmenu-menu .popup-menu-content,
+.spawn-menu-popup .popup-menu-content {
   border-top-color: ${glass_rim};
   box-shadow: 0 2px 6px 0 ${shadow}; }
-.arcmenu-tooltip, #ArcMenu_Tooltip {
+.arcmenu-tooltip, #ArcMenu_Tooltip, .spawn-tooltip {
   color: ${fg};
   background-color: ${arc_osd};
   border: 1px solid ${edge};
@@ -725,3 +726,15 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${hover}; }
 .arcmenu-indicator {
   color: ${accent_text}; }
+
+/* ---------------------------------------------------------------- Spawn (its own stylesheet outranks the Shell theme) */
+/* @extension: Spawn's stylesheet and its colour option set a border and a shadow on its menus,
+   and win over the Shell theme; here the glass rim and the tight shadow win again */
+.spawn-menu-popup .popup-menu-content {
+  border-top-color: ${glass_rim};
+  box-shadow: 0 2px 6px 0 ${shadow}; }
+.spawn-context-menu .popup-menu-content {
+  border: 1px solid ${glass_edge};
+  border-top-color: ${glass_rim};
+  box-shadow: 0 2px 6px 0 ${shadow}; }
+/* @end-extension */
