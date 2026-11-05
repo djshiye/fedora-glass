@@ -128,6 +128,9 @@ def test_loading_the_lock_stylesheet_cannot_call_itself():
 def test_lock_stylesheet_never_stays_after_unlock():
     js = (EXT / "lock.js").read_text()
     body = js[js.index("    _loadStyle() {"):js.index("    _unloadStyle() {")]
-    assert "!Main.sessionMode.isLocked" in body
+    assert "Main.sessionMode.isLocked" in body
+    # A copy GNOME made into the user's theme is taken out, and a copy is never loaded twice.
+    assert "theme.unload_stylesheet(STYLESHEET)" in body
+    assert "has || theme.load_stylesheet(STYLESHEET)" in body
     unlocking = js[js.index("    unlocking() {"):js.index("    _shapeSlide() {")]
     assert "this._unloadStyle()" in unlocking

@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.4
+Version:        1.5.5
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,12 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Thu Nov 05 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.5-1
+- Glassier look: small glints of light on the corners facing the light, a faint sheen on top, and a clearer lens edge on the panel and menus
+- Switching between dark and light no longer gets slower after each screen lock (GNOME's User Themes left a listener behind at every lock)
+- Unplugging or switching off a screen no longer leaves the other panel without glass
+- Restore original keeps a file another app or theme wrote after Apply, instead of deleting it or putting an older copy over it
+
 * Wed Nov 04 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.4-1
 - Much smoother with the pointer near the panel or a menu: only the light on the rim is redrawn, not all of the glass
 - Taskbar icons keep their hover lift when a window opens or closes, and the panel glass no longer blinks when another extension restarts

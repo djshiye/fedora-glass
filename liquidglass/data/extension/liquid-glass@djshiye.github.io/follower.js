@@ -53,6 +53,9 @@ export class Follower {
         });
         this._signals.on(target, 'destroy', () => this.destroy());
         this._signals.on(anchor, 'destroy', () => this.destroy());
+        // Dash to Panel moves a panel into a new container when a screen is unplugged
+        // or turned off: the glass goes along (see sync).
+        this._signals.on(anchor, 'parent-set', () => this.queue());
         this._signals.on(this.pane, 'destroy', () => {
             this.pane = null;     // its parent went first
             this.destroy();
@@ -141,8 +144,18 @@ export class Follower {
     sync() {
         const {target, anchor, pane, top} = this;
         const parent = anchor.get_parent();
-        if (!pane || !top || !parent || pane.get_parent() !== parent || top.get_parent() !== parent)
+        if (!pane || !top || !parent)
             return;
+        if (pane.get_parent() !== parent || top.get_parent() !== parent) {
+            // The surface moved to another container (Dash to Panel rebuilds its
+            // per-screen boxes when screens change, and keeps the panel): without
+            // this the glass stayed behind in the old, detached box, and that panel
+            // had no glass until the next restart.
+            for (const p of [pane, top]) {
+                p.get_parent()?.remove_child(p);
+                parent.insert_child_below(p, anchor);
+            }
+        }
         const hide = () => {
             pane.hide();
             top.hide();
