@@ -205,6 +205,20 @@ def panel_mask(ctx: Ctx, shape) -> np.ndarray:
     return lgqa.rect_mask(shape, [ctx.px(b) for b in boxes], grow=2)
 
 
+def steady_shot(sh, name: str, ignore: np.ndarray, limit: float = 6.0) -> np.ndarray:
+    """A picture once the screen has stopped changing: a menu that is still growing open
+    or drawing its first frame on a slow test machine would otherwise count as a look change."""
+    end = time.monotonic() + limit
+    now = lgqa.load(sh.shot(name))
+    while time.monotonic() < end:
+        time.sleep(0.5)
+        nxt = lgqa.load(sh.shot(name))
+        if nxt.shape == now.shape and not (np.abs(nxt.astype(int) - now.astype(int)).max(axis=-1)[~ignore] > 0).any():
+            return nxt
+        now = nxt
+    return now
+
+
 def settle(sec: float = 1.0) -> None:
     time.sleep(sec)
 
@@ -276,7 +290,7 @@ def check_looks(ctx: Ctx) -> Check:
     sh.eval(f"{ARC}.menuButton.toggleMenu(); 1")
     if sh.wait_for(f"return {ARC}._menuButton.arcMenu.isOpen;", 5):
         settle(1.5)
-        now = lgqa.load(sh.shot("looks-arcmenu"))
+        now = steady_shot(sh, "looks-arcmenu", mask)
         against_reference(ctx, c, "arcmenu", "ArcMenu", now, mask)
         sh.eval(f"if ({ARC}._menuButton.arcMenu.isOpen) {ARC}.menuButton.toggleMenu(); 1")
     else:
