@@ -20,6 +20,7 @@ import {PopupStyle} from './popupstyle.js';
 import {Safety, guarded} from './safety.js';
 import {Speed} from './speed.js';
 import {GlassManager} from './surfaces.js';
+import {UserThemesTidy} from './themetidy.js';
 import {effectiveConfig} from './tuning.js';
 
 export default class LiquidGlassExtension extends Extension {
@@ -37,6 +38,13 @@ export default class LiquidGlassExtension extends Extension {
             this._popupStyle?.update(cfg);
         }));
         this._modeId = Main.sessionMode.connect('updated', () => this._sync());
+        // User Themes leaves a listener behind at every lock (see themetidy.js).
+        try {
+            this._tidy = new UserThemesTidy();
+        } catch (e) {
+            console.error(`Fedora Glass: no User Themes tidy-up: ${e}`);
+            this._tidy = null;
+        }
         this._sync();
     }
 
@@ -165,6 +173,8 @@ export default class LiquidGlassExtension extends Extension {
         if (this._modeId)
             Main.sessionMode.disconnect(this._modeId);
         this._modeId = 0;
+        this._tidy?.destroy();
+        this._tidy = null;
         this._lock?.destroy();
         this._lock = null;
         this._leaving?.destroy();

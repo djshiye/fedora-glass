@@ -119,18 +119,31 @@ export class LockGlass {
     _loadStyle() {
         // Loading a stylesheet itself makes the theme context say it changed: only act
         // when the theme really is another one, or this would call itself forever.
-        const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
-        if (this._loading || theme === this._theme)
+        if (this._loading)
             return;
-        this._unloadStyle();
+        const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
         // Only into the theme of the locked screen: as it unlocks, GNOME puts the user's
         // theme back, and that one must never keep this stylesheet.
-        if (this._ended || !this.cfg.enabled || !theme || !Main.sessionMode.isLocked)
+        const want = !this._ended && this.cfg.enabled && theme && Main.sessionMode.isLocked;
+        if (want && theme === this._theme)
+            return;
+        this._unloadStyle();
+        if (!theme)
             return;
         this._loading = true;
         try {
-            if (theme.load_stylesheet(STYLESHEET))
+            // A theme reload copies the sheets of the old theme into the new one, ours
+            // too (GNOME reloads the theme while locked, and the user's theme may come
+            // back before the unlock reaches us). Loading it a second time leaves an
+            // empty entry in the theme's list, and from then on every theme reload
+            // fails: User Themes breaks and dark/light stops switching the Shell theme.
+            const has = theme.get_custom_stylesheets().some(f => f?.equal(STYLESHEET));
+            if (!want) {
+                if (has)
+                    theme.unload_stylesheet(STYLESHEET);
+            } else if (has || theme.load_stylesheet(STYLESHEET)) {
                 this._theme = theme;
+            }
         } finally {
             this._loading = false;
         }

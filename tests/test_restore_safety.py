@@ -151,3 +151,62 @@ def test_turning_terminal_colours_off_puts_the_palette_back(fake_env):
     t.profiles = lambda env: monkey_profiles
     acts = t.plan(ctx)
     assert any(isinstance(a, GReset) and a.key == "palette" for a in acts)
+
+
+@dataclass
+class CssTarget(Target):
+    """Writes one generated style sheet, like the GTK target."""
+    path: Path = field(default=Path("/nonexistent"))
+
+    def plan(self, ctx):
+        return [WriteFile(self.path, "/* Fedora Glass */\nwindow {}\n")]
+
+
+def css_engine(env, path):
+    return Engine(env, [CssTarget(id="t", name="Test", path=path)])
+
+
+def test_restore_keeps_a_file_a_theme_wrote_since_apply(fake_env):
+    # Before: no gtk.css. After Apply, a theme installer writes its own.
+    p = fake_env.config / "gtk-4.0/gtk.css"
+    eng = css_engine(fake_env, p)
+    eng.apply(Settings())
+    p.write_text("@import 'theme.css';\n")
+    assert eng.revert() == []
+    assert p.read_text() == "@import 'theme.css';\n"
+    assert not eng.is_applied()
+
+
+def test_restore_does_not_put_an_older_original_over_a_newer_file(fake_env):
+    p = fake_env.config / "gtk-4.0/gtk.css"
+    p.parent.mkdir(parents=True)
+    p.write_text("old theme\n")
+    eng = css_engine(fake_env, p)
+    eng.apply(Settings())
+    p.write_text("theme update\n")
+    assert eng.revert() == []
+    assert p.read_text() == "theme update\n"
+    assert not list((fake_env.state / "liquid-glass/backup/files").iterdir())
+
+
+def test_restore_keeps_a_link_put_in_place_of_our_file(fake_env, tmp_path):
+    # A link planted where we wrote (a theme linking gtk.css, or someone in a shared
+    # folder): never followed, never deleted.
+    other = tmp_path / "someone-elses.css"
+    other.write_text("keep me\n")
+    p = fake_env.config / "gtk-4.0/gtk.css"
+    eng = css_engine(fake_env, p)
+    eng.apply(Settings())
+    p.unlink()
+    p.symlink_to(other)
+    assert eng.revert() == []
+    assert p.is_symlink() and other.read_text() == "keep me\n"
+
+
+def test_restore_still_removes_our_own_file_after_a_dark_light_switch(fake_env):
+    p = fake_env.config / "gtk-4.0/gtk.css"
+    eng = css_engine(fake_env, p)
+    eng.apply(Settings())
+    eng.apply(Settings())        # the watcher re-applies
+    assert eng.revert() == []
+    assert not p.exists()
