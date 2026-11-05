@@ -54,8 +54,10 @@ export class UserThemesTidy {
         this._idle = 0;
         this.tidied = 0;    // read by the QA tools
         this._id = Main.extensionManager.connect('extension-state-changed', (_m, ext) => {
+            // At once: User Themes has finished enable() by now, and a theme change right
+            // after an unlock (the dark/light watcher) must not meet the stale listeners.
             if (ext?.uuid === USER_THEME && ext.state === ACTIVE)
-                this._soon();
+                this.tidy();
         });
         this._soon();
     }
@@ -63,7 +65,7 @@ export class UserThemesTidy {
     _soon() {
         if (this._idle)
             return;
-        this._idle = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+        this._idle = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             this._idle = 0;
             this.tidy();
             return GLib.SOURCE_REMOVE;
