@@ -979,6 +979,15 @@ def theme_reloads_after_locks(ctx: Ctx, c: Check) -> None:
     reloads the whole Shell theme when the theme name changes (Fedora Glass changes it
     twice at every dark/light switch). After the three locks above, one change of the
     name must reload the theme once."""
+    sheets = ctx.sh.json("return imports.gi.St.ThemeContext.get_for_stage(global.stage).get_theme()"
+                         ".get_custom_stylesheets().map(f => f ? f.get_basename() : null);")
+    bad = sheets.count(None)
+    c.add(not bad and "lock.css" not in sheets,
+          "After three locks, the desktop's Shell theme has no lock screen styles and no broken entries."
+          if not bad and "lock.css" not in sheets else
+          f"After three locks, the desktop's Shell theme has {bad} broken entries and "
+          f"{sheets.count('lock.css')} copies of the lock screen styles: the lock screen loaded its styles twice, "
+          "and from now on every theme reload fails (User Themes breaks, dark/light stops switching).")
     log = lgqa.OUT / "shell.log"
     key = ["org.gnome.shell.extensions.user-theme", "name"]
     name = lgqa.subprocess.run(["gsettings", "get", *key], env=lgqa.ENV, capture_output=True, text=True).stdout.strip()
