@@ -51,6 +51,18 @@ jobs:
             echo "No report: the test desktop did not start." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Shell log (only when a check failed)
+        # The report download can't always be opened where the failure is looked at:
+        # the end of GNOME Shell's log in the job log itself (a test desktop, nothing private).
+        if: failure()
+        run: |
+          for f in shell.log watch.txt apply.txt; do
+            [ -f "$RUNNER_TEMP/qa-report/$f" ] || continue
+            echo "::group::$f (last 300 lines)"
+            tail -n 300 "$RUNNER_TEMP/qa-report/$f"
+            echo "::endgroup::"
+          done
+
       - name: Keep the report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
