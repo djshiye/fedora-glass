@@ -107,7 +107,9 @@ def scheme_vars(t: Tokens) -> str:
     """The colour variables of one scheme (inside :root)."""
     extra = {
         "overview-bg-color": t.window.with_alpha(max(t.window.a, 0.8)), "overview-fg-color": t.fg,
-        "active-toggle-bg-color": t.fg.with_alpha(0.22 if t.dark else 0.9),
+        # The chosen toggle of a toggle group: a lighter tile in dark, a white one in light
+        # (the text colour at 90 % made it a near-black tile under near-black text).
+        "active-toggle-bg-color": t.fg.with_alpha(0.22) if t.dark else Color(1, 1, 1, 0.9),
         "active-toggle-fg-color": t.fg,
     }
     rows = {**adwaita_colors(t), **extra, **glass_colors(t)}

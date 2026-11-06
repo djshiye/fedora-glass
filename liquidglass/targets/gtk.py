@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..env import Env
 from ..render import gtk3, gtk4, headerbar
-from .base import Action, Context, FlatpakOverride, Detection, GSet, Target, WriteFile
+from .base import Action, Context, FlatpakOverride, Detection, GReset, GSet, Target, WriteFile
 
 GTK3_PARTIAL = "Some GTK 3 details need adw-gtk3: sudo dnf install adw-gtk3-theme"
 
@@ -76,6 +76,29 @@ def kept_theme_is_dark(env: Env) -> bool | None:
     return None
 
 
+GEDIT = "org.gnome.gedit.preferences.editor"
+_GEDIT_KEYS = {True: "style-scheme-for-dark-theme-variant", False: "style-scheme-for-light-theme-variant"}
+
+
+def gedit_scheme(env: Env, dark: bool | None) -> list[Action]:
+    """gedit picks its colour scheme by the desktop's light/dark setting, but it draws with
+    the GTK 3 theme, which may stay dark on a light desktop (Orchis-Dark). It then used its
+    light scheme (Tango) on the dark theme: a white line-number strip and current line with
+    white numbers on it, and dark syntax colours on dark glass. So gedit's scheme for the
+    other setting becomes the one it uses with the theme's own darkness. Restore (or a theme
+    that follows the desktop) puts gedit's choice back; a choice the user makes later stays."""
+    if dark is None:
+        return [GReset(GEDIT, k) for k in _GEDIT_KEYS.values()]
+    want = env.gsettings_get(GEDIT, _GEDIT_KEYS[dark])
+    if not want:
+        return []                   # gedit is not installed
+    other = _GEDIT_KEYS[not dark]
+    actions: list[Action] = [GReset(GEDIT, _GEDIT_KEYS[dark])]
+    if env.gsettings_get(GEDIT, other) != want:
+        actions.append(GSet(GEDIT, other, want, keep_user_change=True))
+    return actions
+
+
 class Gtk3(Target):
     """GTK 3 apps. With adw-gtk3 installed the whole theme is recoloured to glass (it draws
     every widget from libadwaita's named colours). On any other GTK 3 theme (Orchis, say)
@@ -110,7 +133,7 @@ class Gtk3(Target):
         css = WriteFile(ctx.env.config / "gtk-3.0/gtk.css",
                         gtk3.render(t, on_light_glass) + headerbar.gtk3_css(ctx.settings, t))
         if kept:
-            return [css]
+            return [css, *gedit_scheme(ctx.env, dark)]
         return [GSet("org.gnome.desktop.interface", "gtk-theme", f"'{gtk3.theme_name(t)}'"), css]
 
 

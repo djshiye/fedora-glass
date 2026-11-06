@@ -161,7 +161,19 @@ splitbutton > button:first-child { border-radius: $r_s 0 0 $r_s; }
 splitbutton > menubutton:last-child > button { border-radius: 0 $r_s $r_s 0; }
 button.osd, .osd button { background-color: rgba(20, 20, 24, 0.55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.10); }
 menubutton > button, dropdown > button, combobox button.combo { border-radius: $r_s; }
-button.destructive-action { color: var(--destructive-fg-color); }
+/* Delete and other destructive buttons: a solid red pill like Suggested is a solid accent one.
+   libadwaita 1.6+ draws them as red text on a 15 % tint of the text colour; with the
+   destructive text colour set to read on red, that tint became white on near-white (light)
+   and near-black on dark red (dark), and the dialog's Delete button could not be read. */
+button.destructive-action:not(.flat), button.destructive-action:not(.flat):hover,
+button.destructive-action:not(.flat):active, button.destructive-action:not(.flat):checked {
+  background-color: var(--destructive-bg-color);
+  color: var(--destructive-fg-color);
+}
+button.destructive-action:not(.flat):active, button.destructive-action:not(.flat):checked {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.14));
+}
+button.destructive-action.flat { color: var(--destructive-color); }
 
 /* ---- header bar buttons: flat icons on one glass bar -------------------------
    No bubbles at rest. Hovering a button lifts a glass tile under that one button,
@@ -245,6 +257,9 @@ entry:focus-within, spinbutton:focus-within {
   outline: none;
 }
 row.entry, row.spin, row.entry:focus-within { border-radius: $r_s; box-shadow: none; background-color: transparent; }
+/* A spin row's number field is part of the row, not a field of its own: without this it
+   drew a glass field across the whole row. */
+row.spin spinbutton, row.spin spinbutton:focus-within { background-color: transparent; box-shadow: none; min-height: 0; }
 textview { border-radius: $r_s; }
 /* Search fields are capsules, every other field is a rounded rectangle. */
 searchentry { border-radius: 999px; }
@@ -381,6 +396,13 @@ tabbar tabbox > tabboxchild:selected, tabbar tabbox > tab:selected {
 tabbar tabbox > tabboxchild:hover:not(:selected) { background-color: var(--lg-hover); }
 notebook > header { background-color: transparent; box-shadow: inset 0 -1px 0 var(--lg-divider); }
 notebook > header > tabs > tab { border-radius: $r_s $r_s 0 0; }
+/* Tabs on the other sides round toward the page they open, and the line sits on that side. */
+notebook > header.bottom > tabs > tab { border-radius: 0 0 $r_s $r_s; }
+notebook > header.left > tabs > tab { border-radius: $r_s 0 0 $r_s; }
+notebook > header.right > tabs > tab { border-radius: 0 $r_s $r_s 0; }
+notebook > header.bottom { box-shadow: inset 0 1px 0 var(--lg-divider); }
+notebook > header.left { box-shadow: inset -1px 0 0 var(--lg-divider); }
+notebook > header.right { box-shadow: inset 1px 0 0 var(--lg-divider); }
 notebook > header > tabs > tab:checked { background-color: var(--lg-glass-hi); box-shadow: inset 0 1px 0 var(--lg-rim); }
 notebook > stack { background-color: var(--view-bg-color); }
 viewswitcher button.toggle, inline-view-switcher button, toggle-group button {
