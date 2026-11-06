@@ -30,7 +30,7 @@ from lgqa import LG, OUT, Shell, ShellError  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 # Reference pictures are for the default 2000x1125 screens; other sizes keep their own set.
-SCREEN = os.environ.get("LGQA_SCREEN", "2000x1125")
+SCREEN = os.environ.get("LGQA_SCREEN", "2000x1125").split("@")[0]   # WxH@R: R is the refresh rate
 REFS = HERE.parent / "references" / ("" if SCREEN == "2000x1125" else SCREEN)
 NEW_REFS = OUT / "new-references"
 REPORT = OUT / "report"
@@ -1069,6 +1069,12 @@ def screen_unplugged(ctx: Ctx, c: Check) -> None:
     ok = two["screens"] == 2 and two["glass"] == two["panels"] == 2
     c.add(ok, "Plugged back in: both panels have glass." if ok else
           f"Plugged back in: {two['glass']} of {two['panels']} panels have glass ({two['screens']} screens).")
+    # The speed watch keeps one entry per screen it has seen drawn; 1.5.7 kept the old
+    # screens' entries after every unplug (11 after three unplugs of two screens).
+    views = ctx.sh.json(f"return Main.extensionManager.lookup('{LG}').stateObj?._speed?._views?.size ?? -1;")
+    c.add(0 <= views <= two["screens"], f"The speed watch follows {views} screens after the unplug, as many as there are."
+          if 0 <= views <= two["screens"] else
+          f"The speed watch still follows {views} screens after the unplug, with {two['screens']} plugged in.")
 
 
 LOCK_SHEETS_JS = """

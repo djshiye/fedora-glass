@@ -15,8 +15,10 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
 import {setQuality, glassRenders, redrawAllPanes, shownPanes} from './glass.js';
-import {LEVELS, Tuner, cleanQuality, frameLate, scorePhase, pickLevel} from './tuning.js';
+import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
 
 const REQUEST = 'speed-check.json';
 const REQUEST_MAX = 1024;
@@ -49,12 +51,17 @@ export class Speed {
         this._cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'liquid-glass']);
         // The last check's result, for the status file. One from before a restart stays.
         this._result = this._lastResult();
+        // A PC the check found smooth never drops to the lightest glass (tuning.js).
+        this._tuner.deepest = deepestFor(this._result);
         this._configDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_config_dir(), 'liquid-glass']));
         // A request left over from before (the app asked, then the PC restarted) does not run.
         this._seenId = this._readRequest();
 
         this._before = global.stage.connect('before-paint', (_s, view) => this._beforePaint(view));
         this._after = global.stage.connect('after-paint', (_s, view) => this._afterPaint(view));
+        // Mutter makes new views when screens change (plugged in, unplugged, a new
+        // refresh rate): forget the old ones, and read the new refresh rates.
+        this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._views.clear());
         try {
             this._monitor = this._configDir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
             this._monitorId = this._monitor.connect('changed', (_m, file, other) => {
@@ -283,8 +290,10 @@ export class Speed {
         const phases = c.phases;
         this._result = {id: c.id, state, error, refresh: Math.round((c.refresh ?? 0) * 10) / 10, phases,
             pick: state === 'done' ? pickLevel(phases) : ''};
-        // Back to what the setting (or auto) had.
-        this._setLevel(this._quality === 'auto' ? c.back : this._fixedLevel());
+        // Back to what the setting (or auto) had; auto no deeper than this check allows.
+        if (state === 'done')
+            this._tuner.limit(deepestFor(this._result), now());
+        this._setLevel(this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel());
         this._scheduleRetry();
         this._writeStatus();
     }
@@ -346,6 +355,9 @@ export class Speed {
         if (this._after)
             global.stage.disconnect(this._after);
         this._before = this._after = 0;
+        if (this._monitorsId)
+            Main.layoutManager.disconnect(this._monitorsId);
+        this._monitorsId = 0;
         if (this._monitor) {
             this._monitor.disconnect(this._monitorId);
             this._monitor.cancel();

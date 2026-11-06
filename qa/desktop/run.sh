@@ -16,6 +16,7 @@
 # --screen WxH          size of each of the two screens in real pixels (default 2000x1125).
 #                       --screen 2560x1440 is Dino's PC. Pictures are compared only at sizes
 #                       that have their own reference pictures (references/WxH/).
+#                       WxH@R sets the refresh rate too: --screen 2560x1440@144.
 # LGQA_BUILD_ARGS / LGQA_RUN_ARGS: extra arguments for docker build / docker run (podman on SELinux
 #                       needs LGQA_RUN_ARGS="--security-opt label=disable" to read the mounted folders).
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
@@ -38,7 +39,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if ! [[ $SCREEN =~ ^[1-9][0-9]{2,3}x[1-9][0-9]{2,3}$ ]]; then echo "--screen needs a size like 2560x1440" >&2; exit 64; fi
+if ! [[ $SCREEN =~ ^[1-9][0-9]{2,3}x[1-9][0-9]{2,3}(@[1-9][0-9]{1,2})?$ ]]; then echo "--screen needs a size like 2560x1440 (or 2560x1440@144 for a 144 Hz screen)" >&2; exit 64; fi
 
 echo "Building the test desktop image (cached after the first time)..."
 docker build -q -t lgqa-desktop ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
@@ -70,7 +71,7 @@ docker exec -u dino -e LGQA_OUT=/out "$NAME" python3 /opt/lgqa/suite/checks/run_
 rc=$?
 set -e
 if [ -n "$UPDATE" ] && [ -d "$OUT/new-references" ]; then
-    REFDIR="$SUITE/references"; [ "$SCREEN" = 2000x1125 ] || REFDIR="$REFDIR/$SCREEN"
+    REFDIR="$SUITE/references"; [ "${SCREEN%@*}" = 2000x1125 ] || REFDIR="$REFDIR/${SCREEN%@*}"
     mkdir -p "$REFDIR"
     cp "$OUT"/new-references/*.png "$REFDIR/"
     echo "Reference pictures updated in $REFDIR."
