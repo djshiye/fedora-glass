@@ -198,14 +198,13 @@ export class LockWidgets {
         if (this.cfg.message) {
             const msg = new St.Label({
                 name: 'liquid-glass-lock-message',
-                style: `${TEXT} font-size: 11.5pt; font-weight: 500; ${style.message} max-width: 520px;`,
+                // text-align: a message on two lines stays centred under the clock.
+                style: `${TEXT} font-size: 11.5pt; font-weight: 500; ${style.message} max-width: 520px; text-align: center;`,
                 x_align: Clutter.ActorAlign.CENTER,
             });
             // Plain text only: the owner's words are never read as markup.
             msg.clutter_text.use_markup = false;
             msg.clutter_text.line_wrap = true;
-            // A message on two lines stays centred under the clock.
-            msg.clutter_text.line_alignment = 1;   // Pango.Alignment.CENTER, without loading Pango
             msg.text = this.cfg.message;
             box.add_child(msg);
         }
