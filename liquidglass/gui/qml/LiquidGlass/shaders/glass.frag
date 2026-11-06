@@ -31,6 +31,9 @@ layout(std140, binding = 0) uniform buf {
     float depth;       // 0..1, how domed the top is
     float bleed;       // 0..1, how much the content's colours light up the glass
     float pad;         // px of backdrop around the item in `source`
+    vec2 ptr;          // the pointer, in px on this item (the pointer light setting)
+    float ptrK;        // 0..1, how far the light turns towards the pointer
+    float ptrReach;    // px, how far around the pointer the rim catches more (180 desktop px)
 };
 layout(binding = 1) uniform sampler2D source;
 layout(binding = 2) uniform sampler2D content;
@@ -56,7 +59,10 @@ vec4 over(vec4 dst, vec4 c, float k) {
 
 const float IOR = 1.5;
 const float F0 = 0.04;
-const vec2 LIGHT = vec2(-0.5574, -0.8302);   // the room is brighter top left
+const vec2 ROOM = vec2(-0.5574, -0.8302);    // the room is brighter top left
+// Where the light comes from at this pixel: the room's light, turned towards the
+// pointer while it is near (as motion.js and glass.js do on the desktop). Set in main().
+vec2 LIGHT = ROOM;
 const float REACH = 48.0;                    // px the edge sees beyond itself
 
 // The squircle edge profile's slope, as in glass.js.
@@ -183,6 +189,10 @@ void main() {
     vec2 c = size * 0.5;
     vec2 px0 = qt_TexCoord0 * size;
     vec2 p = px0 - c;
+    if (ptrK > 0.001) {
+        vec2 toPtr = ptr - px0;
+        LIGHT = normalize(mix(ROOM, toPtr / max(length(toPtr), 1.0), ptrK) + vec2(1e-4));
+    }
     float r = min(radius, min(c.x, c.y));
     float d = sdRoundRect(p, c, r);
     float cov = clamp(0.5 - d, 0.0, 1.0);
@@ -265,15 +275,19 @@ void main() {
         seen = vivid(e.rgb / max(e.a, 1e-3), 1.4);
         float lobe = pow(max(dot(n, LIGHT), 0.0), 8.0) * crest;
         lobe += pow(max(dot(-n, LIGHT), 0.0), 8.0) * crest * 0.3;
+        // Near the pointer the rim catches more of the same reflection, as in glass.js:
+        // a gain on what it really mirrors, never added light.
+        vec2 dp = px0 - ptr;
+        float near = ptrK > 0.001 ? ptrK * exp(-dot(dp, dp) / max(2.0 * ptrReach * ptrReach, 1.0)) : 0.0;
         // The last few px of the rounded edge are near grazing: a thin wet band
         // that mirrors the surroundings almost fully.
-        float wet = smoothstep(2.4, 0.8, inside) * smoothstep(0.0, 0.6, inside);
-        a = clamp((F * 1.9 + wet * 0.3) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe), 0.0, 0.92) * clamp(e.a, 0.0, 1.0);
+        float wet = smoothstep(2.4 + 3.5 * near, 0.8, inside) * smoothstep(0.0, 0.6, inside);
+        a = clamp((F * 1.9 + wet * (0.3 + 1.2 * near)) * min(1.0, hl * 2.2) * (1.0 + 2.5 * lobe + 2.0 * near), 0.0, 0.92) * clamp(e.a, 0.0, 1.0);
         // Restraint: the reflection lights the edge only a little above the glass
         // itself, so a bright backdrop gives no brighter a line than a dark one.
         vec4 under = mode > 1.5 ? at(px0) : col;
         vec3 base = under.rgb / max(under.a, 1e-3);
-        seen = min(seen * (1.15 + 0.8 * lobe), base + vec3(0.05 + 0.03 * lobe));
+        seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * near), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * near);
     }
     // The line of light at the very edge: the backdrop beyond it mixed most of
     // the way to white, at most a little brighter than the glass around it.
