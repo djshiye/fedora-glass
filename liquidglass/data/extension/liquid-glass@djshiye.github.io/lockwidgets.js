@@ -23,8 +23,8 @@ import {loadInterfaceXML} from 'resource:///org/gnome/shell/misc/fileUtils.js';
 
 import {Signals} from './common.js';
 
-const TICK_S = 60;                 // the greeting follows the time of day
-const WEATHER_EVERY_TICKS = 30;    // ask GNOME's weather for fresh numbers every 30 minutes
+const TICK_S = 60;                 // the greeting follows the time of day (when GNOME's clock can't say)
+const WEATHER_EVERY_US = 30 * 60 * 1000000;   // ask GNOME's weather for fresh numbers every 30 minutes
 export const MESSAGE_MAX = 120;
 
 // UPower's device states (UPowerGlib.DeviceState), as numbers so this file needs no
@@ -66,6 +66,15 @@ export function greetingFor(hour) {
     if (hour >= 17 && hour < 22)
         return 'Good evening';
     return 'Good night';
+}
+
+/**
+ * Whether the weather is due for fresh numbers. By the wall clock, which keeps running
+ * while the PC sleeps: 1.5.7 counted minutes awake, so after a night asleep the lock
+ * screen showed last evening's weather for up to half an hour.
+ */
+export function weatherDue(lastUs, nowUs) {
+    return !lastUs || nowUs - lastUs >= WEATHER_EVERY_US || nowUs < lastUs;
 }
 
 export function batteryIcon(percent, state) {
@@ -195,24 +204,39 @@ export class LockWidgets {
             // Plain text only: the owner's words are never read as markup.
             msg.clutter_text.use_markup = false;
             msg.clutter_text.line_wrap = true;
+            // A message on two lines stays centred under the clock.
+            msg.clutter_text.line_alignment = 1;   // Pango.Alignment.CENTER, without loading Pango
             msg.text = this.cfg.message;
             box.add_child(msg);
         }
         if (this.cfg.hideNotifications)
             this._hideNotifications(dialog);
         this._tick();
-        this._timer = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, TICK_S, () => {
-            this._safe(() => this._tick());
-            return this._timer ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
-        });
+        // GNOME's own lock clock changes on the minute and straight after the PC wakes up
+        // (a timer alone sleeps along with the PC, so the greeting and weather were stale
+        // on waking): follow it, with a timer only if it isn't there.
+        const wall = clock._wallClock;
+        if (wall?.connect) {
+            this._dialogSignals.on(wall, 'notify::clock', () => this._safe(() => this._tick()));
+        } else {
+            this._timer = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, TICK_S, () => {
+                this._safe(() => this._tick());
+                return this._timer ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
+            });
+        }
     }
 
     _tick() {
-        this._ticks = (this._ticks ?? 0) + 1;
+        if (this._ended)
+            return;
         if (this._greeting)
             this._greeting.text = greetingFor(GLib.DateTime.new_now_local().get_hour());
-        if (this._weatherClient && this._ticks % WEATHER_EVERY_TICKS === 0 && this._weatherClient.hasLocation)
-            this._weatherClient.update();
+        const client = this._weatherClient;
+        const now = GLib.get_real_time();
+        if (client?.hasLocation && weatherDue(this._weatherAt, now)) {
+            this._weatherAt = now;
+            client.update();
+        }
     }
 
     _watchBattery() {
@@ -247,8 +271,7 @@ export class LockWidgets {
             return;
         this._weatherClient = client;
         this._weatherId = client.connect('changed', () => this._safe(() => this._syncWeather()));
-        if (client.hasLocation)
-            client.update();
+        this._weatherAt = 0;    // the first tick asks for fresh numbers
         this._syncWeather();
     }
 
@@ -274,6 +297,12 @@ export class LockWidgets {
             return;
         this._notifications = box;
         box.hide();
+        // Hidden ones take no room either: 1.5.7 still lifted the clock to make space for
+        // them, which told anyone looking that something had arrived.
+        box.set_size(0, 0);
+        // And a new one doesn't light up a sleeping screen to show nothing.
+        if (typeof box._wakeUpScreenForSource === 'function')
+            box._wakeUpScreenForSource = () => {};
         this._dialogSignals.on(box, 'notify::visible', () => {
             if (box.visible && this._notifications === box)
                 box.hide();
@@ -294,7 +323,7 @@ export class LockWidgets {
         if (this._timer)
             GLib.source_remove(this._timer);
         this._timer = 0;
-        this._ticks = 0;
+        this._weatherAt = 0;
         this._cancel?.cancel();
         this._cancel = null;
         // Each one on its own: one that fails must not keep the rest connected.
@@ -314,9 +343,13 @@ export class LockWidgets {
         const box = this._notifications;
         this._notifications = null;
         try {
-            // GNOME works out again whether it has anything to show.
-            if (box)
+            if (box) {
+                // GNOME's own again: its size, its wake-ups, and whether it has anything to show.
+                if (Object.hasOwn(box, '_wakeUpScreenForSource'))
+                    delete box._wakeUpScreenForSource;
+                box.set_size(-1, -1);
                 box._updateVisibility ? box._updateVisibility() : box.show();
+            }
         } catch {}   // gone with the dialog
         for (const a of this._actors) {
             try {
