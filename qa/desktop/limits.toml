@@ -57,7 +57,7 @@ max_changed_patch = 2500
 max_changed_share = 0.02
 
 [popups]
-# The volume pop-up and Alt+Tab: the most of their own fill that may cover the glass
+# The volume pop-up, Alt+Tab, the taskbar's window previews and the Run dialog: the most of their own fill that may cover the glass
 # under them (Fedora Glass draws about 30 %; Just Perfection's theme paints 99-100 %).
 max_surface_alpha = 0.6
 # gedit's title bar corners: how much brighter than the desktop beside them the square

@@ -118,7 +118,7 @@ globalThis.fake = fake;
 const laters = new Laters();
 globalThis.global = {compositor: {get_laters: () => laters}, stage: Object.assign(new Actor(), {queue_redraw() {}})};
 
-const {Popups, partOf} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
+const {Popups, partOf, previewBox, dialogBox, seeThrough, tintOf, PreviewTint} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
 const {HOLD_MAX_MS} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/common.js');
 
 const cfg = {menus: {enabled: true, look: {}}, calendar: {enabled: true, look: {}},
@@ -204,4 +204,123 @@ test('the ArcMenu and Spawn start menus are the arcmenu part, other menus are no
     assert.equal(partOf(menu('spawn-popup', 'spawn-power-popup')), 'quicksettings');
     assert.equal(partOf(menu('spawn-context-menu')), 'quicksettings');
     assert.equal(partOf(menu()), 'quicksettings');
+});
+
+// ---- Dash to Panel's window previews and the Shell's dialogs ---------------------------
+function styled(...classes) {
+    const a = new Actor();
+    a.has_style_class_name = c => classes.includes(c);
+    a._style = null;
+    a.get_style = () => a._style;
+    a.set_style = st => {
+        a._style = st;
+        a.emit('notify::style');
+    };
+    return a;
+}
+
+// Dash to Panel's PreviewMenu: a full-width, clipped strip holding the box people see.
+function previewMenu() {
+    const strip = new Actor();
+    strip.requestPeek = () => {};
+    const box = styled();
+    strip.menu = box;
+    strip.add_child(box);
+    fake.ui.add_child(strip);
+    return {strip, box};
+}
+
+// A GNOME ModalDialog: the dimmed backdrop, then a bin holding the dialog's box.
+function modalDialog() {
+    const dialog = new Actor();
+    const lightbox = new Actor();
+    const bin = new Actor();
+    const layout = new Actor();
+    const box = styled('modal-dialog');
+    dialog.add_child(lightbox);
+    dialog.add_child(bin);
+    bin.add_child(layout);
+    layout.add_child(box);
+    layout._dialog = box;
+    dialog.dialogLayout = layout;
+    dialog.contains = a => {
+        for (let x = a; x; x = x.get_parent())
+            if (x === dialog)
+                return true;
+        return false;
+    };
+    return {dialog, lightbox, bin, box};
+}
+
+test('window previews and dialogs are recognised, other actors are not', () => {
+    const {strip, box} = previewMenu();
+    assert.equal(previewBox(strip), box);
+    assert.equal(previewBox(new Actor()), null);
+    assert.equal(previewBox(Object.assign(new Actor(), {menu: new Actor()})), null, 'a menu field alone is not enough');
+    const d = modalDialog();
+    assert.equal(dialogBox(d.dialog), d.box);
+    assert.equal(dialogBox(new Actor()), null);
+    d.dialog.dialogLayout._dialog = styled('something-else');
+    assert.equal(dialogBox(d.dialog), null, 'only a .modal-dialog box');
+});
+
+test('a window preview that fades in by itself gets glass inside its clipped strip', () => {
+    const {strip, box} = previewMenu();
+    const p = start(new Popups(cfg));
+    p._consider(strip);
+    box.opacity = 0;          // Dash to Panel maps it invisible and eases it in
+    box.map();
+    const f = p._followers.get(box);
+    assert.ok(f, 'the preview has glass');
+    assert.equal(f._held, null, 'not held back: holding a 0-opacity pop-up never let go');
+    assert.equal(box.opacity, 0, 'its own fade is left alone');
+    assert.deepEqual(strip.get_children().slice(0, 2), [f.pane, f.top], 'the panes sit under the box, inside the strip');
+    p.destroy();
+    assert.deepEqual(strip.get_children(), [box], 'turning off takes the panes away');
+});
+
+test('a dialog gets glass between its dimmed backdrop and its box', () => {
+    const d = modalDialog();
+    const p = start(new Popups(cfg));
+    p._dialog(d.dialog);
+    d.box.map();
+    const f = p._followers.get(d.box);
+    assert.ok(f, 'the dialog has glass');
+    assert.equal(f.anchor, d.bin);
+    assert.deepEqual(d.dialog.get_children(), [d.lightbox, f.pane, f.top, d.bin]);
+    p.destroy();
+    assert.deepEqual(d.dialog.get_children(), [d.lightbox, d.bin]);
+});
+
+test('preview title strips get the pop-up tint, and their own style back when turned off', () => {
+    assert.equal(seeThrough('padding: 4px;background-color: rgba(29,30,36,1); transition-duration:0.3s;', 0.28),
+        'padding: 4px;background-color: rgba(29,30,36,0.280); transition-duration:0.3s;');
+    assert.equal(seeThrough('background-color: rgba(29,30,36,0.6);', 0.28), 'background-color: rgba(29,30,36,0.6);',
+        'colours that are already see-through stay');
+    assert.equal(seeThrough(null, 0.3), null);
+    assert.equal(tintOf('background: rgba(41,42,48,0.28); '), 0.28);
+    assert.equal(tintOf('background: rgba(41,42,48,1); '), null);
+    assert.equal(tintOf(null), null);
+
+    const {strip, box} = previewMenu();
+    box.set_style('background: rgba(41,42,48,0.28); ');
+    const list = new Actor();
+    box.add_child(list);
+    const tint = new PreviewTint(box);
+    // A preview made later, as the pointer moves to another app.
+    const preview = new Actor();
+    const header = styled('preview-header-box');
+    const own = 'background-color: rgba(29,30,36,1); transition-duration:0.3s;';
+    header.set_style(own);
+    preview.add_child(header);
+    list.add_child(preview);
+    list.emit('child-added', preview);
+    assert.equal(header.get_style(), 'background-color: rgba(29,30,36,0.280); transition-duration:0.3s;');
+    header.set_style(own);    // Dash to Panel styles it again
+    assert.equal(header.get_style(), 'background-color: rgba(29,30,36,0.280); transition-duration:0.3s;');
+    tint.destroy();
+    assert.equal(header.get_style(), own, 'Dash to Panel\'s own style is back');
+    assert.equal(header.handlerCount(), 0);
+    assert.equal(list.handlerCount(), 0);
+    strip.destroy();
 });

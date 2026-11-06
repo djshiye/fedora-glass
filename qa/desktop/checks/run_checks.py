@@ -1543,6 +1543,8 @@ SURFACE_JS = """const a = %s; if (!a || !a.mapped) return null;
  walk(Main.layoutManager.uiGroup);
  return {alpha: a.get_theme_node().get_background_color().alpha / 255, glass, box: [x, y, w, h]};"""
 SWITCHER = "Main.layoutManager.uiGroup.get_children().find(c => c._switcherList)"
+PREVIEWS = "global.dashToPanel.panels[0].taskbar.previewMenu"
+RUN_DIALOG = "Main.layoutManager.modalDialogGroup.get_children().find(c => c.constructor.name === 'RunDialog')"
 KEYS = {"alt": 0xffe9, "tab": 0xff09, "down": 0xff54, "escape": 0xff1b}
 
 
@@ -1576,7 +1578,8 @@ def _glass_surface(c: Check, ctx: Ctx, label: str, js: str, lim: dict, shot: str
 def check_popups(ctx: Ctx) -> Check:
     c = Check("popups", "Pop-ups and title bars show the glass",
               "Shows the volume pop-up and Alt+Tab (with an app's window previews) under Dino's Just Perfection "
-              "theme, which paints them near-black, and opens gedit, whose title bar is made of several bars.")
+              "theme, which paints them near-black, the taskbar's window previews, the Run a Command dialog, "
+              "and opens gedit, whose title bar is made of several bars.")
     sh, lim = ctx.sh, LIMITS["popups"]
     sh.close_all()
     lgqa.kill_apps()
@@ -1615,6 +1618,18 @@ def check_popups(ctx: Ctx) -> Check:
     settle(1.5)
     gone = sh.eval(f"String(!{SWITCHER})") == "true"
     c.add(gone, "Alt+Tab closes." if gone else "Alt+Tab stayed on screen after it was closed.")
+
+    # Dash to Panel's window previews (hovering the Files icon), and a Shell dialog.
+    sh.eval(f"{PREVIEWS}.open(global.dashToPanel.panels[0].taskbar._getAppIcons()"
+            ".find(i => i.app?.get_id().includes('Nautilus'))); 1")
+    settle(1)
+    _glass_surface(c, ctx, "The taskbar's window previews", f"{PREVIEWS}.menu", lim, "popup-previews")
+    sh.eval(f"{PREVIEWS}.close(true); 1")
+    sh.eval("Main.openRunDialog(); 1")
+    settle(1)
+    _glass_surface(c, ctx, "The Run a Command dialog", f"{RUN_DIALOG}?.dialogLayout._dialog", lim, "popup-dialog")
+    sh.eval(f"{RUN_DIALOG}?.close(); 1")
+    settle(1)
     sh.close_all()
     lgqa.kill_apps()
 
