@@ -48,8 +48,24 @@ export function frameLate(gapUs, paintUs, intervalUs) {
     return gapUs > 1.5 * intervalUs;
 }
 
+/**
+ * How far down auto may step, from the last speed check. The lightest
+ * level changes the look (the glass shows only the wallpaper behind it), so when
+ * the check found full glass smooth on this PC, a busy moment may make the glass
+ * lighter but never that. 1.5.6 took a PC whose check ran full glass at 120 fps
+ * down to the lightest glass.
+ */
+export function deepestFor(check) {
+    if (!check || check.state !== 'done')
+        return LEVELS.length - 1;
+    const smooth = (check.phases ?? []).find(p => p?.verdict === 'smooth');
+    const best = smooth ? LEVELS.indexOf(smooth.level) : -1;
+    return best < 0 ? LEVELS.length - 1 : Math.min(LEVELS.length - 1, best + 1);
+}
+
 export class Tuner {
     constructor() {
+        this.deepest = LEVELS.length - 1;   // see deepestFor
         this.level = 0;
         this.floor = 0;            // the lowest level auto may go back up to
         this.reason = 'setting';   // 'setting', 'slow' or 'retry'
@@ -71,6 +87,21 @@ export class Tuner {
         this._relapseUntil = -Infinity;
     }
 
+    /** Never deeper than this level (deepestFor); a level already deeper comes back up to it. */
+    limit(deepest, t) {
+        this.deepest = deepest;
+        if (this.level <= deepest)
+            return null;
+        this.level = deepest;
+        this.floor = Math.min(this.floor, deepest);
+        this.reason = 'setting';
+        this._changedAt = t;
+        this._frames = [];
+        this._late = 0;
+        this._retryAt = this.level > this.floor ? t + RETRY_US : null;
+        return this.level;
+    }
+
     /** When the next try at a higher level is due (µs), or null. */
     get retryAt() {
         return this._retryAt;
@@ -87,7 +118,7 @@ export class Tuner {
         this._late = (this._late ?? 0) + (late ? 1 : 0);
         while (f.length && f[0][0] < t - WINDOW_US)
             this._late -= f.shift()[1] ? 1 : 0;
-        if (this.level >= 2 || t - this._changedAt < SETTLE_US || f.length < MIN_FRAMES)
+        if (this.level >= this.deepest || t - this._changedAt < SETTLE_US || f.length < MIN_FRAMES)
             return null;
         const share = this._late / f.length;
         if (share < LATE_SHARE)
