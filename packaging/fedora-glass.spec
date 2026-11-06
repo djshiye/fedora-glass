@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.7
+Version:        1.5.8
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,15 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Fri Nov 06 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.8-1
+- The app has a new look: a section bar on the Look page, clearer groups, and a short welcome on first start
+- The app asks before closing with changes you have not applied, has Undo changes, and Tab keeps the focused option in view
+- Lock screen: hidden notifications take no room and never wake the screen, the Middle clock clears notifications, greeting and weather are fresh after sleep, wrapped messages stay centred
+- Glass for Dash to Panel's window previews and for Shell dialogs (Run a Command, Power Off, password prompts); notification stacks look clean
+- Restore original sticks (nothing turns the glass back on by itself) and keeps your theme's folder links
+- App windows: readable Delete buttons, light toggles in light mode, gedit colours that match the glass, tidier tabs and Qt buttons
+- Steadier: auto quality trusts the speed check, no old screens kept after unplugging, old app caches removed
+
 * Fri Nov 06 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.7-1
 - New Lock screen tab: a live preview, widgets on the lock screen, and privacy choices
 - The app's preview now shows every setting live as you change it
