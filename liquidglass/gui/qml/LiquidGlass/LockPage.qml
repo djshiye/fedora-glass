@@ -314,7 +314,9 @@ Item {
                     SwitchRow {
                         objectName: "lockWidgetWeather"
                         label: "Weather"
-                        caption: "Now, from GNOME Weather"
+                        caption: Backend.weatherState === "no-app" ? "Needs the GNOME Weather app, so nothing shows yet"
+                               : Backend.weatherState === "no-place" ? "Choose a place in GNOME Weather, so it has something to show"
+                               : "Now, from GNOME Weather"
                         tip: "Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu). Needs the Weather app with a place chosen. Nothing shows when there is no weather."
                         checked: Backend.lockWidgetWeather
                         onToggled: (v) => { Backend.lockWidgetWeather = v; preview.mode = "rest" }

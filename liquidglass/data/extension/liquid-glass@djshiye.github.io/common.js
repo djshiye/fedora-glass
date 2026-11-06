@@ -164,3 +164,26 @@ export function glowSource(anchor, target) {
         a = a.get_parent();
     return a ?? anchor;
 }
+
+// ---- the lock screen clock's place (lock.js) ----
+const NOTES_GAP = 24;           // px between the clock (and its hint) and GNOME's notifications
+
+/** Where GNOME's notifications start under the clock, or null when none show. */
+export function notificationsTop(notes) {
+    if (!notes?.visible)
+        return null;
+    const b = notes.get_allocation_box();
+    return b.y2 - b.y1 > 0 ? b.y1 : null;
+}
+
+/**
+ * The top of the clock placed in the middle of a screen H high. With notifications
+ * showing below, it moves up just enough to keep clear of them (1.5.7 let the "Click or
+ * press a key to unlock" hint run into the first one). Never above the screen.
+ */
+export function clockMiddle(H, clockH, notesTop) {
+    let y = Math.round((H - clockH) / 2);
+    if (notesTop !== null && notesTop !== undefined)
+        y = Math.min(y, Math.round(notesTop - NOTES_GAP - clockH));
+    return Math.max(0, y);
+}

@@ -19,7 +19,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GlassPane} from './glass.js';
-import {Signals} from './common.js';
+import {Signals, clockMiddle, notificationsTop} from './common.js';
 import {Wallpaper} from './wallpaper.js';
 
 // Focus ring and caret for the password field, loaded only while locked.
@@ -38,27 +38,6 @@ const CLOCK_STYLES = {
 // keeps the white clock readable on any wallpaper: at most linear Y 0.13, which
 // is 5.8:1 against white.
 const SHEET_CEILING = 0.13;
-const NOTES_GAP = 24;           // px between the clock (and its hint) and GNOME's notifications
-
-/** Where GNOME's notifications start under the clock, or null when none show. */
-function notificationsTop(notes) {
-    if (!notes?.visible)
-        return null;
-    const b = notes.get_allocation_box();
-    return b.y2 - b.y1 > 0 ? b.y1 : null;
-}
-
-/**
- * The top of the clock placed in the middle of a screen H high. With notifications
- * showing below, it moves up just enough to keep clear of them (1.5.7 let the "Click or
- * press a key to unlock" hint run into the first one). Never above the screen.
- */
-export function clockMiddle(H, clockH, notesTop) {
-    let y = Math.round((H - clockH) / 2);
-    if (notesTop !== null && notesTop !== undefined)
-        y = Math.min(y, Math.round(notesTop - NOTES_GAP - clockH));
-    return Math.max(0, y);
-}
 // The card sits a little deeper than the sheet on bright wallpapers (6.6:1), so the
 // name, the messages and GNOME's lighter password field on it stay readable too.
 const CARD_CEILING = 0.11;

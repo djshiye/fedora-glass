@@ -47,3 +47,45 @@ test('the message reaching the Shell is plain, short text', () => {
         message: '', style: 'chips', hideNotifications: false});
     assert.equal(C.cleanMessage(42), '');
 });
+
+test('the weather is refreshed by the wall clock, so a night asleep counts', () => {
+    const min = 60 * 1000000;
+    assert.equal(W.weatherDue(0, 5), true);                 // never asked yet
+    assert.equal(W.weatherDue(100 * min, 110 * min), false);
+    assert.equal(W.weatherDue(100 * min, 130 * min), true);
+    assert.equal(W.weatherDue(100 * min, 100 * min + 8 * 60 * min), true);   // woke up 8 hours later
+    assert.equal(W.weatherDue(100 * min, 90 * min), true);  // the clock was set back
+});
+
+// GNOME's NotificationsBox: its wake-up method lives on the class, as in unlockDialog.js.
+class FakeNotificationsBox {
+    constructor() {
+        this.visible = true;
+        this.size = null;
+    }
+
+    hide() { this.visible = false; }
+    show() { this.visible = true; }
+    set_size(w, h) { this.size = [w, h]; }
+    connect() { return 1; }
+    disconnect() {}
+    _updateVisibility() { this.visible = true; }
+    _wakeUpScreenForSource() { this.woke = true; }
+}
+const box = () => new FakeNotificationsBox();
+
+test('hidden notifications take no room and do not wake the screen, until shown again', () => {
+    const w = new W.LockWidgets({lock: {widgets: {battery: false, weather: false, weatherPlace: false, greeting: false,
+        message: '', style: 'chips', hideNotifications: true}}});
+    const b = box();
+    w._hideNotifications({_notificationsBox: b});
+    assert.equal(b.visible, false);
+    assert.deepEqual(b.size, [0, 0]);                         // the clock stays where GNOME puts it
+    b._wakeUpScreenForSource({});
+    assert.equal(b.woke, undefined);                         // a new one doesn't light up the screen
+    w._detach();
+    assert.deepEqual(b.size, [-1, -1]);                       // GNOME's own size again
+    assert.equal(b.visible, true);
+    b._wakeUpScreenForSource({});
+    assert.equal(b.woke, true);
+});
