@@ -631,7 +631,13 @@ class Backup:
                 if yours:
                     # The user's own files are in it, so the folder stays. Its links to the
                     # theme stay too: without them GTK would lose the theme's gtk.css and
-                    # assets (1.5.7 took them away and kept only the user's files).
+                    # assets. 1.5.7 took them away and kept only the user's files, so the
+                    # ones missing are made again (never over a file of the user's).
+                    real = (p.parent / e["link"]).resolve()
+                    for name in sorted(made):
+                        q, src = p / name, real / name
+                        if not q.exists() and not q.is_symlink() and (src.exists() or src.is_symlink()):
+                            q.symlink_to(src)
                     owner = Path(e["link"]).parent.name or e["link"]
                     return (f"Kept your {p.name} folder because it has files you added "
                             f"({', '.join(yours[:3])}{', ...' if len(yours) > 3 else ''}). It still uses "
@@ -649,6 +655,14 @@ class Backup:
                         f"Your link to {owner} was not restored.")
             return f"Couldn't restore your {p.name} link to {owner}: {err.strerror or err}."
         return None
+
+    def only_folders_left(self) -> bool:
+        """Whether all that is left is folders kept for the user's own files. A full Restore
+        leaves just that, also from 1.5.7, which wrote no 'restored' mark: every file and
+        setting of ours went back, so the look is off. An Apply always leaves more."""
+        return bool(self.data["dirlinks"]) and not any(
+            self.data[k] for k in self.SECTIONS if k not in ("dirlinks", "lists")) and not any(
+            e.get("added") or e.get("removed") for e in self.data["lists"].values())
 
     def targets_with_changes(self) -> set[str]:
         out = set()
@@ -806,7 +820,9 @@ class Engine:
         """True while the glass look is wanted: applied, and not taken away by Restore
         original since. What the watcher and the upgrade step follow (is_applied alone
         stays true when Restore had to leave something behind)."""
-        return self.is_applied() and not restored_path(self.env).exists()
+        backup = Backup(self.env)
+        return bool(backup.targets_with_changes()) and not backup.only_folders_left() \
+            and not restored_path(self.env).exists()
 
     def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False) -> list[Result]:
         """`if_applied`: only while the look is on (see look_on), checked once the lock is
