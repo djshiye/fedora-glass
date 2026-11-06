@@ -214,6 +214,10 @@ def dtp_values(t: Tokens) -> dict[str, str]:
         "trans-use-custom-opacity": "true",
         "trans-panel-opacity": f"{bg.a:.3f}",
         "trans-use-dynamic-opacity": "false",
+        # Window previews (hovering a taskbar icon) get the menus' glass (popups.js): the
+        # same see-through tint as a menu, not Dash to Panel's 80 % panel colour on top of it.
+        "preview-use-custom-opacity": "true",
+        "preview-custom-opacity": f"{max(0, min(100, round(surfaces(t)['popover'].a * 100)))}",
         "trans-use-custom-gradient": "false",
         "trans-use-border": "false" if t.glass_panel_edges else "true",
         "trans-border-width": "1",

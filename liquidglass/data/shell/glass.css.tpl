@@ -184,6 +184,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border-radius: ${r_xs}px; }
 #preview-menu .preview-header-box, #preview-menu .preview-container {
   border-radius: ${r_xs}px; }
+#preview-menu {
+  border-radius: ${r_m}px; }
 .showdesktop-button-dark-hovered, .showdesktop-button-light-hovered {
   background-color: ${hover}; }
 
@@ -396,7 +398,8 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card_active}; }
 .message:second-in-stack {
   background-color: ${card};
-  box-shadow: none; }
+  box-shadow: none;
+  border-color: transparent; }
 .message:lower-in-stack {
   background-color: ${card};
   box-shadow: none;
@@ -429,6 +432,7 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .message:lower-in-stack .message-header .message-close-button {
   color: transparent;
   background-color: transparent;
+  background-gradient-direction: none;
   border-color: transparent;
   box-shadow: none; }
 .notification-banner {

@@ -1,4 +1,5 @@
-// Glass behind popup menus, notification banners, the OSD and the window switcher.
+// Glass behind popup menus, notification banners, the OSD, the window switcher,
+// Dash to Panel's window previews and the Shell's dialogs (Run, Power Off, passwords).
 
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
@@ -53,6 +54,92 @@ export function placeToggleMenus(menu) {
     return n > 0;
 }
 
+/** The box of Dash to Panel's window-preview pop-up, or null if `actor` is not one. */
+export function previewBox(actor) {
+    const box = actor?.menu;
+    return box && typeof actor.requestPeek === 'function' && typeof box.get_parent === 'function' &&
+        box.get_parent() === actor ? box : null;
+}
+
+/** The visible box of a GNOME modal dialog (.modal-dialog), or null. */
+export function dialogBox(dialog) {
+    const box = dialog?.dialogLayout?._dialog;
+    return box && typeof box.has_style_class_name === 'function' && box.has_style_class_name('modal-dialog') &&
+        dialog.contains?.(box) ? box : null;
+}
+
+// Dash to Panel paints each window preview's title strip and close-button corner in
+// its own inline style, fully opaque, which no theme rule can override: a solid dark
+// bar on the glass. Give them the pop-up's own see-through tint instead.
+const SOLID = /rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*1(?:\.0+)?\s*\)/g;
+const PREVIEW_PARTS = ['preview-header-box', 'preview-close-btn-container'];
+
+/** `style` with every opaque rgba() colour at `alpha` instead. */
+export function seeThrough(style, alpha) {
+    if (typeof style !== 'string' || !Number.isFinite(alpha))
+        return style;
+    const a = Math.max(0, Math.min(1, alpha)).toFixed(3);
+    return style.replace(SOLID, (_m, r, g, b) => `rgba(${r},${g},${b},${a})`);
+}
+
+/** The alpha of a `background: rgba(...)` inline style, or null. */
+export function tintOf(style) {
+    const m = typeof style === 'string' && /rgba\([^)]*,\s*([\d.]+)\s*\)/.exec(style);
+    const a = m ? Number(m[1]) : NaN;
+    return Number.isFinite(a) && a < 1 ? a : null;
+}
+
+export class PreviewTint {
+    constructor(box) {
+        this._box = box;               // Dash to Panel's #preview-menu
+        this._signals = new Signals();
+        this._orig = new Map();        // actor -> Dash to Panel's own style
+        this._watched = new Set();
+        this._signals.on(box, 'destroy', () => this.destroy());
+        this._walk(box);
+    }
+
+    // Previews are made as the pointer moves along the taskbar, in a box inside a scroll view.
+    _walk(actor) {
+        if (!actor || this._watched.has(actor))
+            return;
+        this._watched.add(actor);
+        this._signals.on(actor, 'destroy', () => {
+            this._watched.delete(actor);
+            this._orig.delete(actor);
+            this._signals.forget(actor);
+        });
+        if (PREVIEW_PARTS.some(c => actor.has_style_class_name?.(c))) {
+            this._signals.on(actor, 'notify::style', () => this._tint(actor));
+            this._tint(actor);
+            return;
+        }
+        this._signals.on(actor, 'child-added', (_a, c) => this._walk(c));
+        actor.get_children?.().forEach(c => this._walk(c));
+    }
+
+    _tint(actor) {
+        const style = actor.get_style?.();
+        const alpha = tintOf(this._box.get_style?.()) ?? 0.3;
+        const glass = seeThrough(style, alpha);
+        if (!style || glass === style)
+            return;
+        this._orig.set(actor, style);
+        actor.set_style(glass);
+    }
+
+    destroy() {
+        this._signals.clear();
+        for (const [actor, style] of this._orig) {
+            try {
+                actor.set_style(style);
+            } catch {}   // already gone
+        }
+        this._orig.clear();
+        this._watched.clear();
+    }
+}
+
 export class Popups {
     constructor(cfg) {
         this.cfg = cfg;
@@ -63,23 +150,18 @@ export class Popups {
         const ui = Main.layoutManager.uiGroup;
         this._laters = new Set();
         this._switchers = new Map();   // Alt+Tab pop-up -> [signal ids]
+        this._tints = new Map();       // Dash to Panel's window previews -> PreviewTint
         // Some pop-ups (Alt+Tab) are added before they finish building, so look a moment later.
-        this._signals.on(ui, 'child-added', (_p, child) => {
-            const laters = global.compositor.get_laters();
-            // Tooltips and the like can be gone before the later runs.
-            const gone = child.connect('destroy', () => {
-                laters.remove(id);
-                this._laters.delete(id);
-            });
-            const id = laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
-                this._laters.delete(id);
-                child.disconnect(gone);
-                this._consider(child);
-                return GLib.SOURCE_REMOVE;
-            });
-            this._laters.add(id);
-        });
+        this._signals.on(ui, 'child-added', (_p, child) => this._soon(child, () => this._consider(child)));
         ui.get_children().forEach(c => this._consider(c));
+        // Run a Command, Power Off, password prompts: GNOME made them see-through for
+        // glass, so without a pane the windows behind read through their text. A
+        // dialog is added before its content is built, so it too is looked at a moment later.
+        const dialogs = Main.layoutManager.modalDialogGroup;
+        if (dialogs) {
+            this._signals.on(dialogs, 'child-added', (_g, d) => this._soon(d, () => this._dialog(d)));
+            dialogs.get_children().forEach(d => this._dialog(d));
+        }
         // Banners come and go inside the message tray.
         const tray = Main.messageTray, bin = tray?._bannerBin;
         if (bin) {
@@ -88,9 +170,38 @@ export class Popups {
         }
     }
 
+    // Run fn just before the next frame, unless child is gone by then (tooltips and
+    // the like can be).
+    _soon(child, fn) {
+        const laters = global.compositor.get_laters();
+        const gone = child.connect('destroy', () => {
+            laters.remove(id);
+            this._laters.delete(id);
+        });
+        const id = laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._laters.delete(id);
+            child.disconnect(gone);
+            fn();
+            return GLib.SOURCE_REMOVE;
+        });
+        this._laters.add(id);
+    }
+
     _consider(child) {
-        if (child.name === 'liquid-glass-pane')
+        if (child.name?.startsWith('liquid-glass'))
             return;
+        // Dash to Panel's window previews (hovering a taskbar icon). The pane goes inside
+        // the preview pop-up, under its box: the pop-up clips its slide out of the panel,
+        // and the glass then never shows over the panel.
+        const previews = previewBox(child);
+        if (previews) {
+            this._follow(previews, previews, 'quicksettings');
+            if (!this._tints.has(previews)) {
+                this._tints.set(previews, new PreviewTint(previews));
+                previews.connect('destroy', () => this._tints.delete(previews));
+            }
+            return;
+        }
         // Menus: a BoxPointer, or one wrapped in a widget (quick settings).
         const bp = child instanceof BoxPointer ? child
             : child.get_children?.().find(c => c instanceof BoxPointer) ?? null;
@@ -109,6 +220,18 @@ export class Popups {
             this._follow(child._switcherList, child, 'quicksettings');
             this._watchSwitcher(child);
         }
+    }
+
+    // A Shell dialog: the glass sits over its dimmed backdrop and under its box.
+    _dialog(dialog) {
+        const box = dialogBox(dialog);
+        if (!box)
+            return;
+        let a = box;
+        while (a && a.get_parent() !== dialog)
+            a = a.get_parent();
+        if (a)
+            this._follow(box, a, 'quicksettings');
     }
 
     // Alt+Tab shows an app's windows in a second list under the first one, made only
@@ -206,6 +329,9 @@ export class Popups {
         for (const [popup, ids] of this._switchers)
             ids.forEach(id => popup.disconnect(id));
         this._switchers.clear();
+        for (const t of this._tints.values())
+            t.destroy();
+        this._tints.clear();
         for (const f of [...this._followers.values()])
             f.destroy();
         this._followers.clear();
