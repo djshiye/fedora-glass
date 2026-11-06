@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import shutil
 import signal
 import sys
 from pathlib import Path
@@ -60,6 +62,31 @@ def _pick_font(app) -> None:
             return
 
 
+_QML_CACHE = re.compile(r"qmlcache-[0-9][0-9A-Za-z.+~-]{0,40}")
+
+
+def tidy_qml_caches(folder: Path, keep: str) -> int:
+    """Each version keeps its compiled screens in its own qmlcache-<version> folder, and
+    the old ones were never removed (seven of them on Dino's PC after 1.5.6). Remove
+    the ones from other versions: real folders with that name only, never a link."""
+    removed = 0
+    try:
+        entries = list(os.scandir(folder))
+    except OSError:
+        return 0
+    for e in entries:
+        if e.name == keep or not _QML_CACHE.fullmatch(e.name):
+            continue
+        try:
+            if e.is_symlink() or not e.is_dir(follow_symlinks=False):
+                continue
+            shutil.rmtree(e.path)
+            removed += 1
+        except OSError:
+            pass    # in use or not ours to remove: leave it
+    return removed
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     page = PAGES.get(args.page, None)
@@ -70,7 +97,9 @@ def main(argv: list[str] | None = None) -> int:
             page = 0
 
     cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    os.environ.setdefault("QML_DISK_CACHE_PATH", str(cache / "liquid-glass" / f"qmlcache-{__version__}"))
+    if "QML_DISK_CACHE_PATH" not in os.environ:
+        os.environ["QML_DISK_CACHE_PATH"] = str(cache / "liquid-glass" / f"qmlcache-{__version__}")
+        tidy_qml_caches(cache / "liquid-glass", f"qmlcache-{__version__}")
     # "Qt apps get the same title bar" sends Qt apps through XWayland; this app draws
     # its own glass header, so it stays on Wayland when it can.
     if os.environ.get("QT_QPA_PLATFORM") == "xcb;wayland":

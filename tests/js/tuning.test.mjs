@@ -124,3 +124,32 @@ test('lightest glass shows only the wallpaper; other levels change nothing', () 
     assert.equal(cfg.panel.behind, 'windows', 'the setting itself is untouched');
     assert.equal(out.look, cfg.look);
 });
+
+test('a PC the speed check found smooth never drops to the lightest glass', () => {
+    const check = (...verdicts) => ({state: 'done', phases: T.LEVELS.map((level, i) => ({level, verdict: verdicts[i]}))});
+    assert.equal(T.deepestFor(null), 2);
+    assert.equal(T.deepestFor({state: 'failed', phases: []}), 2);
+    assert.equal(T.deepestFor(check('smooth', 'smooth', 'smooth')), 1);   // Dino's 120 Hz PC on 1.5.6
+    assert.equal(T.deepestFor(check('ok', 'smooth', 'smooth')), 2);
+    assert.equal(T.deepestFor(check('slow', 'slow', 'slow')), 2);
+
+    // Frames that keep coming late step down once, then stay at lighter.
+    const t = new T.Tuner();
+    t.deepest = T.deepestFor(check('smooth', 'smooth', 'smooth'));
+    let [changed, at] = feed(t, 0, 30, true, 2 * HZ60);
+    assert.equal(changed, 1);
+    [changed, at] = feed(t, at + T.SETTLE_US, 300, true, 2 * HZ60);
+    assert.equal(changed, null);
+    assert.equal(t.level, 1);
+});
+
+test('a new speed check that finds full glass smooth brings the lightest glass back up', () => {
+    const t = new T.Tuner();
+    let [changed, at] = feed(t, 0, 30, true, 2 * HZ60);
+    [changed, at] = feed(t, at + T.SETTLE_US, 30, true, 2 * HZ60);
+    assert.equal(t.level, 2);
+    assert.equal(t.limit(1, at), 1);
+    assert.equal(t.level, 1);
+    assert.equal(t.limit(1, at), null);   // already there
+    assert.ok(t.retryAt > at);            // and it still tries full glass again later
+});
