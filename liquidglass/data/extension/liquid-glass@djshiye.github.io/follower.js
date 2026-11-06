@@ -222,7 +222,16 @@ export class Follower {
         }
         const p = pane.pad;
         const radii = radiiOf(target);
-        pane.setSources(sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p));
+        // Growing or condensing (scaled), the glass keeps one place and one picture for
+        // the whole animation (see GlassPane.place): its surface's own unscaled
+        // rectangle, with room for the overshoot. Only the shape drawn changes.
+        const room = this._scaledRoom(target, [sx, sy, w, h]);
+        const [gx, gy, gw, gh] = room ?? [sx, sy, w, h];
+        const [gok, glx, gly] = room ? parent.transform_stage_point(gx, gy) : [true, lx, ly];
+        const still = !room || !gok;
+        pane.setSources(still
+            ? sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p)
+            : sourcesFor(this.settings.behind, gx - p, gy - p, gw + 2 * p, gh + 2 * p));
         // The light the content casts into the glass comes from the content itself.
         // Both panes are the anchor's siblings; never clone an actor into itself.
         const glow = glowSource(anchor, target);
@@ -231,7 +240,10 @@ export class Follower {
         const edges = screenEdges(target, sx, sy, w, h);
         pane.setEdges(edges);
         top.setEdges(edges);
-        pane.place(lx, ly, w, h, radii, sx, sy);
+        if (still)
+            pane.place(lx, ly, w, h, radii, sx, sy);
+        else
+            pane.place(glx, gly, gw, gh, radii, gx, gy, [sx, sy, w, h]);
         top.place(lx, ly, w, h, radii, sx, sy);
         this.rect = [sx, sy, w, h];
         pane.show();
@@ -239,6 +251,32 @@ export class Follower {
         // The glass is placed and shown before this frame paints: the surface may
         // show in the same frame, over glass that is already complete.
         this._release();
+    }
+
+    /**
+     * While the target is scaled (growing, condensing, flowing back), the stage
+     * rectangle that holds it at every step of the animation: its unscaled place,
+     * 4 % bigger round its middle for the springs' overshoot. Null when it is not
+     * scaled, or the scaled surface would not fit (then the glass follows it frame by
+     * frame, as before).
+     */
+    _scaledRoom(target, [sx, sy, w, h]) {
+        const [kx, ky] = target.get_scale();
+        if (Math.abs(kx - 1) < 1e-4 && Math.abs(ky - 1) < 1e-4)
+            return null;
+        const parent = target.get_parent();
+        if (!parent)
+            return null;
+        const box = target.get_allocation_box();
+        const [px, py] = parent.get_transformed_position();
+        const [bw, bh] = [box.get_width(), box.get_height()];
+        const [mx, my] = [Math.ceil(bw * 0.02) + 1, Math.ceil(bh * 0.02) + 1];
+        const r = [Math.floor(px + box.x1 + target.translation_x) - mx, Math.floor(py + box.y1 + target.translation_y) - my,
+            Math.ceil(bw) + 2 * mx, Math.ceil(bh) + 2 * my];
+        if (!r.every(Number.isFinite) || r[2] < 2 || r[3] < 2)
+            return null;
+        const fits = sx >= r[0] && sy >= r[1] && sx + w <= r[0] + r[2] && sy + h <= r[1] + r[3];
+        return fits ? r : null;
     }
 
     setMotion(m) {

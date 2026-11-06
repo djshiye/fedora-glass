@@ -54,6 +54,7 @@ export class Tuner {
         this.floor = 0;            // the lowest level auto may go back up to
         this.reason = 'setting';   // 'setting', 'slow' or 'retry'
         this._frames = [];
+        this._late = 0;
         this._changedAt = -Infinity;
         this._retryAt = null;
         this._relapseUntil = -Infinity;
@@ -64,6 +65,7 @@ export class Tuner {
         this.floor = 0;
         this.reason = 'setting';
         this._frames = [];
+        this._late = 0;
         this._changedAt = -Infinity;
         this._retryAt = null;
         this._relapseUntil = -Infinity;
@@ -80,11 +82,14 @@ export class Tuner {
             return null;
         const f = this._frames;
         f.push([t, late]);
+        // A running count of the late ones: this runs for every frame (up to 288 a
+        // second on two 144 Hz screens), so it never walks the whole window.
+        this._late = (this._late ?? 0) + (late ? 1 : 0);
         while (f.length && f[0][0] < t - WINDOW_US)
-            f.shift();
+            this._late -= f.shift()[1] ? 1 : 0;
         if (this.level >= 2 || t - this._changedAt < SETTLE_US || f.length < MIN_FRAMES)
             return null;
-        const share = f.reduce((n, [, l]) => n + (l ? 1 : 0), 0) / f.length;
+        const share = this._late / f.length;
         if (share < LATE_SHARE)
             return null;
         // Slow again soon after trying a higher level: this level is as high as it goes.
@@ -94,6 +99,7 @@ export class Tuner {
         this.reason = 'slow';
         this._changedAt = t;
         this._frames = [];
+        this._late = 0;
         this._relapseUntil = -Infinity;
         this._retryAt = this.level > this.floor ? t + RETRY_US : null;
         return this.level;
@@ -107,6 +113,7 @@ export class Tuner {
         this.reason = 'retry';
         this._changedAt = t;
         this._frames = [];
+        this._late = 0;
         this._relapseUntil = t + RELAPSE_US;
         this._retryAt = this.level > this.floor ? t + RETRY_US : null;
         return this.level;
