@@ -516,6 +516,7 @@ def test_lock_screen_tab_properties(make_backend, tmp_path):
 def test_weather_switch_says_when_gnome_weather_has_nothing_to_show(tmp_path, monkeypatch):
     """The lock screen's weather comes from GNOME Weather: without the app, or without a
     place, the switch says so instead of showing nothing without a word."""
+    from liquidglass.gui import backend as backend_mod
     env = FakeEnv(home=tmp_path)
     monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path / "sys"))
     gs = {}

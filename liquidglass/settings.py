@@ -181,9 +181,7 @@ class Settings:
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
                   "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars", "start_on_desktop",
                   "overview_off"):
-            # Only a real true switches one on: "false" typed by hand must not show the weather.
-            v = getattr(s, k)
-            setattr(s, k, v if isinstance(v, bool) else getattr(Settings, k))
+            setattr(s, k, bool(getattr(s, k)))
         if s.opacity is not None:
             s.opacity = _clamp(float(s.opacity), 0.6)
         if s.blur is not None:
@@ -215,7 +213,9 @@ class Settings:
         s.lock_bounce = _clamp(float(s.lock_bounce), Settings.lock_bounce)
         for k in ("lock_widget_battery", "lock_widget_weather", "lock_weather_place", "lock_greeting",
                   "lock_hide_notifications"):
-            setattr(s, k, bool(getattr(s, k)))
+            # Only a real true switches one on: "false" typed by hand must not show the weather.
+            v = getattr(s, k)
+            setattr(s, k, v if isinstance(v, bool) else getattr(Settings, k))
         s.lock_message = clean_message(s.lock_message)
         for k, choices in LOCK_CHOICES.items():
             if getattr(s, k) not in choices:
