@@ -37,6 +37,44 @@ RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
 FALLBACK_DOCK = ("org.gnome.Nautilus.desktop", "org.gnome.Ptyxis.desktop")
 
 
+def _has_battery(root: Path) -> bool:
+    """A system battery, not a wireless mouse's or a headset's (their scope is "Device")."""
+    try:
+        for d in root.iterdir():
+            try:
+                kind = (d / "type").read_text().strip()
+                scope = (d / "scope").read_text().strip() if (d / "scope").exists() else ""
+            except OSError:
+                continue
+            if kind == "Battery" and scope != "Device":
+                return True
+    except OSError:
+        pass
+    return False
+
+
+def _average_luma(path: str) -> float:
+    """The wallpaper's mean linear luminance, decoded small so it costs a few milliseconds."""
+    from PySide6.QtCore import QSize
+    from PySide6.QtGui import QImageReader
+    r = QImageReader(path)
+    r.setScaledSize(QSize(24, 24))
+    img = r.read()
+    if img.isNull():
+        return 0.2
+
+    def lin(v: int) -> float:
+        c = v / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    total = n = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            total += 0.2126 * lin(c.red()) + 0.7152 * lin(c.green()) + 0.0722 * lin(c.blue())
+            n += 1
+    return round(total / n, 4) if n else 0.2
+
+
 def qcolor(c: Color) -> QColor:
     return QColor.fromRgbF(c.r, c.g, c.b, c.a)
 
@@ -193,6 +231,8 @@ class Backend(QObject):
         self._speed_watch.fileChanged.connect(self._on_speed_file)
         self._speed_watch.directoryChanged.connect(self._on_speed_file)
         self._wallpaper = self._find_wallpaper()
+        self._wallpaper_luma: float | None = None
+        self._power_supply = Path("/sys/class/power_supply")
         self._dock = self._find_dock()
         self._rebuild_tokens()
         if start:
@@ -460,6 +500,13 @@ class Backend(QObject):
     lockSlide = _p("lock_slide", str)
     lockSlideMs = _p("lock_slide_ms", int)
     lockBounce = _p("lock_bounce", float)
+    lockWidgetBattery = _p("lock_widget_battery", bool)
+    lockWidgetWeather = _p("lock_widget_weather", bool)
+    lockWeatherPlace = _p("lock_weather_place", bool)
+    lockGreeting = _p("lock_greeting", bool)
+    lockMessage = _p("lock_message", str)
+    lockWidgetStyle = _p("lock_widget_style", str)
+    lockHideNotifications = _p("lock_hide_notifications", bool)
     startOnDesktop = _p("start_on_desktop", bool)
     overviewOff = _p("overview_off", bool)
     motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
@@ -760,6 +807,32 @@ class Backend(QObject):
     @Property(str, constant=True)
     def wallpaper(self) -> str:
         return self._wallpaper
+
+    @Property(float, constant=True)
+    def wallpaperLuma(self) -> float:
+        """How bright the wallpaper is on average (0..1, linear), for the lock screen preview,
+        which darkens a bright picture the way the lock glass's brightness ceiling does."""
+        if self._wallpaper_luma is None:
+            self._wallpaper_luma = _average_luma(QUrl(self._wallpaper).toLocalFile()) if self._wallpaper else 0.2
+        return self._wallpaper_luma
+
+    @Property(bool, constant=True)
+    def hasBattery(self) -> bool:
+        """Whether this PC has a battery of its own (a laptop), for the lock screen's battery widget."""
+        return _has_battery(self._power_supply)
+
+    @Property(int, constant=True)
+    def lockMessageMax(self) -> int:
+        return settings_mod.LOCK_MESSAGE_MAX
+
+    @Slot()
+    def lockScreenNow(self) -> None:
+        """Lock the screen, so the lock screen can be seen as it is set now."""
+        gdbus = self._env.which("gdbus")
+        if gdbus:
+            QProcess.startDetached(gdbus, ["call", "--session", "--dest", "org.gnome.ScreenSaver",
+                                           "--object-path", "/org/gnome/ScreenSaver",
+                                           "--method", "org.gnome.ScreenSaver.Lock"])
 
     @Property(str, constant=True)
     def userName(self) -> str:

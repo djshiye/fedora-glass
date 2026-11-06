@@ -35,7 +35,7 @@ def test_lock_config_stays_inside_what_the_extension_accepts():
     # The extension clamps dim to 0.35..1 and tint alpha to 0.6: never black, never opaque colour.
     assert 0.35 <= c["dim"] <= 1 and c["tint"][3] <= 0.6
     assert set(c) == {"enabled", "blur", "dim", "tint", "card", "clockStyle", "clockPosition", "slide", "slideMs",
-                      "bounce"}
+                      "bounce", "widgets"}
     json.dumps(c)
 
 
@@ -114,7 +114,7 @@ def test_password_field_keeps_a_focus_ring_and_caret():
 def test_unlock_defaults_are_quick():
     assert (Settings.lock_slide_ms, Settings.lock_bounce) == (450, 0.2)
     js = (EXT / "config.js").read_text()
-    assert "slideMs: 450, bounce: 0.2}" in js
+    assert "slideMs: 450, bounce: 0.2," in js
 
 
 def test_loading_the_lock_stylesheet_cannot_call_itself():
