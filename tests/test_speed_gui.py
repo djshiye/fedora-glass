@@ -103,3 +103,13 @@ def test_use_quality(make_backend):
     assert b.property("glassQuality") == "lightest"
     b.setProperty("glassQuality", "full")
     assert b.settings().glass_quality == "full"
+
+
+def test_last_finished_check_shows_after_an_aborted_one(make_backend, home):
+    done = {"id": "a" * 16, "state": "done", "error": "", "refresh": 60.0, "pick": "full",
+            "phases": [{"level": "full", "fps": 60.0, "late": 0.0, "verdict": "smooth"}]}
+    status(home, check={"id": "b" * 16, "state": "failed", "error": "locked"}, lastDone=done)
+    b = make_backend()
+    b._start_speed_watch()
+    assert b.property("speedState") == "done"
+    assert b.property("speedResult")["id"] == "a" * 16

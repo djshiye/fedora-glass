@@ -299,7 +299,7 @@ test('preview title strips get the pop-up tint, and their own style back when tu
         'colours that are already see-through stay');
     assert.equal(seeThrough(null, 0.3), null);
     assert.equal(tintOf('background: rgba(41,42,48,0.28); '), 0.28);
-    assert.equal(tintOf('background: rgba(41,42,48,1); '), null);
+    assert.equal(tintOf('background: rgba(41,42,48,1); '), 1, 'opaque: the strips stay opaque');
     assert.equal(tintOf(null), null);
 
     const {strip, box} = previewMenu();

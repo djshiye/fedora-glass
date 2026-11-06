@@ -633,8 +633,11 @@ class Backend(QObject):
 
     def _start_speed_watch(self) -> None:
         self._speed_status = self._read_speed_status()
-        # The last finished check shows again when the app opens.
+        # The last finished check shows again when the app opens, also when a later
+        # check stopped short ('lastDone' keeps the finished one).
         c = self._check_of(self._speed_status)
+        if c.get("state") != "done" and isinstance(self._speed_status.get("lastDone"), dict):
+            c = self._speed_status["lastDone"]
         if c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]:
             self._speed_result = c
             self._speed_state = "done"

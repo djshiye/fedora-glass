@@ -21,15 +21,23 @@ const STUBS = {
         },
     };`,
     'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}, Snippet: {new: (hook, decls, post) => ({hook, decls, post, set_replace(c) { this.replace = c; }})}};",
-    'gi/Meta': 'export default {LaterType: {BEFORE_REDRAW: 0}};',
+    'gi/Meta': `export default {LaterType: {BEFORE_REDRAW: 0},
+        WindowType: {NORMAL: 0, DIALOG: 1, MODAL_DIALOG: 2, UTILITY: 3, SPLASHSCREEN: 4}};`,
     'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},
         ActorBox: class { constructor(b) { Object.assign(this, b); } },
         Actor: globalThis.fake?.Actor ?? class {}, ShaderEffect: class {},
-        BindCoordinate: {X: 0, Y: 1, WIDTH: 2, HEIGHT: 3},
+        BindCoordinate: {X: 0, Y: 1, WIDTH: 2, HEIGHT: 3, ALL: 4}, RotateAxis: {Z_AXIS: 2},
+        Clone: globalThis.fake?.Actor ?? class {},
         BindConstraint: class { constructor(p = {}) { Object.assign(this, {offset: 0}, p); } }};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},
         WindowTracker: {get_default: () => globalThis.fake.windowTracker},
+    };`,
+    'gi/GObject': `export default {
+        registerClass: (...a) => a[a.length - 1],
+        signal_handler_find: (obj, m) => globalThis.fake.gobject.find(obj, m),
+        signal_handler_block: (obj, id) => globalThis.fake.gobject.block(obj, id),
+        signal_handler_unblock: (obj, id) => globalThis.fake.gobject.unblock(obj, id),
     };`,
     'gi/Graphene': 'export default {Point3D: class {}};',
     'gi/Gio': `
@@ -72,13 +80,15 @@ const STUBS = {
         Settings: {get: () => globalThis.fake.stSettings},
         ThemeContext: {get_for_stage: () => globalThis.fake.themeContext},
         Widget: globalThis.fake?.Widget ?? class {}};`,
-    'resource/main.js': `export const layoutManager = {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
+    'resource/main.js': `export const layoutManager = globalThis.fake.layoutManager ??
+            {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
         export const panel = {statusArea: {}};
         export const extensionManager = globalThis.fake.extensionManager;
         export const overview = globalThis.fake.overview;
         export const sessionMode = globalThis.fake.sessionMode;`,
+    'resource/background.js': 'export const BackgroundManager = globalThis.fake.BackgroundManager ?? class {};',
     'resource/fileUtils.js': 'export const loadInterfaceXML = () => "";',
     'resource/overviewControls.js': 'export const ControlsState = {HIDDEN: 0, WINDOW_PICKER: 1, APP_GRID: 2};',
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
@@ -90,7 +100,13 @@ const STUBS = {
     export const DEFAULT_LOOK = {};
     export function windowLanded() {}
     export function holdPanes(key) { globalThis.fake.holds?.push(['hold', key]); }
-    export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }`,
+    export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }
+    export function freezeSource() {} export function thawSource() {}
+    export function moving() {} export function stopMoving() {} export function releaseAllPanes() {}
+    export function setQuality(l) { globalThis.fake.quality = l; }
+    export function glassRenders() { return globalThis.fake.renders ?? 0; }
+    export function redrawAllPanes() {}
+    export function shownPanes() { return globalThis.fake.shown ?? 0; }`,
 };
 
 export async function resolve(specifier, context, next) {
@@ -104,7 +120,10 @@ export async function resolve(specifier, context, next) {
 }
 
 export async function load(url, context, next) {
-    if (url.startsWith('stub:'))
+    if (url.startsWith('stub:')) {
+        if (!(url.slice(5) in STUBS))
+            throw new Error(`no stub for ${url}`);
         return {format: 'module', source: STUBS[url.slice(5)], shortCircuit: true};
+    }
     return next(url, context);
 }

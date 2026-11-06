@@ -68,7 +68,7 @@ export class Tuner {
         this.deepest = LEVELS.length - 1;   // see deepestFor
         this.level = 0;
         this.floor = 0;            // the lowest level auto may go back up to
-        this.reason = 'setting';   // 'setting', 'slow' or 'retry'
+        this.reason = 'setting';   // 'setting', 'slow', 'retry' or 'check'
         this._frames = [];
         this._late = 0;
         this._changedAt = -Infinity;
@@ -94,7 +94,7 @@ export class Tuner {
             return null;
         this.level = deepest;
         this.floor = Math.min(this.floor, deepest);
-        this.reason = 'setting';
+        this.reason = 'check';     // the speed check's limit, not the quality setting
         this._changedAt = t;
         this._frames = [];
         this._late = 0;

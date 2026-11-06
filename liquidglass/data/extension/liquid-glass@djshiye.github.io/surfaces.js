@@ -45,20 +45,34 @@ class OverviewBackdrop {
 export class GlassManager {
     constructor(cfg) {
         this.cfg = cfg;
-        windowWatch.current = new WindowWatch();
-        wallpaper.current = new Wallpaper();
-        motion.current = new Motion();
-        this._motion = motion.current;   // reachable from Looking Glass, for testing
-        this._parts = [new Panels(cfg), new Popups(cfg), new Windows(cfg), new OverviewBackdrop(cfg)];
-        // While a window animates, the glass keeps its picture (see glass.js holdPanes).
-        this._hold = new WindowAnimationHold();
+        this._parts = [];
+        this._hold = null;
         this._signals = new Signals();
-        // Behind the panel and menus is the overview while it is open, the windows otherwise.
-        for (const s of ['showing', 'shown', 'hiding', 'hidden'])
-            this._signals.on(Main.overview, s, () => this._parts.forEach(p => p.sync?.()));
-        // A window dragged or resized behind the glass re-renders it every frame.
-        this._signals.on(global.display, 'grab-op-begin', () => moving(true));
-        this._signals.on(global.display, 'grab-op-end', () => moving(false));
+        // A start that fails halfway takes down what it built: nothing is left
+        // running that no one would ever turn off.
+        try {
+            windowWatch.current = new WindowWatch();
+            wallpaper.current = new Wallpaper();
+            motion.current = new Motion();
+            this._motion = motion.current;   // reachable from Looking Glass, for testing
+            for (const Part of [Panels, Popups, Windows, OverviewBackdrop])
+                this._parts.push(new Part(cfg));
+            // While a window animates, the glass keeps its picture (see glass.js holdPanes).
+            this._hold = new WindowAnimationHold();
+            // Behind the panel and menus is the overview while it is open, the windows otherwise.
+            for (const s of ['showing', 'shown', 'hiding', 'hidden'])
+                this._signals.on(Main.overview, s, () => this._parts.forEach(p => p.sync?.()));
+            // A window dragged or resized behind the glass re-renders it every frame.
+            this._signals.on(global.display, 'grab-op-begin', () => moving(true));
+            this._signals.on(global.display, 'grab-op-end', () => moving(false));
+        } catch (e) {
+            try {
+                this.destroy();
+            } catch (e2) {
+                logError(e2, 'Fedora Glass: taking down a glass that failed to start');
+            }
+            throw e;
+        }
     }
 
     update(cfg) {
@@ -72,13 +86,21 @@ export class GlassManager {
         this._hold = null;
         releaseAllPanes(true);
         stopMoving();
-        motion.current?.destroy();
+        // Each part goes even if another one fails to.
+        const parts = [motion.current, ...this._parts, windowWatch.current, wallpaper.current];
         motion.current = null;
-        this._parts.forEach(p => p.destroy());
         this._parts = [];
-        windowWatch.current?.destroy();
         windowWatch.current = null;
-        wallpaper.current?.destroy();
         wallpaper.current = null;
+        let error = null;
+        for (const p of parts) {
+            try {
+                p?.destroy();
+            } catch (e) {
+                error ??= e;
+            }
+        }
+        if (error)
+            throw error;
     }
 }

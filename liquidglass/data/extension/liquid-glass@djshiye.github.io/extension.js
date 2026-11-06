@@ -141,6 +141,8 @@ export default class LiquidGlassExtension extends Extension {
             this._safety?.startFailed();
             return;
         }
+        // From now on the Shell stopping soon after is a crash of the glass (safety.js).
+        this._safety?.glassStarted();
         // Only with the glass: without it these see-through pop-ups would have nothing behind them.
         try {
             this._popupStyle = new PopupStyle(cfg);
@@ -183,6 +185,7 @@ export default class LiquidGlassExtension extends Extension {
     _stopSession() {
         // Glass first, so GNOME's own window animations are back before the lock screen comes up.
         this._stopGlass();
+        this._safety?.glassStopped();
         this._rescue?.destroy();
         this._rescue = null;
         this._desktop?.destroy();
