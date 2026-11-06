@@ -726,6 +726,19 @@ class Backend(QObject):
         return self._maps[0] if self._preview_dark else self._maps[1]
 
     tokens = Property("QVariantMap", _get_tokens, notify=tokensChanged)
+
+    def _get_terminal_palettes(self) -> dict:
+        """The Ptyxis colours Fedora Glass writes (render/terminal.py), for the preview."""
+        from ..render import terminal as rt
+        out = {}
+        for name, t in (("dark", self._dark_t), ("light", self._light_t)):
+            p = rt.derive(t)
+            out[name] = {"bg": qcolor(p.bg), "fg": qcolor(p.fg), "green": qcolor(p.ansi[2]),
+                         "blue": qcolor(p.ansi[4]), "yellow": qcolor(p.ansi[3]), "dim": qcolor(p.dim),
+                         "cursor": qcolor(p.cursor)}
+        return out
+
+    terminalPalettes = Property("QVariantMap", _get_terminal_palettes, notify=tokensChanged)
     darkTokens = Property("QVariantMap", lambda self: self._maps[0], notify=tokensChanged)
     lightTokens = Property("QVariantMap", lambda self: self._maps[1], notify=tokensChanged)
 
@@ -816,8 +829,14 @@ class Backend(QObject):
         targets = dict(self._s.targets)
         targets[target_id] = bool(on)
         self._s = replace(self._s, targets=targets)
+        self._rebuild_tokens()   # the glass target decides which edges the theme draws
         self.settingsChanged.emit()
         self.targetsChanged.emit()
+
+    @Property("QVariantMap", notify=targetsChanged)
+    def targetStates(self) -> dict:
+        """Target id -> on, for the preview (a missing id is on)."""
+        return {k: bool(v) for k, v in self._s.targets.items()}
 
     @Slot()
     def refreshTargets(self) -> None:

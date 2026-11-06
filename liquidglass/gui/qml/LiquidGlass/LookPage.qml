@@ -52,12 +52,17 @@ Item {
 
             PreviewDesktop {
                 id: preview
+                // Make sure a menu is open, for the switches that change menus.
+                function showPopup() { if (scene === "overview") scene = "desktop"; if (scene === "desktop") showMenu = true }
                 objectName: "preview"
                 anchors.fill: parent
                 t: Backend.tokens
                 wallpaper: Backend.wallpaper
                 dock: Backend.dock
                 reduceTransparency: Backend.reduceTransparency
+                motion: motionCard.fr
+                motionEvent: motionCard.pvEvent
+                motionPlaying: motionCard.playing
                 layer.enabled: true
                 layer.smooth: true
                 layer.effect: MultiEffect {
@@ -74,6 +79,34 @@ Item {
                 visible: false
                 layer.enabled: true
                 layer.smooth: true
+            }
+
+            // What the preview shows, floating on it like a Shell OSD. Editing a part that
+            // isn't on the desktop (Quick Settings, the calendar, the overview) brings it up too.
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: 12
+                width: sceneSeg.width + 8
+                height: sceneSeg.height + 8
+                radius: height / 2
+                color: Qt.rgba(0.08, 0.085, 0.11, 0.55)
+                Segmented {
+                    id: sceneSeg
+                    objectName: "previewScene"
+                    anchors.centerIn: parent
+                    width: 160
+                    compact: true
+                    iconOnly: true
+                    onWallpaper: true
+                    model: [{ value: "desktop", icon: "screen", tip: "Show the desktop with the start menu" },
+                            { value: "quicksettings", icon: "sliders", tip: "Show Quick Settings" },
+                            { value: "calendar", icon: "clock", tip: "Show the calendar and notifications" },
+                            { value: "overview", icon: "grid", tip: "Show Activities (the overview)" }]
+                    value: preview.scene
+                    onActivated: (v) => { preview.scene = v; if (v === "desktop") preview.showMenu = true }
+                    Accessible.name: "Preview shows"
+                }
             }
 
             // Dark/light preview switch, floating on the preview like a Shell OSD.
@@ -390,6 +423,8 @@ Item {
                       tip: "Look of terminal windows" }
                 ]
                 property string part: "panel"
+                // Bring the part being edited into view in the preview.
+                onPartChanged: preview.scene = ({ quicksettings: "quicksettings", calendar: "calendar", overview: "overview" })[part] || "desktop"
                 readonly property var info: partList.find(p => p.id === part)
                 readonly property var own: Backend.parts[part] || ({})
                 readonly property bool any: Object.keys(own).length > 0
@@ -581,7 +616,7 @@ Item {
                         tip: "How strongly this part's rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
                         value: partsCard.val("refraction")
                         autoValue: Backend.refraction
-                        onChanged: (v) => partsCard.setOrClear("refraction", v)
+                        onChanged: (v) => { partsCard.setOrClear("refraction", v); preview.peekEdge(partsCard.part) }
                     }
                     OverrideSlider {
                         visible: partsCard.hasBleed
@@ -603,7 +638,7 @@ Item {
                         tip: "How strongly the edge of this part catches reflections of its surroundings. Left shows none; right gives bright, mirror-like edges."
                         value: partsCard.val("reflections")
                         autoValue: Backend.highlight
-                        onChanged: (v) => partsCard.setOrClear("reflections", v)
+                        onChanged: (v) => { partsCard.setOrClear("reflections", v); preview.peekEdge(partsCard.part) }
                     }
                 }
             }
@@ -666,13 +701,13 @@ Item {
                     LabeledSlider {
                         label: "Bend"
                         value: Backend.refraction
-                        onMoved: (v) => Backend.refraction = v
+                        onMoved: (v) => { Backend.refraction = v; preview.peekEdge("") }
                         tip: "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
                     }
                     LabeledSlider {
                         label: "Rainbow edge"
                         value: Backend.dispersion
-                        onMoved: (v) => Backend.dispersion = v
+                        onMoved: (v) => { Backend.dispersion = v; preview.peekEdge("") }
                         tip: "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
                     }
                     LabeledSlider {
@@ -698,7 +733,7 @@ Item {
                         caption: "Glass gives a little when pressed and settles as menus open"
                         tip: "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
                         checked: Backend.liquidMotion
-                        onToggled: (on) => Backend.liquidMotion = on
+                        onToggled: (on) => { Backend.liquidMotion = on; preview.showPopup() }
                     }
                     SwitchRow {
                         objectName: "menuGrow"
@@ -707,7 +742,7 @@ Item {
                         tip: "A menu opens as if it pours out of the button you clicked, and flows back into it when it closes. Off, menus open in place. It stays off when Reduce animation is on in Settings."
                         enabled: Backend.liquidMotion
                         checked: Backend.menuGrow
-                        onToggled: (on) => Backend.menuGrow = on
+                        onToggled: (on) => { Backend.menuGrow = on; preview.showPopup() }
                     }
                     Column {
                         width: parent.width
@@ -724,7 +759,7 @@ Item {
                             caption: "Quick settings, calendar, the start menu and app menus"
                             tip: "Draws real glass behind menus and pop-ups. Off leaves plain tinted panes."
                             checked: Backend.glassMenus
-                            onToggled: (on) => Backend.glassMenus = on
+                            onToggled: (on) => { Backend.glassMenus = on; preview.showPopup() }
                         }
                         SwitchRow {
                             label: "App windows"
@@ -738,7 +773,7 @@ Item {
                             caption: "Blurred wallpaper behind the Activities overview"
                             tip: "Blurs the wallpaper when you open Activities. Off leaves it sharp."
                             checked: Backend.glassOverview
-                            onToggled: (on) => Backend.glassOverview = on
+                            onToggled: (on) => { Backend.glassOverview = on; preview.scene = "overview" }
                         }
                         SwitchRow {
                             label: "See windows through the glass"
@@ -754,7 +789,7 @@ Item {
 
             SpeedCard { width: parent.width }
 
-            MotionCard { width: parent.width }
+            MotionCard { id: motionCard; width: parent.width }
 
             Card {
                 width: parent.width
@@ -778,7 +813,7 @@ Item {
                         caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
                         tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn or Dash to Panel. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
                         checked: Backend.overviewOff
-                        onToggled: (on) => Backend.overviewOff = on
+                        onToggled: (on) => { Backend.overviewOff = on; preview.scene = "overview" }
                     }
                 }
             }

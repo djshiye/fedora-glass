@@ -43,6 +43,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--sheet", choices=("changes", "results", "restore"), help="open a sheet")
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
     shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
+    shot.add_argument("--preview-scene", choices=("desktop", "quicksettings", "calendar", "overview"),
+                      help="what the Look page's preview shows")
+    shot.add_argument("--preview-pointer", metavar="X,Y",
+                      help="hold a pointer over the preview at these px of its 1920x1080 desktop")
+    shot.add_argument("--preview-set", metavar="PROP=JSON", action="append", default=[],
+                      help="set a property of the preview (e.g. closeUp=true)")
+    shot.add_argument("--change", metavar="SETTING=JSON", action="append", default=[],
+                      help="change a setting once the window is up (e.g. menuGrow=false), to catch its live effect")
+    shot.add_argument("--after-change-ms", type=int, help="take the picture this long after --change")
     shot.add_argument("--size", default="1280x820", help="content size WxH (shadow margin is added)")
     shot.add_argument("--delay-ms", type=int, default=2500)
     return ap.parse_args(argv)
@@ -142,6 +151,32 @@ def main(argv: list[str] | None = None) -> int:
         def stage() -> None:
             if args.held:
                 win.setProperty("frostHeld", 1.0)
+            if args.preview_set:
+                import json
+                from PySide6.QtCore import QObject
+                pv = win.findChild(QObject, "preview")
+                for kv in args.preview_set:
+                    k, _, v = kv.partition("=")
+                    if pv is not None:
+                        pv.setProperty(k, json.loads(v))
+            if args.change:
+                import json
+                for kv in args.change:
+                    k, _, v = kv.partition("=")
+                    backend.setProperty(k, json.loads(v))
+                if args.after_change_ms is not None:
+                    QTimer.singleShot(args.after_change_ms, grab)
+            if args.preview_scene or args.preview_pointer:
+                from PySide6.QtCore import QObject
+                pv = win.findChild(QObject, "preview")
+                if pv is not None and args.preview_scene:
+                    pv.setProperty("scene", args.preview_scene)
+                if pv is not None and args.preview_pointer:
+                    k = pv.property("width") / 1920
+                    x, y = (float(v) * k for v in args.preview_pointer.split(","))
+                    pv.setProperty("demoX", x)
+                    pv.setProperty("demoY", y)
+                    pv.setProperty("pointerPinned", True)
             if args.scroll:
                 from PySide6.QtCore import QObject
                 side = win.findChild(QObject, "options")
@@ -186,7 +221,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"screenshot {'saved' if ok else 'FAILED'}: {out} {img.width()}x{img.height()}", flush=True)
             app.exit(0 if ok else 2)
         QTimer.singleShot(max(200, args.delay_ms // 2), stage)
-        QTimer.singleShot(args.delay_ms, grab)
+        if not (args.change and args.after_change_ms is not None):
+            QTimer.singleShot(args.delay_ms, grab)
 
     return app.exec()
 
