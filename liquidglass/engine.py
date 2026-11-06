@@ -965,6 +965,9 @@ class Engine:
                     continue
                 if not backup.record_gsetting(tid, self.env, a):
                     continue
+                gkey = f"{a.schema}|{a.path or ''}|{a.key}"
+                if a.keep_user_change and backup.changed_since(self.env, gkey, backup.data["gsettings"][gkey]):
+                    continue    # the user picked their own value after ours: it stays, as on Restore
                 if self.env.gsettings_get(a.schema, a.key, a.path) == a.value:
                     # Already so: setting it again would still tell every listener (Dash to
                     # Panel rebuilds its panels for some keys) on each Apply and dark/light switch.
@@ -974,7 +977,7 @@ class Engine:
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
                 elif a.keep_user_change and not self.env.dry_run:
-                    backup.data["gsettings"][f"{a.schema}|{a.path or ''}|{a.key}"]["ours"] = a.value
+                    backup.data["gsettings"][gkey]["ours"] = a.value
             elif isinstance(a, GReset):
                 if (err := backup.reset_gsetting(tid, self.env, a)):
                     errs.append(err)
