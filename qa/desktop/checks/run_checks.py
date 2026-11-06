@@ -979,6 +979,7 @@ def check_lock(ctx: Ctx) -> Check:
     lock_screens_change(ctx, c)
     screen_unplugged(ctx, c)
     login_backdrop(ctx, c)
+    login_prompt(ctx, c)
     return c
 
 
@@ -1178,6 +1179,67 @@ def login_backdrop(ctx: Ctx, c: Check) -> None:
     c.add(worst <= lim, f"The login backdrop looks the same on every screen (largest difference {worst:.0f} of 255; "
           f"limit {lim})." if worst <= lim else f"The login backdrop differs between screens by up to {worst:.0f} of "
           f"255 (limit {lim}): one screen is lit differently.")
+
+
+LOGIN_PROMPT_JS = """(async () => { const {St, Gio, AccountsService} = imports.gi;
+ const LD = await import('resource:///org/gnome/shell/gdm/loginDialog.js');
+ globalThis._lgqaLoginCss = Gio.File.new_for_path(%s);
+ St.ThemeContext.get_for_stage(global.stage).get_theme().load_stylesheet(globalThis._lgqaLoginCss);
+ const [W, H] = global.stage.get_size();
+ const g = new St.Widget({name: 'lockDialogGroup', x: 0, y: 0, width: W, height: H});
+ Main.layoutManager.uiGroup.add_child(g); globalThis._lgqaLogin = g;
+ const d = new LD.LoginDialog(g); d.show(); d._userSelectionBox.hide();
+ const a = d._authPrompt;
+ a.setUser(AccountsService.UserManager.get_default().get_user('dino'));
+ a._onAskQuestion(null, 'gdm-password', 'Password:', true);
+ a.opacity = 255; a.show(); return 1; })()"""
+LOGIN_PROMPT_GEO_JS = """const a = globalThis._lgqaLogin.get_first_child()._authPrompt;
+ const [x, y] = a.get_transformed_position(), [w, h] = a.get_transformed_size();
+ const m = Main.layoutManager.primaryMonitor;
+ return {prompt: [x, y, w, h], monitor: [m.x, m.y, m.width, m.height]};"""
+
+
+def login_prompt(ctx: Ctx, c: Check) -> None:
+    """After a click on your name, the login screen shows GNOME's own password prompt. 1.5.6 drew one
+    big flat box around the picture, the name and the field; now each is its own small piece of
+    glass with no box behind them, and the prompt is narrower than GNOME's.
+
+    This builds GNOME's real login dialog (GDM can't run here) with the rules Apply adds on Fedora.
+    """
+    sh = ctx.sh
+    sys.path.insert(0, "/src")
+    from liquidglass import login_screen
+    css = Path("/tmp/lgqa-login.css")
+    css.write_text(login_screen.css("#3584e4", "#6a3fb5", 0.4, shared=True))
+    css.chmod(0o644)
+    try:
+        sh.eval(LOGIN_PROMPT_JS % json.dumps(str(css)))
+        settle(1.5)
+        geo = sh.json(LOGIN_PROMPT_GEO_JS)
+        now = lgqa.load(sh.shot("login-prompt"))
+    except lgqa.ShellError as e:
+        c.add(False, f"GNOME's login password prompt could not be shown here: {str(e)[:160]}")
+        return
+    finally:
+        sh.eval(LOGIN_UNMOCK_JS)
+    x, y, w, h = geo["prompt"]
+    mx, my, mw, mh = geo["monitor"]
+    k = sh.scale
+    c.add(0 < w <= mw * 0.2 + 1, f"The login password prompt is {w:.0f} px wide on a {mw} px screen (at most a fifth)."
+          if 0 < w <= mw * 0.2 + 1 else f"The login password prompt is {w:.0f} px wide on a {mw} px screen: too big "
+          "(more than a fifth).", picture("login-prompt", now[int(my * k):int((my + mh) * k), int(mx * k):int((mx + mw) * k)]))
+    # No box behind the prompt: just beside the picture, inside the prompt's area, the backdrop shows
+    # as it does at the same height outside the prompt.
+    def mean(px, py):
+        return now[int(py * k) - 3:int(py * k) + 3, int(px * k) - 3:int(px * k) + 3, :3].reshape(-1, 3).mean(0)
+    worst = 0.0
+    for fy in (0.15, 0.45):
+        inside = mean(x + w * 0.06, y + h * fy)
+        outside = mean(x - w * 0.35, y + h * fy)
+        worst = max(worst, float(np.abs(inside - outside).max()))
+    c.add(worst <= 4, f"No box is drawn behind the login password prompt (difference {worst:.0f} of 255; limit 4)."
+          if worst <= 4 else f"A box is drawn behind the login password prompt (difference {worst:.0f} of 255; "
+          "limit 4).")
 
 
 # ---------------------------------------------------------------------------------------------
