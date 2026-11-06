@@ -98,6 +98,13 @@ uniform float veil_g;            // the line is drawn so it still reads as brigh
 uniform float veil_b;
 uniform float veil_a;
 uniform float text_shade;
+// A pane can draw one part of a bigger glass (the rim over an app window is four
+// thin strips): shape_* is that whole glass, padding included, and where this pane
+// starts in it. Every other pane is the whole of its glass: shape_w/h = width/height.
+uniform float shape_w;
+uniform float shape_h;
+uniform float shape_x;
+uniform float shape_y;
 uniform float lens_share;        // 1: the bevel is a share of the short side (panel, menus); 0: refr_h        // 0..1, reflections layer: a soft shade behind bright text (clear glass)
 uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = the surface's own light,
                                  // 3 = the rim over an app window
@@ -310,8 +317,11 @@ vec3 vivid(vec3 c, float k) {
 void main() {
     vec2 size = vec2(width, height);
     vec2 px = cogl_tex_coord_in[0].st * vec2(tex_w, tex_h) - vec2(org_x, org_y);
-    vec2 c = px - size * 0.5;
-    vec2 h = max(size * 0.5 - vec2(pad), vec2(1.0));
+    // The shape is laid out over the whole glass; px stays this pane's own (its texture).
+    vec2 whole = vec2(shape_w, shape_h);
+    vec2 at0 = vec2(shape_x, shape_y);
+    vec2 c = px + at0 - whole * 0.5;
+    vec2 h = max(whole * 0.5 - vec2(pad), vec2(1.0));
     // Push sides that touch the screen edge far out, so they get no rim.
     vec2 lo = vec2(edge_l, edge_t) * 4096.0;
     vec2 hi = vec2(edge_r, edge_b) * 4096.0;
@@ -319,13 +329,19 @@ void main() {
     vec2 cc = c + (lo - hi) * 0.5;
     float r = min(radiusAt(c), min(h.x, h.y));
     float sd = sdRoundRect(cc, hh, r);
-    vec2 toPtr = vec2(ptr_x, ptr_y) - size * 0.5;
-    vec2 L = lightDir(toPtr);
-
     if (sd > 0.5 && mode > 1.5) {
         cogl_color_out = vec4(0.0);
         return;
     }
+    // The rim over an app window draws only its outer 2.8 px (see below): nothing
+    // else of the lens needs working out for the rest of it.
+    if (mode > 2.5 && sd < -2.8) {
+        cogl_color_out = vec4(0.0);
+        return;
+    }
+    vec2 toPtr = vec2(ptr_x, ptr_y) + at0 - whole * 0.5;
+    vec2 L = lightDir(toPtr);
+
     // Outside the pane: only its soft contact shadow, cast away from the light.
     // It also lies under the edge's partly covered pixels, so the rounded edge
     // stays anti-aliased against the shadow.
@@ -420,7 +436,19 @@ void main() {
         // the rim where the mirrored term below also uses keepIn.
         float paint = 0.0;
         float need = max(glow.r, max(glow.g, glow.b));
-        if (need > 0.004 || inside < bevel + 8.0) for (int i = 0; i < 8; i++) {
+        // Content near the edge, mirrored into it by reflection inside the glass (used
+        // below). Read first: where neither this pixel nor its mirror has any colour,
+        // keepIn multiplies (next to) nothing, and the 16 reads that find it can be
+        // skipped. On a thin panel the edge band is nearly all of it, and most of it is
+        // grey text, symbolic icons or nothing at all. In the band the bar is low, so
+        // what is skipped stays far below one step of 255.
+        bool nearRim = inside < bevel + 4.0;
+        vec3 mc = vec3(0.0);
+        if (nearRim) {
+            vec4 m = at(px - n * (2.0 * inside + 6.0));
+            mc = (m.rgb - vec3(min(m.r, min(m.g, m.b)))) * 1.6;
+        }
+        if (need > (nearRim ? 0.0005 : 0.004) || max(mc.r, max(mc.g, mc.b)) > 0.0005) for (int i = 0; i < 8; i++) {
             vec2 d = vec2(cos(float(i) * 0.7853982), sin(float(i) * 0.7853982));
             // Samples past the pane's edge count as empty (at() would clamp them
             // back onto the edge, which in a thin panel is right next to the icon).
@@ -442,12 +470,8 @@ void main() {
         float gm = max(g.r, max(g.g, g.b));
         vec3 tone = mix(vec3(1.0), g.rgb / max(gm, 1e-3), 0.5 * step(0.01, gm));
         vec3 edgeLight = tone * hair * 0.065;
-        if (inside < bevel + 4.0) {
-            // Content near the edge, mirrored into it by reflection inside the glass.
-            vec4 m = at(px - n * (2.0 * inside + 6.0));
-            vec3 mc = (m.rgb - vec3(min(m.r, min(m.g, m.b)))) * 1.6;
+        if (nearRim)
             glow += mc * keepIn * (0.25 + 0.75 * F) * max(crest, 1.0 - inside / max(bevel, 1.0)) * 1.2;
-        }
         if (light_glass > 0.5) {
             // Light glass is already near white: added light would only clip, and a
             // blue icon would leave a pale cyan halo. There the colour tints the
@@ -584,15 +608,22 @@ void main() {
         vec3 st = col.rgb / max(col.a, 1e-3);
         const vec3 Yw = vec3(0.2126, 0.7152, 0.0722);
         float Yp = dot(pow(max(st, vec3(0.0)), vec3(2.2)), Yw);
-        vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
-        vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
-        vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
-        float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
-        float Yl = max(min(Yp, Ya * 1.5), 1e-5);
         // The outer part of the lens holds no text: there it may stay brighter,
         // so the bent backdrop reads in its own colours.
         float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge);
         float knee = 0.6 * cy;
+        // The area around is only asked about when this pixel is above the knee: the
+        // ceiling takes the darker of the two, so a pixel below it is left as it is
+        // whatever the area holds. Over dark glass that is nearly every pixel, and it
+        // saves four texture reads each.
+        float Yl = Yp;
+        if (Yp > knee) {
+            vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
+            vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
+            vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
+            float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
+            Yl = max(min(Yp, Ya * 1.5), 1e-5);
+        }
         if (Yl > knee) {
             float room = cy - knee;
             float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
@@ -1097,6 +1128,11 @@ class LiquidGlassPane extends Clutter.Actor {
         this._pad = 0;
         this._stage = [0, 0];
         this._size = [1, 1];
+        this._whole = [1, 1];       // the whole glass, padding included (see setPart)
+        this._at = [0, 0];          // where this pane starts in it
+        this._part = null;
+        this._inner = null;         // [x, y, w, h] of the glass inside the pane, when smaller (see place)
+        this._innerKey = '';
         this._clones = new Map();   // source actor -> clone
         this._placed = '';
         this._edges = '';
@@ -1254,20 +1290,56 @@ class LiquidGlassPane extends Clutter.Actor {
         this._applyLook();
     }
 
-    /** x, y, w, h: the surface in parent coordinates; sx, sy: its stage position. */
-    place(x, y, w, h, radii, sx, sy) {
+    /**
+     * Draw only part of the glass: [x, y, w, h] in the whole pane's px (its padding
+     * included), or null for all of it. The rim over an app window is four thin
+     * strips: each re-renders and repaints only its strip, where one pane the size
+     * of the window made the whole window repaint every time the rim changed.
+     */
+    setPart(part) {
+        this._part = part ? part.map(v => Math.round(v)) : null;
+    }
+
+    /**
+     * x, y, w, h: the surface in parent coordinates; sx, sy: its stage position.
+     * inner: [sx, sy, w, h] on the stage when the glass is smaller than that and lies
+     * inside it: a menu growing out of its button. The pane keeps its place and its
+     * picture of what is behind, and only the shape drawn over that picture changes,
+     * so each frame of the animation is a lens repaint instead of a new copy and
+     * blur of the backdrop at a new size.
+     */
+    place(x, y, w, h, radii, sx, sy, inner = null) {
         const p = this._pad;
-        const key = [x, y, w, h, sx, sy, p, ...radii].map(v => Math.round(v * 4)).join();
+        const part = this._part ?? [];
+        const key = [x, y, w, h, sx, sy, p, ...radii, ...part].map(v => Math.round(v * 4)).join();
+        const innerKey = inner ? inner.map(v => Math.round(v * 4)).join() : '';
+        const innerChanged = innerKey !== this._innerKey;
+        this._innerKey = innerKey;
+        this._inner = inner ? [inner[0] - sx, inner[1] - sy, inner[2], inner[3]] : null;
         if (key === this._placed) {
+            if (innerChanged) {
+                this._radii = radii.map(r => Math.max(0, Math.min(r, (inner?.[2] ?? w) / 2, (inner?.[3] ?? h) / 2)));
+                this._applyShape();
+            }
             this._syncClones();   // windows behind may still have moved
             return;
         }
         this._placed = key;
-        this._radii = radii.map(r => Math.max(0, Math.min(r, w / 2, h / 2)));
-        this.set_position(Math.round(x - p), Math.round(y - p));
-        this._size = [Math.max(1, Math.round(w + 2 * p)), Math.max(1, Math.round(h + 2 * p))];
+        this._radii = radii.map(r => Math.max(0, Math.min(r, (inner?.[2] ?? w) / 2, (inner?.[3] ?? h) / 2)));
+        this._whole = [Math.max(1, Math.round(w + 2 * p)), Math.max(1, Math.round(h + 2 * p))];
+        let [ax, ay, aw, ah] = [0, 0, ...this._whole];
+        if (this._part) {
+            const [qx, qy, qw, qh] = this._part;
+            ax = Math.max(0, Math.min(qx, this._whole[0] - 1));
+            ay = Math.max(0, Math.min(qy, this._whole[1] - 1));
+            aw = Math.max(1, Math.min(qw, this._whole[0] - ax));
+            ah = Math.max(1, Math.min(qh, this._whole[1] - ay));
+        }
+        this._at = [ax, ay];
+        this.set_position(Math.round(x - p) + ax, Math.round(y - p) + ay);
+        this._size = [aw, ah];
         this.set_size(...this._size);
-        this._stage = [Math.round(sx - p), Math.round(sy - p)];
+        this._stage = [Math.round(sx - p) + ax, Math.round(sy - p) + ay];
         const [W, H] = global.stage.get_size();
         this._glass.setFloats({
             valid_x0: Math.max(0, -this._stage[0]), valid_y0: Math.max(0, -this._stage[1]),
@@ -1397,8 +1469,14 @@ class LiquidGlassPane extends Clutter.Actor {
 
     _applyShape() {
         const [tl, tr, br, bl] = this._radii;
+        // The glass inside a bigger pane (see place): its own size, padding included,
+        // and where the pane starts relative to it.
+        const p = this._pad, i = this._inner;
+        const [ww, wh] = i ? [Math.max(1, i[2] + 2 * p), Math.max(1, i[3] + 2 * p)] : this._whole;
+        const [ax, ay] = i ? [-i[0], -i[1]] : this._at;
         this._glass.setFloats({
             width: this._size[0], height: this._size[1], pad: this._pad,
+            shape_w: ww, shape_h: wh, shape_x: ax, shape_y: ay,
             r_tl: tl, r_tr: tr, r_br: br, r_bl: bl,
         });
     }

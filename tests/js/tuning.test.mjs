@@ -126,3 +126,20 @@ test('lightest glass shows only the wallpaper; other levels change nothing', () 
     assert.equal(cfg.panel.behind, 'windows', 'the setting itself is untouched');
     assert.equal(out.look, cfg.look);
 });
+
+test('the running count of late frames matches a full count at 144 Hz on two screens', () => {
+    // The tuner keeps a running count instead of walking its window each frame. Feed a
+    // long mixed run and check, frame by frame, that it decides exactly as a recount would.
+    const t = new T.Tuner();
+    const every = 1e6 / 288;
+    let at = 0;
+    for (let i = 0; i < 6000; i++) {
+        at += every;
+        const late = (i * 7919) % 10 < 3;   // 30 % late, never enough to step down
+        assert.equal(t.frame(at, late), null);
+        if (i % 500 === 0) {
+            const n = t._frames.filter(([, l]) => l).length;
+            assert.equal(t._late, n);
+        }
+    }
+});
