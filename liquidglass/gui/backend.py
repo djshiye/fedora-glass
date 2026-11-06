@@ -1013,12 +1013,15 @@ class Backend(QObject):
             if not ts:
                 report(0.5, "Writing tokens")
                 return [], self._backup_exists(engine)
-            results = []
+            results = {}
             for i, t in enumerate(ts):
                 report(i / len(ts), t.name)
-                results += engine.apply(s, only={t.id})
+                # Switching the glass on can finish parts that waited for it a step
+                # earlier (the Shell theme): the latest result for a part counts.
+                for r in engine.apply(s, only={t.id}):
+                    results[r.target] = r
             report(1.0, "Done")
-            return results, self._backup_exists(engine)
+            return list(results.values()), self._backup_exists(engine)
 
         def done(out):
             if isinstance(out, Exception):
