@@ -132,6 +132,9 @@ export default class LiquidGlassExtension extends Extension {
             console.warn('Fedora Glass: safe mode is on, so the glass stays off. Turn it back on in the Fedora Glass app.');
             return;
         }
+        // From here on the Shell stopping soon after is a crash of the glass (safety.js),
+        // also one in the middle of starting it.
+        this._safety?.glassStarted();
         try {
             this._manager = new GlassManager(this._effective(cfg));
             this._animations = new Animations(cfg);
@@ -141,8 +144,6 @@ export default class LiquidGlassExtension extends Extension {
             this._safety?.startFailed();
             return;
         }
-        // From now on the Shell stopping soon after is a crash of the glass (safety.js).
-        this._safety?.glassStarted();
         // Only with the glass: without it these see-through pop-ups would have nothing behind them.
         try {
             this._popupStyle = new PopupStyle(cfg);
