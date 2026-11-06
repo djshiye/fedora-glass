@@ -30,6 +30,15 @@ def test_the_taskbar_hover_highlight_glides_and_cleans_up():
     assert r.returncode == 0, r.stdout + r.stderr
 
 
+@pytest.mark.skipif(NODE is None, reason="needs Node.js")
+def test_menu_glass_never_shows_a_window_sharp_through_a_hole_in_the_wallpaper():
+    r = subprocess.run(
+        [NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/menu-wallpaper-source.test.mjs"],
+        cwd=ROOT, capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 def test_glide_setting_reaches_the_extension():
     from liquidglass.settings import Settings
     from liquidglass.palette import build

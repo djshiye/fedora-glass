@@ -39,7 +39,11 @@ export function screenEdges(actor, x, y, w, h) {
 export function sourcesFor(behind, x, y, w, h) {
     if (Main.overview.visible)
         return [Main.layoutManager.overviewGroup];
-    const out = [Main.layoutManager._backgroundGroup];
+    // Our own whole copy of the wallpaper, not the Shell's: the Shell's skips whatever an
+    // opaque window covers, so with the wallpaper alone behind it (the lightest glass
+    // level) a menu over a window had a hole there and showed that window sharp, as if
+    // it had no glass at all.
+    const out = [wallpaper.current?.actor ?? Main.layoutManager._backgroundGroup];
     if (behind === 'wallpaper')
         return out;
     // Only windows on the pane's own screen: the glass never shows across the seam

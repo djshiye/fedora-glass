@@ -39,6 +39,12 @@ export function frameLate(gapUs, paintUs, intervalUs) {
         return true;
     if (!(gapUs > 0) || gapUs > 4 * intervalUs)
         return null;
+    // A long gap after a quick frame is the content's own pace, not slow glass: an app
+    // that redraws 25-30 times a second (streaming text, a spreadsheet, a video), or
+    // the glass itself catching up with it, gives a frame every 33-50 ms. 1.5.6 counted
+    // all of those as late and stepped a fast PC down to the lightest glass.
+    if (paintUs < intervalUs / 2)
+        return false;
     return gapUs > 1.5 * intervalUs;
 }
 
