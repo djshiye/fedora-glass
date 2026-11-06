@@ -56,6 +56,10 @@ placessidebar row:selected, stacksidebar row:selected, .sidebar row:selected {
 /* ---- views, lists -------------------------------------------------------------------- */
 .view, iconview, textview text, treeview.view, list, .content-view { background-color: @view_bg_color; color: @view_fg_color; }
 list row, .content-view .view { background-color: transparent; }
+/* Text editors (gedit): the line-number gutter shows the same glass as the text beside it.
+   The editor's colour scheme paints it otherwise (teal in Solarized, white in Tango) while
+   the text area takes the glass, which split the window into two colours. */
+textview border { background-color: transparent; color: @lg_fg_dim; }
 .view:selected, iconview:selected, textview text:selected, treeview.view:selected, row:selected,
 .view:selected:focus, treeview.view:selected:focus {
   background-color: @lg_selection;
@@ -296,6 +300,16 @@ notebook > header > tabs > tab { color: @theme_fg_color; }
 notebook > header > tabs > tab:hover { background-color: @lg_hover; }
 /* The open tab: full-strength text and an accent line, so it reads in light and dark alike. */
 notebook > header > tabs > tab:checked { color: @theme_fg_color; background-color: @lg_glass_hi; box-shadow: inset 0 1px 0 @lg_rim, inset 0 -2px 0 @lg_accent; }
+/* Tabs on the other sides round toward the page they open, with the accent line on that side. */
+notebook > header.bottom { box-shadow: inset 0 1px 0 @lg_divider; }
+notebook > header.left { box-shadow: inset -1px 0 0 @lg_divider; }
+notebook > header.right { box-shadow: inset 1px 0 0 @lg_divider; }
+notebook > header.bottom > tabs > tab { border-radius: 0 0 $r_s $r_s; }
+notebook > header.left > tabs > tab { border-radius: $r_s 0 0 $r_s; }
+notebook > header.right > tabs > tab { border-radius: 0 $r_s $r_s 0; }
+notebook > header.bottom > tabs > tab:checked { box-shadow: inset 0 -1px 0 @lg_rim, inset 0 2px 0 @lg_accent; }
+notebook > header.left > tabs > tab:checked { box-shadow: inset 0 1px 0 @lg_rim, inset -2px 0 0 @lg_accent; }
+notebook > header.right > tabs > tab:checked { box-shadow: inset 0 1px 0 @lg_rim, inset 2px 0 0 @lg_accent; }
 notebook > stack { background-color: @view_bg_color; }
 stackswitcher button { border-radius: $r_s; }
 
