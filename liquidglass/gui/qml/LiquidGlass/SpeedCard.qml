@@ -63,13 +63,9 @@ Card {
     Column {
         width: parent.width
         spacing: 16
-        SectionTitle { text: "Speed" }
-        Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            color: Theme.textFaint
-            font.pixelSize: Theme.fsSmall
-            text: "Fedora Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
+        SectionTitle {
+            text: "Speed"
+            caption: "Fedora Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
         }
         Column {
             width: parent.width

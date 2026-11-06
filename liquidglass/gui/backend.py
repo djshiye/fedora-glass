@@ -191,6 +191,8 @@ class Backend(QObject):
         self._engine: Any = None
         self._path = settings_path
         self._saved = settings_mod.load(settings_path)
+        # First run: no saved settings and the welcome never dismissed. Asked once, at start.
+        self._first_run = not self._settings_file().exists() and not self._welcome_marker().exists()
         self._s = replace(self._saved, targets=dict(self._saved.targets))
         self._ui_override = ui_dark
         self._system_dark = self._env.prefers_dark() if ui_dark is None else ui_dark
@@ -907,6 +909,29 @@ class Backend(QObject):
     @Property(int, notify=targetsChanged)
     def activeTargetCount(self) -> int:
         return sum(1 for t in self._targets if t["available"] and self._s.target_enabled(t["id"]))
+
+    # ---- first run -------------------------------------------------------
+    def _settings_file(self) -> Path:
+        return self._path or settings_mod.settings_path()
+
+    def _welcome_marker(self) -> Path:
+        return self._settings_file().parent / "welcome-seen"
+
+    @Property(bool, constant=True)
+    def firstRun(self) -> bool:
+        return self._first_run
+
+    @Slot()
+    def dismissWelcome(self) -> None:
+        """Remember that the welcome was seen, so it never shows again."""
+        marker = self._welcome_marker()
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            # O_NOFOLLOW: a planted symlink can't make this touch some other file.
+            fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            os.close(fd)
+        except OSError:
+            pass    # worst case it shows again next time
 
     @Property(bool, notify=targetsChanged)
     def hasBackup(self) -> bool:
