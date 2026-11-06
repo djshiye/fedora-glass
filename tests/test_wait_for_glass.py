@@ -324,3 +324,74 @@ def test_without_arcmenu_turning_the_glass_off_does_not_wait(fake_env):
     fake_env.naps.clear()
     engine.apply(Settings(targets={"glass": False}))
     assert sum(fake_env.naps) < 1
+
+
+
+def shell_starts_glass_after(env, asks):
+    """The fake Shell reports the glass extension as switched off (but known) until it has
+    been asked `asks` more times, then as running: GNOME starting it a moment after Apply."""
+    env.glass_loaded = False
+    seen = []
+    _run = env.run
+
+    def run(argv, timeout=30):
+        if "org.gnome.Shell.Extensions.GetExtensionInfo" in argv and argv[-1] == GLASS and not env.glass_loaded:
+            seen.append(1)
+            env.glass_loaded = len(seen) > asks
+        return _run(argv, timeout)
+    env.run = run
+
+
+GLASS = "liquid-glass@djshiye.github.io"
+
+
+def test_apply_after_restore_finishes_the_shell_parts_at_once(fake_env):
+    """Restore original switches the glass extension off; GNOME Shell still knows it, so the
+    next Apply starts it again live. The Shell theme, panel and menus must not wait for a restart."""
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    engine.revert()
+    shell_starts_glass_after(fake_env, 2)
+    got = statuses(engine.apply(Settings()))
+    for tid in ("shell", "dash-to-panel", "arcmenu", "spawn"):
+        assert got[tid][0] == "applied", (tid, got[tid])
+    assert not read_pending()
+    assert fake_env.gs[("org.gnome.shell.extensions.user-theme", None)]["name"] == f"'{ts.THEME_NAME}'"
+    assert "'theirs'" not in fake_env.gs[(ARC, None)].values()
+
+
+def test_app_style_apply_one_part_at_a_time_after_restore(fake_env):
+    """The app applies part by part, and the Shell theme comes before the glass: the glass
+    part finishes it once GNOME runs the extension again."""
+    engine = desktop(fake_env)
+    engine.apply(Settings())
+    engine.revert()
+    shell_starts_glass_after(fake_env, 2)
+    out = {}
+    for t in engine.targets:
+        for r in engine.apply(Settings(), only={t.id}):
+            out[r.target] = r
+    assert out["shell"].status == "applied"
+    assert not read_pending()
+
+
+def test_a_brand_new_extension_still_waits_without_delay(fake_env):
+    """First Apply ever: the Shell doesn't know the extension (it finds new ones at login), so
+    the Shell parts wait for the restart and Apply doesn't sit waiting for it."""
+    from liquidglass.env import RunResult
+    engine = desktop(fake_env)
+    _run = fake_env.run
+    fake_env.run = lambda argv, timeout=30: (RunResult(0, "(@a{sv} {},)", "")
+                                             if "org.gnome.Shell.Extensions.GetExtensionInfo" in argv else _run(argv, timeout))
+    got = statuses(engine.apply(Settings()))
+    assert got["shell"] == ("info", WAITING)
+    assert fake_env.naps == []
+    assert read_pending() == {"shell", "dash-to-panel", "arcmenu", "spawn"}
+
+
+def test_gives_up_after_a_few_seconds_if_the_glass_does_not_start(fake_env):
+    engine = desktop(fake_env)
+    fake_env.glass_loaded = False       # known (6 = initialized) but never starts
+    got = statuses(engine.apply(Settings()))
+    assert got["shell"] == ("info", WAITING)
+    assert sum(fake_env.naps) <= 6.0

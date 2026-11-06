@@ -1463,6 +1463,7 @@ def check_restore(ctx: Ctx) -> Check:
     bad, took = wait_healthy(ctx, expected, True, lim["settle_seconds"] + 15)
     c.add(not bad, f"After Apply, the glass and every extension were back in {took:.0f} s." if not bad else
           "After Apply: " + "; ".join(bad) + ".")
+    shell_parts_done(c, "After Restore original and Apply")
     glass_part_off(ctx, c, others)
     errs = [e for e in ctx.new_errors(log0) if ours(e)]
     c.add(not errs, "No Fedora Glass errors during Restore original and Apply." if not errs else
@@ -1507,6 +1508,22 @@ def glass_part_off(ctx: Ctx, c: Check, others: list[str]) -> None:
     bad, took = wait_healthy(ctx, others + [LG], True, lim["settle_seconds"] + 15)
     c.add(rc == 0 and not bad, f"Turned back on, the glass and every extension were back in {took:.0f} s." if rc == 0 and not bad
           else "Turning Fedora Glass effects back on: " + ("; ".join(bad) or out[-200:]) + ".")
+    shell_parts_done(c, "With Fedora Glass effects turned back on")
+
+
+def shell_parts_done(c: Check, when: str) -> None:
+    """The glass extension came back live (GNOME already knew it), so the parts that wait for
+    the glass were finished by the same Apply, not left for a restart (1.5.6 left them)."""
+    p = lgqa.HOME / ".config/liquid-glass/pending-shell.json"
+    try:
+        waiting = json.loads(p.read_text()) if p.exists() else []
+    except ValueError:
+        waiting = ["unreadable"]
+    theme = lgqa.subprocess.run(["gsettings", "get", "org.gnome.shell.extensions.user-theme", "name"], env=lgqa.ENV,
+                                capture_output=True, text=True).stdout.strip()
+    ok = not waiting and theme == "'FedoraGlass'"
+    c.add(ok, f"{when}, the Shell theme, panel and menus were finished at once, with no restart needed." if ok else
+          f"{when}, parts still wait for a restart ({', '.join(waiting) or 'none'}; Shell theme {theme}).")
 
 
 # ---------------------------------------------------------------------------------------------
