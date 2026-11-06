@@ -181,7 +181,9 @@ class Settings:
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
                   "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars", "start_on_desktop",
                   "overview_off"):
-            setattr(s, k, bool(getattr(s, k)))
+            # Only a real true switches one on: "false" typed by hand must not show the weather.
+            v = getattr(s, k)
+            setattr(s, k, v if isinstance(v, bool) else getattr(Settings, k))
         if s.opacity is not None:
             s.opacity = _clamp(float(s.opacity), 0.6)
         if s.blur is not None:
