@@ -830,13 +830,21 @@ class Engine:
         return bool(backup.targets_with_changes()) and not backup.only_folders_left() \
             and not restored_path(self.env).exists()
 
-    def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False) -> list[Result]:
+    def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False,
+              applied_only: bool = False) -> list[Result]:
         """`if_applied`: only while the look is on (see look_on), checked once the lock is
         held (the dark/light watcher can wait on a Restore or `dnf remove` and must not
-        re-apply after). Without it, this is the user's own Apply, which turns the look on."""
+        re-apply after). Without it, this is the user's own Apply, which turns the look on.
+        `applied_only`: only the targets that are applied now (the watcher: a part the user
+        never applied, or restored on its own, stays as it is)."""
         with self._locked():
             if if_applied and not self.look_on():
                 return []
+            if applied_only:
+                have = Backup(self.env).targets_with_changes()
+                only = have if only is None else only & have
+                if not only:
+                    return []
             if not if_applied and not self.env.dry_run:
                 with contextlib.suppress(FileNotFoundError):
                     restored_path(self.env).unlink()
