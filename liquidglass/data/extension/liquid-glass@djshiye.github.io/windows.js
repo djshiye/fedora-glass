@@ -20,6 +20,11 @@ const WINDOW_TYPES = new Set([Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Me
 const NO_GLASS = /^(steam_app_\d+|steam_proton|gamescope|mpv|vlc|celluloid|io\.github\.celluloid_player\.celluloid|totem|org\.gnome\.totem|org\.gnome\.showtime|com\.github\.rafostar\.clapper|io\.mpv\.mpv|org\.videolan\.vlc|retroarch|org\.libretro\.retroarch)$/i;
 // A window that moved or changed size this long ago counts as still moving (see _moved).
 const SETTLE_MS = 250;
+// Fedora Glass's own window draws its glass, rim and shadow itself, and leaves a clear
+// margin around them for its shadow. Mutter counts that margin as part of the window
+// (a Qt window can't say where its frame really is), so glass here would draw a second,
+// larger frame around the app.
+const OWN_APP = /^(io\.github\.djshiye\.LiquidGlass|fedora-glass|Fedora Glass)$/;
 const TERMINALS = /^(org\.gnome\.ptyxis|ptyxis|org\.gnome\.console|kgx|gnome-terminal-server|org\.gnome\.terminal)$/i;
 
 function appIds(w) {
@@ -135,7 +140,7 @@ class WindowGlass {
             !w.is_client_decorated())
             return false;
         const ids = appIds(w);
-        return !ids.some(id => s.skip.includes(id) || NO_GLASS.test(id));
+        return !ids.some(id => s.skip.includes(id) || NO_GLASS.test(id) || OWN_APP.test(id));
     }
 
     /**

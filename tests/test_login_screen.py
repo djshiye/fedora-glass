@@ -238,3 +238,28 @@ def test_every_screen_gets_the_glass_backdrop_not_only_the_main_one():
         dialog = block.split(".login-dialog {", 1)[1].split("}", 1)[0]
         assert "background-color: transparent" in dialog
         assert "background-gradient-direction: none" in dialog
+
+
+def test_password_prompt_is_compact_with_no_box_behind_it():
+    """1.5.6 drew one big flat card around the picture, the name and the password field."""
+    import re
+    block = ls.css("#3584e4", "#6a3fb5", 0.4, shared=True)
+    layout = block.split(".login-dialog .login-dialog-prompt-layout {", 1)[1].split("}", 1)[0]
+    assert "background-color: transparent" in layout and "box-shadow: none" in layout
+    assert "border-width: 0" in layout
+    width = float(re.search(r"\bwidth: ([0-9.]+)em", layout).group(1))
+    assert width < 25                               # GNOME's own is 25em
+    entry = block.split(".login-dialog .login-dialog-prompt-entry {", 1)[1].split("}", 1)[0]
+    assert "border-radius: 999px" in entry          # a pill
+    assert "background-gradient-direction: vertical" in entry
+
+
+def test_every_rule_only_touches_the_login_screen():
+    """The block also goes into the desktop's own style sheet on Fedora: nothing in it may
+    restyle the desktop or its lock screen."""
+    body = ls.css("#3584e4", "#6a3fb5", 0.4, shared=True).split(ls.MARK_START, 1)[1].split(ls.MARK_END, 1)[0]
+    for rule in body.split("}")[:-1]:
+        selectors = rule.split("{", 1)[0]
+        for sel in selectors.split(","):
+            sel = sel.strip()
+            assert sel.startswith(".login-dialog") or sel == "#lockDialogGroup", sel

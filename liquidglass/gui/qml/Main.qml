@@ -31,8 +31,10 @@ Window {
     Shortcut { sequences: [StandardKey.Quit]; onActivated: Qt.quit() }
     Shortcut { sequence: "Ctrl+W"; onActivated: win.close() }
     Shortcut { sequence: "Ctrl+Return"; enabled: !Backend.busy; onActivated: Backend.apply() }
+    // Pages: 0 Look, 1 Apps, 2 Lock screen; the switcher shows them as Look, Lock screen, Apps.
     Shortcut { sequence: "Ctrl+1"; onActivated: win.pageIndex = 0 }
-    Shortcut { sequence: "Ctrl+2"; onActivated: win.pageIndex = 1 }
+    Shortcut { sequence: "Ctrl+2"; onActivated: win.pageIndex = 2 }
+    Shortcut { sequence: "Ctrl+3"; onActivated: win.pageIndex = 1 }
 
     // Popups (tooltips, dropdowns, colour pickers) capture this for their glass.
     Binding { target: Theme; property: "backdrop"; value: frame }
@@ -159,9 +161,10 @@ Window {
             Segmented {
                 id: nav
                 anchors.centerIn: parent
-                width: 232
+                width: 384
                 model: [{ value: 0, label: "Look", icon: "brush", tip: "Glass, colours and panel (Ctrl+1)" },
-                        { value: 1, label: "Apps", icon: "apps", tip: "Choose what gets themed (Ctrl+2)" }]
+                        { value: 2, label: "Lock screen", icon: "lock", tip: "Lock screen glass, clock and widgets (Ctrl+2)" },
+                        { value: 1, label: "Apps", icon: "apps", tip: "Choose what gets themed (Ctrl+3)" }]
                 value: win.pageIndex
                 onActivated: (v) => win.pageIndex = v
                 Accessible.name: "Page"
@@ -220,6 +223,16 @@ Window {
                 visible: opacity > 0
                 enabled: win.pageIndex === 0
                 transform: Translate { x: win.pageIndex === 0 ? 0 : -16; Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
+                Behavior on opacity { NumberAnimation { duration: Theme.normal } }
+            }
+            LockPage {
+                id: lockPage
+                objectName: "lockPage"
+                anchors.fill: parent
+                opacity: win.pageIndex === 2 ? 1 : 0
+                visible: opacity > 0
+                enabled: win.pageIndex === 2
+                transform: Translate { x: win.pageIndex === 2 ? 0 : (win.pageIndex === 0 ? 16 : -16); Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
                 Behavior on opacity { NumberAnimation { duration: Theme.normal } }
             }
             AppsPage {

@@ -79,6 +79,7 @@ const STUBS = {
         export const extensionManager = globalThis.fake.extensionManager;
         export const overview = globalThis.fake.overview;
         export const sessionMode = globalThis.fake.sessionMode;`,
+    'resource/fileUtils.js': 'export const loadInterfaceXML = () => "";',
     'resource/overviewControls.js': 'export const ControlsState = {HIDDEN: 0, WINDOW_PICKER: 1, APP_GRID: 2};',
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
     'glass': `export class GlassPane extends globalThis.fake.Actor {

@@ -83,9 +83,14 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
     """The rules added to the login screen's style sheet. Built only from the three checked values.
 
     The login screen can't see a wallpaper, so the backdrop is a deep glow of the glass
-    tint, and the user list, password field and buttons are panes of glass on it: a
-    little white, a bright top edge and a soft shadow. Text stays GNOME's white, at
-    least 7:1 on every pane.
+    tint, and the user list, picture, password field and buttons are panes of glass on
+    it: a little white that is lighter at the top, a bright rim that is brightest along
+    the top edge, and a soft shadow. Text stays GNOME's white, at least 7:1 on every pane.
+
+    After a click on a name there is no box around the prompt (1.5.6 drew one big flat
+    card around the picture, the name and the field): the picture floats, the field is
+    a glass pill, and the prompt is a little narrower and the picture a little smaller
+    than GNOME's, so the whole thing stays compact.
 
     The login dialog only fills the main screen. Every screen shows #lockDialogGroup,
     which spans them all, so the backdrop lives there and the login dialog stays clear:
@@ -94,7 +99,8 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
     screen, or centre on the seam between two.
 
     shared: the style sheet is also the desktop's (no gdm.css). Every rule must then match
-    only the login screen, or be one the desktop never shows: the desktop's lock screen
+    only the login screen (all of them sit under .login-dialog, so the desktop's own lock
+    screen is never touched), or be one the desktop never shows: the desktop's lock screen
     covers #lockDialogGroup with your wallpaper, so only its colour changes there, from
     GNOME's flat near black to a near-black tint.
     """
@@ -105,8 +111,10 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
     bottom = _mix(t, black, 0.52)        # the glass colour at the bottom of every screen
     pane = 0.07 + 0.07 * frost           # white in each pane: clear glass to frost
     hover = pane + 0.05
-    edge = 0.20 + 0.10 * frost          # a bright rim, as on the desktop's glass
-    card = 0.08 + 0.06 * frost          # the card behind the picture and password
+    lit = pane + 0.08                    # the top of a pane, where the light falls
+    edge = 0.20 + 0.10 * frost           # a bright rim, as on the desktop's glass
+    shine = min(0.30, edge + 0.10)       # the rim's top edge catches the most light
+    ring = f"st-transparentize({accent}, 0.15)"
     return f"""
 {MARK_START}
 #lockDialogGroup {{
@@ -117,47 +125,84 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
 .login-dialog {{
   background-color: transparent;
   background-gradient-direction: none; }}
-.login-dialog > .login-dialog-prompt-layout {{
-  padding: 28px 24px 12px;
-  background-color: rgba(255, 255, 255, {card:.3f});
-  border: 1px solid rgba(255, 255, 255, {edge:.3f});
-  border-radius: 30px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38); }}
-.login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item,
-.login-dialog-not-listed-button,
+.login-dialog .login-dialog-prompt-layout {{
+  width: 21em;
+  min-width: 21em;
+  padding: 0;
+  background-color: transparent;
+  border-width: 0;
+  box-shadow: none; }}
+.login-dialog .login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item,
+.login-dialog .login-dialog-not-listed-button,
 .login-dialog .login-dialog-auth-list-item {{
   background-color: rgba(255, 255, 255, {pane:.3f});
+  background-gradient-direction: vertical;
+  background-gradient-start: rgba(255, 255, 255, {lit:.3f});
+  background-gradient-end: rgba(255, 255, 255, {pane:.3f});
   border: 1px solid rgba(255, 255, 255, {edge:.3f});
+  border-top-color: rgba(255, 255, 255, {shine:.3f});
   border-radius: 18px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28); }}
-.login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item:hover,
-.login-dialog-not-listed-button:hover,
+.login-dialog .login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item:hover,
+.login-dialog .login-dialog-not-listed-button:hover,
 .login-dialog .login-dialog-auth-list-item:hover {{
-  background-color: rgba(255, 255, 255, {hover:.3f}); }}
-.login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item:selected,
-.login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item:focus {{
-  background-color: rgba(255, 255, 255, {hover:.3f});
+  background-gradient-start: rgba(255, 255, 255, {lit + 0.05:.3f});
+  background-gradient-end: rgba(255, 255, 255, {hover:.3f}); }}
+.login-dialog .login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item:selected,
+.login-dialog .login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item:focus {{
+  background-gradient-start: rgba(255, 255, 255, {lit + 0.05:.3f});
+  background-gradient-end: rgba(255, 255, 255, {hover:.3f});
   border-color: {accent}; }}
-.login-dialog-prompt-entry, .login-dialog .login-dialog-prompt-entry {{
+.login-dialog .login-dialog-prompt-entry {{
   background-color: rgba(255, 255, 255, {pane:.3f});
+  background-gradient-direction: vertical;
+  background-gradient-start: rgba(255, 255, 255, {lit:.3f});
+  background-gradient-end: rgba(255, 255, 255, {pane:.3f});
   border: 1px solid rgba(255, 255, 255, {edge:.3f});
-  border-radius: 14px;
-  color: #ffffff; }}
-.login-dialog-prompt-entry:hover {{
-  background-color: rgba(255, 255, 255, {hover:.3f}); }}
-.login-dialog-prompt-entry:focus {{
-  background-color: rgba(255, 255, 255, {hover:.3f});
-  border-color: {accent}; }}
-.login-dialog-button.a11y-button, .login-dialog-button.cancel-button, .login-dialog-button.switch-user-button,
-.login-dialog-button.login-dialog-auth-menu-button, .login-dialog-button.login-dialog-session-list-button {{
+  border-top-color: rgba(255, 255, 255, {shine:.3f});
+  border-radius: 999px;
+  padding: 9px 14px;
+  color: #ffffff;
+  caret-color: #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.30); }}
+.login-dialog .login-dialog-prompt-entry:hover {{
+  background-gradient-start: rgba(255, 255, 255, {lit + 0.05:.3f});
+  background-gradient-end: rgba(255, 255, 255, {hover:.3f}); }}
+.login-dialog .login-dialog-prompt-entry:focus {{
+  background-gradient-start: rgba(255, 255, 255, {lit + 0.05:.3f});
+  background-gradient-end: rgba(255, 255, 255, {hover:.3f});
+  border-color: {accent};
+  box-shadow: inset 0 0 0 1px {ring} !important; }}
+.login-dialog .login-dialog-button.a11y-button, .login-dialog .login-dialog-button.cancel-button,
+.login-dialog .login-dialog-button.switch-user-button, .login-dialog .login-dialog-button.login-dialog-auth-menu-button,
+.login-dialog .login-dialog-button.login-dialog-session-list-button {{
   background-color: rgba(255, 255, 255, {pane:.3f});
-  border: 1px solid rgba(255, 255, 255, {edge:.3f}); }}
-.login-dialog-button.a11y-button:hover, .login-dialog-button.cancel-button:hover,
-.login-dialog-button.switch-user-button:hover, .login-dialog-button.login-dialog-auth-menu-button:hover,
-.login-dialog-button.login-dialog-session-list-button:hover {{
-  background-color: rgba(255, 255, 255, {hover:.3f}); }}
+  background-gradient-direction: vertical;
+  background-gradient-start: rgba(255, 255, 255, {lit:.3f});
+  background-gradient-end: rgba(255, 255, 255, {pane:.3f});
+  border: 1px solid rgba(255, 255, 255, {edge:.3f});
+  border-top-color: rgba(255, 255, 255, {shine:.3f}); }}
+.login-dialog .login-dialog-button.a11y-button:hover, .login-dialog .login-dialog-button.cancel-button:hover,
+.login-dialog .login-dialog-button.switch-user-button:hover, .login-dialog .login-dialog-button.login-dialog-auth-menu-button:hover,
+.login-dialog .login-dialog-button.login-dialog-session-list-button:hover {{
+  background-gradient-start: rgba(255, 255, 255, {lit + 0.05:.3f});
+  background-gradient-end: rgba(255, 255, 255, {hover:.3f}); }}
 .login-dialog .user-widget .user-icon {{
-  border: 1px solid rgba(255, 255, 255, {edge:.3f}); }}
+  background-color: rgba(255, 255, 255, {pane:.3f});
+  background-gradient-direction: vertical;
+  background-gradient-start: rgba(255, 255, 255, {lit:.3f});
+  background-gradient-end: rgba(255, 255, 255, {pane:.3f});
+  border: 1px solid rgba(255, 255, 255, {edge:.3f});
+  border-top-color: rgba(255, 255, 255, {shine:.3f});
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32); }}
+.login-dialog .user-widget.vertical .user-icon {{
+  icon-size: 128px; }}
+.login-dialog .user-widget.vertical .user-icon StIcon {{
+  padding: 24px; }}
+.login-dialog .user-widget.vertical {{
+  spacing: 16px; }}
+.login-dialog .user-widget.vertical .user-widget-label {{
+  margin-bottom: 0.4em; }}
 {MARK_END}
 """
 

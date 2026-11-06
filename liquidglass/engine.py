@@ -31,7 +31,7 @@ from .env import Env, RunResult
 from .settings import Settings, config_dir
 from .targets import all_targets
 from .render.glass import UUID as GLASS_UUID
-from .targets.shell import USER_THEME, GlassEffects, park_arcmenu, unpark_arcmenu
+from .targets.shell import USER_THEME, GlassEffects, extension_info, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 from .unmerge import unmerge
 
@@ -379,6 +379,16 @@ class Backup:
         if self.env.dry_run:
             return
         if (old := self.data["files"].get(key)) is not None:
+            if old.get("edits") and old.get("wrote") and old["kind"] in ("file", "missing") and \
+                    path.is_file() and not path.is_symlink():
+                # Another app's own settings file, where we only set a few keys. The app
+                # rewrites it (qBittorrent on every exit, btop, VS Code): that is not a new
+                # look to keep, and the copy from before the first Apply must stay the
+                # original. Restore then takes only our keys out, so what changed in
+                # between stays too.
+                if not self.is_ours(path, old):
+                    old["changed"] = True
+                return
             if not old.get("wrote") or self.is_ours(path, old) or self._has_header(path):
                 return
             # Something else replaced what we wrote (a theme update relinking gtk.css):
@@ -431,6 +441,9 @@ class Backup:
             del self.data["gsettings"][key]     # the user's own choice now; leave it
             return None
         r = _put_back(env, g.schema, g.key, g.path, e)
+        if not r.ok and _setting_gone(env, g.schema, g.key, g.path):
+            del self.data["gsettings"][key]     # the app is gone: nothing left to put back
+            return None
         if not r.ok:
             return f"{g.schema} {g.key}: {r.err.strip()}"
         if not env.dry_run:
@@ -470,7 +483,10 @@ class Backup:
                 del self.data["gsettings"][key]
                 continue
             r = _put_back(self.env, schema, k, path or None, e)
-            if r.ok:
+            if r.ok or _setting_gone(self.env, schema, k, path or None):
+                # Gone: the app (Spawn, ArcMenu, ...) was removed after Apply and took its
+                # settings with it. Keeping the record would fail every Restore for good and
+                # leave the look "applied", so the watcher would bring it back.
                 del self.data["gsettings"][key]
             else:
                 problems.append(f"{schema} {k}: {r.err.strip()}")
@@ -536,8 +552,10 @@ class Backup:
             # Read the copy first, so a lost backup never costs the current file.
             original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
             if e.get("edits") and e.get("wrote") and e["kind"] in ("file", "missing") and \
-                    p.is_file() and not p.is_symlink() and not self.is_ours(p, e):
-                # Another app's settings, changed since Apply: take only our keys out.
+                    p.is_file() and not p.is_symlink() and \
+                    (e.get("changed") or not self.is_ours(p, e)):
+                # Another app's settings, changed since the first Apply: take only our
+                # keys out.
                 return self._unmerge_file(key, p, e, original)
             if e.get("wrote") and (p.exists() or p.is_symlink()) and \
                     not self.is_ours(p, e) and not self._has_header(p):
@@ -615,6 +633,12 @@ class Backup:
                 else:
                     out.add(e["target"])
         return out
+
+
+def _setting_gone(env: Env, schema: str, key: str, path: str | None) -> bool:
+    """Whether a key no longer exists at all (its app and schema were removed). Asked only
+    after a put-back failed, so a passing hiccup never costs the record."""
+    return key not in env.gsettings_keys(schema, path)
 
 
 def _put_back(env: Env, schema: str, key: str, path: str | None, e: dict):
@@ -818,7 +842,32 @@ class Engine:
         if not self.env.dry_run:
             with contextlib.suppress(OSError):
                 atomic_write(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+        # This Apply switched the glass extension back on (after Restore original, or after
+        # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
+        # it right away, so the parts that wait for the glass are finished now, not after a
+        # restart. A brand-new extension still waits for the next login.
+        glass_on = any(r.target == GlassEffects.id and r.status == "applied" for r in results)
+        if waiting and glass_on and not ctx.glass_running and not self.env.dry_run and self._glass_starts():
+            later = self._apply(settings, set(waiting))
+            done = {r.target for r in later}
+            results = [r for r in results if r.target not in done] + later
         return results
+
+    # Extension states (GNOME's ExtensionState): 1 running, 3 error, 4 out of date.
+    _GLASS_STARTING = (2.0, 6.0, 7.0, 8.0)
+
+    def _glass_starts(self, wait_s: float = 6.0, step_s: float = 0.25) -> bool:
+        """Whether GNOME Shell starts the glass extension now that Apply switched it on.
+        False at once when the Shell doesn't know it yet (it only finds new ones at login)."""
+        waited = 0.0
+        while True:
+            state, _err = extension_info(self.env, GLASS_UUID)
+            if state == 1.0:
+                return True
+            if state not in self._GLASS_STARTING or waited >= wait_s:
+                return False
+            self.env.sleep(step_s)
+            waited += step_s
 
     def revert(self, target: str | None = None) -> list[str]:
         with self._locked():
