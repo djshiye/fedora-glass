@@ -19,7 +19,9 @@ function feed(tuner, start, n, late, every = HZ60) {
 
 test('frames after a pause never read as slow, slow paints always do', () => {
     assert.equal(T.frameLate(HZ60, 2000, HZ60), false);
-    assert.equal(T.frameLate(2 * HZ60, 2000, HZ60), true);
+    assert.equal(T.frameLate(2 * HZ60, 2000, HZ60), false);   // an app redrawing at 30 fps: its pace, not ours
+    assert.equal(T.frameLate(50e3, 3000, HZ60), false);       // glass catching up at 20 Hz with a busy app
+    assert.equal(T.frameLate(2 * HZ60, 12000, HZ60), true);   // a heavy frame that also came late
     assert.equal(T.frameLate(100e3, 2000, HZ60), null);   // typing: one frame now and then
     assert.equal(T.frameLate(100e3, 40e3, HZ60), true);    // but that frame took 40 ms to draw
     assert.equal(T.frameLate(0, 1000, 0), null);
