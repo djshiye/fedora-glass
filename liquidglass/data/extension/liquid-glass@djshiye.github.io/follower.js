@@ -79,6 +79,11 @@ export class Follower {
     _hold() {
         if (this._held !== null || !this.settings.enabled || this.pane?.visible)
             return;
+        // Already invisible (Dash to Panel's window previews map at 0 and fade in
+        // themselves): nothing to hold back. Holding it would also take 0 as its own
+        // opacity, so it never counted as shown, never let go and never got glass.
+        if (this.target.opacity === 0)
+            return;
         this._held = this.target.opacity;
         this.target.opacity = 0;
         // Whatever happens, never leave a menu invisible: if its glass is not up

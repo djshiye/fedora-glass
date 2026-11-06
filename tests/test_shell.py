@@ -460,6 +460,29 @@ def test_glass_surfaces_drop_the_drawn_outline():
     assert on.edge.css in block(rs.render_css(no_ext), ".quick-settings")
 
 
+def test_dash_to_panel_window_previews_get_the_menu_tint():
+    """The previews (hovering a taskbar icon) get the menus' glass: Dash to Panel's
+    default 80 % panel colour on top would hide it."""
+    t = palette.build(Settings(), dark=True)
+    v = rs.dtp_values(t)
+    assert v["preview-use-custom-opacity"] == "true"
+    assert int(v["preview-custom-opacity"]) == round(rs.surfaces(t)["popover"].a * 100)
+    assert 0 <= int(v["preview-custom-opacity"]) <= 100
+    assert re.search(r"#preview-menu \{\s*border-radius: \d+px", rs.render_css(t))
+
+
+def test_stacked_notifications_hide_their_buttons_completely():
+    """Under a collapsed notification stack the cards behind must not show their
+    round buttons through the see-through top card: those buttons are painted with
+    a gradient, which background-color alone does not clear."""
+    css = rs.render_css(palette.build(Settings(), dark=True))
+    i = css.index(".message:second-in-stack *")
+    rule = css[i:css.index("}", i)]
+    assert "background-gradient-direction: none" in rule
+    i = css.index(".message:second-in-stack {")
+    assert "border-color: transparent" in css[i:css.index("}", i)]
+
+
 # ---- per-part rendering and the light veil on glass-drawn surfaces -----------------------
 def test_parts_reach_the_shell_css_and_gsettings():
     t = palette.build(Settings(radius=18, parts={
