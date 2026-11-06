@@ -28,7 +28,7 @@ QtObject {
 
     readonly property color text: dark ? "#f2f3f7" : "#17181d"
     readonly property color textDim: dark ? Qt.rgba(0.95, 0.953, 0.97, 0.68) : Qt.rgba(0.09, 0.094, 0.114, 0.66)
-    readonly property color textFaint: dark ? Qt.rgba(0.95, 0.953, 0.97, 0.45) : Qt.rgba(0.09, 0.094, 0.114, 0.45)
+    readonly property color textFaint: dark ? Qt.rgba(0.95, 0.953, 0.97, 0.55) : Qt.rgba(0.09, 0.094, 0.114, 0.56)
 
     readonly property color good: dark ? "#4ad48a" : "#1b8a4b"
     readonly property color warn: dark ? "#f5c04f" : "#9a6500"

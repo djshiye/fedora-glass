@@ -4,9 +4,51 @@ import QtQuick.Effects
 import LiquidGlass.Core
 
 // The main page: live preview and the frost slider on the left, every other
-// option on the right (basics first, the rest under "Fine-tune").
+// option on the right in six sections (colour, glass, windows, motion, desktop,
+// more) with a section bar on top that follows the scroll and jumps on click.
 Item {
     id: page
+    // The section shown at the top of the options column, and a way to jump to one
+    // (screenshots set jumpSection from the command line).
+    readonly property var sections: [
+        { value: "colour", label: "Colour", tip: "Light or dark, accent colour, tint and corners" },
+        { value: "glass", label: "Glass", tip: "Glass effects, where the glass shows, and speed" },
+        { value: "windows", label: "Windows", tip: "The panel, header bars, terminal and Qt apps" },
+        { value: "motion", label: "Motion", tip: "How glass, windows and the panel move" },
+        { value: "desktop", label: "Desktop", tip: "Start on the desktop, turn off the overview" },
+        { value: "more", label: "More", tip: "One part at a time, fine-tune, and removing Fedora Glass" }
+    ]
+    property string currentSection: "colour"
+    property string jumpSection: ""
+    onJumpSectionChanged: if (jumpSection !== "") jumpTo(jumpSection, false)
+    function sectionItem(id) {
+        return ({ colour: sec_colour, glass: sec_glass, windows: sec_windows,
+                  motion: sec_motion, desktop: sec_desktop, more: sec_more })[id]
+    }
+    function jumpTo(id, animated) {
+        const it = sectionItem(id)
+        if (!it)
+            return
+        const y = Math.max(0, Math.min(it.y, side.contentHeight - side.height))
+        side.revealing = animated !== false
+        side.contentY = y
+        side.revealing = false
+        page.currentSection = id
+    }
+    function followScroll() {
+        if (side.revealing || revealTimer.running || side.contentYAnimating)
+            return
+        // At the very bottom the last section wins, even when it is short.
+        if (side.contentY + side.height >= side.contentHeight - 2) {
+            page.currentSection = sections[sections.length - 1].value
+            return
+        }
+        let cur = sections[0].value
+        for (const s of sections)
+            if (sectionItem(s.value).y <= side.contentY + 48)
+                cur = s.value
+        page.currentSection = cur
+    }
     property alias fineTuneOpen: fine.expanded
     property alias frostHeld: frost.held
 
@@ -214,11 +256,26 @@ Item {
     }
 
     // ================================================================ right: options
+    Segmented {
+        id: sectionBar
+        objectName: "sectionBar"
+        anchors.right: parent.right
+        anchors.top: parent.top
+        width: page.sideW
+        compact: true
+        fit: true
+        model: page.sections
+        value: page.currentSection
+        onActivated: (v) => page.jumpTo(v, true)
+        Accessible.name: "Section"
+    }
+
     Flickable {
         id: side
         objectName: "options"
         anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.top: sectionBar.bottom
+        anchors.topMargin: 12
         anchors.bottom: parent.bottom
         anchors.rightMargin: -12
         width: page.sideW + 12
@@ -226,8 +283,14 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         C.ScrollBar.vertical: LgScrollBar {}
-        Behavior on contentY { enabled: revealTimer.running || side.revealing; NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
+        Behavior on contentY {
+            enabled: revealTimer.running || side.revealing
+            NumberAnimation { id: scrollAnim; duration: Theme.slow; easing.type: Easing.OutCubic }
+        }
         property bool revealing: false
+        readonly property bool contentYAnimating: scrollAnim.running
+        onContentYChanged: page.followScroll()
+        onContentHeightChanged: page.followScroll()
 
         // Opening Fine-tune scrolls it into view once it has grown.
         Timer {
@@ -235,8 +298,9 @@ Item {
             interval: Theme.slow + 20
             onTriggered: {
                 side.revealing = true
-                side.contentY = Math.max(0, side.contentHeight - side.height)
+                side.contentY = Math.max(0, Math.min(fineCard.y + sec_more.y - 16, side.contentHeight - side.height))
                 side.revealing = false
+                page.currentSection = "more"
             }
         }
         Connections {
@@ -249,301 +313,118 @@ Item {
             width: page.sideW
             spacing: 16
 
-            Card {
+            Column {
+                id: sec_colour
+                objectName: "section_colour"
                 width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Appearance" }
-                    Column {
-                        width: parent.width
-                        spacing: 8
-                        Text { text: "Style"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                        Segmented {
-                            width: parent.width
-                            model: [{ value: "auto", label: "Auto", icon: "auto", tip: "Follow GNOME's light/dark setting" },
-                                    { value: "dark", label: "Dark", icon: "moon", tip: "Always use the dark style, whatever GNOME is set to" },
-                                    { value: "light", label: "Light", icon: "sun", tip: "Always use the light style, whatever GNOME is set to" }]
-                            value: Backend.scheme
-                            onActivated: (v) => Backend.scheme = v
-                            Accessible.name: "Style"
-                        }
-                    }
-                    Column {
-                        width: parent.width
-                        spacing: 10
-                        Text { text: "Accent colour"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                        Row {
-                            id: swatches
-                            width: parent.width
-                            spacing: 4
-                            readonly property real d: Math.min(30, Math.floor((width - 10 * spacing) / 11))
-                            Swatch {
-                                size: swatches.d
-                                swatch: Backend.accents.find(a => a.id === Backend.systemAccent)?.color ?? "#3584e4"
-                                split: true
-                                selected: Backend.accent === "system"
-                                tip: "System accent (follows GNOME Settings)"
-                                onClicked: Backend.accent = "system"
-                            }
-                            Repeater {
-                                model: Backend.accents
-                                delegate: Swatch {
-                                    required property var modelData
-                                    size: swatches.d
-                                    swatch: modelData.color
-                                    selected: Backend.accent === modelData.id
-                                    tip: modelData.label
-                                    onClicked: Backend.accent = modelData.id
-                                }
-                            }
-                            Swatch {
-                                id: customAccent
-                                size: swatches.d
-                                readonly property bool isCustom: Backend.accent.startsWith("#")
-                                swatch: isCustom ? Backend.accent : "#888888"
-                                rainbow: !isCustom
-                                selected: isCustom
-                                tip: "Custom colour…"
-                                onClicked: accentPicker.open()
-                                ColorPicker {
-                                    id: accentPicker
-                                    y: parent.height + 8
-                                    x: parent.width - width
-                                    title: "Custom accent"
-                                    color: customAccent.isCustom ? Backend.accent : Theme.accent
-                                    onPicked: (hex) => Backend.accent = hex
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                spacing: 16
 
-            Card {
-                width: parent.width
-                height: implicitHeight
-                Column {
+                Card {
                     width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Glass" }
-                    Item {
+                    height: implicitHeight
+                    Column {
                         width: parent.width
-                        height: 36
+                        spacing: 16
+                        SectionTitle { text: "Style and accent" }
                         Column {
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 2
-                            Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                            Text { text: "The colour the glass leans towards"; color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
-                        }
-                        C.AbstractButton {
-                            id: tintButton
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 108
-                            height: 34
-                            hoverEnabled: true
-                            focusPolicy: Qt.StrongFocus
-                            onClicked: tintPicker.open()
-                            Accessible.name: "Tint colour"
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
-                            LgToolTip { shown: tintButton.hovered; text: "Choose the tint colour" }
-                            background: Rectangle {
-                                radius: height / 2
-                                color: tintButton.hovered ? Theme.surfaceHi : Theme.well
-                                border.width: 1
-                                border.color: Theme.border
-                                FocusRing { target: tintButton; radius: height / 2 }
-                            }
-                            contentItem: Row {
-                                spacing: 8
-                                leftPadding: 6
-                                Rectangle {
-                                    width: 22; height: 22; radius: 11
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    color: Backend.tint
-                                    border.width: 1
-                                    border.color: Qt.rgba(0, 0, 0, 0.15)
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: Backend.tint.toUpperCase()
-                                    color: Theme.textDim
-                                    font.family: Theme.mono
-                                    font.pixelSize: 12
-                                }
-                            }
-                            ColorPicker {
-                                id: tintPicker
-                                y: parent.height + 8
-                                x: parent.width - width
-                                title: "Tint colour"
-                                color: Backend.tint
-                                onPicked: (hex) => Backend.tint = hex
-                            }
-                        }
-                    }
-                    LabeledSlider {
-                        label: "Tint strength"
-                        value: Backend.tintStrength
-                        onMoved: (v) => Backend.tintStrength = v
-                        tip: "How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane."
-                    }
-                    LabeledSlider {
-                        label: "Corner roundness"
-                        from: 0; to: 32; stepSize: 1
-                        value: Backend.radius
-                        format: (v) => Math.round(v) + " px"
-                        onMoved: (v) => Backend.radius = v
-                        tip: "How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners."
-                    }
-                }
-            }
-
-            // ---- per-part overrides: one part at a time, everything follows the global look until changed
-            Card {
-                id: partsCard
-                width: parent.width
-                height: implicitHeight
-                readonly property var partList: [
-                    { id: "panel", label: "Panel", caption: "Dash to Panel or the top bar",
-                      tip: "Look of the Dash to Panel bar or the top bar only" },
-                    { id: "arcmenu", label: "Start menu", caption: "The ArcMenu or Spawn application menu",
-                      tip: "Look of the ArcMenu or Spawn application menu only" },
-                    { id: "quicksettings", label: "Quick settings", caption: "Quick settings, app menus, on-screen pop-ups and dialogs",
-                      tip: "Look of quick settings, menus, volume pop-ups and dialogs" },
-                    { id: "calendar", label: "Calendar", caption: "The calendar and notification pop-ups",
-                      tip: "Look of the calendar and notification pop-ups" },
-                    { id: "overview", label: "Overview", caption: "The dash and app grid in Activities",
-                      tip: "Look of the dash and the app grid in Activities" },
-                    { id: "windows", label: "Windows", caption: "App windows, their sidebars and header bars",
-                      tip: "Look of app windows" },
-                    { id: "terminal", label: "Terminal", caption: "Terminal windows",
-                      tip: "Look of terminal windows" }
-                ]
-                property string part: "panel"
-                // Bring the part being edited into view in the preview.
-                onPartChanged: preview.scene = ({ quicksettings: "quicksettings", calendar: "calendar", overview: "overview" })[part] || "desktop"
-                readonly property var info: partList.find(p => p.id === part)
-                readonly property var own: Backend.parts[part] || ({})
-                readonly property bool any: Object.keys(own).length > 0
-                // Which settings make sense for the chosen part.
-                readonly property bool hasRadius: part !== "terminal"
-                readonly property bool hasLens: part !== "overview"
-                // App windows keep their content as the app draws it: no colour bleed there.
-                readonly property bool hasBleed: hasLens && part !== "windows" && part !== "terminal"
-                function val(key) { return own[key] !== undefined ? own[key] : -1 }
-                function setOrClear(key, v) { v < 0 ? Backend.clearPart(part, key) : Backend.setPart(part, key, v) }
-
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Parts" }
-                    Column {
-                        width: parent.width
-                        spacing: 10
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            color: Theme.textFaint
-                            font.pixelSize: Theme.fsSmall
-                            text: "Give one part of the desktop its own look. Anything you leave on Global follows the settings above."
-                        }
-                        Flow {
                             width: parent.width
                             spacing: 8
-                            Repeater {
-                                model: partsCard.partList
-                                delegate: Chip {
-                                    required property var modelData
-                                    text: modelData.label
-                                    selected: partsCard.part === modelData.id
-                                    tip: modelData.tip
-                                    Rectangle {      // a dot marks parts that have their own look
-                                        visible: !!Backend.parts[modelData.id] && Object.keys(Backend.parts[modelData.id]).length > 0
-                                        width: 6; height: 6; radius: 3
-                                        color: Theme.accent
-                                        anchors.top: parent.top; anchors.right: parent.right
-                                        anchors.topMargin: 3; anchors.rightMargin: 5
-                                    }
-                                    onClicked: partsCard.part = modelData.id
-                                }
-                            }
-                        }
-                    }
-                    Item {
-                        width: parent.width
-                        height: 36
-                        Column {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - 120
-                            spacing: 2
-                            Text { text: partsCard.info.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                            Text {
+                            Text { text: "Style"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                            Segmented {
                                 width: parent.width
-                                text: partsCard.any ? "Has its own look" : "Same as global"
-                                color: Theme.textFaint
-                                font.pixelSize: Theme.fsSmall
+                                model: [{ value: "auto", label: "Auto", icon: "auto", tip: "Follow GNOME's light/dark setting" },
+                                        { value: "dark", label: "Dark", icon: "moon", tip: "Always use the dark style, whatever GNOME is set to" },
+                                        { value: "light", label: "Light", icon: "sun", tip: "Always use the light style, whatever GNOME is set to" }]
+                                value: Backend.scheme
+                                onActivated: (v) => Backend.scheme = v
+                                Accessible.name: "Style"
                             }
                         }
-                        LgButton {
-                            objectName: "resetPart"
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            kind: "flat"
-                            implicitHeight: 32
-                            leftPadding: 12; rightPadding: 12
-                            text: "Reset this part"
-                            iconName: "refresh"
-                            enabled: partsCard.any
-                            tip: "Put every setting of this part back to following the global look"
-                            onClicked: Backend.resetPart(partsCard.part)
+                        Column {
+                            width: parent.width
+                            spacing: 10
+                            Text { text: "Accent colour"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                            Row {
+                                id: swatches
+                                width: parent.width
+                                spacing: 4
+                                readonly property real d: Math.min(30, Math.floor((width - 10 * spacing) / 11))
+                                Swatch {
+                                    size: swatches.d
+                                    swatch: Backend.accents.find(a => a.id === Backend.systemAccent)?.color ?? "#3584e4"
+                                    split: true
+                                    selected: Backend.accent === "system"
+                                    tip: "System accent (follows GNOME Settings)"
+                                    onClicked: Backend.accent = "system"
+                                }
+                                Repeater {
+                                    model: Backend.accents
+                                    delegate: Swatch {
+                                        required property var modelData
+                                        size: swatches.d
+                                        swatch: modelData.color
+                                        selected: Backend.accent === modelData.id
+                                        tip: modelData.label
+                                        onClicked: Backend.accent = modelData.id
+                                    }
+                                }
+                                Swatch {
+                                    id: customAccent
+                                    size: swatches.d
+                                    readonly property bool isCustom: Backend.accent.startsWith("#")
+                                    swatch: isCustom ? Backend.accent : "#888888"
+                                    rainbow: !isCustom
+                                    selected: isCustom
+                                    tip: "Custom colour…"
+                                    onClicked: accentPicker.open()
+                                    ColorPicker {
+                                        id: accentPicker
+                                        y: parent.height + 8
+                                        x: parent.width - width
+                                        title: "Custom accent"
+                                        color: customAccent.isCustom ? Backend.accent : Theme.accent
+                                        onPicked: (hex) => Backend.accent = hex
+                                    }
+                                }
+                            }
                         }
                     }
-                    Item {
+                }
+
+                Card {
+                    width: parent.width
+                    height: implicitHeight
+                    Column {
                         width: parent.width
-                        height: 36
-                        Column {
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 2
-                            Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                            Text {
-                                text: partsCard.own.tint !== undefined ? "Its own colour" : "Same as global"
-                                color: Theme.textFaint; font.pixelSize: Theme.fsSmall
-                            }
-                        }
-                        Row {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 8
-                            Chip {
+                        spacing: 16
+                        SectionTitle { text: "Tint and corners" }
+                        Item {
+                            width: parent.width
+                            height: 36
+                            Column {
                                 anchors.verticalCenter: parent.verticalCenter
-                                implicitHeight: 28
-                                text: "Global"
-                                selected: partsCard.own.tint === undefined
-                                tip: selected ? "Follows the tint colour in the Glass card" : "Go back to the global tint colour"
-                                onClicked: partsCard.own.tint === undefined ? Backend.setPart(partsCard.part, "tint", Backend.tint)
-                                                                            : Backend.clearPart(partsCard.part, "tint")
+                                spacing: 2
+                                Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                                Text { text: "The colour the glass leans towards"; color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
                             }
                             C.AbstractButton {
-                                id: partTint
+                                id: tintButton
+                                anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 108
                                 height: 34
                                 hoverEnabled: true
                                 focusPolicy: Qt.StrongFocus
-                                readonly property string shown: partsCard.own.tint !== undefined ? partsCard.own.tint : Backend.tint
-                                onClicked: partTintPicker.open()
-                                Accessible.name: "Tint colour for this part"
+                                onClicked: tintPicker.open()
+                                Accessible.name: "Tint colour"
                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                LgToolTip { shown: partTint.hovered; text: "Choose a tint colour for this part only" }
+                                LgToolTip { shown: tintButton.hovered; text: "Choose the tint colour" }
                                 background: Rectangle {
                                     radius: height / 2
-                                    color: partTint.hovered ? Theme.surfaceHi : Theme.well
+                                    color: tintButton.hovered ? Theme.surfaceHi : Theme.well
                                     border.width: 1
                                     border.color: Theme.border
-                                    FocusRing { target: partTint; radius: height / 2 }
+                                    FocusRing { target: tintButton; radius: height / 2 }
                                 }
                                 contentItem: Row {
                                     spacing: 8
@@ -551,329 +432,570 @@ Item {
                                     Rectangle {
                                         width: 22; height: 22; radius: 11
                                         anchors.verticalCenter: parent.verticalCenter
-                                        color: partTint.shown
+                                        color: Backend.tint
                                         border.width: 1
                                         border.color: Qt.rgba(0, 0, 0, 0.15)
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: partTint.shown.toUpperCase()
-                                        color: partsCard.own.tint !== undefined ? Theme.textDim : Theme.textFaint
+                                        text: Backend.tint.toUpperCase()
+                                        color: Theme.textDim
                                         font.family: Theme.mono
                                         font.pixelSize: 12
                                     }
                                 }
                                 ColorPicker {
-                                    id: partTintPicker
+                                    id: tintPicker
                                     y: parent.height + 8
                                     x: parent.width - width
                                     title: "Tint colour"
-                                    color: partTint.shown
-                                    onPicked: (hex) => Backend.setPart(partsCard.part, "tint", hex)
+                                    color: Backend.tint
+                                    onPicked: (hex) => Backend.tint = hex
                                 }
                             }
                         }
-                    }
-                    OverrideSlider {
-                        label: "Tint strength"
-                        autoText: "Global"
-                        autoTip: "Follows the tint strength in the Glass card"
-                        resetTip: "Go back to the global tint strength"
-                        tip: "How much of the tint colour is mixed into this part. Left is clear, colourless glass; right is strongly coloured."
-                        value: partsCard.val("tint_strength")
-                        autoValue: Backend.tintStrength
-                        onChanged: (v) => partsCard.setOrClear("tint_strength", v)
-                    }
-                    OverrideSlider {
-                        visible: partsCard.hasRadius
-                        label: "Corner roundness"
-                        autoText: "Global"
-                        autoTip: "Follows the corner roundness in the Glass card"
-                        resetTip: "Go back to the global corner roundness"
-                        tip: "How round this part's corners are. Left is sharp, square corners; right is soft, pill-like corners."
-                        from: 0; to: 32; stepSize: 1
-                        value: partsCard.val("radius")
-                        autoValue: Backend.radius
-                        format: (v) => Math.round(v) + " px"
-                        onChanged: (v) => partsCard.setOrClear("radius", v < 0 ? v : Math.round(v))
-                    }
-                    OverrideSlider {
-                        label: "Frost"
-                        autoText: "Global"
-                        autoTip: "Follows the Liquid to Frosted slider"
-                        resetTip: "Go back to following the Liquid to Frosted slider"
-                        tip: "How frosted this part is. Left is clear glass with a light blur; right is milky, heavily blurred and easier to read."
-                        value: partsCard.val("frost")
-                        autoValue: Backend.frost
-                        onChanged: (v) => partsCard.setOrClear("frost", v)
-                    }
-                    OverrideSlider {
-                        visible: partsCard.hasLens
-                        label: "Glass strength"
-                        autoText: "Global"
-                        autoTip: "Follows Bend in the Glass effects card"
-                        resetTip: "Go back to the global Bend"
-                        tip: "How strongly this part's rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
-                        value: partsCard.val("refraction")
-                        autoValue: Backend.refraction
-                        onChanged: (v) => { partsCard.setOrClear("refraction", v); preview.peekEdge(partsCard.part) }
-                    }
-                    OverrideSlider {
-                        visible: partsCard.hasBleed
-                        label: "Colour bleed"
-                        autoText: "Global"
-                        autoTip: "Follows Colour bleed in the Glass effects card"
-                        resetTip: "Go back to the global Colour bleed"
-                        tip: "How much the colours of icons and text light up the glass of this part. Left keeps it neutral; right gives them a coloured glow."
-                        value: partsCard.val("bleed")
-                        autoValue: Backend.bleed
-                        onChanged: (v) => partsCard.setOrClear("bleed", v)
-                    }
-                    OverrideSlider {
-                        visible: partsCard.hasLens
-                        label: "Edge reflections"
-                        autoText: "Global"
-                        autoTip: "Follows the default edge reflections"
-                        resetTip: "Go back to the default edge reflections"
-                        tip: "How strongly the edge of this part catches reflections of its surroundings. Left shows none; right gives bright, mirror-like edges."
-                        value: partsCard.val("reflections")
-                        autoValue: Backend.highlight
-                        onChanged: (v) => { partsCard.setOrClear("reflections", v); preview.peekEdge(partsCard.part) }
+                        LabeledSlider {
+                            label: "Tint strength"
+                            value: Backend.tintStrength
+                            onMoved: (v) => Backend.tintStrength = v
+                            tip: "How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane."
+                        }
+                        LabeledSlider {
+                            label: "Corner roundness"
+                            from: 0; to: 32; stepSize: 1
+                            value: Backend.radius
+                            format: (v) => Math.round(v) + " px"
+                            onMoved: (v) => Backend.radius = v
+                            tip: "How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners."
+                        }
                     }
                 }
             }
 
-            Card {
+            Column {
+                id: sec_glass
+                objectName: "section_glass"
                 width: parent.width
-                height: implicitHeight
-                Column {
+                spacing: 16
+
+                Card {
                     width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Panel and windows" }
+                    height: implicitHeight
+                    Column {
+                        width: parent.width
+                        spacing: 16
+                        SectionTitle {
+                            text: "Glass effects"
+                            captionName: "glassStatus"
+                            caption: Backend.glassLive
+                                     ? "Live: your desktop follows these as you change them."
+                                     : "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
+                        }
+                        LabeledSlider {
+                            label: "Bend"
+                            value: Backend.refraction
+                            onMoved: (v) => { Backend.refraction = v; preview.peekEdge("") }
+                            tip: "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+                        }
+                        LabeledSlider {
+                            label: "Rainbow edge"
+                            value: Backend.dispersion
+                            onMoved: (v) => { Backend.dispersion = v; preview.peekEdge("") }
+                            tip: "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
+                        }
+                        LabeledSlider {
+                            label: "Colour through glass"
+                            value: Backend.vibrancy
+                            onMoved: (v) => Backend.vibrancy = v
+                            tip: "How vivid the wallpaper and windows look through the glass. Left keeps their colours as they are; right makes them richer."
+                        }
+                        LabeledSlider {
+                            label: "Colour bleed"
+                            value: Backend.bleed
+                            onMoved: (v) => Backend.bleed = v
+                            tip: "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
+                        }
+                        LabeledSlider {
+                            label: "Light follows pointer"
+                            value: Backend.pointerLight
+                            onMoved: (v) => Backend.pointerLight = v
+                            tip: "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
+                        }
+                    }
+                }
+
+                Card {
+                    width: parent.width
+                    height: implicitHeight
                     Column {
                         width: parent.width
                         spacing: 8
-                        Text { text: "Dash to Panel"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                        Segmented {
+                        SectionTitle {
+                            text: "Where the glass shows"
+                            caption: "Real glass costs some graphics power. Turn it off where you don't need it."
+                        }
+                        Column {
                             width: parent.width
-                            model: [{ value: "floating", label: "Floating", icon: "panelFloat", tip: "A glass pill that floats above the screen edge" },
-                                    { value: "docked", label: "Docked", icon: "panelDock", tip: "A full-width bar along the screen edge" }]
-                            value: Backend.panelStyle
-                            onActivated: (v) => Backend.panelStyle = v
-                            Accessible.name: "Panel style"
+                            spacing: 4
+                            SwitchRow {
+                                label: "Panel"
+                                caption: "Dash to Panel or the top bar"
+                                tip: "Draws real glass behind the panel. Off leaves a plain tinted bar."
+                                checked: Backend.glassPanel
+                                onToggled: (on) => Backend.glassPanel = on
+                            }
+                            SwitchRow {
+                                label: "Menus"
+                                caption: "Quick settings, calendar, the start menu and app menus"
+                                tip: "Draws real glass behind menus and pop-ups. Off leaves plain tinted panes."
+                                checked: Backend.glassMenus
+                                onToggled: (on) => { Backend.glassMenus = on; preview.showPopup() }
+                            }
+                            SwitchRow {
+                                label: "App windows"
+                                caption: "Frosted wallpaper behind translucent windows"
+                                tip: "Blurs the wallpaper behind see-through app windows. Off shows it sharp, which is lighter on the GPU."
+                                checked: Backend.blurAppWindows
+                                onToggled: (on) => Backend.blurAppWindows = on
+                            }
+                            SwitchRow {
+                                label: "Overview"
+                                caption: "Blurred wallpaper behind the Activities overview"
+                                tip: "Blurs the wallpaper when you open Activities. Off leaves it sharp."
+                                checked: Backend.glassOverview
+                                onToggled: (on) => { Backend.glassOverview = on; preview.scene = "overview" }
+                            }
+                            SwitchRow {
+                                label: "See windows through the glass"
+                                caption: "Off shows only the wallpaper behind the panel and menus, which is lighter on the GPU"
+                                tip: "On, the panel and menus show the windows behind them as well as the wallpaper. Off shows only the wallpaper."
+                                enabled: Backend.glassPanel || Backend.glassMenus
+                                checked: Backend.glassSeeWindows
+                                onToggled: (on) => Backend.glassSeeWindows = on
+                            }
                         }
                     }
-                    LabeledSlider {
-                        label: "Panel margin"
-                        enabled: Backend.panelStyle === "floating"
-                        from: 0; to: 32; stepSize: 1
-                        value: Backend.panelMargin
-                        format: (v) => Math.round(v) + " px"
-                        onMoved: (v) => Backend.panelMargin = v
-                        tip: "The gap between the floating panel and the screen edge. Left sits it against the edge; right floats it further away."
-                    }
                 }
+
+                SpeedCard { width: parent.width }
             }
 
-            HeaderBarCard { width: parent.width }
-
-            Card {
+            Column {
+                id: sec_windows
+                objectName: "section_windows"
                 width: parent.width
-                height: implicitHeight
-                Column {
+                spacing: 16
+
+                Card {
                     width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Glass effects" }
-                    Text {
-                        objectName: "glassStatus"
+                    height: implicitHeight
+                    Column {
                         width: parent.width
-                        wrapMode: Text.WordWrap
-                        color: Theme.textFaint
-                        font.pixelSize: Theme.fsSmall
-                        text: Backend.glassLive
-                              ? "Live: your desktop follows these as you change them."
-                              : "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
+                        spacing: 16
+                        SectionTitle { text: "Panel" }
+                        Column {
+                            width: parent.width
+                            spacing: 8
+                            Text { text: "Dash to Panel"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                            Segmented {
+                                width: parent.width
+                                model: [{ value: "floating", label: "Floating", icon: "panelFloat", tip: "A glass pill that floats above the screen edge" },
+                                        { value: "docked", label: "Docked", icon: "panelDock", tip: "A full-width bar along the screen edge" }]
+                                value: Backend.panelStyle
+                                onActivated: (v) => Backend.panelStyle = v
+                                Accessible.name: "Panel style"
+                            }
+                        }
+                        LabeledSlider {
+                            label: "Panel margin"
+                            enabled: Backend.panelStyle === "floating"
+                            from: 0; to: 32; stepSize: 1
+                            value: Backend.panelMargin
+                            format: (v) => Math.round(v) + " px"
+                            onMoved: (v) => Backend.panelMargin = v
+                            tip: "The gap between the floating panel and the screen edge. Left sits it against the edge; right floats it further away."
+                        }
                     }
-                    LabeledSlider {
-                        label: "Bend"
-                        value: Backend.refraction
-                        onMoved: (v) => { Backend.refraction = v; preview.peekEdge("") }
-                        tip: "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+                }
+
+                HeaderBarCard { width: parent.width }
+            }
+
+            Column {
+                id: sec_motion
+                objectName: "section_motion"
+                width: parent.width
+                spacing: 16
+
+                Card {
+                    width: parent.width
+                    height: implicitHeight
+                    Column {
+                        width: parent.width
+                        spacing: 8
+                        SectionTitle { text: "Glass in motion" }
+                        SwitchRow {
+                            label: "Liquid motion"
+                            caption: "Glass gives a little when pressed and settles as menus open"
+                            tip: "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
+                            checked: Backend.liquidMotion
+                            onToggled: (on) => { Backend.liquidMotion = on; preview.showPopup() }
+                        }
+                        SwitchRow {
+                            objectName: "menuGrow"
+                            label: "Menus grow from their button"
+                            caption: "The start menu, quick settings and the calendar flow out of what you clicked"
+                            tip: "A menu opens as if it pours out of the button you clicked, and flows back into it when it closes. Off, menus open in place. It stays off when Reduce animation is on in Settings."
+                            enabled: Backend.liquidMotion
+                            checked: Backend.menuGrow
+                            onToggled: (on) => { Backend.menuGrow = on; preview.showPopup() }
+                        }
                     }
-                    LabeledSlider {
-                        label: "Rainbow edge"
-                        value: Backend.dispersion
-                        onMoved: (v) => { Backend.dispersion = v; preview.peekEdge("") }
-                        tip: "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
-                    }
-                    LabeledSlider {
-                        label: "Colour through glass"
-                        value: Backend.vibrancy
-                        onMoved: (v) => Backend.vibrancy = v
-                        tip: "How vivid the wallpaper and windows look through the glass. Left keeps their colours as they are; right makes them richer."
-                    }
-                    LabeledSlider {
-                        label: "Colour bleed"
-                        value: Backend.bleed
-                        onMoved: (v) => Backend.bleed = v
-                        tip: "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
-                    }
-                    LabeledSlider {
-                        label: "Light follows pointer"
-                        value: Backend.pointerLight
-                        onMoved: (v) => Backend.pointerLight = v
-                        tip: "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
-                    }
-                    SwitchRow {
-                        label: "Liquid motion"
-                        caption: "Glass gives a little when pressed and settles as menus open"
-                        tip: "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
-                        checked: Backend.liquidMotion
-                        onToggled: (on) => { Backend.liquidMotion = on; preview.showPopup() }
-                    }
-                    SwitchRow {
-                        objectName: "menuGrow"
-                        label: "Menus grow from their button"
-                        caption: "The start menu, quick settings and the calendar flow out of what you clicked"
-                        tip: "A menu opens as if it pours out of the button you clicked, and flows back into it when it closes. Off, menus open in place. It stays off when Reduce animation is on in Settings."
-                        enabled: Backend.liquidMotion
-                        checked: Backend.menuGrow
-                        onToggled: (on) => { Backend.menuGrow = on; preview.showPopup() }
-                    }
+                }
+
+                MotionCard { id: motionCard; width: parent.width }
+            }
+
+            Column {
+                id: sec_desktop
+                objectName: "section_desktop"
+                width: parent.width
+                spacing: 16
+
+                Card {
+                    width: parent.width
+                    height: implicitHeight
                     Column {
                         width: parent.width
                         spacing: 4
+                        SectionTitle { text: "Desktop" }
                         SwitchRow {
-                            label: "Panel"
-                            caption: "Dash to Panel or the top bar"
-                            tip: "Draws real glass behind the panel. Off leaves a plain tinted bar."
-                            checked: Backend.glassPanel
-                            onToggled: (on) => Backend.glassPanel = on
+                            objectName: "startOnDesktop"
+                            label: "Start on the desktop"
+                            caption: "Start straight on your desktop, not the Activities overview"
+                            tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
+                            enabled: !Backend.overviewOff
+                            checked: Backend.startOnDesktop || Backend.overviewOff
+                            onToggled: (on) => Backend.startOnDesktop = on
                         }
                         SwitchRow {
-                            label: "Menus"
-                            caption: "Quick settings, calendar, the start menu and app menus"
-                            tip: "Draws real glass behind menus and pop-ups. Off leaves plain tinted panes."
-                            checked: Backend.glassMenus
-                            onToggled: (on) => { Backend.glassMenus = on; preview.showPopup() }
-                        }
-                        SwitchRow {
-                            label: "App windows"
-                            caption: "Frosted wallpaper behind translucent windows"
-                            tip: "Blurs the wallpaper behind see-through app windows. Off shows it sharp, which is lighter on the GPU."
-                            checked: Backend.blurAppWindows
-                            onToggled: (on) => Backend.blurAppWindows = on
-                        }
-                        SwitchRow {
-                            label: "Overview"
-                            caption: "Blurred wallpaper behind the Activities overview"
-                            tip: "Blurs the wallpaper when you open Activities. Off leaves it sharp."
-                            checked: Backend.glassOverview
-                            onToggled: (on) => { Backend.glassOverview = on; preview.scene = "overview" }
-                        }
-                        SwitchRow {
-                            label: "See windows through the glass"
-                            caption: "Off shows only the wallpaper behind the panel and menus, which is lighter on the GPU"
-                            tip: "On, the panel and menus show the windows behind them as well as the wallpaper. Off shows only the wallpaper."
-                            enabled: Backend.glassPanel || Backend.glassMenus
-                            checked: Backend.glassSeeWindows
-                            onToggled: (on) => Backend.glassSeeWindows = on
+                            objectName: "overviewOff"
+                            label: "Turn off the overview"
+                            caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
+                            tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn or Dash to Panel. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
+                            checked: Backend.overviewOff
+                            onToggled: (on) => { Backend.overviewOff = on; preview.scene = "overview" }
                         }
                     }
                 }
             }
 
-            SpeedCard { width: parent.width }
-
-            MotionCard { id: motionCard; width: parent.width }
-
-            Card {
+            Column {
+                id: sec_more
+                objectName: "section_more"
                 width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 4
-                    SectionTitle { text: "Desktop" }
-                    SwitchRow {
-                        objectName: "startOnDesktop"
-                        label: "Start on the desktop"
-                        caption: "Start straight on your desktop, not the Activities overview"
-                        tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
-                        enabled: !Backend.overviewOff
-                        checked: Backend.startOnDesktop || Backend.overviewOff
-                        onToggled: (on) => Backend.startOnDesktop = on
-                    }
-                    SwitchRow {
-                        objectName: "overviewOff"
-                        label: "Turn off the overview"
-                        caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
-                        tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn or Dash to Panel. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
-                        checked: Backend.overviewOff
-                        onToggled: (on) => { Backend.overviewOff = on; preview.scene = "overview" }
-                    }
-                }
-            }
+                spacing: 16
 
-            Card {
-                width: parent.width
-                height: implicitHeight
-                padding: 8
-                Expander {
-                    id: fine
+                // ---- per-part overrides: one part at a time, everything follows the global look until changed
+                Card {
+                    id: partsCard
                     width: parent.width
-                    title: "Fine-tune"
-                    caption: "Override what the slider decides"
+                    height: implicitHeight
+                    readonly property var partList: [
+                        { id: "panel", label: "Panel", caption: "Dash to Panel or the top bar",
+                          tip: "Look of the Dash to Panel bar or the top bar only" },
+                        { id: "arcmenu", label: "Start menu", caption: "The ArcMenu or Spawn application menu",
+                          tip: "Look of the ArcMenu or Spawn application menu only" },
+                        { id: "quicksettings", label: "Quick settings", caption: "Quick settings, app menus, on-screen pop-ups and dialogs",
+                          tip: "Look of quick settings, menus, volume pop-ups and dialogs" },
+                        { id: "calendar", label: "Calendar", caption: "The calendar and notification pop-ups",
+                          tip: "Look of the calendar and notification pop-ups" },
+                        { id: "overview", label: "Overview", caption: "The dash and app grid in Activities",
+                          tip: "Look of the dash and the app grid in Activities" },
+                        { id: "windows", label: "Windows", caption: "App windows, their sidebars and header bars",
+                          tip: "Look of app windows" },
+                        { id: "terminal", label: "Terminal", caption: "Terminal windows",
+                          tip: "Look of terminal windows" }
+                    ]
+                    property string part: "panel"
+                    // Bring the part being edited into view in the preview.
+                    onPartChanged: preview.scene = ({ quicksettings: "quicksettings", calendar: "calendar", overview: "overview" })[part] || "desktop"
+                    readonly property var info: partList.find(p => p.id === part)
+                    readonly property var own: Backend.parts[part] || ({})
+                    readonly property bool any: Object.keys(own).length > 0
+                    // Which settings make sense for the chosen part.
+                    readonly property bool hasRadius: part !== "terminal"
+                    readonly property bool hasLens: part !== "overview"
+                    // App windows keep their content as the app draws it: no colour bleed there.
+                    readonly property bool hasBleed: hasLens && part !== "windows" && part !== "terminal"
+                    function val(key) { return own[key] !== undefined ? own[key] : -1 }
+                    function setOrClear(key, v) { v < 0 ? Backend.clearPart(part, key) : Backend.setPart(part, key, v) }
+
                     Column {
-                        x: 12
-                        width: parent.width - 24
-                        spacing: 18
-                        OverrideSlider {
-                            label: "Transparency"
-                            caption: "How solid panels and header bars look"
-                            value: Backend.opacity
-                            autoValue: Backend.autoValues.opacity
-                            onChanged: (v) => Backend.opacity = v
-                            tip: "How solid panels and header bars look. Left is see-through; right is nearly solid."
-                            format: (v) => Math.round(v * 100) + "% solid"
+                        width: parent.width
+                        spacing: 16
+                        SectionTitle {
+                            text: "Part by part"
+                            caption: "Give one part of the desktop its own look. Anything you leave on Global follows the rest of the Look page."
+                        }
+                        Column {
+                            width: parent.width
+                            spacing: 10
+                            Flow {
+                                width: parent.width
+                                spacing: 8
+                                Repeater {
+                                    model: partsCard.partList
+                                    delegate: Chip {
+                                        required property var modelData
+                                        text: modelData.label
+                                        selected: partsCard.part === modelData.id
+                                        tip: modelData.tip
+                                        Rectangle {      // a dot marks parts that have their own look
+                                            visible: !!Backend.parts[modelData.id] && Object.keys(Backend.parts[modelData.id]).length > 0
+                                            width: 6; height: 6; radius: 3
+                                            color: Theme.accent
+                                            anchors.top: parent.top; anchors.right: parent.right
+                                            anchors.topMargin: 3; anchors.rightMargin: 5
+                                        }
+                                        onClicked: partsCard.part = modelData.id
+                                    }
+                                }
+                            }
+                        }
+                        Item {
+                            width: parent.width
+                            height: 36
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 120
+                                spacing: 2
+                                Text { text: partsCard.info.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                                Text {
+                                    width: parent.width
+                                    text: partsCard.any ? "Has its own look" : "Same as global"
+                                    color: Theme.textFaint
+                                    font.pixelSize: Theme.fsSmall
+                                }
+                            }
+                            LgButton {
+                                objectName: "resetPart"
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: "flat"
+                                implicitHeight: 32
+                                leftPadding: 12; rightPadding: 12
+                                text: "Reset this part"
+                                iconName: "refresh"
+                                enabled: partsCard.any
+                                tip: "Put every setting of this part back to following the global look"
+                                onClicked: Backend.resetPart(partsCard.part)
+                            }
+                        }
+                        Item {
+                            width: parent.width
+                            height: 36
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                                Text {
+                                    text: partsCard.own.tint !== undefined ? "Its own colour" : "Same as global"
+                                    color: Theme.textFaint; font.pixelSize: Theme.fsSmall
+                                }
+                            }
+                            Row {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 8
+                                Chip {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    implicitHeight: 28
+                                    text: "Global"
+                                    selected: partsCard.own.tint === undefined
+                                    tip: selected ? "Follows the tint colour in the Glass card" : "Go back to the global tint colour"
+                                    onClicked: partsCard.own.tint === undefined ? Backend.setPart(partsCard.part, "tint", Backend.tint)
+                                                                                : Backend.clearPart(partsCard.part, "tint")
+                                }
+                                C.AbstractButton {
+                                    id: partTint
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 108
+                                    height: 34
+                                    hoverEnabled: true
+                                    focusPolicy: Qt.StrongFocus
+                                    readonly property string shown: partsCard.own.tint !== undefined ? partsCard.own.tint : Backend.tint
+                                    onClicked: partTintPicker.open()
+                                    Accessible.name: "Tint colour for this part"
+                                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                    LgToolTip { shown: partTint.hovered; text: "Choose a tint colour for this part only" }
+                                    background: Rectangle {
+                                        radius: height / 2
+                                        color: partTint.hovered ? Theme.surfaceHi : Theme.well
+                                        border.width: 1
+                                        border.color: Theme.border
+                                        FocusRing { target: partTint; radius: height / 2 }
+                                    }
+                                    contentItem: Row {
+                                        spacing: 8
+                                        leftPadding: 6
+                                        Rectangle {
+                                            width: 22; height: 22; radius: 11
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            color: partTint.shown
+                                            border.width: 1
+                                            border.color: Qt.rgba(0, 0, 0, 0.15)
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: partTint.shown.toUpperCase()
+                                            color: partsCard.own.tint !== undefined ? Theme.textDim : Theme.textFaint
+                                            font.family: Theme.mono
+                                            font.pixelSize: 12
+                                        }
+                                    }
+                                    ColorPicker {
+                                        id: partTintPicker
+                                        y: parent.height + 8
+                                        x: parent.width - width
+                                        title: "Tint colour"
+                                        color: partTint.shown
+                                        onPicked: (hex) => Backend.setPart(partsCard.part, "tint", hex)
+                                    }
+                                }
+                            }
                         }
                         OverrideSlider {
-                            label: "Blur"
-                            value: Backend.blur
-                            autoValue: Backend.autoValues.blur
-                            from: 0; to: 100; stepSize: 1
+                            label: "Tint strength"
+                            autoText: "Global"
+                            autoTip: "Follows the tint strength in the Glass card"
+                            resetTip: "Go back to the global tint strength"
+                            tip: "How much of the tint colour is mixed into this part. Left is clear, colourless glass; right is strongly coloured."
+                            value: partsCard.val("tint_strength")
+                            autoValue: Backend.tintStrength
+                            onChanged: (v) => partsCard.setOrClear("tint_strength", v)
+                        }
+                        OverrideSlider {
+                            visible: partsCard.hasRadius
+                            label: "Corner roundness"
+                            autoText: "Global"
+                            autoTip: "Follows the corner roundness in the Glass card"
+                            resetTip: "Go back to the global corner roundness"
+                            tip: "How round this part's corners are. Left is sharp, square corners; right is soft, pill-like corners."
+                            from: 0; to: 32; stepSize: 1
+                            value: partsCard.val("radius")
+                            autoValue: Backend.radius
                             format: (v) => Math.round(v) + " px"
-                            tip: "How much the background behind glass is blurred. Left shows it sharp; right melts it into soft colour."
-                            onChanged: (v) => Backend.blur = v
+                            onChanged: (v) => partsCard.setOrClear("radius", v < 0 ? v : Math.round(v))
                         }
                         OverrideSlider {
-                            label: "Terminal opacity"
-                            value: Backend.terminalOpacity
-                            autoValue: Backend.autoValues.terminal_opacity
-                            from: 0.3; to: 1
-                            tip: "How see-through terminal windows are. Left lets the desktop show through; right is a solid background."
-                            onChanged: (v) => Backend.terminalOpacity = v
+                            label: "Frost"
+                            autoText: "Global"
+                            autoTip: "Follows the Liquid to Frosted slider"
+                            resetTip: "Go back to following the Liquid to Frosted slider"
+                            tip: "How frosted this part is. Left is clear glass with a light blur; right is milky, heavily blurred and easier to read."
+                            value: partsCard.val("frost")
+                            autoValue: Backend.frost
+                            onChanged: (v) => partsCard.setOrClear("frost", v)
                         }
-                        SwitchRow {
-                            label: "Reduce transparency"
-                            caption: "Nearly opaque surfaces and no blur, for readability"
-                            tip: "Makes every surface nearly solid and turns the blur off. Easier to read, but no longer see-through."
-                            checked: Backend.reduceTransparency
-                            onToggled: (on) => Backend.reduceTransparency = on
+                        OverrideSlider {
+                            visible: partsCard.hasLens
+                            label: "Glass strength"
+                            autoText: "Global"
+                            autoTip: "Follows Bend in the Glass effects card"
+                            resetTip: "Go back to the global Bend"
+                            tip: "How strongly this part's rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+                            value: partsCard.val("refraction")
+                            autoValue: Backend.refraction
+                            onChanged: (v) => { partsCard.setOrClear("refraction", v); preview.peekEdge(partsCard.part) }
                         }
-                        LgButton {
-                            kind: "flat"
-                            text: "Reset all to defaults"
-                            iconName: "refresh"
-                            leftPadding: 12
-                            tip: "Back to the default look (Apply to use it)"
-                            onClicked: Backend.resetDefaults()
+                        OverrideSlider {
+                            visible: partsCard.hasBleed
+                            label: "Colour bleed"
+                            autoText: "Global"
+                            autoTip: "Follows Colour bleed in the Glass effects card"
+                            resetTip: "Go back to the global Colour bleed"
+                            tip: "How much the colours of icons and text light up the glass of this part. Left keeps it neutral; right gives them a coloured glow."
+                            value: partsCard.val("bleed")
+                            autoValue: Backend.bleed
+                            onChanged: (v) => partsCard.setOrClear("bleed", v)
                         }
-                        Item { width: 1; height: 4 }
+                        OverrideSlider {
+                            visible: partsCard.hasLens
+                            label: "Edge reflections"
+                            autoText: "Global"
+                            autoTip: "Follows the default edge reflections"
+                            resetTip: "Go back to the default edge reflections"
+                            tip: "How strongly the edge of this part catches reflections of its surroundings. Left shows none; right gives bright, mirror-like edges."
+                            value: partsCard.val("reflections")
+                            autoValue: Backend.highlight
+                            onChanged: (v) => { partsCard.setOrClear("reflections", v); preview.peekEdge(partsCard.part) }
+                        }
                     }
                 }
-            }
 
-            RemoveCard { width: parent.width }
+                Card {
+                    id: fineCard
+                    width: parent.width
+                    height: implicitHeight
+                    padding: 8
+                    Expander {
+                        id: fine
+                        width: parent.width
+                        title: "Fine-tune"
+                        caption: "Override what the slider decides"
+                        Column {
+                            x: 12
+                            width: parent.width - 24
+                            spacing: 18
+                            OverrideSlider {
+                                label: "Transparency"
+                                caption: "How solid panels and header bars look"
+                                value: Backend.opacity
+                                autoValue: Backend.autoValues.opacity
+                                onChanged: (v) => Backend.opacity = v
+                                tip: "How solid panels and header bars look. Left is see-through; right is nearly solid."
+                                format: (v) => Math.round(v * 100) + "% solid"
+                            }
+                            OverrideSlider {
+                                label: "Blur"
+                                value: Backend.blur
+                                autoValue: Backend.autoValues.blur
+                                from: 0; to: 100; stepSize: 1
+                                format: (v) => Math.round(v) + " px"
+                                tip: "How much the background behind glass is blurred. Left shows it sharp; right melts it into soft colour."
+                                onChanged: (v) => Backend.blur = v
+                            }
+                            OverrideSlider {
+                                label: "Terminal opacity"
+                                value: Backend.terminalOpacity
+                                autoValue: Backend.autoValues.terminal_opacity
+                                from: 0.3; to: 1
+                                tip: "How see-through terminal windows are. Left lets the desktop show through; right is a solid background."
+                                onChanged: (v) => Backend.terminalOpacity = v
+                            }
+                            SwitchRow {
+                                label: "Reduce transparency"
+                                caption: "Nearly opaque surfaces and no blur, for readability"
+                                tip: "Makes every surface nearly solid and turns the blur off. Easier to read, but no longer see-through."
+                                checked: Backend.reduceTransparency
+                                onToggled: (on) => Backend.reduceTransparency = on
+                            }
+                            LgButton {
+                                kind: "flat"
+                                text: "Reset all to defaults"
+                                iconName: "refresh"
+                                leftPadding: 12
+                                tip: "Back to the default look (Apply to use it)"
+                                onClicked: Backend.resetDefaults()
+                            }
+                            Item { width: 1; height: 4 }
+                        }
+                    }
+                }
+
+                RemoveCard { width: parent.width }
+            }
             Item { width: 1; height: 8 }
         }
     }

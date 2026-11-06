@@ -10,6 +10,7 @@ FocusScope {
     property bool compact: false
     property bool iconOnly: false
     property bool onWallpaper: false     // floats over the preview: always light-on-dark
+    property bool fit: false             // segments as wide as their labels, the spare room shared out
     readonly property color _text: onWallpaper ? "#f4f5f9" : Theme.text
     readonly property color _textDim: onWallpaper ? Qt.rgba(0.96, 0.96, 0.98, 0.7) : Theme.textDim
     readonly property bool _dark: onWallpaper || Theme.dark
@@ -23,6 +24,24 @@ FocusScope {
             if (model[i].value === value)
                 return i
         return -1
+    }
+
+    FontMetrics { id: fm; font.pixelSize: root.compact ? 13 : Theme.fsBody; font.weight: Font.DemiBold }
+    // Each segment's width and left edge, inside the 3 px track padding.
+    readonly property var segWidths: {
+        const avail = width - 6
+        const n = Math.max(1, model.length)
+        if (!fit)
+            return model.map(() => avail / n)
+        const natural = model.map(m => (iconOnly ? 0 : fm.advanceWidth(m.label || "")) + ((m.icon || "") !== "" ? 22 : 0))
+        const spare = (avail - natural.reduce((a, b) => a + b, 0)) / n
+        return natural.map(w => w + spare)
+    }
+    function segX(i) {
+        let x = 3
+        for (let k = 0; k < i; k++)
+            x += segWidths[k]
+        return x
     }
 
     implicitHeight: compact ? 32 : 36
@@ -44,16 +63,16 @@ FocusScope {
     Rectangle {
         id: thumb
         visible: root.currentIndex >= 0
-        readonly property real segW: (root.width - 6) / Math.max(1, root.count)
-        x: 3 + Math.max(0, root.currentIndex) * segW
+        x: root.segX(Math.max(0, root.currentIndex))
         y: 3
-        width: segW
+        width: root.segWidths[Math.max(0, root.currentIndex)] || 0
         height: root.height - 6
         radius: height / 2
         color: root._dark ? Qt.rgba(1, 1, 1, 0.18) : "white"
         border.width: 1
         border.color: root._dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.06)
         Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
         Rectangle {
             anchors.fill: parent
             anchors.margins: 1
@@ -74,7 +93,7 @@ FocusScope {
                 required property var modelData
                 required property int index
                 readonly property bool selected: index === root.currentIndex
-                width: (root.width - 6) / Math.max(1, root.count)
+                width: root.segWidths[index] || 0
                 height: parent.height
 
                 LgToolTip { shown: hover.hovered || (root.activeFocus && !root._byMouse && seg.selected); text: seg.modelData.tip || "" }
