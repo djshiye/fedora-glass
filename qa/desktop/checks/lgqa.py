@@ -210,7 +210,9 @@ def launch(cmd: list[str], extra_env: dict | None = None, log: str = "app") -> s
 
 def xwayland_env(sh: Shell) -> dict:
     disp = sh.eval("imports.gi.GLib.getenv('DISPLAY') || ''")
-    auths = sorted(Path("/run/user/1000").glob(".mutter-Xwaylandauth.*"))
+    # Each Shell start (the quick restarts too) leaves its own file with a random name: the
+    # newest one belongs to the running Shell, an older one gives "Invalid MIT-MAGIC-COOKIE".
+    auths = sorted(Path("/run/user/1000").glob(".mutter-Xwaylandauth.*"), key=lambda p: p.stat().st_mtime)
     env = {"DISPLAY": disp or ":0"}
     if auths:
         env["XAUTHORITY"] = str(auths[-1])

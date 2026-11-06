@@ -1007,6 +1007,8 @@ class PanelAnimations {
             this._taskbarIds = new Signals();
             this._taskbarIds.on(this._apps, 'installed-changed', () => this._queueRefresh());
             this._taskbarIds.on(Shell.WindowTracker.get_default(), 'tracked-windows-changed', () => this._queueRefresh());
+            // Dash to Panel restarted, or Spawn/ArcMenu turned on: new buttons to lift.
+            this._taskbarIds.on(Main.extensionManager, 'extension-state-changed', () => this._queueRefresh());
         }
     }
 

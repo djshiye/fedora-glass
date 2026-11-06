@@ -53,6 +53,9 @@ export function placeToggleMenus(menu) {
     return n > 0;
 }
 
+// Every actor Fedora Glass adds is named liquid-glass-... (panes, holders, the wallpaper copy).
+const ours = actor => actor.name?.startsWith?.('liquid-glass-') ?? false;
+
 export class Popups {
     constructor(cfg) {
         this.cfg = cfg;
@@ -65,6 +68,8 @@ export class Popups {
         this._switchers = new Map();   // Alt+Tab pop-up -> [signal ids]
         // Some pop-ups (Alt+Tab) are added before they finish building, so look a moment later.
         this._signals.on(ui, 'child-added', (_p, child) => {
+            if (ours(child))
+                return;     // our own panes and holders: never a pop-up
             const laters = global.compositor.get_laters();
             // Tooltips and the like can be gone before the later runs.
             const gone = child.connect('destroy', () => {
@@ -89,7 +94,7 @@ export class Popups {
     }
 
     _consider(child) {
-        if (child.name === 'liquid-glass-pane')
+        if (ours(child))
             return;
         // Menus: a BoxPointer, or one wrapped in a widget (quick settings).
         const bp = child instanceof BoxPointer ? child
