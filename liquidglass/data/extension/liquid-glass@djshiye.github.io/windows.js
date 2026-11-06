@@ -18,6 +18,8 @@ const WINDOW_TYPES = new Set([Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Me
 // Games and video players: they paint their whole window, and every frame they
 // show would re-render glass nobody sees.
 const NO_GLASS = /^(steam_app_\d+|steam_proton|gamescope|mpv|vlc|celluloid|io\.github\.celluloid_player\.celluloid|totem|org\.gnome\.totem|org\.gnome\.showtime|com\.github\.rafostar\.clapper|io\.mpv\.mpv|org\.videolan\.vlc|retroarch|org\.libretro\.retroarch)$/i;
+// A window that moved or changed size this long ago counts as still moving (see _moved).
+const SETTLE_MS = 250;
 // Fedora Glass's own window draws its glass, rim and shadow itself, and leaves a clear
 // margin around them for its shadow. Mutter counts that margin as part of the window
 // (a Qt window can't say where its frame really is), so glass here would draw a second,
@@ -68,28 +70,33 @@ class WindowGlass {
         // The glass under the window's own background, and over it a hairline of the
         // edge's reflection, outside anything the app draws.
         this.pane = new GlassPane();
-        this.rim = new GlassPane('rim');
         this._signals = new Signals();
         this._later = 0;
         // Each pane sits in a holder that keeps its finished picture. A window's glass
         // is big, and without it the lens would be drawn again for every frame that
-        // repaints the window (the overview opening, a workspace switch); with it, it
-        // is drawn again only when what is behind the window changes.
-        this._holders = [this.pane, this.rim].map(p => {
+        // repaints the window (the overview opening, a workspace switch, an app
+        // streaming text); with it, it is drawn again only when what is behind the
+        // window changes.
+        const holder = p => {
             const h = new Clutter.Actor({name: 'liquid-glass-holder', reactive: false, visible: false,
                 offscreen_redirect: Clutter.OffscreenRedirect.ALWAYS});
             h.add_child(p);
             return h;
-        });
-        actor.insert_child_at_index(this._holders[0], 0);
-        // The rim only draws along the edge, so only four thin strips of its picture
-        // are shown (copies clipped to each side); the holder itself stays unseen.
-        actor.add_child(this._holders[1]);
-        this._holders[1].opacity = 0;
-        this._strips = [0, 1, 2, 3].map(() => {
-            const c = new Clutter.Clone({source: this._holders[1], name: 'liquid-glass-rim-strip', reactive: false});
-            actor.add_child(c);
-            return c;
+        };
+        this._holder = holder(this.pane);
+        actor.insert_child_at_index(this._holder, 0);
+        this._frameKey = '';
+        this._settle = 0;
+        // The rim only draws along the edge: four thin panes, top, bottom, left and
+        // right, each copying and drawing only its own strip (top and bottom hold the
+        // rounded corners). Up to 1.5.6 it was one pane the size of the window, shown
+        // through four clipped copies; every change behind it then copied the backdrop
+        // of the whole window and repainted all of the window, for a 3 px line.
+        this.rims = [0, 1, 2, 3].map(() => new GlassPane('rim'));
+        this._rimHolders = this.rims.map(r => {
+            const h = holder(r);
+            actor.add_child(h);
+            return h;
         });
         for (const s of ['position-changed', 'size-changed', 'notify::fullscreen', 'notify::minimized',
             'notify::maximized-horizontally', 'notify::maximized-vertically', 'notify::wm-class'])
@@ -98,9 +105,12 @@ class WindowGlass {
         // A closing window's actor outlives it while the close animation plays, but
         // Mutter asserts if the window is asked about its monitor once unmanaged.
         this._signals.on(this.win, 'unmanaging', () => this.destroy());
-        for (const k of ['pane', 'rim']) {
-            this._signals.on(this[k], 'destroy', () => {
-                this[k] = null;
+        for (const p of [this.pane, ...this.rims]) {
+            this._signals.on(p, 'destroy', () => {
+                if (p === this.pane)
+                    this.pane = null;
+                else if (this.rims)
+                    this.rims = this.rims.filter(r => r !== p);    // the others go with the rest
                 this.destroy();
             });
         }
@@ -109,13 +119,13 @@ class WindowGlass {
 
     update(settings) {
         this.settings = settings;
-        if (!this.pane || !this.rim)
+        if (!this.pane || !this.rims)
             return;
         const ids = appIds(this.win);
         const term = settings.terminalLook && ids.some(id => TERMINALS.test(id));
         const look = term ? settings.terminalLook : settings.look;
         this.pane.setLook(look);
-        this.rim.setLook(look);
+        this.rims.forEach(r => r.setLook(look));
         this.sync();
     }
 
@@ -158,7 +168,7 @@ class WindowGlass {
     }
 
     queue() {
-        if (this._later || !this.pane || !this.rim)
+        if (this._later || !this.pane || !this.rims)
             return;
         this._later = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
             this._later = 0;
@@ -168,17 +178,17 @@ class WindowGlass {
     }
 
     sync() {
-        const {pane, rim} = this;
-        if (!pane || !rim)
+        const {pane, rims} = this;
+        if (!pane || !rims)
             return;
         // A closing window drops its glass on 'unmanaging'; one that has briefly lost
         // its monitor (a screen unplugged) just shows none until it has one again.
         if (gone(this.win) || !this._wanted()) {
-            for (const p of [pane, rim]) {
+            for (const p of [pane, ...rims]) {
                 p.hide();
                 p.setSources([]);
             }
-            this._syncHolders();
+            this._syncHolder();
             return;
         }
         const w = this.win;
@@ -195,62 +205,99 @@ class WindowGlass {
         const scr = screenEdges(this.actor, frame.x, frame.y, frame.width, frame.height);
         const edges = snapped ? onWa.map((e, i) => e || scr[i]) : scr;
         const r = snapped ? 0 : this.settings.radius;
-        const p = Math.max(pane.pad, rim.pad);
-        const sources = this._sources(frame.x - p, frame.y - p, frame.width + 2 * p, frame.height + 2 * p);
-        // With edge reflections off the rim draws nothing: skip it and its cost.
-        const rimOn = (rim._look?.highlight ?? 1) > 0;
-        if (!rimOn) {
-            rim.hide();
-            rim.setSources([]);
+        const p = pane.pad;
+        const rp = rims[0].pad;
+        const q = Math.max(p, rp);
+        const sources = this._sources(frame.x - q, frame.y - q, frame.width + 2 * q, frame.height + 2 * q);
+        const [W, H] = [frame.width, frame.height];
+        const key = `${frame.x},${frame.y},${W},${H}`;
+        if (key !== this._frameKey) {
+            if (this._frameKey)
+                this._moved();
+            this._frameKey = key;
         }
-        // Each holder spans its pane exactly; the pane sits at its top left.
+        // The holder spans its pane exactly; the pane sits at its top left.
         const [hx, hy] = [frame.x - buf.x - p, frame.y - buf.y - p];
-        const [hw, hh] = [frame.width + 2 * p, frame.height + 2 * p];
-        this._holders.forEach(h => {
-            h.set_position(hx, hy);
-            h.set_size(hw, hh);
-        });
-        for (const g of rimOn ? [pane, rim] : [pane]) {
+        this._holder.set_position(hx, hy);
+        this._holder.set_size(W + 2 * p, H + 2 * p);
+        pane.setSources(sources);
+        pane.setEdges(edges);
+        pane.place(p, p, W, H, [r, r, r, r], frame.x, frame.y);
+        pane.show();
+        // The rim's strips, in the px of the whole rim (W + 2 rp by H + 2 rp): top and
+        // bottom tall enough to hold the rounded corners, the sides a few px into the
+        // window. Each reaches rp out past the edge, which the rim mirrors.
+        const t = Math.ceil(Math.max(r, 3)) + 2;
+        const parts = [[0, 0, W + 2 * rp, rp + t], [0, rp + H - t, W + 2 * rp, rp + t],
+            [0, rp + t, rp + 4, H - 2 * t], [rp + W - 4, rp + t, rp + 4, H - 2 * t]];
+        // With edge reflections off the rim draws nothing: skip it and its cost.
+        const rimOn = (rims[0]._look?.highlight ?? 1) > 0;
+        rims.forEach((g, i) => {
+            const [ax, ay, aw, ah] = parts[i];
+            if (!rimOn || aw < 1 || ah < 1) {
+                g.hide();
+                g.setSources([]);
+                return;
+            }
+            // Its holder sits on the strip; the pane at the holder's top left.
+            this._rimHolders[i].set_position(Math.round(frame.x - buf.x - rp) + ax, Math.round(frame.y - buf.y - rp) + ay);
+            this._rimHolders[i].set_size(aw, ah);
+            g.setPart(parts[i]);
             g.setSources(sources);
             g.setEdges(edges);
-            g.place(p, p, frame.width, frame.height, [r, r, r, r], frame.x, frame.y);
-            g.set_position(Math.round(p - g.pad), Math.round(p - g.pad));
+            g.place(rp - ax, rp - ay, W, H, [r, r, r, r], frame.x, frame.y);
             g.show();
-        }
-        // Strips: top and bottom tall enough to hold the rounded corners.
-        const t = Math.ceil(Math.max(r, 3)) + 2, [W, H] = [frame.width, frame.height];
-        const clips = [[p - 2, p - 2, W + 4, t + 2], [p - 2, p + H - t, W + 4, t + 2],
-            [p - 2, p + t, 6, H - 2 * t], [p + W - 4, p + t, 6, H - 2 * t]];
-        this._strips.forEach((c, i) => {
-            c.set_position(hx, hy);
-            c.set_size(hw, hh);
-            c.set_clip(...clips[i]);
         });
-        this._syncHolders();
+        this._syncHolder();
+    }
+
+    /**
+     * The window is moving or changing size: its glass renders anew every frame, so
+     * a kept copy of it would only be one more full-size copy to make each frame (a
+     * fifth of a frame on software rendering). Keep none until it has settled.
+     */
+    _moved() {
+        if (!this._holder)
+            return;
+        for (const h of [this._holder, ...this._rimHolders]) {
+            if (h.offscreen_redirect !== 0)
+                h.offscreen_redirect = 0;
+        }
+        if (this._settle)
+            GLib.source_remove(this._settle);
+        this._settle = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SETTLE_MS, () => {
+            this._settle = 0;
+            for (const h of this._holder ? [this._holder, ...this._rimHolders] : [])
+                h.offscreen_redirect = Clutter.OffscreenRedirect.ALWAYS;
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // An empty holder would ask for a 0×0 picture: hide it with its pane.
-    _syncHolders() {
-        this._holders.forEach((h, i) => (h.visible = !!(i ? this.rim : this.pane)?.visible));
-        const rimShown = this._holders[1]?.visible ?? false;
-        this._strips.forEach(c => (c.visible = rimShown));
+    _syncHolder() {
+        this._holder.visible = !!this.pane?.visible;
+        this._rimHolders.forEach((h, i) => (h.visible = !!this.rims?.[i]?.visible));
     }
 
     destroy() {
         if (this._later)
             global.compositor.get_laters().remove(this._later);
         this._later = 0;
+        if (this._settle)
+            GLib.source_remove(this._settle);
+        this._settle = 0;
         this._signals.clear();
-        const {pane, rim} = this;
-        this.pane = this.rim = null;
+        const {pane, rims} = this;
+        this.pane = this.rims = null;
         pane?.destroy();
-        rim?.destroy();
-        for (const h of [...this._strips, ...this._holders]) {
+        rims?.forEach(r => r.destroy());
+        for (const h of [this._holder, ...this._rimHolders ?? []]) {
             try {
-                h.destroy();
+                h?.destroy();
             } catch {}   // gone with the window
         }
-        this._holders = this._strips = [];
+        this._holder = null;
+        this._rimHolders = [];
         this.owner.forget(this.actor);
     }
 }
