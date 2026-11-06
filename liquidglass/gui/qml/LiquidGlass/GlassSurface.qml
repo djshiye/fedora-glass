@@ -30,6 +30,11 @@ Item {
     property real bleed: 0               // 0..1, how much the content's colours light up the glass
     // Draw the rim above the content (for panes whose content covers the body).
     property bool rimOnTop: false
+    // The pointer light: where the pointer is, in this item's px, and 0..1 how far the
+    // light turns towards it (0 keeps the room's light from the top left).
+    property point pointer: Qt.point(0, 0)
+    property real pointerK: 0
+    property real pointerReach: 72       // px around the pointer where the rim catches more
     property bool live: true
 
     property color shadowColor: "transparent"
@@ -133,6 +138,9 @@ Item {
         property color rim: root.rim
         property color edge: root.edge
         property real mode: 0
+        property point ptr: root.pointer
+        property real ptrK: root.pointerK
+        property real ptrReach: root.pointerReach
         fragmentShader: Qt.resolvedUrl("shaders/glass.frag.qsb")
     }
 
