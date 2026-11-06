@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.6
+Version:        1.5.7
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,17 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Fri Nov 06 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.7-1
+- New Lock screen tab: a live preview, widgets on the lock screen, and privacy choices
+- The app's preview now shows every setting live as you change it
+- Login screen: a compact glass password prompt instead of one big flat box
+- No extra glass frame around the Fedora Glass app's own window
+- The calendar and menus never turn see-through over a window
+- Faster glass: thinner window rims, menus keep their glass while they grow, a lighter shader
+- Apply after Restore original finishes the top bar, panel and menus at once, with no restart
+- Restore works after an app (like Spawn or ArcMenu) was removed, and keeps app settings you changed since Apply
+- Small fixes: Activities hidden on the lock screen, hover lift after Dash to Panel restarts
+
 * Thu Nov 05 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.6-1
 - Spawn, the ArcMenu replacement, gets the same glass as ArcMenu: its own entry in the app, glass colours, corners and search pill, the start-menu glass, and tight shadows on its right-click menus
 - With the overview off, the app grid stays closed while Spawn runs, as it does with ArcMenu
