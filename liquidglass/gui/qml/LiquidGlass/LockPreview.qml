@@ -41,7 +41,7 @@ Item {
 
     readonly property bool chips: Backend.lockWidgetStyle !== "plain"
     readonly property bool showBattery: Backend.lockWidgetBattery && Backend.hasBattery
-    readonly property bool showWeather: Backend.lockWidgetWeather
+    readonly property bool showWeather: Backend.lockWidgetWeather && Backend.weatherState === "ready"
     readonly property bool showMessage: Backend.lockMessage.length > 0
     readonly property bool showNotifications: !Backend.lockHideNotifications
 

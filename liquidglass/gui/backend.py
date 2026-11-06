@@ -144,6 +144,24 @@ def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
     return None
 
 
+def _weather_state(env: Env) -> str:
+    """Whether GNOME's own weather (the one the lock screen shows) has anything to say:
+    "ready", "no-app" (GNOME Weather isn't installed) or "no-place" (no place chosen in it).
+    The Shell's weather needs the Weather app, and either places from it or automatic
+    location with Location Services on."""
+    try:
+        if _desktop_entry(env, "org.gnome.Weather.desktop") is None:
+            return "no-app"
+        places = (env.gsettings_get("org.gnome.shell.weather", "locations") or "").strip()
+        if places and places not in ("@av []", "[]"):
+            return "ready"
+        auto = (env.gsettings_get("org.gnome.shell.weather", "automatic-location") or "").strip() == "true"
+        located = (env.gsettings_get("org.gnome.system.location", "enabled") or "").strip() == "true"
+        return "ready" if auto and located else "no-place"
+    except Exception:
+        return "ready"     # can't tell: don't claim it won't work
+
+
 class Backend(QObject):
     settingsChanged = Signal()
     tokensChanged = Signal()
@@ -833,6 +851,13 @@ class Backend(QObject):
     def hasBattery(self) -> bool:
         """Whether this PC has a battery of its own (a laptop), for the lock screen's battery widget."""
         return _has_battery(self._power_supply)
+
+    @Property(str, constant=True)
+    def weatherState(self) -> str:
+        """For the lock screen's weather switch: "ready", "no-app" or "no-place"."""
+        if getattr(self, "_weather_state", None) is None:
+            self._weather_state = _weather_state(self._env)
+        return self._weather_state
 
     @Property(int, constant=True)
     def lockMessageMax(self) -> int:
