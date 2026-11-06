@@ -85,3 +85,28 @@ for (const [name, uuid] of [['ArcMenu', 'arcmenu@arcmenu.com'], ['Spawn', 'spawn
         extensionManager.lookup = was;
     });
 }
+
+test('locking the screen never brings Activities back onto the lock screen', () => {
+    const activities = {visible: true, show() { this.visible = true; }, hide() { this.visible = false; }};
+    Main.panel.statusArea.activities = {container: activities};
+    try {
+        const d = new DesktopBehaviour(CFG);
+        assert.equal(activities.visible, false, 'Activities shows with the overview off');
+        // Locking: GNOME's panel hides every button the lock screen has no use for, then
+        // Fedora Glass stops its desktop part.
+        sessionMode.isLocked = true;
+        activities.hide();
+        d.destroy();
+        assert.equal(activities.visible, false, 'Activities came back on the lock screen');
+        // Unlocking: GNOME's panel shows it again, Fedora Glass hides it again, and when
+        // Fedora Glass is turned off normally it comes back.
+        sessionMode.isLocked = false;
+        activities.show();
+        const d2 = new DesktopBehaviour(CFG);
+        d2.destroy();
+        assert.equal(activities.visible, true);
+    } finally {
+        delete Main.panel.statusArea.activities;
+        delete sessionMode.isLocked;
+    }
+});

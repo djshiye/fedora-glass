@@ -141,11 +141,11 @@ let clock = 0;
 const stSettings = Object.assign(new Actor(), {enable_animations: true});
 const fake = {
     Actor, Widget: Actor, timeouts: new Timeouts(), now: () => clock, stSettings,
-    appSystem: new Actor(), windowTracker: new Actor(),
+    appSystem: new Actor(), windowTracker: new Actor(), extensionManager: new Actor(),
 };
 globalThis.fake = fake;
 const laters = new Laters();
-const dtp = new Actor({panels: []});
+let dtp = new Actor({panels: []});
 globalThis.global = {compositor: {get_laters: () => laters}, dashToPanel: dtp};
 
 const {HoverGlide} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glide.js');
@@ -309,4 +309,25 @@ test('the shared spring settles on its target with a small overshoot, also over 
     // One 150 ms stall is sub-stepped, not one huge Euler step.
     [x, v] = springStep(0, 0, 1, 1370, 44, 0.15);
     assert.ok(Number.isFinite(x) && x > 0 && x < 1.3);
+});
+
+test('Dash to Panel turned off and on again: the new panels get the glide too', () => {
+    const {panel} = scene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    assert.ok(tileOf(panel));
+    // Dash to Panel makes a new object (and new panels) each time it is turned on.
+    const old = dtp;
+    dtp = new Actor({panels: []});
+    global.dashToPanel = dtp;
+    fake.extensionManager.emit('extension-state-changed');
+    assert.equal(old.handlerCount(), 0, 'nothing left on the old object');
+    const {panel: fresh} = scene();
+    dtp.emit('panels-created');
+    laters.run();
+    fake.timeouts.fireAll();
+    assert.ok(tileOf(fresh), 'the new panel has its tile');
+    g.destroy();
+    assert.equal(dtp.handlerCount(), 0);
+    assert.equal(fake.extensionManager.handlerCount(), 0);
 });

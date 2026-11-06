@@ -20,6 +20,8 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
 import {Signals} from './common.js';
 import {report} from './safety.js';
 import {springStep as spring} from './curves.js';
@@ -147,6 +149,8 @@ export class HoverGlide {
         this._tiles = new Map();      // panel -> Tile
         this._watched = new Map();    // icon -> {signals, panel}
         this._signals = new Signals();
+        this._dtpSignals = new Signals();
+        this._dtp = null;
         this._later = 0;
         this._last = 0;
         this._refreshId = 0;
@@ -169,11 +173,27 @@ export class HoverGlide {
     }
 
     _connectSources() {
-        if (global.dashToPanel?.connect)
-            this._signals.on(global.dashToPanel, 'panels-created', () => this._queueRefresh());
+        this._watchDtp();
+        // Dash to Panel, Spawn or ArcMenu turned on or off (or restarted by GNOME) while the
+        // glide runs: follow Dash to Panel's new object and look at the panels again.
+        this._signals.on(Main.extensionManager, 'extension-state-changed', () => {
+            this._watchDtp();
+            this._queueRefresh();
+        });
         // Taskbar icons come and go with apps.
         this._signals.on(Shell.AppSystem.get_default(), 'installed-changed', () => this._queueRefresh());
         this._signals.on(Shell.WindowTracker.get_default(), 'tracked-windows-changed', () => this._queueRefresh());
+    }
+
+    // Dash to Panel makes a new object each time it is turned on: follow the current one.
+    _watchDtp() {
+        const dtp = global.dashToPanel;
+        if (dtp === this._dtp)
+            return;
+        this._dtpSignals.clear();
+        this._dtp = typeof dtp?.connect === 'function' ? dtp : null;
+        if (this._dtp)
+            this._dtpSignals.on(this._dtp, 'panels-created', () => this._queueRefresh());
     }
 
     _queueRefresh() {
@@ -382,6 +402,8 @@ export class HoverGlide {
     _teardown() {
         // Icons first: letting go of a hovered icon schedules a fade, dropped just below.
         this._signals.clear();
+        this._dtpSignals.clear();
+        this._dtp = null;
         for (const icon of [...this._watched.keys()])
             this._unwatch(icon);
         if (this._later)

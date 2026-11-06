@@ -70,6 +70,17 @@ def conf_del(text: str, key: str) -> str:
                    if not ((m := _CONF.match(ln.rstrip("\r\n"))) and m.group(1) == key))
 
 
+_OUR_NAMES = ("fedora-glass", "fedora glass", "fedoraglass", "liquid-glass", "liquid glass",
+              "liquidglass")
+
+
+def _names_us(value) -> bool:
+    """A value that points at our own theme. Before 1.5.7 a second Apply could store a copy
+    that already held our keys as the original; such a value never goes back."""
+    text = value if isinstance(value, str) else json.dumps(value)
+    return any(n in text.lower() for n in _OUR_NAMES)
+
+
 def unmerge(current: str, original: str | None, spec) -> str | None:
     """`current` with the keys in `spec` put back as they were in `original` (None: the
     file did not exist, so the keys go). None when either file can't be read as that
@@ -86,8 +97,11 @@ def unmerge(current: str, original: str | None, spec) -> str | None:
         if not isinstance(cur, dict) or not isinstance(orig, dict):
             return None
         for k in spec[1]:
-            if k in orig:
-                cur[k] = orig[k]
+            v = orig.get(k)
+            if isinstance(v, list):
+                v = [i for i in v if not _names_us(i)]     # e.g. Vencord's enabledThemes
+            if k in orig and not _names_us(v):
+                cur[k] = v
             else:
                 cur.pop(k, None)
         return json.dumps(cur, indent=2, ensure_ascii=False) + "\n"
@@ -96,12 +110,14 @@ def unmerge(current: str, original: str | None, spec) -> str | None:
         out = current
         for k in keys:
             old = ini_get(original, section, k) if original else None
-            out = ini_set(out, section, {k: old}) if old is not None else ini_del(out, section, k)
+            keep = old is not None and not _names_us(old)
+            out = ini_set(out, section, {k: old}) if keep else ini_del(out, section, k)
         return out
     if kind == "conf":
         out = current
         for k in spec[1]:
             old = conf_get(original, k) if original else None
-            out = conf_set(out, {k: old}) if old is not None else conf_del(out, k)
+            keep = old is not None and not _names_us(old)
+            out = conf_set(out, {k: old}) if keep else conf_del(out, k)
         return out
     return None
