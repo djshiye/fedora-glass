@@ -121,8 +121,9 @@ def test_users_own_files_keep_the_folder(fake_env):
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     (d / "mine.css").write_text("/* the user's */")
     problems = Engine(fake_env, targets=[gtk4()]).revert("gtk4")
-    assert problems == ["Kept your gtk-4.0 folder because it has files you added. "
-                        "Your link to Orchis-Dark was not restored."]
+    assert problems == ["Kept your gtk-4.0 folder because it has files you added (mine.css). "
+                        "It still uses Orchis-Dark. To get your link to Orchis-Dark back, move "
+                        "those files out and press Restore original again."]
     assert (d / "mine.css").read_text() == "/* the user's */"
     assert (theme / "gtk.css").read_text() == "/* orchis */"
 

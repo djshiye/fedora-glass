@@ -115,7 +115,7 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
     (see engine.WAITING). GNOME starts extensions a little after the session, so wait
     for ours to run. Returns True when there was nothing left to do or it finished."""
     from .engine import read_pending
-    if not read_pending() or not eng.is_applied():
+    if not read_pending() or not eng.look_on():
         return True
     s = settings_mod.load()
     waited = 0.0
@@ -125,7 +125,7 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
             return False
         sleep(step_s)
         waited += step_s
-    eng.apply(s, only=read_pending() | {"glass"})   # glass too: it hands blur over from Blur my Shell
+    eng.apply(s, only=read_pending() | {"glass"}, if_applied=True)   # glass too: it hands blur over from Blur my Shell
     return not read_pending()
 
 
@@ -152,7 +152,7 @@ def update_after_upgrade(eng) -> bool:
     next login, apply it again with the user's own saved settings, the way pressing Apply
     would. Nothing happens after Restore original, or when the versions already match.
     Returns True when it applied."""
-    if not eng.is_applied():
+    if not eng.look_on():
         return False
     had = installed_glass_version(eng)
     if had is None and getattr(eng, "env", None) is not None:
@@ -163,7 +163,7 @@ def update_after_upgrade(eng) -> bool:
     if had is None or had == __version__:
         return False
     print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
-    eng.apply(settings_mod.load())
+    eng.apply(settings_mod.load(), if_applied=True)
     return True
 
 
@@ -240,7 +240,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
             s = settings_mod.load()
             contrast = 1 in got
             # After Restore original, stay out of the way.
-            if eng.is_applied() and (contrast or s.scheme == "auto"):
+            if eng.look_on() and (contrast or s.scheme == "auto"):
                 eng.apply(s, only=None if contrast else only, if_applied=True)
     finally:
         stop_all()
