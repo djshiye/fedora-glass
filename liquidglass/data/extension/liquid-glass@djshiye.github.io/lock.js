@@ -38,6 +38,27 @@ const CLOCK_STYLES = {
 // keeps the white clock readable on any wallpaper: at most linear Y 0.13, which
 // is 5.8:1 against white.
 const SHEET_CEILING = 0.13;
+const NOTES_GAP = 24;           // px between the clock (and its hint) and GNOME's notifications
+
+/** Where GNOME's notifications start under the clock, or null when none show. */
+function notificationsTop(notes) {
+    if (!notes?.visible)
+        return null;
+    const b = notes.get_allocation_box();
+    return b.y2 - b.y1 > 0 ? b.y1 : null;
+}
+
+/**
+ * The top of the clock placed in the middle of a screen H high. With notifications
+ * showing below, it moves up just enough to keep clear of them (1.5.7 let the "Click or
+ * press a key to unlock" hint run into the first one). Never above the screen.
+ */
+export function clockMiddle(H, clockH, notesTop) {
+    let y = Math.round((H - clockH) / 2);
+    if (notesTop !== null && notesTop !== undefined)
+        y = Math.min(y, Math.round(notesTop - NOTES_GAP - clockH));
+    return Math.max(0, y);
+}
 // The card sits a little deeper than the sheet on bright wallpapers (6.6:1), so the
 // name, the messages and GNOME's lighter password field on it stay readable too.
 const CARD_CEILING = 0.11;
@@ -207,6 +228,16 @@ export class LockGlass {
                 this._dialogSignals.on(box, s, () => this._queue());
             this._dialogSignals.on(dialog._stack, 'notify::allocation', () => this._queue());
         }
+        if (this.cfg.clockPosition !== 'gnome') {
+            // The clock's place follows its own size (widgets, a long message) and GNOME's
+            // notifications under it, with or without the card.
+            this._dialogSignals.on(dialog._stack, 'notify::allocation', () => this._queue());
+            const notes = dialog._notificationsBox;
+            if (notes) {
+                for (const s of ['notify::allocation', 'notify::visible'])
+                    this._dialogSignals.on(notes, s, () => this._queue());
+            }
+        }
         this._styleClock();
         this._loadStyle();
         this._queue();
@@ -281,7 +312,7 @@ export class LockGlass {
             return;
         // The clock and the password prompt share one place, so they move together.
         const want = this.cfg.clockPosition === 'top' ? Math.round(H * 0.07)
-            : Math.round((H - (box.y2 - box.y1)) / 2);
+            : clockMiddle(H, box.y2 - box.y1, notificationsTop(this._dialog._notificationsBox));
         stack.translation_y = want - box.y1;
     }
 
