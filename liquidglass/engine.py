@@ -31,7 +31,7 @@ from .env import Env, RunResult
 from .settings import Settings, config_dir
 from .targets import all_targets
 from .render.glass import UUID as GLASS_UUID
-from .targets.shell import USER_THEME, GlassEffects, park_arcmenu, unpark_arcmenu
+from .targets.shell import USER_THEME, GlassEffects, extension_info, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 from .unmerge import unmerge
 
@@ -842,7 +842,32 @@ class Engine:
         if not self.env.dry_run:
             with contextlib.suppress(OSError):
                 atomic_write(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+        # This Apply switched the glass extension back on (after Restore original, or after
+        # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
+        # it right away, so the parts that wait for the glass are finished now, not after a
+        # restart. A brand-new extension still waits for the next login.
+        glass_on = any(r.target == GlassEffects.id and r.status == "applied" for r in results)
+        if waiting and glass_on and not ctx.glass_running and not self.env.dry_run and self._glass_starts():
+            later = self._apply(settings, set(waiting))
+            done = {r.target for r in later}
+            results = [r for r in results if r.target not in done] + later
         return results
+
+    # Extension states (GNOME's ExtensionState): 1 running, 3 error, 4 out of date.
+    _GLASS_STARTING = (2.0, 6.0, 7.0, 8.0)
+
+    def _glass_starts(self, wait_s: float = 6.0, step_s: float = 0.25) -> bool:
+        """Whether GNOME Shell starts the glass extension now that Apply switched it on.
+        False at once when the Shell doesn't know it yet (it only finds new ones at login)."""
+        waited = 0.0
+        while True:
+            state, _err = extension_info(self.env, GLASS_UUID)
+            if state == 1.0:
+                return True
+            if state not in self._GLASS_STARTING or waited >= wait_s:
+                return False
+            self.env.sleep(step_s)
+            waited += step_s
 
     def revert(self, target: str | None = None) -> list[str]:
         with self._locked():
