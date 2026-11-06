@@ -250,13 +250,9 @@ Card {
         width: parent.width
         spacing: 16
 
-        SectionTitle { text: "Motion" }
-        Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            color: Theme.textFaint
-            font.pixelSize: Theme.fsSmall
-            text: "How windows open, minimize and close, and how the panel answers your pointer."
+        SectionTitle {
+            text: "Motion"
+            caption: "How windows open, minimize and close, and how the panel answers your pointer."
         }
 
         Note {

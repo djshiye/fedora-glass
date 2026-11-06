@@ -14,7 +14,10 @@ Window {
     property alias fineTuneOpen: look.fineTuneOpen
     property alias frostHeld: look.frostHeld
     property string startSheet: ""
-    onStartSheetChanged: if (startSheet === "restore") confirmSheet.open()
+    onStartSheetChanged: {
+        if (startSheet === "restore") confirmSheet.open()
+        else if (startSheet === "welcome") welcomeSheet.open()
+    }
 
     readonly property bool maximized: visibility === Window.Maximized || visibility === Window.FullScreen
     readonly property int margin: maximized ? 0 : 18
@@ -249,6 +252,7 @@ Window {
 
             LookPage {
                 id: look
+                objectName: "lookPage"
                 anchors.fill: parent
                 opacity: win.pageIndex === 0 ? 1 : 0
                 visible: opacity > 0
@@ -517,6 +521,7 @@ Window {
     }
 
     ChangesSheet { id: changesSheet }
+    WelcomeSheet { id: welcomeSheet }
     ResultsSheet { id: resultsSheet }
 
     Sheet {

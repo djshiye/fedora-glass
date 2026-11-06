@@ -12,13 +12,9 @@ Card {
     Column {
         width: parent.width
         spacing: 16
-        SectionTitle { text: "Window header bars" }
-        Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            color: Theme.textFaint
-            font.pixelSize: Theme.fsSmall
-            text: "The bar along the top of Files, Terminal, Settings and other GNOME apps. Apps opened after Apply show the change."
+        SectionTitle {
+            text: "Window header bars"
+            caption: "The bar along the top of Files, Terminal, Settings and other GNOME apps. Apps opened after Apply show the change."
         }
         // After Apply: open apps keep the old bars, and Files keeps running in the background.
         Rectangle {
