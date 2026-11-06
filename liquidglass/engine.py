@@ -238,8 +238,14 @@ class Backup:
         ...), so whatever the theme provided keeps working. Files an earlier version wrote
         through the link are put back first, which repairs the theme folder."""
         key = str(folder)
-        if key in self.data["dirlinks"] or self.env.dry_run:
+        if self.env.dry_run:
             return
+        if key in self.data["dirlinks"]:
+            if not folder.is_symlink():
+                return
+            # Linked again since the last Apply (a theme installer, a dotfiles tool): the link
+            # it holds now is the one Restore puts back, and writes must not go through it.
+            del self.data["dirlinks"][key]
         new_dirs: set[str] = set()
         problems = []
         for k in [k for k in self.data["files"] if Path(k).is_relative_to(folder)]:
