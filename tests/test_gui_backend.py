@@ -511,3 +511,26 @@ def test_lock_screen_tab_properties(make_backend, tmp_path):
     assert backend_mod._has_battery(ps) is True
     assert backend_mod._has_battery(tmp_path / "missing") is False
     assert 0 <= b.property("wallpaperLuma") <= 1
+
+
+def test_weather_switch_says_when_gnome_weather_has_nothing_to_show(tmp_path, monkeypatch):
+    """The lock screen's weather comes from GNOME Weather: without the app, or without a
+    place, the switch says so instead of showing nothing without a word."""
+    env = FakeEnv(home=tmp_path)
+    monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path / "sys"))
+    gs = {}
+    monkeypatch.setattr(FakeEnv, "gsettings_get", lambda self, schema, key, path=None: gs.get((schema, key)))
+    assert backend_mod._weather_state(env) == "no-app"
+    apps = tmp_path / "sys/applications"
+    apps.mkdir(parents=True)
+    (apps / "org.gnome.Weather.desktop").write_text("[Desktop Entry]\nName=Weather\n")
+    gs[("org.gnome.shell.weather", "locations")] = "@av []"
+    gs[("org.gnome.shell.weather", "automatic-location")] = "true"
+    gs[("org.gnome.system.location", "enabled")] = "false"
+    assert backend_mod._weather_state(env) == "no-place"      # automatic, but Location Services off
+    gs[("org.gnome.system.location", "enabled")] = "true"
+    assert backend_mod._weather_state(env) == "ready"
+    gs[("org.gnome.shell.weather", "automatic-location")] = "false"
+    assert backend_mod._weather_state(env) == "no-place"
+    gs[("org.gnome.shell.weather", "locations")] = "[<(uint32 2, <('Zagreb', 'LDZA', true, @a(dd) [], @a(dd) [])>)>]"
+    assert backend_mod._weather_state(env) == "ready"

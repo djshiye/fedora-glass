@@ -118,7 +118,8 @@ def test_extension_starts_and_stops_the_widgets_with_the_lock():
 
 @pytest.mark.skipif(NODE is None, reason="needs node")
 def test_widget_text_under_node():
-    r = subprocess.run([NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/lockwidgets.test.mjs"],
+    r = subprocess.run([NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/lockwidgets.test.mjs",
+                        "tests/js/lock-clock.test.mjs"],
                        capture_output=True, text=True, cwd=ROOT, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
 
@@ -130,3 +131,14 @@ def test_settings_json_round_trip_keeps_the_widgets(tmp_path):
     got = settings_mod.load(tmp_path / "s.json")
     assert (got.lock_widget_weather, got.lock_message, got.lock_widget_style) == (True, "Hi", "plain")
     json.loads((tmp_path / "s.json").read_text())
+
+
+def test_a_hand_edited_false_never_switches_a_widget_on(tmp_path):
+    """settings.json with "false" (a string) must not show the weather or the place."""
+    from liquidglass import settings as settings_mod
+    p = tmp_path / "settings.json"
+    p.write_text(json.dumps({"lock_widget_weather": "false", "lock_weather_place": 1, "lock_greeting": "yes",
+                             "lock_widget_battery": False, "lock_hide_notifications": True}))
+    s = settings_mod.load(p)
+    assert s.lock_widget_weather is False and s.lock_weather_place is False and s.lock_greeting is False
+    assert s.lock_widget_battery is False and s.lock_hide_notifications is True
