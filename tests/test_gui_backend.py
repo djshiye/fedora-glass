@@ -486,3 +486,28 @@ def test_remove_app_restores_then_removes_the_package(make_backend, home, app, t
     assert log.read_text().split() == ["/usr/bin/dnf", "remove", "-y", "--no-autoremove", "fedora-glass"]
     assert b.property("removing") is False
     assert bool(errors) == (not removed) and (removed or "password wasn't given" in errors[0])
+
+
+def test_lock_screen_tab_properties(make_backend, tmp_path):
+    from liquidglass.gui import backend as backend_mod
+    b = make_backend()
+    for name, value in {"lockWidgetBattery": False, "lockWidgetWeather": True, "lockWeatherPlace": True,
+                        "lockGreeting": True, "lockWidgetStyle": "plain", "lockHideNotifications": True}.items():
+        b.setProperty(name, value)
+        assert b.property(name) == value, name
+    b.setProperty("lockMessage", "Call  me\n" + "x" * 200)
+    assert b.property("lockMessage") == ("Call me " + "x" * 200)[:120]
+    assert b.property("lockMessageMax") == 120
+    # Only a system battery counts, not a mouse's.
+    ps = tmp_path / "ps"
+    (ps / "hidpp_battery_0").mkdir(parents=True)
+    (ps / "hidpp_battery_0/type").write_text("Battery\n")
+    (ps / "hidpp_battery_0/scope").write_text("Device\n")
+    (ps / "AC").mkdir()
+    (ps / "AC/type").write_text("Mains\n")
+    assert backend_mod._has_battery(ps) is False
+    (ps / "BAT0").mkdir()
+    (ps / "BAT0/type").write_text("Battery\n")
+    assert backend_mod._has_battery(ps) is True
+    assert backend_mod._has_battery(tmp_path / "missing") is False
+    assert 0 <= b.property("wallpaperLuma") <= 1
