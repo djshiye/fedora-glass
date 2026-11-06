@@ -144,6 +144,15 @@ def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
     return None
 
 
+def _effective(s: Settings) -> dict:
+    """What a Settings really does, so a switch flipped off and on again, or a motion picked and
+    then set back to its default, doesn't count as an unapplied change."""
+    d = asdict(s)
+    d["targets"] = sorted(k for k, v in s.targets.items() if not v)
+    d["motion"] = {ev: s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
+    return d
+
+
 def _weather_state(env: Env) -> str:
     """Whether GNOME's own weather (the one the lock screen shows) has anything to say:
     "ready", "no-app" (GNOME Weather isn't installed) or "no-place" (no place chosen in it).
@@ -168,6 +177,7 @@ class Backend(QObject):
     previewChanged = Signal()
     uiChanged = Signal()
     targetsChanged = Signal()
+    weatherChanged = Signal()
     busyChanged = Signal()
     progressChanged = Signal()
     savedChanged = Signal()
@@ -737,7 +747,7 @@ class Backend(QObject):
 
     @Property(bool, notify=settingsChanged)
     def dirty(self) -> bool:
-        return self._s != self._saved.normalized()
+        return _effective(self._s) != _effective(self._saved.normalized())
 
     @Property(str, notify=settingsChanged)
     def activePreset(self) -> str:
@@ -786,6 +796,7 @@ class Backend(QObject):
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
+        self.targetsChanged.emit()   # the app switches and the glass edges follow the saved state
 
     @Slot(str, result=bool)
     def isColor(self, value: str) -> bool:
@@ -857,12 +868,21 @@ class Backend(QObject):
         """Whether this PC has a battery of its own (a laptop), for the lock screen's battery widget."""
         return _has_battery(self._power_supply)
 
-    @Property(str, constant=True)
+    @Property(str, notify=weatherChanged)
     def weatherState(self) -> str:
         """For the lock screen's weather switch: "ready", "no-app" or "no-place"."""
         if getattr(self, "_weather_state", None) is None:
             self._weather_state = _weather_state(self._env)
         return self._weather_state
+
+    @Slot()
+    def refreshWeather(self) -> None:
+        """Look again (the window just regained focus): GNOME Weather may have been installed
+        or a place chosen meanwhile."""
+        new = _weather_state(self._env)
+        if new != getattr(self, "_weather_state", None):
+            self._weather_state = new
+            self.weatherChanged.emit()
 
     @Property(int, constant=True)
     def lockMessageMax(self) -> int:
@@ -1059,13 +1079,17 @@ class Backend(QObject):
             return False
 
     # ---- long-running work --------------------------------------------------------
+    def _queued_kind(self) -> str:
+        """The asked-for action waiting for the background check to end, as a busy kind."""
+        return {"apply": "apply", "revert": "revert", "requestPlan": "plan"}.get(self._pending_action or "", "")
+
     @Property(bool, notify=busyChanged)
     def busy(self) -> bool:
-        return bool(self._busy)
+        return bool(self._busy or self._queued_kind())
 
     @Property(str, notify=busyChanged)
     def busyKind(self) -> str:
-        return self._busy
+        return self._busy or self._queued_kind()
 
     @Property(float, notify=progressChanged)
     def progress(self) -> float:
@@ -1104,6 +1128,7 @@ class Backend(QObject):
         done(out)
         if self._pending_action and self._task is None:
             name, self._pending_action = self._pending_action, None
+            self.busyChanged.emit()
             getattr(self, name)()
 
     @Slot(float, str)
@@ -1115,6 +1140,7 @@ class Backend(QObject):
     def requestPlan(self) -> None:
         if self._task is not None:
             self._pending_action = self._pending_action or "requestPlan"
+            self.busyChanged.emit()
             return
         s = self._s.normalized()
 
@@ -1140,6 +1166,7 @@ class Backend(QObject):
         if self._task is not None:
             # Still checking the system in the background: apply as soon as that ends.
             self._pending_action = "apply"
+            self.busyChanged.emit()
             return
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
@@ -1187,6 +1214,7 @@ class Backend(QObject):
             # Right after an Apply the app re-checks the system: restore once that ends
             # (1.5.3 dropped the click without a word).
             self._pending_action = "revert"
+            self.busyChanged.emit()
             return
         # From here on the extension's config is the engine's to remove; stop writing it.
         self._live_timer.stop()

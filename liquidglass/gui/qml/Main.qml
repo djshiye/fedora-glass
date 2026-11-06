@@ -47,8 +47,14 @@ Window {
         if (Backend.dirty && !win.closeAnyway) {
             close.accepted = false
             leaveSheet.open()
+            return
         }
+        // Closing the window with the welcome still open counts as having seen it.
+        if (welcomeSheet.opened)
+            Backend.dismissWelcome()
     }
+    // GNOME Weather may have been installed or a place chosen while the app was in the background.
+    onActiveChanged: if (active) Backend.refreshWeather()
 
     // Tab and Shift+Tab scroll the focused control into view, so the keyboard never
     // lands on a switch hidden below the fold of a scrolling column.
@@ -504,7 +510,9 @@ Window {
             if (win.closeAfterApply) {
                 win.closeAfterApply = false
                 // "Apply and close": done quietly, unless something needs a look.
-                if (!results.some(r => r.status === "failed") && !Backend.dirty) {
+                // A restart to finish, or Files still on the old header bars, is shown, not hidden.
+                if (!results.some(r => r.status === "failed") && !Backend.dirty
+                        && !resultsSheet.restartNeeded(results) && Backend.headerNote !== "pending") {
                     win.closeAnyway = true
                     win.close()
                     return
