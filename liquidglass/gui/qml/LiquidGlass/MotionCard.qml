@@ -122,6 +122,7 @@ Card {
         }
     }
     readonly property var fr: frame(pvT * pvTotal)
+    readonly property bool playing: anim.running   // the big preview on the Look page plays along
 
     function play(ev, preset, intensity, speed) {
         pvEvent = ev
