@@ -642,10 +642,6 @@ Item {
 
             HeaderBarCard { width: parent.width }
 
-            LockScreenCard { width: parent.width }
-
-            LoginScreenCard { width: parent.width }
-
             Card {
                 width: parent.width
                 height: implicitHeight

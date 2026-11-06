@@ -16,6 +16,7 @@ import {ArcMenuRescue} from './arcrescue.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
+import {LockWidgets} from './lockwidgets.js';
 import {PopupStyle} from './popupstyle.js';
 import {Safety, guarded} from './safety.js';
 import {Speed} from './speed.js';
@@ -34,6 +35,7 @@ export default class LiquidGlassExtension extends Extension {
             this._manager?.update(this._effective(cfg));
             this._desktop?.update(cfg);
             this._lock?.update(cfg);
+            this._widgets?.update(cfg);
             this._animations?.update(cfg);
             this._popupStyle?.update(cfg);
         }));
@@ -65,6 +67,20 @@ export default class LiquidGlassExtension extends Extension {
                 console.error(`Fedora Glass: no lock screen glass: ${e}`);
                 this._lock = null;
             }
+            // Widgets come with or without the glass (GNOME's own lock screen gets them too).
+            try {
+                this._leavingWidgets?.destroy();
+                this._widgets?.destroy();
+            } catch (e) {
+                console.error(`Fedora Glass: removing old lock screen widgets: ${e}`);
+            }
+            this._leavingWidgets = null;
+            try {
+                this._widgets = new LockWidgets(cfg);
+            } catch (e) {
+                console.error(`Fedora Glass: no lock screen widgets: ${e}`);
+                this._widgets = null;
+            }
         } else {
             // The sheet slides up into the desktop, then takes itself away.
             this._leaving?.destroy();
@@ -75,6 +91,18 @@ export default class LiquidGlassExtension extends Extension {
             } catch {
                 this._leaving?.destroy();
                 this._leaving = null;
+            }
+            // They ride up with the sheet and go with GNOME's lock screen.
+            try {
+                this._leavingWidgets?.destroy();
+            } catch {}
+            this._leavingWidgets = this._widgets;
+            this._widgets = null;
+            try {
+                this._leavingWidgets?.unlocking();
+            } catch {
+                this._leavingWidgets?.destroy();
+                this._leavingWidgets = null;
             }
             this._desktop = new DesktopBehaviour(cfg);
             // How much the glass draws (the glass quality setting, or auto when frames drop).
@@ -179,6 +207,10 @@ export default class LiquidGlassExtension extends Extension {
         this._lock = null;
         this._leaving?.destroy();
         this._leaving = null;
+        this._widgets?.destroy();
+        this._widgets = null;
+        this._leavingWidgets?.destroy();
+        this._leavingWidgets = null;
         this._stopSession();
         this._config?.destroy();
         this._config = null;

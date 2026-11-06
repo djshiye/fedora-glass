@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import tempfile
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
@@ -143,6 +144,17 @@ class Settings:
     lock_slide: str = "spring"          # how the sheet leaves on unlock: gnome, smooth or spring
     lock_slide_ms: int = 450            # 250..1200
     lock_bounce: float = 0.2            # 0..1, spring only
+    # Widgets on the lock screen. Only the battery is on by default: it says nothing
+    # about the owner. Weather, its place name, the greeting and the message are opt-in.
+    lock_widget_battery: bool = True    # laptops only; a PC without a battery shows nothing
+    lock_widget_weather: bool = False   # GNOME Weather's current weather for the place set there
+    lock_weather_place: bool = False    # also name that place
+    lock_greeting: bool = False         # "Good morning" above the clock
+    lock_message: str = ""              # the owner's own words under the clock, plain text
+    lock_widget_style: str = "chips"    # chips (small glass panes) or plain (text only)
+    # Hide GNOME's notifications and music controls on the lock screen (only hidden,
+    # GNOME's own notification settings are not changed).
+    lock_hide_notifications: bool = False
 
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
@@ -199,6 +211,10 @@ class Settings:
         s.lock_tint = _clamp(float(s.lock_tint), Settings.lock_tint)
         s.lock_slide_ms = _int(s.lock_slide_ms, 250, 1200, Settings.lock_slide_ms)
         s.lock_bounce = _clamp(float(s.lock_bounce), Settings.lock_bounce)
+        for k in ("lock_widget_battery", "lock_widget_weather", "lock_weather_place", "lock_greeting",
+                  "lock_hide_notifications"):
+            setattr(s, k, bool(getattr(s, k)))
+        s.lock_message = clean_message(s.lock_message)
         for k, choices in LOCK_CHOICES.items():
             if getattr(s, k) not in choices:
                 setattr(s, k, getattr(Settings, k))
@@ -209,7 +225,18 @@ class Settings:
 
 
 LOCK_CHOICES = {"lock_clock": ("gnome", "bold", "thin"), "lock_clock_position": ("gnome", "top", "middle"),
-                "lock_slide": ("gnome", "smooth", "spring")}
+                "lock_slide": ("gnome", "smooth", "spring"), "lock_widget_style": ("chips", "plain")}
+
+LOCK_MESSAGE_MAX = 120
+_CONTROL = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]+")
+
+
+def clean_message(raw: object) -> str:
+    """The lock screen message: plain text, one paragraph, at most LOCK_MESSAGE_MAX characters."""
+    if not isinstance(raw, str):
+        return ""
+    text = " ".join(_CONTROL.sub(" ", raw).split())
+    return text[:LOCK_MESSAGE_MAX].strip()
 
 
 def _clean_parts(raw: object) -> dict[str, dict]:

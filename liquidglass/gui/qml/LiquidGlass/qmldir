@@ -13,7 +13,8 @@ FrostSlider 1.0 FrostSlider.qml
 GlassSurface 1.0 GlassSurface.qml
 HeaderBarCard 1.0 HeaderBarCard.qml
 PopupGlass 1.0 PopupGlass.qml
-LockScreenCard 1.0 LockScreenCard.qml
+LockPage 1.0 LockPage.qml
+LockPreview 1.0 LockPreview.qml
 LoginScreenCard 1.0 LoginScreenCard.qml
 RemoveCard 1.0 RemoveCard.qml
 Icon 1.0 Icon.qml

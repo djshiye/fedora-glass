@@ -20,7 +20,7 @@ from . import shell
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
-         "lock.js", "lock.css", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
+         "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
          "speed.js", "tuning.js", "popupstyle.js", "prefs.js")
 
@@ -156,7 +156,12 @@ def _lock_config(s: Settings, off: bool) -> dict:
     return {"enabled": s.lock_glass and not off, "blur": s.lock_blur, "dim": round(1 - s.lock_dim, 3),
             "tint": [round(c.r, 4), round(c.g, 4), round(c.b, 4), round(s.lock_tint * 0.4, 3)],
             "card": s.lock_card, "clockStyle": s.lock_clock, "clockPosition": s.lock_clock_position,
-            "slide": s.lock_slide, "slideMs": s.lock_slide_ms, "bounce": s.lock_bounce}
+            "slide": s.lock_slide, "slideMs": s.lock_slide_ms, "bounce": s.lock_bounce,
+            # The widgets show with or without the glass, and with Reduce transparency too.
+            "widgets": {"battery": s.lock_widget_battery, "weather": s.lock_widget_weather,
+                        "weatherPlace": s.lock_weather_place, "greeting": s.lock_greeting,
+                        "message": s.lock_message, "style": s.lock_widget_style,
+                        "hideNotifications": s.lock_hide_notifications}}
 
 
 def config(s: Settings, t: Tokens) -> dict:

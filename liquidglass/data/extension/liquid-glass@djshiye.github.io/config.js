@@ -23,7 +23,11 @@ export const DEFAULTS = Object.freeze({
     // The glass lock screen: frost, darkening and tint of the sheet, the password card,
     // GNOME's clock look and place, and how the sheet slides away on unlock.
     lock: {enabled: true, blur: 60, dim: 0.72, tint: [0, 0, 0, 0.12], card: true,
-        clockStyle: 'bold', clockPosition: 'gnome', slide: 'spring', slideMs: 450, bounce: 0.2},
+        clockStyle: 'bold', clockPosition: 'gnome', slide: 'spring', slideMs: 450, bounce: 0.2,
+        // Widgets on the lock screen (lockwidgets.js). Only the battery is on by default:
+        // it tells a passer-by nothing about the owner.
+        widgets: {battery: true, weather: false, weatherPlace: false, greeting: false, message: '',
+            style: 'chips', hideNotifications: false}},
     look: {...DEFAULT_LOOK},
 });
 
@@ -95,6 +99,30 @@ function cleanLock(raw) {
         out.tint = raw.tint.map((v, i) => num(v, def.tint[i], 0, 1)).map((v, i) => (i === 3 ? Math.min(v, 0.6) : v));
     for (const [k, list] of Object.entries(CHOICES))
         out[k] = list.includes(raw[k]) ? raw[k] : def[k];
+    out.widgets = cleanWidgets(raw.widgets);
+    return out;
+}
+
+const MESSAGE_MAX = 120;
+
+/** The owner's lock screen message: plain text on one or two lines, short, no control characters. */
+export function cleanMessage(raw) {
+    if (typeof raw !== 'string')
+        return '';
+    // eslint-disable-next-line no-control-regex
+    return [...raw.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim()]
+        .slice(0, MESSAGE_MAX).join('').trim();
+}
+
+function cleanWidgets(raw) {
+    const def = DEFAULTS.lock.widgets;
+    const out = {...def};
+    if (!raw || typeof raw !== 'object')
+        return out;
+    for (const k of ['battery', 'weather', 'weatherPlace', 'greeting', 'hideNotifications'])
+        out[k] = typeof raw[k] === 'boolean' ? raw[k] : def[k];
+    out.style = ['chips', 'plain'].includes(raw.style) ? raw.style : def.style;
+    out.message = cleanMessage(raw.message);
     return out;
 }
 

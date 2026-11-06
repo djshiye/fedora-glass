@@ -16,7 +16,7 @@ from .. import APP_ID, __version__
 
 HERE = Path(__file__).resolve().parent
 QML_DIR = HERE / "qml"
-PAGES = {"look": 0, "apps": 1}
+PAGES = {"look": 0, "apps": 1, "lock": 2}
 
 
 def find_icon() -> Path | None:
@@ -34,7 +34,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     ap = argparse.ArgumentParser(prog="fedora-glass gui", description="Fedora Glass customizer")
     shot = ap.add_argument_group("screenshots")
     shot.add_argument("--screenshot", metavar="PATH", help="render the window to a PNG, then quit")
-    shot.add_argument("--page", default="0", help="page to show: 0/look or 1/apps")
+    shot.add_argument("--page", default="0", help="page to show: 0/look, 1/apps or 2/lock")
+    shot.add_argument("--lock-preview", choices=("rest", "prompt"), help="the moment the lock screen preview shows")
     shot.add_argument("--frost", type=float, help="set the frost slider (0..1) without saving")
     shot.add_argument("--scheme", choices=("dark", "light"), help="force the app and preview style")
     shot.add_argument("--held", action="store_true", help="draw the frost knob as if it were being dragged")
@@ -65,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     page = PAGES.get(args.page, None)
     if page is None:
         try:
-            page = max(0, min(1, int(args.page)))
+            page = max(0, min(2, int(args.page)))
         except ValueError:
             page = 0
 
@@ -144,9 +145,14 @@ def main(argv: list[str] | None = None) -> int:
                 win.setProperty("frostHeld", 1.0)
             if args.scroll:
                 from PySide6.QtCore import QObject
-                side = win.findChild(QObject, "options")
+                side = win.findChild(QObject, "lockOptions" if page == 2 else "options")
                 if side is not None:
                     side.setProperty("contentY", args.scroll)
+            if args.lock_preview:
+                from PySide6.QtCore import QObject
+                lp = win.findChild(QObject, "lockPage")
+                if lp is not None:
+                    lp.setProperty("previewMode", args.lock_preview)
             if args.sheet == "changes":
                 backend.requestPlan()
             elif args.sheet == "results":

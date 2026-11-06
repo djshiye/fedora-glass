@@ -68,7 +68,10 @@ GNOME Shell, Dash to Panel, ArcMenu, Spawn, GTK 4 and libadwaita apps (Nautilus 
 Flatpak apps, Ptyxis and GNOME Terminal, Qt apps (through Kvantum), btop, micro, Discord (Vencord),
 VS Code, Obsidian, qBittorrent, Prism Launcher, Brave, Helium, Clipperino, RGBeast and Wheelguard.
 The app's **Apps** page lists every part, shows which you have installed, and has a switch for each.
-Apply also gives the lock screen a glass sheet; you can turn it off under **Lock screen**.
+Apply also gives the lock screen a glass sheet. The app's **Lock screen** page has a live preview of it
+and sets the glass, the clock, the unlock animation and widgets under the clock: a greeting, the battery,
+the weather from GNOME Weather and a message of your own. Only the battery is on to start with, and
+**Hide notifications and music** keeps your apps' notifications off the lock screen.
 
 The login screen is opt in: **Use glass on the login screen** (under Lock screen) asks for your
 password, then gives it a glow in your tint colour with glass panes for your name and password.
