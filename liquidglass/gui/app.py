@@ -41,7 +41,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--held", action="store_true", help="draw the frost knob as if it were being dragged")
     shot.add_argument("--fine-tune", action="store_true", help="open the Fine-tune section")
     shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
-    shot.add_argument("--sheet", choices=("changes", "results", "restore"), help="open a sheet")
+    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave"), help="open a sheet")
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
     shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
     shot.add_argument("--preview-scene", choices=("desktop", "quicksettings", "calendar", "overview"),
@@ -53,7 +53,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--change", metavar="SETTING=JSON", action="append", default=[],
                       help="change a setting once the window is up (e.g. menuGrow=false), to catch its live effect")
     shot.add_argument("--after-change-ms", type=int, help="take the picture this long after --change")
-    shot.add_argument("--size", default="1280x820", help="content size WxH (shadow margin is added)")
+    shot.add_argument("--size", help="content size WxH (shadow margin is added); default 1280x820, smaller on small screens")
     shot.add_argument("--delay-ms", type=int, default=2500)
     return ap.parse_args(argv)
 
@@ -134,8 +134,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     win = engine.rootObjects()[0]
 
-    w, h = (int(v) for v in args.size.lower().split("x"))
     margin = int(win.property("margin") or 0)
+    if args.size:
+        w, h = (int(v) for v in args.size.lower().split("x"))
+    else:
+        w, h = fit_size(win.screen().availableGeometry() if win.screen() else None, margin)
     win.setWidth(w + 2 * margin)
     win.setHeight(h + 2 * margin)
     win.setProperty("pageIndex", page)
@@ -180,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
                     pv.setProperty("pointerPinned", True)
             if args.scroll:
                 from PySide6.QtCore import QObject
-                side = win.findChild(QObject, "lockOptions" if page == 2 else "options")
+                side = win.findChild(QObject, {1: "appsList", 2: "lockOptions"}.get(page, "options"))
                 if side is not None:
                     side.setProperty("contentY", args.scroll)
             if args.lock_preview:
@@ -194,6 +197,8 @@ def main(argv: list[str] | None = None) -> int:
                 backend.applyFinished.emit(_demo_results(backend))
             elif args.sheet == "restore":
                 win.setProperty("startSheet", "restore")
+            elif args.sheet == "leave":
+                win.close()     # with unapplied changes (--change) this asks first
             if args.dropdown or args.tip:
                 from PySide6.QtCore import QMetaObject, QObject
 
@@ -231,6 +236,19 @@ def main(argv: list[str] | None = None) -> int:
             QTimer.singleShot(args.delay_ms, grab)
 
     return app.exec()
+
+
+def fit_size(avail, margin: int) -> tuple[int, int]:
+    """The window's first size: 1280x820, or less so it fits the screen.
+
+    On Wayland Qt can't see GNOME's top bar or Dash to Panel, so room is left for
+    them. Never below the window's minimum (1000x680).
+    """
+    w, h = 1280, 820
+    if avail is not None and avail.width() > 0 and avail.height() > 0:
+        w = min(w, avail.width() - 2 * margin - 48)
+        h = min(h, avail.height() - 2 * margin - 112)
+    return max(1000, w), max(680, h)
 
 
 def _demo_results(backend) -> list[dict]:

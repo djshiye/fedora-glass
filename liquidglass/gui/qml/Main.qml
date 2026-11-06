@@ -28,13 +28,44 @@ Window {
     flags: Qt.Window | Qt.FramelessWindowHint
     title: "Fedora Glass"
 
-    Shortcut { sequences: [StandardKey.Quit]; onActivated: Qt.quit() }
+    // Quit goes through close too, so unapplied changes are never lost without a word.
+    Shortcut { sequences: [StandardKey.Quit]; onActivated: win.close() }
     Shortcut { sequence: "Ctrl+W"; onActivated: win.close() }
     Shortcut { sequence: "Ctrl+Return"; enabled: !Backend.busy; onActivated: Backend.apply() }
     // Pages: 0 Look, 1 Apps, 2 Lock screen; the switcher shows them as Look, Lock screen, Apps.
     Shortcut { sequence: "Ctrl+1"; onActivated: win.pageIndex = 0 }
     Shortcut { sequence: "Ctrl+2"; onActivated: win.pageIndex = 2 }
     Shortcut { sequence: "Ctrl+3"; onActivated: win.pageIndex = 1 }
+
+    // Closing with unapplied changes asks first: Apply and close, Discard, or Cancel.
+    property bool closeAnyway: false
+    property bool closeAfterApply: false
+    onClosing: (close) => {
+        if (Backend.dirty && !win.closeAnyway) {
+            close.accepted = false
+            leaveSheet.open()
+        }
+    }
+
+    // Tab and Shift+Tab scroll the focused control into view, so the keyboard never
+    // lands on a switch hidden below the fold of a scrolling column.
+    onActiveFocusItemChanged: {
+        const it = activeFocusItem
+        if (!it || (it.focusReason !== undefined && it.focusReason !== Qt.TabFocusReason
+                    && it.focusReason !== Qt.BacktabFocusReason))
+            return
+        let f = it.parent
+        while (f && !(f.contentItem !== undefined && f.contentY !== undefined && f.flickableDirection !== undefined))
+            f = f.parent
+        if (!f || f.contentHeight <= f.height)
+            return
+        const top = it.mapToItem(f.contentItem, 0, 0).y
+        const pad = 28
+        if (top - pad < f.contentY)
+            f.contentY = Math.max(0, top - pad)
+        else if (top + it.height + pad > f.contentY + f.height)
+            f.contentY = Math.min(f.contentHeight - f.height, top + it.height + pad - f.height)
+    }
 
     // Popups (tooltips, dropdowns, colour pickers) capture this for their glass.
     Binding { target: Theme; property: "backdrop"; value: frame }
@@ -387,6 +418,18 @@ Window {
                     color: Theme.textDim
                     font.pixelSize: 13
                 }
+                LgButton {
+                    objectName: "discardButton"
+                    visible: Backend.dirty && !Backend.busy
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "secondary"
+                    implicitHeight: 28
+                    leftPadding: 12; rightPadding: 12
+                    font.pixelSize: 13
+                    text: "Undo changes"
+                    tip: "Go back to the look you applied last"
+                    onClicked: Backend.discardChanges()
+                }
                 Item {
                     visible: Backend.busy
                     width: 240; height: 32
@@ -452,12 +495,25 @@ Window {
     Connections {
         target: Backend
         function onPlanReady(plan) { changesSheet.plan = plan; changesSheet.open() }
-        function onApplyFinished(results) { changesSheet.close(); resultsSheet.results = results; resultsSheet.open() }
+        function onApplyFinished(results) {
+            changesSheet.close()
+            if (win.closeAfterApply) {
+                win.closeAfterApply = false
+                // "Apply and close": done quietly, unless something needs a look.
+                if (!results.some(r => r.status === "failed") && !Backend.dirty) {
+                    win.closeAnyway = true
+                    win.close()
+                    return
+                }
+            }
+            resultsSheet.results = results
+            resultsSheet.open()
+        }
         function onRevertFinished(problems) {
             if (problems.length === 0) toast.show("Your original look is back", "okCircle", Theme.good)
             else { problemsSheet.problems = problems; problemsSheet.open() }
         }
-        function onFailed(message) { toast.show(message, "alert", Theme.bad) }
+        function onFailed(message) { win.closeAfterApply = false; toast.show(message, "alert", Theme.bad) }
     }
 
     ChangesSheet { id: changesSheet }
@@ -477,6 +533,31 @@ Window {
                 kind: "destructive"
                 iconName: "undo"
                 onClicked: { confirmSheet.close(); Backend.revert() }
+            }
+        ]
+        Item { width: 1; height: 1 }
+    }
+
+    Sheet {
+        id: leaveSheet
+        objectName: "leaveSheet"
+        title: "Apply your changes before closing?"
+        subtitle: "You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last."
+        iconName: "info"
+        width: Math.min(560, win.width - 64)
+        buttons: [
+            LgButton {
+                text: "Close without applying"
+                kind: "danger"
+                onClicked: { leaveSheet.close(); win.closeAnyway = true; win.close() }
+            },
+            LgButton { text: "Cancel"; kind: "secondary"; onClicked: leaveSheet.close() },
+            LgButton {
+                text: "Apply and close"
+                kind: "primary"
+                iconName: "check"
+                enabled: !Backend.busy
+                onClicked: { leaveSheet.close(); win.closeAfterApply = true; Backend.apply() }
             }
         ]
         Item { width: 1; height: 1 }

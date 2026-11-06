@@ -78,8 +78,8 @@ Card {
         }
         OverrideSlider {
             objectName: "headerOpacity"
-            label: "See-through"
-            caption: "Glass of the header bar only"
+            label: "Opacity"
+            caption: "How solid the header bar's glass is"
             value: Backend.headerOpacity
             autoValue: root.windowAlpha
             from: 0.1; to: 1

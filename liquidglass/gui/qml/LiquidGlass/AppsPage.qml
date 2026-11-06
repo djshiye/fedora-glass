@@ -52,6 +52,7 @@ Item {
 
     Flickable {
         id: list
+        objectName: "appsList"
         anchors.top: intro.bottom
         anchors.topMargin: 8
         anchors.bottom: parent.bottom
@@ -98,6 +99,25 @@ Item {
                     }
                 }
             }
+        }
+    }
+    // Soft edges where the list scrolls under, so it's clear there is more.
+    Rectangle {
+        x: list.x; width: groups.width
+        y: list.y; height: 24
+        visible: list.visible && list.contentY > 1
+        gradient: Gradient {
+            GradientStop { position: 0; color: Theme.alpha(Theme.base, 0.9) }
+            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0) }
+        }
+    }
+    Rectangle {
+        x: list.x; width: groups.width
+        y: list.y + list.height - height; height: 32
+        visible: list.visible && list.contentY + list.height < list.contentHeight - 1
+        gradient: Gradient {
+            GradientStop { position: 0; color: Theme.alpha(Theme.base, 0) }
+            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0.92) }
         }
     }
 }

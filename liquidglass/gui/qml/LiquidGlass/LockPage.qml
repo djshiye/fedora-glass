@@ -458,6 +458,16 @@ Item {
             LoginScreenCard { width: parent.width }
         }
     }
+    // Soft edges where the options scroll under, so it's clear there is more.
+    Rectangle {
+        anchors.left: side.left; width: page.sideW
+        y: side.y; height: 24
+        visible: side.contentY > 1
+        gradient: Gradient {
+            GradientStop { position: 0; color: Theme.alpha(Theme.base, 0.9) }
+            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0) }
+        }
+    }
     Rectangle {
         anchors.left: side.left; width: page.sideW
         y: side.y + side.height - height; height: 32
