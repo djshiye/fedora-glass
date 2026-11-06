@@ -149,7 +149,10 @@ export class DesktopBehaviour {
         if (ov._swipeTracker && this._swipeWas !== undefined)
             ov._swipeTracker.enabled = this._swipeWas;
         this._swipeWas = undefined;
-        if (this._activities && this._activitiesWas)
+        // Locked: GNOME's panel has just hidden every button the lock screen doesn't
+        // have (its own session-mode handler runs before ours). Showing Activities again
+        // here would put it on the lock screen's top bar; unlocking shows it by itself.
+        if (this._activities && this._activitiesWas && !Main.sessionMode.isLocked)
             this._activities.show();
         this._activities = null;
     }
