@@ -173,15 +173,14 @@ class Settings:
         s.vibrancy = _clamp(float(s.vibrancy))
         s.bleed = _clamp(float(s.bleed), Settings.bleed)
         s.pointer_light = _clamp(float(s.pointer_light), Settings.pointer_light)
-        s.liquid_motion = bool(s.liquid_motion)
-        s.menu_grow = bool(s.menu_grow)
-        s.hover_glide = bool(s.hover_glide)
+        for k in ("liquid_motion", "menu_grow", "hover_glide"):
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
                   "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars", "start_on_desktop",
                   "overview_off"):
-            setattr(s, k, bool(getattr(s, k)))
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         if s.opacity is not None:
             s.opacity = _clamp(float(s.opacity), 0.6)
         if s.blur is not None:
@@ -202,10 +201,10 @@ class Settings:
             s.tint = Settings.tint
         s.parts = _clean_parts(s.parts)
         s.motion = _clean_motion(s.motion)
-        s.targets = {str(k): bool(v) for k, v in dict(s.targets).items()}
+        s.targets = {str(k): _bool(v, True) for k, v in dict(s.targets).items()}
         s.header_height = _int(s.header_height, HEADER_MIN, HEADER_MAX, Settings.header_height)
-        s.lock_glass, s.lock_card = bool(s.lock_glass), bool(s.lock_card)
-        s.undo_on_remove = bool(s.undo_on_remove)
+        for k in ("lock_glass", "lock_card", "undo_on_remove"):
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         s.lock_blur = _int(s.lock_blur, 10, 100, Settings.lock_blur)
         s.lock_dim = min(0.65, _clamp(float(s.lock_dim), Settings.lock_dim))
         s.lock_tint = _clamp(float(s.lock_tint), Settings.lock_tint)
@@ -298,6 +297,25 @@ def _clean_motion(raw: object) -> dict[str, dict]:
         if clean:
             out[ev] = clean
     return out
+
+
+_TRUE, _FALSE = ("true", "1", "yes", "on"), ("false", "0", "no", "off")
+
+
+def _bool(v: object, default: bool) -> bool:
+    """A switch from a hand-edited file: bool() would count the string "false" as on.
+    Words and 0/1 are read as meant; anything else is the switch's default."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, int) and v in (0, 1):
+        return bool(v)
+    if isinstance(v, str):
+        w = v.strip().lower()
+        if w in _TRUE:
+            return True
+        if w in _FALSE:
+            return False
+    return default
 
 
 def _clamp(x: float, default: float = 0.5) -> float:
