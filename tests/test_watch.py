@@ -42,6 +42,9 @@ class FakeEngine:
     def is_applied(self):
         return True
 
+    def look_on(self):
+        return True
+
     def apply(self, s, only=None, if_applied=False):
         self.applies += 1
 

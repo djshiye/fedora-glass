@@ -91,6 +91,13 @@ def _write_pending(ids: set[str]) -> None:
             path.unlink()
 
 
+def restored_path(env: Env) -> Path:
+    """Written by Restore original, taken away by the next Apply: the user asked for their
+    own look back, even if Restore couldn't put every last thing back (a folder kept for
+    their files). The watcher and the upgrade step leave the desktop alone then."""
+    return env.state / "liquid-glass/restored"
+
+
 def applied_version_path(env: Env) -> Path:
     """The app version of the last Apply, for `fedora-glass watch` after an upgrade (the
     glass extension's own version says the same, but only while the glass part is on)."""
@@ -368,11 +375,15 @@ class Backup:
         update relinking gtk.css, for one), so their look is gone until the next Apply."""
         lost = set()
         for key, e in self.data["files"].items():
-            if e.get("wrote") and not self.is_ours(Path(key), e):
+            # A file of ours with other settings in it (the live preview rewrites the glass
+            # config while a slider moves) is not "replaced by something else".
+            if e.get("wrote") and not self.is_ours(Path(key), e) and not self._has_header(Path(key)):
                 lost.add(e["target"])
         return sorted(lost)
 
-    def record_file(self, target: str, path: Path) -> None:
+    def record_file(self, target: str, path: Path, generated: bool = False) -> None:
+        """Store what `path` holds before a write. `generated`: the write is a whole file of
+        ours (not a few keys in an app's own settings file)."""
         if (folder := self.linked_folder(path)) is not None:
             self.unlink_folder(target, folder)
         key = str(path)
@@ -400,6 +411,12 @@ class Backup:
             raise IsADirectoryError(f"{path} is a folder")
         if path.is_symlink():
             entry.update(kind="symlink", link=os.readlink(path))
+        elif generated and self._has_header(path):
+            # Already one of our generated files, with no record of it: the backup was lost
+            # (the state folder wiped, a home folder moved to a new PC). It is not the
+            # user's look, so Restore takes it away instead of putting the glass back.
+            new_dirs: list[str] = []
+            entry.update(kind="missing", new_dirs=new_dirs)
         elif path.is_file():
             store = self.root / "files"
             store.mkdir(parents=True, exist_ok=True)
@@ -609,11 +626,20 @@ class Backup:
                 del self.data["dirlinks"][key]      # already a link again
                 return None
             if p.is_dir():
-                for name in e.get("made", []):
-                    q = p / name
-                    if q.is_symlink():
-                        q.unlink()
-                p.rmdir()                           # fails while the user's own files are in it
+                made = set(e.get("made", []))
+                yours = sorted(q.name for q in p.iterdir() if q.name not in made or not q.is_symlink())
+                if yours:
+                    # The user's own files are in it, so the folder stays. Its links to the
+                    # theme stay too: without them GTK would lose the theme's gtk.css and
+                    # assets (1.5.7 took them away and kept only the user's files).
+                    owner = Path(e["link"]).parent.name or e["link"]
+                    return (f"Kept your {p.name} folder because it has files you added "
+                            f"({', '.join(yours[:3])}{', ...' if len(yours) > 3 else ''}). It still uses "
+                            f"{owner}. To get your link to {owner} back, move those files out "
+                            f"and press Restore original again.")
+                for name in made:
+                    (p / name).unlink()
+                p.rmdir()
             p.symlink_to(e["link"])
             del self.data["dirlinks"][key]
         except OSError as err:
@@ -628,7 +654,8 @@ class Backup:
         out = set()
         for name, section in self.data.items():
             for e in section.values():
-                if name == "lists" and (e.get("added") or e.get("removed")):
+                if name == "lists":
+                    # An emptied record holds nothing of ours.
                     out |= {list_owner(e, i) for i in e.get("added", []) + e.get("removed", [])}
                 else:
                     out.add(e["target"])
@@ -775,12 +802,22 @@ class Engine:
         """True while anything Fedora Glass changed is still in place."""
         return bool(Backup(self.env).targets_with_changes())
 
+    def look_on(self) -> bool:
+        """True while the glass look is wanted: applied, and not taken away by Restore
+        original since. What the watcher and the upgrade step follow (is_applied alone
+        stays true when Restore had to leave something behind)."""
+        return self.is_applied() and not restored_path(self.env).exists()
+
     def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False) -> list[Result]:
-        """`if_applied`: only while the look is applied, checked once the lock is held (the
-        dark/light watcher can wait on a Restore or `dnf remove` and must not re-apply after)."""
+        """`if_applied`: only while the look is on (see look_on), checked once the lock is
+        held (the dark/light watcher can wait on a Restore or `dnf remove` and must not
+        re-apply after). Without it, this is the user's own Apply, which turns the look on."""
         with self._locked():
-            if if_applied and not self.is_applied():
+            if if_applied and not self.look_on():
                 return []
+            if not if_applied and not self.env.dry_run:
+                with contextlib.suppress(FileNotFoundError):
+                    restored_path(self.env).unlink()
             return self._apply(settings, only)
 
     def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
@@ -879,6 +916,9 @@ class Engine:
                     unpark_arcmenu(self.env)
             if not self.env.dry_run:
                 _write_pending(set() if target is None else read_pending() - {target})
+                if target is None:
+                    with contextlib.suppress(OSError):
+                        atomic_write(restored_path(self.env), b"", 0o600)
             if target is None and not problems and not self.env.dry_run:
                 for name in ("tokens.json", "tokens-dark.json", "tokens-light.json"):
                     with contextlib.suppress(OSError):
@@ -892,7 +932,7 @@ class Engine:
         errs: list[str] = []
         for a in actions:
             if isinstance(a, WriteFile):
-                backup.record_file(tid, a.path)
+                backup.record_file(tid, a.path, generated=not a.edits)
                 if not self.env.dry_run:
                     data = a.content.encode() if isinstance(a.content, str) else a.content
                     atomic_write(a.path, data, _kept_mode(a.path, a.mode))
