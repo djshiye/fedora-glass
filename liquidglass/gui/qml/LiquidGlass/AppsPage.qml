@@ -78,7 +78,7 @@ Item {
                     required property var modelData
                     width: groups.width
                     spacing: 8
-                    SectionTitle { text: group.modelData.group; leftPadding: 4 }
+                    SectionTitle { group: true; text: group.modelData.group; leftPadding: 4 }
                     Card {
                         width: parent.width
                         height: implicitHeight

@@ -40,8 +40,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--scheme", choices=("dark", "light"), help="force the app and preview style")
     shot.add_argument("--held", action="store_true", help="draw the frost knob as if it were being dragged")
     shot.add_argument("--fine-tune", action="store_true", help="open the Fine-tune section")
+    shot.add_argument("--section", choices=("colour", "glass", "windows", "motion", "desktop", "more"),
+                      help="scroll the Look page options to this section")
     shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
-    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave"), help="open a sheet")
+    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave", "welcome"), help="open a sheet")
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
     shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
     shot.add_argument("--preview-scene", choices=("desktop", "quicksettings", "calendar", "overview"),
@@ -145,6 +147,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.fine_tune:
         win.setProperty("fineTuneOpen", True)
     win.show()
+    # First launch: a short welcome. Screenshots ask for it with --sheet welcome.
+    if backend.firstRun and not args.screenshot:
+        win.setProperty("startSheet", "welcome")
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app.aboutToQuit.connect(backend.shutdown)
@@ -186,6 +191,11 @@ def main(argv: list[str] | None = None) -> int:
                 side = win.findChild(QObject, {1: "appsList", 2: "lockOptions"}.get(page, "options"))
                 if side is not None:
                     side.setProperty("contentY", args.scroll)
+            if args.section:
+                from PySide6.QtCore import QObject
+                lk = win.findChild(QObject, "lookPage")
+                if lk is not None:
+                    lk.setProperty("jumpSection", args.section)
             if args.lock_preview:
                 from PySide6.QtCore import QObject
                 lp = win.findChild(QObject, "lockPage")
@@ -197,6 +207,8 @@ def main(argv: list[str] | None = None) -> int:
                 backend.applyFinished.emit(_demo_results(backend))
             elif args.sheet == "restore":
                 win.setProperty("startSheet", "restore")
+            elif args.sheet == "welcome":
+                win.setProperty("startSheet", "welcome")
             elif args.sheet == "leave":
                 win.close()     # with unapplied changes (--change) this asks first
             if args.dropdown or args.tip:

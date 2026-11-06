@@ -40,3 +40,4 @@ SwitchRow 1.0 SwitchRow.qml
 TargetRow 1.0 TargetRow.qml
 singleton Theme 1.0 Theme.qml
 Toast 1.0 Toast.qml
+WelcomeSheet 1.0 WelcomeSheet.qml
