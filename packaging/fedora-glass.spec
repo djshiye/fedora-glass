@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.8
+Version:        1.5.9
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,15 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Sat Nov 07 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.9-1
+- After an upgrade, the glass no longer comes back by itself when an earlier Restore original kept one of your folders
+- Restore original puts back your theme's links in a kept gtk-4.0 folder, and never writes into your theme's own files
+- Choices you make yourself after Apply (gedit colours, terminal style, panel settings) stay put through Apply and dark/light switches
+- The dark/light switch only touches the parts that are applied
+- Safe mode no longer turns the glass off after a crash on waking from sleep; auto quality keeps trusting the last speed check after locking
+- The glass cleans up properly if it fails while starting; fully opaque window previews stay opaque
+- App: Undo refreshes the Apps page, no false "unapplied changes" prompt, Apply and close waits when a restart is needed, the welcome shows only once
+
 * Fri Nov 06 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.8-1
 - The app has a new look: a section bar on the Look page, clearer groups, and a short welcome on first start
 - The app asks before closing with changes you have not applied, has Undo changes, and Tab keeps the focused option in view
