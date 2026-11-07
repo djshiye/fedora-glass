@@ -34,9 +34,16 @@ Item {
         side.contentY = y
         side.revealing = false
         page.currentSection = id
+        // Scroll-spy stays out of the way until the slide has ended.
+        if (animated !== false) {
+            jumpTimer.restart()
+        } else {
+            jumpTimer.stop()
+        }
     }
+    Timer { id: jumpTimer; interval: Theme.slow + 40 }
     function followScroll() {
-        if (side.revealing || revealTimer.running || side.contentYAnimating)
+        if (side.revealing || revealTimer.running || jumpTimer.running)
             return
         // At the very bottom the last section wins, even when it is short.
         if (side.contentY + side.height >= side.contentHeight - 2) {
@@ -288,7 +295,6 @@ Item {
             NumberAnimation { id: scrollAnim; duration: Theme.slow; easing.type: Easing.OutCubic }
         }
         property bool revealing: false
-        readonly property bool contentYAnimating: scrollAnim.running
         onContentYChanged: page.followScroll()
         onContentHeightChanged: page.followScroll()
 

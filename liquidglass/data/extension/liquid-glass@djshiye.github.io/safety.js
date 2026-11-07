@@ -91,17 +91,16 @@ export class Safety {
         } else if (req) {
             this._resetId = req;
         }
-        this._running = !this.tripped;
+        // Not running until the glass starts (glassStarted): a session spent on the
+        // lock screen draws no glass, so its end is not a crash of the glass. GNOME
+        // turns extensions off and on while locked, and the minute to stable does not
+        // count while the PC sleeps: lock, sleep and two Shell crashes on waking read
+        // as a crash loop (1.5.8).
+        this._running = false;
         this._stable = false;
+        this._stableId = 0;
         this._write();
         current = this;
-        this._stableId = this._running ? GLib.timeout_add_seconds(GLib.PRIORITY_LOW, STABLE_S, () => {
-            this._stableId = 0;
-            this._stable = true;
-            this._restarts = 0;
-            this._write();
-            return GLib.SOURCE_REMOVE;
-        }) : 0;
         try {
             this._monitor = this._configDir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
             this._monitorId = this._monitor.connect('changed', (_m, file, other) => {
@@ -118,6 +117,33 @@ export class Safety {
         } catch {
             this._shutdownId = 0;
         }
+    }
+
+    /** The glass started drawing (outside the lock screen): a stop within STABLE_S is a crash. */
+    glassStarted() {
+        if (this.tripped || this._running)
+            return;
+        this._running = true;
+        this._stable = false;
+        this._write();
+        this._stableId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, STABLE_S, () => {
+            this._stableId = 0;
+            this._stable = true;
+            this._restarts = 0;
+            this._write();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    /** The glass is off (the screen locks): the Shell stopping now is not a crash of the glass. */
+    glassStopped() {
+        if (this._stableId)
+            GLib.source_remove(this._stableId);
+        this._stableId = 0;
+        if (!this._running)
+            return;
+        this._running = false;
+        this._write();
     }
 
     _cleanStop() {

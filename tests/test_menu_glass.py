@@ -70,3 +70,12 @@ def test_arcmenu_rescue_ships_and_runs_only_in_the_session():
     assert "arcrescue.js" in glass.FILES
     ext = (glass.SOURCE / "extension.js").read_text()
     assert "new ArcMenuRescue()" in ext and "this._rescue?.destroy()" in ext
+
+
+@pytest.mark.skipif(NODE is None, reason="needs Node.js")
+def test_bug_analysis_158_fixes_hold():
+    r = subprocess.run(
+        [NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/bug-analysis-158.test.mjs"],
+        cwd=ROOT, capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
