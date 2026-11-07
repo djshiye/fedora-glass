@@ -12,8 +12,11 @@ Sheet {
 
     // A restart is only needed when this Apply switched the glass on, or a Shell part
     // waits for it. Themed apps alone (or the glass already running) need none.
-    readonly property bool needsRestart: !Backend.glassLive && results.some(r =>
-        (r.id === "glass" && r.status === "applied") || (r.status === "info" && r.message.indexOf("Finishes after you restart") === 0))
+    function restartNeeded(rs) {
+        return !Backend.glassLive && rs.some(r =>
+            (r.id === "glass" && r.status === "applied") || (r.status === "info" && r.message.indexOf("Finishes after you restart") === 0))
+    }
+    readonly property bool needsRestart: restartNeeded(results)
     title: failedCount > 0 ? "Applied, with " + failedCount + " problem" + (failedCount === 1 ? "" : "s")
          : results.length === 0 ? "Settings saved"
          : needsRestart ? "Applied. Restart your PC to finish"

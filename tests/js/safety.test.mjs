@@ -44,7 +44,12 @@ beforeEach(() => {
     console.warn = () => {};
 });
 const state = () => JSON.parse(globalThis.fake.fs.get(STATE).text);
-const make = () => new Safety(t => calls.push(t));
+// A start outside the lock screen: the glass starts drawing.
+const make = () => {
+    const s = new Safety(t => calls.push(t));
+    s.glassStarted();
+    return s;
+};
 const askReset = id => {
     globalThis.fake.fs.set(RESET, {text: JSON.stringify({id})});
     for (const [, m] of globalThis.fake.monitors)

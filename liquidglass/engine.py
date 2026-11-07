@@ -238,8 +238,14 @@ class Backup:
         ...), so whatever the theme provided keeps working. Files an earlier version wrote
         through the link are put back first, which repairs the theme folder."""
         key = str(folder)
-        if key in self.data["dirlinks"] or self.env.dry_run:
+        if self.env.dry_run:
             return
+        if key in self.data["dirlinks"]:
+            if not folder.is_symlink():
+                return
+            # Linked again since the last Apply (a theme installer, a dotfiles tool): the link
+            # it holds now is the one Restore puts back, and writes must not go through it.
+            del self.data["dirlinks"][key]
         new_dirs: set[str] = set()
         problems = []
         for k in [k for k in self.data["files"] if Path(k).is_relative_to(folder)]:
@@ -631,7 +637,13 @@ class Backup:
                 if yours:
                     # The user's own files are in it, so the folder stays. Its links to the
                     # theme stay too: without them GTK would lose the theme's gtk.css and
-                    # assets (1.5.7 took them away and kept only the user's files).
+                    # assets. 1.5.7 took them away and kept only the user's files, so the
+                    # ones missing are made again (never over a file of the user's).
+                    real = (p.parent / e["link"]).resolve()
+                    for name in sorted(made):
+                        q, src = p / name, real / name
+                        if not q.exists() and not q.is_symlink() and (src.exists() or src.is_symlink()):
+                            q.symlink_to(src)
                     owner = Path(e["link"]).parent.name or e["link"]
                     return (f"Kept your {p.name} folder because it has files you added "
                             f"({', '.join(yours[:3])}{', ...' if len(yours) > 3 else ''}). It still uses "
@@ -649,6 +661,14 @@ class Backup:
                         f"Your link to {owner} was not restored.")
             return f"Couldn't restore your {p.name} link to {owner}: {err.strerror or err}."
         return None
+
+    def only_folders_left(self) -> bool:
+        """Whether all that is left is folders kept for the user's own files. A full Restore
+        leaves just that, also from 1.5.7, which wrote no 'restored' mark: every file and
+        setting of ours went back, so the look is off. An Apply always leaves more."""
+        return bool(self.data["dirlinks"]) and not any(
+            self.data[k] for k in self.SECTIONS if k not in ("dirlinks", "lists")) and not any(
+            e.get("added") or e.get("removed") for e in self.data["lists"].values())
 
     def targets_with_changes(self) -> set[str]:
         out = set()
@@ -806,15 +826,25 @@ class Engine:
         """True while the glass look is wanted: applied, and not taken away by Restore
         original since. What the watcher and the upgrade step follow (is_applied alone
         stays true when Restore had to leave something behind)."""
-        return self.is_applied() and not restored_path(self.env).exists()
+        backup = Backup(self.env)
+        return bool(backup.targets_with_changes()) and not backup.only_folders_left() \
+            and not restored_path(self.env).exists()
 
-    def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False) -> list[Result]:
+    def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False,
+              applied_only: bool = False) -> list[Result]:
         """`if_applied`: only while the look is on (see look_on), checked once the lock is
         held (the dark/light watcher can wait on a Restore or `dnf remove` and must not
-        re-apply after). Without it, this is the user's own Apply, which turns the look on."""
+        re-apply after). Without it, this is the user's own Apply, which turns the look on.
+        `applied_only`: only the targets that are applied now (the watcher: a part the user
+        never applied, or restored on its own, stays as it is)."""
         with self._locked():
             if if_applied and not self.look_on():
                 return []
+            if applied_only:
+                have = Backup(self.env).targets_with_changes()
+                only = have if only is None else only & have
+                if not only:
+                    return []
             if not if_applied and not self.env.dry_run:
                 with contextlib.suppress(FileNotFoundError):
                     restored_path(self.env).unlink()
@@ -949,6 +979,9 @@ class Engine:
                     continue
                 if not backup.record_gsetting(tid, self.env, a):
                     continue
+                gkey = f"{a.schema}|{a.path or ''}|{a.key}"
+                if a.keep_user_change and backup.changed_since(self.env, gkey, backup.data["gsettings"][gkey]):
+                    continue    # the user picked their own value after ours: it stays, as on Restore
                 if self.env.gsettings_get(a.schema, a.key, a.path) == a.value:
                     # Already so: setting it again would still tell every listener (Dash to
                     # Panel rebuilds its panels for some keys) on each Apply and dark/light switch.
@@ -958,7 +991,7 @@ class Engine:
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
                 elif a.keep_user_change and not self.env.dry_run:
-                    backup.data["gsettings"][f"{a.schema}|{a.path or ''}|{a.key}"]["ours"] = a.value
+                    backup.data["gsettings"][gkey]["ours"] = a.value
             elif isinstance(a, GReset):
                 if (err := backup.reset_gsetting(tid, self.env, a)):
                     errs.append(err)

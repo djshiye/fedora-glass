@@ -132,6 +132,9 @@ export default class LiquidGlassExtension extends Extension {
             console.warn('Fedora Glass: safe mode is on, so the glass stays off. Turn it back on in the Fedora Glass app.');
             return;
         }
+        // From here on the Shell stopping soon after is a crash of the glass (safety.js),
+        // also one in the middle of starting it.
+        this._safety?.glassStarted();
         try {
             this._manager = new GlassManager(this._effective(cfg));
             this._animations = new Animations(cfg);
@@ -183,6 +186,7 @@ export default class LiquidGlassExtension extends Extension {
     _stopSession() {
         // Glass first, so GNOME's own window animations are back before the lock screen comes up.
         this._stopGlass();
+        this._safety?.glassStopped();
         this._rescue?.destroy();
         this._rescue = null;
         this._desktop?.destroy();

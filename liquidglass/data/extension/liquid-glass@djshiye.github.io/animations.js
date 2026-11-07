@@ -510,6 +510,8 @@ function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
 }
 
 // ---- windows ------------------------------------------------------------------------
+// The WindowAnimations whose handlers run in place of GNOME's, if any.
+let installed = null;
 
 class WindowAnimations {
     constructor(owner) {
@@ -533,6 +535,13 @@ class WindowAnimations {
     }
 
     _install() {
+        if (this._ids.length)
+            return;
+        // Only one set of ours at a time: another one left behind (a start that failed
+        // halfway) lets go first, so GNOME's handlers are never blocked twice and no
+        // window event is handled twice.
+        if (installed && installed !== this)
+            installed._uninstall();
         const missing = [...WM_METHODS.filter(n => typeof Main.wm?.[n] !== 'function'),
             ...WM_SETS.filter(n => typeof Main.wm?.[n]?.has !== 'function')];
         if (missing.length) {
@@ -555,6 +564,7 @@ class WindowAnimations {
         for (const id of found)
             GObject.signal_handler_block(wm, id);
         this._blocked = found;
+        installed = this;
         this._ids = [
             wm.connect('map', (shellwm, actor) => this._run('open', shellwm, actor)),
             wm.connect('minimize', (shellwm, actor) => this._run('minimize', shellwm, actor)),
@@ -582,6 +592,8 @@ class WindowAnimations {
             } catch {}
         }
         this._blocked = [];
+        if (installed === this)
+            installed = null;
     }
 
     // GNOME's own handling for this event, with or without its animation.
@@ -1192,16 +1204,27 @@ class PanelAnimations {
 export class Animations {
     constructor(cfg) {
         this.motion = cfg.animations;
-        this.windows = new WindowAnimations(this);
-        this.panel = new PanelAnimations(this);
-        this.glide = new HoverGlide();
-        this._settings = St.Settings.get();
-        // Reduce animation: everything lands where it is going, at once.
-        this._animId = this._settings.connect('notify::enable-animations', () => {
-            if (!animationsOn())
-                this.finishAll();
-        });
-        this.update(cfg);
+        this._animId = 0;
+        // A start that fails halfway gives GNOME its window handlers back at once.
+        try {
+            this.windows = new WindowAnimations(this);
+            this.panel = new PanelAnimations(this);
+            this.glide = new HoverGlide();
+            this._settings = St.Settings.get();
+            // Reduce animation: everything lands where it is going, at once.
+            this._animId = this._settings.connect('notify::enable-animations', () => {
+                if (!animationsOn())
+                    this.finishAll();
+            });
+            this.update(cfg);
+        } catch (e) {
+            try {
+                this.destroy();
+            } catch (e2) {
+                logError(e2, 'Fedora Glass: taking down animations that failed to start');
+            }
+            throw e;
+        }
     }
 
     update(cfg) {
@@ -1222,14 +1245,14 @@ export class Animations {
     destroy() {
         // GNOME's own window handlers come back first, whatever happens after.
         try {
-            this.windows.destroy();
+            this.windows?.destroy();
         } finally {
             try {
                 if (this._animId)
                     this._settings.disconnect(this._animId);
                 this._animId = 0;
-                this.panel.destroy();
-                this.glide.destroy();
+                this.panel?.destroy();
+                this.glide?.destroy();
             } finally {
                 for (const actor of [...running.keys()])
                     stop(actor, true);

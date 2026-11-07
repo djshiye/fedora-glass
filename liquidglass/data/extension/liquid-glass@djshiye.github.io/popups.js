@@ -85,11 +85,11 @@ export function seeThrough(style, alpha) {
     return style.replace(SOLID, (_m, r, g, b) => `rgba(${r},${g},${b},${a})`);
 }
 
-/** The alpha of a `background: rgba(...)` inline style, or null. */
+/** The alpha of a `background: rgba(...)` inline style (1 for opaque), or null. */
 export function tintOf(style) {
     const m = typeof style === 'string' && /rgba\([^)]*,\s*([\d.]+)\s*\)/.exec(style);
     const a = m ? Number(m[1]) : NaN;
-    return Number.isFinite(a) && a < 1 ? a : null;
+    return Number.isFinite(a) && a <= 1 ? a : null;
 }
 
 export class PreviewTint {
@@ -124,6 +124,9 @@ export class PreviewTint {
     _tint(actor) {
         const style = actor.get_style?.();
         const alpha = tintOf(this._box.get_style?.()) ?? 0.3;
+        // Preview opacity at 100% in Dash to Panel: opaque stays opaque.
+        if (alpha >= 1)
+            return;
         const glass = seeThrough(style, alpha);
         if (!style || glass === style)
             return;
@@ -205,7 +208,11 @@ export class Popups {
             this._follow(previews, previews, 'quicksettings');
             if (!this._tints.has(previews)) {
                 this._tints.set(previews, new PreviewTint(previews));
-                previews.connect('destroy', () => this._tints.delete(previews));
+                // Through our signals: Dash to Panel keeps this box, and destroy() lets go of it.
+                this._signals.on(previews, 'destroy', () => {
+                    this._tints.delete(previews);
+                    this._signals.forget(previews);
+                });
             }
             return;
         }

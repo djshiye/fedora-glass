@@ -49,10 +49,13 @@ export class Speed {
         setQuality(this._level);
 
         this._cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'liquid-glass']);
-        // The last check's result, for the status file. One from before a restart stays.
-        this._result = this._lastResult();
+        // The last finished check, kept apart from the last check (which may have
+        // stopped short: locked, busy, no glass) so that an aborted one never loses it.
+        // One from before a restart stays.
+        this._done = this._lastResult();
+        this._result = this._done;
         // A PC the check found smooth never drops to the lightest glass (tuning.js).
-        this._tuner.deepest = deepestFor(this._result);
+        this._tuner.deepest = deepestFor(this._done);
         this._configDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_config_dir(), 'liquid-glass']));
         // A request left over from before (the app asked, then the PC restarted) does not run.
         this._seenId = this._readRequest();
@@ -291,8 +294,10 @@ export class Speed {
         this._result = {id: c.id, state, error, refresh: Math.round((c.refresh ?? 0) * 10) / 10, phases,
             pick: state === 'done' ? pickLevel(phases) : ''};
         // Back to what the setting (or auto) had; auto no deeper than this check allows.
-        if (state === 'done')
-            this._tuner.limit(deepestFor(this._result), now());
+        if (state === 'done') {
+            this._done = this._result;
+            this._tuner.limit(deepestFor(this._done), now());
+        }
         this._setLevel(this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel());
         this._scheduleRetry();
         this._writeStatus();
@@ -305,7 +310,9 @@ export class Speed {
             if (info.get_file_type() !== Gio.FileType.REGULAR || info.get_size() > 16 * 1024)
                 return null;
             const [, bytes] = f.load_contents(null);
-            const c = JSON.parse(new TextDecoder().decode(bytes))?.check;
+            const status = JSON.parse(new TextDecoder().decode(bytes));
+            // 'lastDone'; an older status file has only 'check', which an aborted check replaced.
+            const c = status?.lastDone?.state === 'done' ? status.lastDone : status?.check;
             if (!c || c.state !== 'done' || typeof c.id !== 'string' || !ID.test(c.id) || !Array.isArray(c.phases))
                 return null;
             const phases = c.phases.slice(0, LEVELS.length).filter(x => x && LEVELS.includes(x.level)).map(x => ({
@@ -327,6 +334,7 @@ export class Speed {
             reason: reason ?? (this._quality === 'auto' ? this._tuner.reason : 'setting'),
             since: this._since,
             check: this._result,
+            lastDone: this._done,
         };
         try {
             GLib.mkdir_with_parents(this._cacheDir, 0o700);

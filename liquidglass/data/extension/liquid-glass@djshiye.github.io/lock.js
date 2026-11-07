@@ -205,12 +205,13 @@ export class LockGlass {
             for (const s of ['notify::opacity', 'notify::visible', 'notify::allocation', 'notify::scale-x',
                 'notify::translation-y', 'child-added', 'child-removed'])
                 this._dialogSignals.on(box, s, () => this._queue());
-            this._dialogSignals.on(dialog._stack, 'notify::allocation', () => this._queue());
         }
-        if (this.cfg.clockPosition !== 'gnome') {
-            // The clock's place follows its own size (widgets, a long message) and GNOME's
-            // notifications under it, with or without the card.
+        // The card follows the stack, and so does the clock's place (its own size:
+        // widgets, a long message). Connected once, for either or both.
+        if (this.cfg.card || this.cfg.clockPosition !== 'gnome')
             this._dialogSignals.on(dialog._stack, 'notify::allocation', () => this._queue());
+        if (this.cfg.clockPosition !== 'gnome') {
+            // ... and GNOME's notifications under it, with or without the card.
             const notes = dialog._notificationsBox;
             if (notes) {
                 for (const s of ['notify::allocation', 'notify::visible'])
