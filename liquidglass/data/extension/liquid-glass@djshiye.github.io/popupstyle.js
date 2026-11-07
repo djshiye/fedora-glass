@@ -15,12 +15,22 @@ import St from 'gi://St';
 
 const DIR = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'fedora-glass']);
 const FILE = Gio.File.new_for_path(GLib.build_filenamev([DIR, 'popups.css']));
+// Loading new rules restyles every widget on screen, twice (out with the old
+// sheet, in with the new): a few hundred ms on a full desktop, and the whole
+// screen stands still meanwhile. While a slider moves in the app (frost, corner
+// radius) the rules change several times a second, which froze the desktop for
+// most of the drag. So new rules wait until they have stopped changing for this
+// long: one short pause after the slider is let go, not one per step. What they
+// style (OSD, Alt+Tab) is not on screen while a slider is dragged.
+export const SETTLE_MS = 1500;
 
 export class PopupStyle {
     constructor(cfg) {
         this._css = '';
         this._theme = null;
         this._loading = false;
+        this._settleId = 0;
+        this._want = '';
         this._context = St.ThemeContext.get_for_stage(global.stage);
         // A theme reload (User Themes, light and dark) builds a new theme; GNOME copies
         // our sheet into it, but make sure it is there.
@@ -30,6 +40,33 @@ export class PopupStyle {
 
     update(cfg) {
         const css = cfg?.popupCss ?? '';
+        this._want = css;
+        if (css === this._css) {
+            this._cancelSettle();   // back to the rules already loaded
+            return;
+        }
+        // The first rules and turning them off take effect at once; new rules while
+        // some are loaded wait until they settle.
+        if (!this._css || !css) {
+            this._cancelSettle();
+            this._set(css);
+            return;
+        }
+        this._cancelSettle();
+        this._settleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SETTLE_MS, () => {
+            this._settleId = 0;
+            this._set(this._want);
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _cancelSettle() {
+        if (this._settleId)
+            GLib.source_remove(this._settleId);
+        this._settleId = 0;
+    }
+
+    _set(css) {
         if (css === this._css)
             return;
         this._unload();
@@ -84,6 +121,7 @@ export class PopupStyle {
     }
 
     destroy() {
+        this._cancelSettle();
         if (this._changedId)
             this._context.disconnect(this._changedId);
         this._changedId = 0;
