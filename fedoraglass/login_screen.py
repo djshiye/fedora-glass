@@ -126,8 +126,8 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
   background-color: transparent;
   background-gradient-direction: none; }}
 .login-dialog .login-dialog-prompt-layout {{
-  width: 21em;
-  min-width: 21em;
+  width: 23em;
+  min-width: 23em;
   padding: 0;
   background-color: transparent;
   border-width: 0;
@@ -162,6 +162,7 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
   border-top-color: rgba(255, 255, 255, {shine:.3f});
   border-radius: 999px;
   padding: 9px 14px;
+  min-width: 13em;
   color: #ffffff;
   caret-color: #ffffff;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.30); }}
