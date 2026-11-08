@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.10
+Version:        1.5.11
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -198,6 +198,10 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Sun Nov 08 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.11-1
+- Updates are signed with Dino's own key, and dnf checks every package and the repository index
+- The first signed update asks once to accept the key (fingerprint D49A 3081 6825 7FDB F9D5 AE14 BD1A C1C6 F56A 7252)
+
 * Sun Nov 08 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.10-1
 - Your desktop only changes when you press Apply; moving a slider changes the preview only
 - Apply keeps the glass on the login screen up to date (it asks for your password when the login screen changes)
