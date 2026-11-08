@@ -29,8 +29,9 @@ The first time a PC meets the key, `sudo dnf upgrade` shows its fingerprint and 
 `Is this ok [y/N]` (once for the index, once for the packages). Check that the fingerprint is the
 one below, then answer `y`.
 
-Signing key fingerprint: see `packaging/RPM-GPG-KEY-fedora-glass`
-(`gpg --show-keys packaging/RPM-GPG-KEY-fedora-glass`).
+Signing key: Dino Klisura (djshiye package signing), RSA 4096, fingerprint
+`D49A 3081 6825 7FDB F9D5 AE14 BD1A C1C6 F56A 7252` (dnf shows it as
+`D49A308168257FDBF9D5AE14BD1AC1C6F56A7252`, without spaces).
 
 ## One-time setup (Dino's PC)
 
