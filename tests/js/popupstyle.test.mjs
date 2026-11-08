@@ -37,10 +37,25 @@ class Context {
     }
 }
 
+class Timeouts {
+    constructor() { this.map = new Map(); this.next = 1; }
+    add(ms, fn) { this.map.set(this.next, {ms, fn}); return this.next++; }
+    remove(id) { this.map.delete(id); }
+    fireAll() {
+        const fired = [];
+        for (const [id, t] of [...this.map]) {
+            this.map.delete(id);
+            fired.push(t.ms);
+            t.fn();
+        }
+        return fired;
+    }
+}
+
 globalThis.global = {stage: {}};
-globalThis.fake = {fs: new Map(), themeContext: new Context(), Actor: class {}, Widget: class {}};
+globalThis.fake = {fs: new Map(), themeContext: new Context(), Actor: class {}, Widget: class {}, timeouts: new Timeouts()};
 const DIR = '../../liquidglass/data/extension/liquid-glass@djshiye.github.io';
-const {PopupStyle} = await import(`${DIR}/popupstyle.js`);
+const {PopupStyle, SETTLE_MS} = await import(`${DIR}/popupstyle.js`);
 const {cleanPopupCss, POPUP_CSS_MAX} = await import(`${DIR}/config.js`);
 const FILE = '/run/user/1000/fedora-glass/popups.css';
 const CSS = '#uiGroup .switcher-list { background-color: rgba(0,0,0,0.3); }\n';
@@ -58,6 +73,8 @@ test('loads the rules from a private runtime file and follows changes and theme 
 
     const css2 = CSS.replace('0.3', '0.4');
     p.update({popupCss: css2});
+    assert.deepEqual(ctx.theme.sheets.map(s => s.text), [CSS], 'new rules wait until they settle');
+    assert.deepEqual(globalThis.fake.timeouts.fireAll(), [SETTLE_MS]);
     assert.deepEqual(ctx.theme.sheets.map(s => s.text), [css2], 'new rules read again');
 
     p.update({popupCss: ''});
@@ -71,6 +88,44 @@ test('loads the rules from a private runtime file and follows changes and theme 
     assert.equal(ctx.handlers.size, 0);
     ctx.reload();   // a theme reload afterwards (Restore original) finds nothing missing
     assert.deepEqual(ctx.theme.sheets, []);
+});
+
+test('rules that change while a slider moves restyle the screen once, after they settle', () => {
+    const ctx = globalThis.fake.themeContext;
+    const fake = globalThis.fake;
+    const p = new PopupStyle({popupCss: CSS});
+    const loads0 = ctx.theme.loads;
+    let restyles = 0;
+    const id = ctx.connect('changed', () => restyles++);
+    // A frost drag: the app sends new rules every few hundred ms.
+    for (let i = 1; i <= 20; i++)
+        p.update({popupCss: CSS.replace('0.3', `0.3${i}`)});
+    assert.equal(restyles, 0, 'nothing restyled while the rules keep changing');
+    assert.equal(fake.timeouts.map.size, 1, 'one wait, started again by each change');
+    assert.deepEqual(fake.timeouts.fireAll(), [SETTLE_MS]);
+    assert.deepEqual(ctx.theme.sheets.map(s => s.text), [CSS.replace('0.3', '0.320')], 'the last rules win');
+    assert.equal(ctx.theme.loads, loads0 + 1);
+    assert.equal(restyles, 2, 'old sheet out, new sheet in: once');
+
+    // Back to the rules already loaded before the wait ran out: nothing to do.
+    p.update({popupCss: CSS});
+    p.update({popupCss: CSS.replace('0.3', '0.320')});
+    assert.equal(fake.timeouts.map.size, 0);
+    assert.equal(restyles, 2);
+
+    // Turning them off is at once, and drops a wait.
+    p.update({popupCss: CSS});
+    p.update({popupCss: ''});
+    assert.equal(fake.timeouts.map.size, 0);
+    assert.deepEqual(ctx.theme.sheets, []);
+
+    // Taken down during a wait: the wait goes too.
+    p.update({popupCss: CSS});
+    p.update({popupCss: CSS.replace('0.3', '0.5')});
+    p.destroy();
+    assert.equal(fake.timeouts.map.size, 0);
+    assert.deepEqual(ctx.theme.sheets, []);
+    ctx.disconnect(id);
 });
 
 test('config: only plain rules of a sane size get through', () => {
