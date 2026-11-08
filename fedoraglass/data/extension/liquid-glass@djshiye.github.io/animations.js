@@ -140,8 +140,12 @@ function animate(actor, ms, rawFns, onDone) {
     if (actor.meta_window) {
         const hold = new Clutter.PropertyTransition({property_name: 'z-position', duration: ms * 4 + WATCHDOG_MIN_MS,
             remove_on_complete: true});
-        hold.set_from(actor.z_position + 1e-7);
-        hold.set_to(actor.z_position + 1e-7);
+        // Clutter leaves a removed transition's value on the actor, so the window's own
+        // depth is put back when the hold goes (dropTransitions). A window left even a hair off
+        // depth 0 draws nothing in GNOME's screenshot window picker.
+        anim.z0 = actor.z_position;
+        hold.set_from(anim.z0 + 1e-7);
+        hold.set_to(anim.z0 + 1e-7);
         hold.connect('stopped', () => {
             if (running.get(actor) === anim && !anim.done)
                 finish(anim, false);
@@ -201,8 +205,7 @@ function finish(anim, finished) {
     try {
         if (!finished)
             anim.cut = Object.fromEntries(Object.keys(anim.fns).map(p => [p, actor[FIELD[p]]]));
-        for (const [name] of anim.transitions)
-            actor.remove_transition(name);
+        dropTransitions(anim);
         anim.timeline?.stop();
         // Land on the end state, then hand over.
         setAt(anim, 1);
@@ -249,12 +252,19 @@ function stop(actor, jump = true, replacing = false) {
     if (anim.watchdog)
         GLib.source_remove(anim.watchdog);
     anim.watchdog = 0;
-    for (const [name] of anim.transitions) {
-        try {
-            actor.remove_transition(name);
-        } catch {}
-    }
+    try {
+        dropTransitions(anim);
+    } catch {}
     anim.timeline?.stop();
+}
+
+/** Remove an animation's transitions and put back what the window's hold changed. */
+function dropTransitions(anim) {
+    const {actor} = anim;
+    for (const [name] of anim.transitions)
+        actor.remove_transition(name);
+    if (anim.z0 !== undefined)
+        actor.z_position = anim.z0;
 }
 
 /** Where the actor is drawn now, as scale and translation about pivot 0, 0. */
@@ -537,6 +547,12 @@ class WindowAnimations {
     _install() {
         if (this._ids.length)
             return;
+        // Fedora Glass up to 1.5.11 left each animated window a hair off depth 0, which
+        // blanks it in GNOME's screenshot window picker: put open windows back.
+        for (const a of global.get_window_actors()) {
+            if (a.z_position !== 0 && Math.abs(a.z_position) < 1e-3)
+                a.z_position = 0;
+        }
         // Only one set of ours at a time: another one left behind (a start that failed
         // halfway) lets go first, so GNOME's handlers are never blocked twice and no
         // window event is handled twice.
