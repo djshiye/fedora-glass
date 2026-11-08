@@ -1205,6 +1205,16 @@ LOGIN_PROMPT_GEO_JS = """const a = globalThis._lgqaLogin.get_first_child()._auth
  return {prompt: [x, y, w, h], monitor: [m.x, m.y, m.width, m.height]};"""
 
 
+# The password field must keep room for its "Password" hint even when GNOME squeezes it: an
+# empty slot GNOME keeps beside the field for web logins is the easiest squeeze to make here.
+LOGIN_FIELD_JS = """(async () => { const a = globalThis._lgqaLogin.get_first_child()._authPrompt, e = a._entry;
+ const well = a._webLoginPromptWell; if (well) well.visible = true;
+ await new Promise(r => imports.gi.GLib.timeout_add(0, 400, () => { r(); return false; }));
+ const [, hint] = e.get_hint_actor().get_preferred_width(-1);
+ const o = {squeezed: !!well, field: e.width, text: e.clutter_text.width, hint};
+ if (well) well.visible = false; return JSON.stringify(o); })()"""
+
+
 def login_prompt(ctx: Ctx, c: Check) -> None:
     """After a click on your name, the login screen shows GNOME's own password prompt. 1.5.6 drew one
     big flat box around the picture, the name and the field; now each is its own small piece of
@@ -1223,6 +1233,7 @@ def login_prompt(ctx: Ctx, c: Check) -> None:
         settle(1.5)
         geo = sh.json(LOGIN_PROMPT_GEO_JS)
         now = lgqa.load(sh.shot("login-prompt"))
+        field = json.loads(sh.eval(LOGIN_FIELD_JS))
     except lgqa.ShellError as e:
         c.add(False, f"GNOME's login password prompt could not be shown here: {str(e)[:160]}")
         return
@@ -1234,6 +1245,12 @@ def login_prompt(ctx: Ctx, c: Check) -> None:
     c.add(0 < w <= mw * 0.2 + 1, f"The login password prompt is {w:.0f} px wide on a {mw} px screen (at most a fifth)."
           if 0 < w <= mw * 0.2 + 1 else f"The login password prompt is {w:.0f} px wide on a {mw} px screen: too big "
           "(more than a fifth).", picture("login-prompt", now[int(my * k):int((my + mh) * k), int(mx * k):int((mx + mw) * k)]))
+    room = field["text"] / max(field["hint"], 1)
+    where = " with GNOME's web-login slot showing beside it" if field["squeezed"] else ""
+    c.add(room >= 2, f"The login password field leaves room for twice its \"Password\" hint{where} "
+          f"({field['text']:.0f} px for a {field['hint']:.0f} px hint)." if room >= 2 else
+          f"The login password field is too narrow{where}: {field['text']:.0f} px for a {field['hint']:.0f} px "
+          "\"Password\" hint, so on some PCs it shows as \"Pass...\".")
     # No box behind the prompt: just beside the picture, inside the prompt's area, the backdrop shows
     # as it does at the same height outside the prompt.
     def mean(px, py):
