@@ -16,6 +16,10 @@ max_changed_patch = 1600
 # Window glass with the window's own content hidden must keep at least this share of the
 # brightness of the wallpaper under it (1.3.0's black glass kept about 1 %).
 min_glass_vs_wallpaper = 0.55
+# Brightness of a panel's glass at 15 % and 70 % of its length, clear of icons (0-255, the median of
+# each strip): how far apart they may be. 1.5.11's sheen faded along the bar by about 5 end to end
+# (a visible step where the first screen's panel meets the second's); even glass is within about 1.
+max_panel_end_difference = 2.0
 
 [leftovers]
 # Pixels of a window's colour allowed outside where that window is now.

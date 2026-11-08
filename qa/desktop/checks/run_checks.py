@@ -275,6 +275,27 @@ def quick_settings_toggle_menu(ctx: Ctx, c: Check) -> None:
         settle(1)
 
 
+PANEL_BOXES_JS = """return global.dashToPanel.panels.map(p => { const b = p.panel ?? p;
+ const [x, y] = b.get_transformed_position(), [w, h] = b.get_transformed_size(); return [x, y, w, h]; });"""
+
+
+def panel_ends_even(ctx: Ctx, c: Check, now: np.ndarray) -> None:
+    """Each panel is lit the same at both ends. 1.5.11's sheen faded along the whole bar, so the
+    first screen's panel went dim at its right end, next to the bright start of the second's."""
+    lim, worst, ends = LIMITS["looks"], 0.0, []
+    for box in ctx.sh.json(PANEL_BOXES_JS):
+        x, y, w, h = ctx.px(box)
+        strip = lambda x0: float(np.median(lgqa.lum(lgqa.crop(now, (x0, y + h // 4, w // 12, h // 2)))))
+        # Clear of the taskbar icons on the left and the tray, clock and system menu on the right.
+        left, right = strip(x + w * 15 // 100), strip(x + w * 70 // 100)
+        ends.append(f"{left:.0f}/{right:.0f}")
+        worst = max(worst, abs(left - right))
+    ok = bool(ends) and worst <= lim["max_panel_end_difference"]
+    c.add(ok, f"Each panel is lit evenly end to end (left/right brightness {', '.join(ends)})." if ok else
+          f"A panel is lit unevenly: its ends differ by {worst:.1f} (left/right {', '.join(ends) or 'no panels'}, "
+          f"limit {lim['max_panel_end_difference']:.1f}).")
+
+
 def check_looks(ctx: Ctx) -> Check:
     c = Check("looks", "The glass looks right",
               "Compares the desktop, panel, menus and windows with reference pictures, at 125 % scaling. "
@@ -287,6 +308,7 @@ def check_looks(ctx: Ctx) -> Check:
     now = lgqa.load(sh.shot("looks-desktop"))
     mask = clock_mask(ctx, now.shape)
     against_reference(ctx, c, "desktop", "Desktop and panel", now, mask)
+    panel_ends_even(ctx, c, now)
 
     # ArcMenu
     sh.eval(f"{ARC}.menuButton.toggleMenu(); 1")
