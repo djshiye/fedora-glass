@@ -25,11 +25,40 @@ const SETTLE_MS = 250;
 // (a Qt window can't say where its frame really is), so glass here would draw a second,
 // larger frame around the app.
 const OWN_APP = /^(io\.github\.djshiye\.LiquidGlass|fedora-glass|Fedora Glass)$/;
+// Frameless Qt apps that draw their own window: a rounded card inside a clear margin
+// for their own shadow (RGBeast, Wheelguard). Like Fedora Glass's own window, Mutter
+// counts that margin as part of the window, so glass on the window's rectangle drew a
+// second, larger frame around the card, plain to see over anything bright. Their glass
+// goes on the card itself: the window's rectangle less the margin, with the card's
+// corners. Maximized, they drop the margin and the corners.
+const CLIENT_CARDS = [
+    {app: /^(io\.github\.djshiye\.RGBeast|rgbeast|RGBeast)$/, margin: 14, radius: 15},
+    {app: /^(io\.github\.djshiye\.Wheelguard|wheelguard-settings|Wheelguard)$/, margin: 14, radius: 18},
+];
 const TERMINALS = /^(org\.gnome\.ptyxis|ptyxis|org\.gnome\.console|kgx|gnome-terminal-server|org\.gnome\.terminal)$/i;
 
 function appIds(w) {
     return [w.get_wm_class(), w.get_wm_class_instance(), w.get_gtk_application_id(), w.get_sandboxed_app_id()]
         .filter(id => typeof id === 'string' && id.length);
+}
+
+/** The card a frameless app draws inside its window ({margin, radius}), or null. */
+export function clientCard(ids) {
+    return CLIENT_CARDS.find(c => ids.some(id => c.app.test(id))) ?? null;
+}
+
+/**
+ * Where the window's glass goes: its frame, or for an app that draws its own card in a
+ * shadow margin, the card. {rect, radius}, radius null for the usual corners.
+ */
+export function glassFrame(frame, card, maximized) {
+    const {x, y, width, height} = frame;
+    if (!card || maximized)
+        return {rect: {x, y, width, height}, radius: null};
+    const m = card.margin;
+    if (width <= 2 * m + 2 || height <= 2 * m + 2)
+        return {rect: {x, y, width, height}, radius: null};
+    return {rect: {x: x + m, y: y + m, width: width - 2 * m, height: height - 2 * m}, radius: card.radius};
 }
 
 function isMaximized(w) {
@@ -192,7 +221,8 @@ class WindowGlass {
             return;
         }
         const w = this.win;
-        const frame = w.get_frame_rect();
+        const card = glassFrame(w.get_frame_rect(), clientCard(appIds(w)), isMaximized(w));
+        const frame = card.rect;
         const buf = w.get_buffer_rect();
         // Maximized and tiled windows have square corners and no rim on the sides
         // that meet the screen, the panel or the next tile; a floating window loses
@@ -204,7 +234,7 @@ class WindowGlass {
         const snapped = isMaximized(w) || (onWa[1] && onWa[3]) || (onWa[0] && onWa[2]);
         const scr = screenEdges(this.actor, frame.x, frame.y, frame.width, frame.height);
         const edges = snapped ? onWa.map((e, i) => e || scr[i]) : scr;
-        const r = snapped ? 0 : this.settings.radius;
+        const r = snapped ? 0 : card.radius ?? this.settings.radius;
         const p = pane.pad;
         const rp = rims[0].pad;
         const q = Math.max(p, rp);
