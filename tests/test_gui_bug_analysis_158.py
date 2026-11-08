@@ -21,8 +21,10 @@ def backend(app, home):
     env = FakeEnv(home=home)
     targets = [FakeTarget("alpha", "Desktop", path=home / "out/alpha.css"),
                FakeTarget("beta", "Apps", path=home / "out/beta.css")]
-    return Backend(env=env, engine_factory=lambda: FakeEngine(env, targets),
-                   settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
+    b = Backend(env=env, engine_factory=lambda: FakeEngine(env, targets),
+                settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
+    yield b
+    b.waitIdle()      # never free it with a background check still running
 
 
 def test_discard_emits_targets_changed(backend):
