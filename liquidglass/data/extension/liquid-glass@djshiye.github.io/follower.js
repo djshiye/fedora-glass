@@ -14,8 +14,16 @@ import {HOLD_MAX_MS, MOVES, radiiOf, screenEdges, sourcesFor, windowWatch, follo
  * radii and opacity of `target`, a descendant of `anchor`.
  */
 export class Follower {
-    constructor(target, anchor, settings, onGone) {
+    /**
+     * onlyBehind: show only windows that are really behind the surface, not those
+     * that merely come near its edge. A docked panel sits beside every maximized
+     * window on its screen: their colours, reflected into the glass at its edge, made
+     * the panel on a screen with a maximized window lighter and tinted, so the panels
+     * on two screens never matched.
+     */
+    constructor(target, anchor, settings, onGone, {onlyBehind = false} = {}) {
         this.target = target;
+        this._onlyBehind = onlyBehind;
         this.anchor = anchor;
         this.settings = settings;
         this.pane = new GlassPane('glass');
@@ -234,9 +242,10 @@ export class Follower {
         const [gx, gy, gw, gh] = room ?? [sx, sy, w, h];
         const [gok, glx, gly] = room ? parent.transform_stage_point(gx, gy) : [true, lx, ly];
         const still = !room || !gok;
+        const reach = this._onlyBehind ? 0 : p;
         pane.setSources(still
-            ? sourcesFor(this.settings.behind, sx - p, sy - p, w + 2 * p, h + 2 * p)
-            : sourcesFor(this.settings.behind, gx - p, gy - p, gw + 2 * p, gh + 2 * p));
+            ? sourcesFor(this.settings.behind, sx - reach, sy - reach, w + 2 * reach, h + 2 * reach)
+            : sourcesFor(this.settings.behind, gx - reach, gy - reach, gw + 2 * reach, gh + 2 * reach));
         // The light the content casts into the glass comes from the content itself.
         // Both panes are the anchor's siblings; never clone an actor into itself.
         const glow = glowSource(anchor, target);
