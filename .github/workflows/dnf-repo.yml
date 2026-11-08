@@ -1,6 +1,9 @@
-# Publishes a DNF repository on GitHub Pages with the released RPMs, so
-# `sudo dnf upgrade` picks up new versions. It runs after each successful
-# Release, or by hand from the Actions tab for a given release tag. Users add it
+# Publishes the DNF repository on GitHub Pages, so `sudo dnf upgrade` picks up new
+# versions. The packages and the repository metadata are signed on Dino's PC with
+# Dino's own OpenPGP key (packaging/fedora-glass-sign, see docs/SIGNING.md), which
+# uploads them to the release as dnf-repo.tar.gz and starts this workflow. This
+# workflow only checks every signature against packaging/RPM-GPG-KEY-fedora-glass on
+# main and publishes; it has no key and can't sign anything. Users add it
 # once with:
 #   sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
 # (the package carries fedora-glass.repo). Older Liquid Glass installs added
@@ -12,9 +15,8 @@
 name: DNF repository
 
 on:
-  workflow_run:
-    workflows: [Release]
-    types: [completed]
+  # Started by fedora-glass-sign on Dino's PC once it has signed a release, or by
+  # hand from the Actions tab.
   workflow_dispatch:
     inputs:
       tag:
@@ -33,15 +35,8 @@ env:
 
 jobs:
   publish:
-    # Only in this repository (never a fork), and only after a Release from a
-    # v* tag push or a hand-started Release on main, or when run by hand on main.
-    if: >-
-      github.repository == 'djshiye/fedora-glass' && (
-        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-        (github.event_name == 'workflow_run' &&
-         github.event.workflow_run.conclusion == 'success' &&
-         github.event.workflow_run.head_repository.full_name == github.repository &&
-         (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')))
+    # Only in this repository (never a fork), and only when run on main.
+    if: github.repository == 'djshiye/fedora-glass' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     permissions:
@@ -53,7 +48,7 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - name: Tools
-        run: dnf install -y --setopt=install_weak_deps=False createrepo_c rpm git-core curl
+        run: dnf install -y --setopt=install_weak_deps=False rpm gnupg2 tar gzip git-core curl
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -62,58 +57,47 @@ jobs:
 
       - name: Which release
         env:
-          # Hand-started: the tag typed in. After a Release: the commit it built.
           INPUT_TAG: ${{ github.event.inputs.tag }}
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           git config --global --add safe.directory "$PWD"
-          if [ -n "$INPUT_TAG" ]; then
-            tag="$INPUT_TAG"
-          else
-            ver="$(git show "$RELEASE_SHA:packaging/fedora-glass.spec" | sed -n 's/^Version:[[:space:]]*//p' | head -1)"
-            tag="v$ver"
-            test "$(git rev-parse "$tag^{commit}")" = "$RELEASE_SHA" || { echo "$tag is not $RELEASE_SHA"; exit 1; }
-          fi
+          tag="$INPUT_TAG"
           case "$tag" in v[0-9]*) ;; *) echo "not a release tag: $tag"; exit 1 ;; esac
           # A real release: the tag exists here and is on main.
           git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "no tag $tag"; exit 1; }
           git merge-base --is-ancestor "$tag" origin/main || { echo "$tag is not on main"; exit 1; }
           echo "TAG=$tag" >> "$GITHUB_ENV"
 
-      - name: Download the RPMs, checked against each release's SHA256SUMS
+      - name: Get the signed repository and check every signature
         run: |
-          # This release and the two releases before it that are on main.
-          tags="$(git tag --merged origin/main --list 'v[0-9]*' --sort=-v:refname \
-                  | awk -v t="$TAG" 'f || $0 == t { f = 1; print }' | head -3)"
-          echo "$tags" | head -1 | grep -qx "$TAG" || { echo "$TAG not found among tags"; exit 1; }
-          mkdir -p site/rpms
-          for tag in $tags; do
-            d="dl/$tag"; mkdir -p "$d"
-            base="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag"
-            if ! curl -fsSLo "$d/SHA256SUMS" "$base/SHA256SUMS"; then
-              [ "$tag" = "$TAG" ] && { echo "release $TAG has no SHA256SUMS"; exit 1; }
-              echo "skipping $tag: no release files"; continue
-            fi
-            # From 1.5.0: fedora-glass, plus liquid-glass that moves old installs over.
-            # Before: only liquid-glass.
-            names=""
-            for n in fedora-glass liquid-glass; do
-              grep -q " $n.noarch.rpm\$" "$d/SHA256SUMS" && names="$names $n"
-            done
-            [ -n "$names" ] || { [ "$tag" = "$TAG" ] && { echo "release $TAG has no RPM"; exit 1; }; echo "skipping $tag: no RPM"; continue; }
-            if [ "$tag" = "$TAG" ]; then
-              case "$names" in *fedora-glass*) ;; *) echo "release $TAG has no fedora-glass RPM"; exit 1 ;; esac
-            fi
-            for n in $names; do
-              curl -fsSLo "$d/$n.noarch.rpm" "$base/$n.noarch.rpm"
-              (cd "$d" && grep " $n.noarch.rpm\$" SHA256SUMS | sha256sum -c -)
-              test "$(rpm -qp --qf '%{name} v%{version}' "$d/$n.noarch.rpm")" = "$n $tag"
-              nvr="$(rpm -qp --qf '%{name}-%{version}-%{release}' "$d/$n.noarch.rpm")"
-              cp "$d/$n.noarch.rpm" "site/rpms/$nvr.noarch.rpm"
-            done
-            [ "$tag" = "$TAG" ] && echo "EVR=$(rpm -qp --qf '%{evr}' "$d/fedora-glass.noarch.rpm")" >> "$GITHUB_ENV"
+          # Signed on Dino's PC (packaging/fedora-glass-sign) and uploaded to the release
+          # as dnf-repo.tar.gz. Nothing is published unless every package and the
+          # repository metadata are signed by the key in packaging/RPM-GPG-KEY-fedora-glass
+          # on main. The private key is never on GitHub.
+          key=packaging/RPM-GPG-KEY-fedora-glass
+          test -s "$key" || { echo "no $key on main"; exit 1; }
+          curl -fsSLo bundle.tar.gz "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dnf-repo.tar.gz" \
+            || { echo "release $TAG has no dnf-repo.tar.gz yet: run fedora-glass-sign $TAG on Dino's PC"; exit 1; }
+          # Only plain files and folders under rpms/, with plain names.
+          tar -tvzf bundle.tar.gz > list.txt
+          awk '{ print substr($1, 1, 1) }' list.txt | grep -qv '^[-d]$' && { echo "refusing: links or devices in the bundle"; exit 1; }
+          tar -tzf bundle.tar.gz | grep -Evx 'rpms/?|rpms/repodata/?|rpms/[A-Za-z0-9._+~^-]+\.rpm|rpms/repodata/[A-Za-z0-9._-]+' \
+            && { echo "refusing: unexpected paths in the bundle"; exit 1; }
+          mkdir -p site
+          tar -xzf bundle.tar.gz -C site --no-same-owner --no-same-permissions
+          # Repository metadata: signed by the key on main.
+          gpg --batch --dearmor < "$key" > key.gpg
+          gpgv --keyring ./key.gpg site/rpms/repodata/repomd.xml.asc site/rpms/repodata/repomd.xml
+          # Each package: signed by that key and nothing else trusted (a fresh rpm root).
+          mkdir -p vroot
+          rpmkeys --root "$PWD/vroot" --import "$key"
+          for p in site/rpms/*.rpm; do
+            rpmkeys --root "$PWD/vroot" --define '_pkgverify_level all' --checksig "$p"
+            case "$(rpm -qp --nosignature --qf '%{name}' "$p")" in fedora-glass|liquid-glass) ;; *) echo "refusing: $p"; exit 1 ;; esac
           done
-          ls site/rpms
+          main="$(ls site/rpms/fedora-glass-"${TAG#v}"-*.noarch.rpm 2>/dev/null | head -1)"
+          [ -n "$main" ] || { echo "the bundle has no fedora-glass ${TAG#v}"; exit 1; }
+          echo "EVR=$(rpm -qp --nosignature --qf '%{evr}' "$main")" >> "$GITHUB_ENV"
+          ls -l site/rpms
 
       - name: Never go back to an older version
         run: |
@@ -133,10 +117,9 @@ jobs:
             [ "$cmp" -ge 0 ] || { echo "refusing: $EVR is older than the served $served"; exit 1; }
           fi
 
-      - name: Build the repository
+      - name: Build the site
         run: |
-          createrepo_c site/rpms
-          cp packaging/fedora-glass.repo packaging/liquid-glass.repo site/
+          cp packaging/fedora-glass.repo packaging/liquid-glass.repo packaging/RPM-GPG-KEY-fedora-glass site/
           echo "$EVR" > site/version.txt
           printf '<!doctype html><meta charset="utf-8"><title>Fedora Glass DNF repository</title><pre>sudo dnf install https://github.com/%s/releases/latest/download/fedora-glass.noarch.rpm</pre><p>Serving %s.</p>\n' "$GITHUB_REPOSITORY" "$TAG" > site/index.html
 

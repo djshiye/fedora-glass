@@ -1,0 +1,163 @@
+#!/bin/bash
+# fedora-glass-sign: signs Fedora Glass releases with your own OpenPGP key, on your own
+# PC, and publishes them to the dnf repository. The private key never leaves this PC:
+# GitHub only ever sees signed packages and your public key.
+#
+#   fedora-glass-sign setup [KEY]     once: pick your key and save its public half
+#   fedora-glass-sign backup DIR      once: encrypted copy of your private key (USB stick)
+#   fedora-glass-sign [vX.Y.Z]        each release: sign it and publish it (default: latest)
+#
+# Needs: sudo dnf install rpm-sign createrepo_c gh   (and `gh auth login` once)
+set -euo pipefail
+umask 077
+
+REPO=djshiye/fedora-glass
+KEYFILE=RPM-GPG-KEY-fedora-glass
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/fedora-glass-signing"
+SITE=https://djshiye.github.io/fedora-glass
+
+say()  { printf '\033[1m%s\033[0m\n' "$*"; }
+die()  { printf '\033[1;31mStopped:\033[0m %s\n' "$*" >&2; exit 1; }
+need() { for t in "$@"; do command -v "$t" >/dev/null || die "$t is missing. Run: sudo dnf install rpm-sign createrepo_c gh"; done; }
+
+work=""
+cleanup() { if [ -n "$work" ] && [ -d "$work" ]; then rm -rf -- "$work"; fi; }
+trap cleanup EXIT
+newwork() { work="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/fedora-glass-sign.XXXXXX")"; }
+
+# Primary key fingerprints of usable signing keys in your keyring (not expired or revoked).
+signing_keys() {
+    gpg --batch --with-colons --list-secret-keys 2>/dev/null | awk -F: '
+        $1 == "sec" { ok = ($2 !~ /[erd]/ && $12 ~ /S/); want = 1; next }
+        $1 == "fpr" && want { if (ok) print $10; want = 0 }'
+}
+
+saved_key() {
+    [ -s "$CONF/key-fingerprint" ] || die "run 'fedora-glass-sign setup' first."
+    fpr="$(cat "$CONF/key-fingerprint")"
+    signing_keys | grep -qx "$fpr" || die "your signing key $fpr is not in this PC's keyring any more. If it is lost, see 'Lost key' in docs/SIGNING.md."
+}
+
+# Fingerprints (primary keys) in an armored public key file.
+key_fprs() {
+    gpg --batch --with-colons --import-options show-only --import "$1" 2>/dev/null \
+        | awk -F: '$1 == "pub" { want = 1; next } $1 == "fpr" && want { print $10; want = 0 }'
+}
+
+cmd_setup() {
+    need gpg
+    mapfile -t keys < <(signing_keys)
+    if [ $# -ge 1 ]; then
+        fpr="$(gpg --batch --with-colons --list-secret-keys "$1" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')"
+        [ -n "$fpr" ] && printf '%s\n' "${keys[@]}" | grep -qx "$fpr" || die "no usable signing key matches '$1'."
+    elif [ ${#keys[@]} -eq 1 ]; then
+        fpr="${keys[0]}"
+    elif [ ${#keys[@]} -eq 0 ]; then
+        die "no signing key found in your keyring (gpg --list-secret-keys shows none that can sign)."
+    else
+        say "You have more than one signing key. Run setup again with the one to use:"
+        for k in "${keys[@]}"; do
+            printf '  fedora-glass-sign setup %s   (%s)\n' "$k" \
+                "$(gpg --batch --with-colons --list-keys "$k" | awk -F: '$1 == "uid" { print $10; exit }')"
+        done
+        exit 1
+    fi
+    mkdir -p "$CONF"
+    say "Checking that the key can sign (gpg may ask for its passphrase)..."
+    echo fedora-glass | gpg --batch=no --quiet -u "$fpr" --detach-sign >/dev/null || die "signing a test text failed."
+    echo "$fpr" > "$CONF/key-fingerprint"
+    gpg --batch --armor --export-options export-minimal --export "$fpr" > "$CONF/$KEYFILE"
+    chmod 644 "$CONF/$KEYFILE"
+    say "Done. Your signing key:"
+    gpg --batch --list-keys --keyid-format long "$fpr" | sed -n '1,3p'
+    echo
+    echo "Public key (safe to share): $CONF/$KEYFILE"
+    echo "Next: make a backup with   fedora-glass-sign backup /run/media/${USER:-you}/<your USB stick>"
+}
+
+cmd_backup() {
+    [ $# -eq 1 ] || die "say where to put the backup, for example: fedora-glass-sign backup /run/media/${USER:-you}/USB"
+    need gpg
+    saved_key
+    dir="$1"
+    [ -d "$dir" ] && [ -w "$dir" ] || die "$dir is not a folder you can write to."
+    case "$(realpath "$dir")/" in
+        "$(realpath "$HOME")"/*) say "Note: $dir is inside your home folder. Copy the backup to a USB stick or your password manager too, so a reset can't take it." ;;
+    esac
+    out="$dir/fedora-glass-signing-key-backup.asc"
+    [ ! -e "$out" ] || die "$out already exists. Pick another folder or move the old one away first."
+    newwork
+    say "Exporting your private key (gpg may ask for the key's passphrase)..."
+    gpg --batch=no --armor --export-secret-keys "$fpr" > "$work/secret.asc"
+    [ -s "$work/secret.asc" ] || die "the export came out empty."
+    say "Now choose a NEW password for the backup file. Store it in your password manager."
+    gpg --batch=no --symmetric --armor --cipher-algo AES256 -o "$out" "$work/secret.asc"
+    shred -u "$work/secret.asc" 2>/dev/null || rm -f "$work/secret.asc"
+    chmod 600 "$out"
+    rev="${GNUPGHOME:-$HOME/.gnupg}/openpgp-revocs.d/$fpr.rev"
+    if [ -f "$rev" ]; then cp "$rev" "$dir/fedora-glass-signing-key-revoke.rev"; chmod 600 "$dir/fedora-glass-signing-key-revoke.rev"; fi
+    say "Backup written: $out"
+    echo "To restore it on a new PC:  gpg -d '$out' | gpg --import   then  fedora-glass-sign setup"
+}
+
+cmd_publish() {
+    need gpg rpmsign rpm createrepo_c gh sha256sum tar
+    saved_key
+    gh auth status >/dev/null 2>&1 || die "gh is not signed in. Run: gh auth login"
+    newwork
+
+    # The public key on main must be this key, or dnf would refuse what we sign.
+    gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/packaging/$KEYFILE?ref=main" > "$work/main.key" 2>/dev/null \
+        || die "main has no packaging/$KEYFILE yet. Send Claude your public key ($CONF/$KEYFILE) first."
+    key_fprs "$work/main.key" | grep -qx "$fpr" || die "the public key on main is not your key $fpr."
+
+    tag="${1:-$(gh release view --repo "$REPO" --json tagName -q .tagName)}"
+    case "$tag" in v[0-9]*) ;; *) die "not a release tag: $tag" ;; esac
+    # This release and the two before it, so `dnf downgrade` can roll back.
+    tags="$(gh release list --repo "$REPO" --exclude-drafts --exclude-pre-releases --limit 100 --json tagName -q '.[].tagName' \
+            | grep -E '^v[0-9]' | sort -rV | awk -v t="$tag" 'f || $0 == t { f = 1; print }' | head -3)"
+    [ "$(echo "$tags" | head -1)" = "$tag" ] || die "there is no release $tag."
+
+    mkdir -p "$work/site/rpms"
+    for t in $tags; do
+        d="$work/dl/$t"; mkdir -p "$d"
+        gh release download "$t" --repo "$REPO" -D "$d" -p SHA256SUMS 2>/dev/null || { [ "$t" = "$tag" ] && die "$t has no SHA256SUMS."; continue; }
+        for n in fedora-glass liquid-glass; do
+            grep -q " $n.noarch.rpm\$" "$d/SHA256SUMS" || continue
+            gh release download "$t" --repo "$REPO" -D "$d" -p "$n.noarch.rpm"
+            (cd "$d" && grep " $n.noarch.rpm\$" SHA256SUMS | sha256sum --quiet -c -) || die "$t $n.noarch.rpm does not match its SHA256SUMS."
+            [ "$(rpm -qp --nosignature --qf '%{name} v%{version}' "$d/$n.noarch.rpm")" = "$n $t" ] || die "$t $n.noarch.rpm is not $n $t."
+            cp "$d/$n.noarch.rpm" "$work/site/rpms/$(rpm -qp --nosignature --qf '%{name}-%{version}-%{release}' "$d/$n.noarch.rpm").noarch.rpm"
+        done
+    done
+    ls "$work"/site/rpms/fedora-glass-"${tag#v}"-*.noarch.rpm >/dev/null 2>&1 || die "$tag has no fedora-glass RPM."
+
+    say "Signing $(ls "$work/site/rpms" | wc -l) packages for $tag (gpg may ask for your passphrase)..."
+    rpmsign --define "_openpgp_sign_id $fpr" --define "_gpg_name $fpr" --addsign "$work"/site/rpms/*.rpm >/dev/null
+    # Check them the way dnf will: with only your public key trusted.
+    mkdir -p "$work/root"
+    rpmkeys --root "$work/root" --import "$work/main.key"
+    for p in "$work"/site/rpms/*.rpm; do
+        rpmkeys --root "$work/root" --define '_pkgverify_level all' --checksig "$p" >/dev/null || die "$(basename "$p") did not verify after signing."
+    done
+
+    createrepo_c --quiet "$work/site/rpms"
+    gpg --batch=no --quiet --yes -u "$fpr" --armor --detach-sign "$work/site/rpms/repodata/repomd.xml"
+    gpg --batch --dearmor < "$work/main.key" > "$work/main.gpg"
+    gpgv --keyring "$work/main.gpg" "$work/site/rpms/repodata/repomd.xml.asc" "$work/site/rpms/repodata/repomd.xml" 2>/dev/null \
+        || die "the repository signature did not verify."
+
+    tar -C "$work/site" --owner=0 --group=0 --numeric-owner -czf "$work/dnf-repo.tar.gz" rpms
+    say "Uploading the signed repository to release $tag..."
+    gh release upload "$tag" "$work/dnf-repo.tar.gz" --repo "$REPO" --clobber
+    gh workflow run dnf-repo.yml --repo "$REPO" --ref main -f tag="$tag"
+    say "Done. GitHub is publishing it now (about 2 minutes): https://github.com/$REPO/actions/workflows/dnf-repo.yml"
+    echo "Then: sudo dnf upgrade --refresh"
+}
+
+case "${1:-}" in
+    setup)  shift; cmd_setup "$@" ;;
+    backup) shift; cmd_backup "$@" ;;
+    -h|--help|help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) cmd_publish "$@" ;;
+esac

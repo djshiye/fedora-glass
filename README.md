@@ -20,8 +20,9 @@ sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/downloa
 3. Restart your PC once, so GNOME loads the glass.
 
 Updates come with the rest of your system through `sudo dnf upgrade`: the package adds its own dnf
-repository, built by this project's GitHub Actions from each release and served from GitHub Pages.
-The packages are not GPG-signed.
+repository, served from GitHub Pages. Every package and the repository index are signed with the
+maintainer's own OpenPGP key, and dnf checks them against the key that comes with the package
+([how the signing works](docs/SIGNING.md)). The first signed update asks you to accept the key once.
 
 ## Works with
 

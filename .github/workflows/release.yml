@@ -3,8 +3,9 @@
 # (v1.2.3) is pushed or when run by hand from the Actions tab (that run tags the
 # commit with the version in the spec).
 #
-# When it succeeds, the "DNF repository" workflow (dnf-repo.yml) publishes the RPM
-# to the DNF repository on GitHub Pages, so `sudo dnf upgrade` picks it up.
+# The release RPMs are not signed here: Dino signs them on their own PC with
+# `fedora-glass-sign` (docs/SIGNING.md), which then starts the "DNF repository"
+# workflow (dnf-repo.yml) that publishes them for `sudo dnf upgrade`.
 name: Release
 
 on:
