@@ -236,13 +236,9 @@ class Backend(QObject):
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
         self._lost: list[str] = []         # targets whose applied files something else replaced
-        # The glass extension follows its config file live, so once it runs the
-        # desktop can follow the sliders before Apply.
+        # Whether the glass extension is running. The desktop only changes on Apply:
+        # moving a slider changes the preview in this window, never the desktop.
         self._glass_live = False
-        self._live_timer = QTimer(self)
-        self._live_timer.setSingleShot(True)
-        self._live_timer.setInterval(120)
-        self._live_timer.timeout.connect(lambda: self._write_live_glass(self._s))
         # Safe mode: the extension turned the glass off after it kept failing.
         self._safe = self._read_safe_mode()
         self._safe_timer = QTimer(self)
@@ -386,36 +382,6 @@ class Backend(QObject):
     def _changed(self) -> None:
         self._rebuild_tokens()
         self.settingsChanged.emit()
-        if self._glass_live:
-            self._live_timer.start()
-
-    def _write_live_glass(self, s: Settings) -> None:
-        if not self._glass_live:
-            return
-        from ..engine import atomic_write
-        from ..render import glass as rg
-        s = s.normalized()
-        # Asked at most every few seconds: this runs on the window's own thread every
-        # 120 ms while a slider moves, and each ask starts a gsettings process.
-        now = time.monotonic()
-        if now - getattr(self, "_hc_at", -1e9) > 3.0:
-            try:
-                self._hc = bool(self._env.high_contrast())
-            except Exception:
-                self._hc = False
-            self._hc_at = now
-        hc = self._hc
-        if hc and not s.reduce_transparency:
-            # As Apply does (Engine.context): with High Contrast on the glass stays solid,
-            # also while a slider moves and when the app closes with changes unapplied.
-            s = replace(s, reduce_transparency=True)
-        dark = s.scheme == "dark" or (s.scheme == "auto" and self._system_dark)
-        t = palette.build(s, dark=dark, system_accent=self._system_accent)
-        try:
-            path = self._env.config / "liquid-glass/shell-glass.json"
-            atomic_write(path, rg.render_config(s, t).encode())
-        except OSError:
-            pass   # the desktop just keeps its last look; Apply reports real problems
 
     def _set(self, name: str, value: Any) -> None:
         if getattr(self._s, name) == value:
@@ -462,14 +428,10 @@ class Backend(QObject):
 
     @Slot()
     def shutdown(self) -> None:
-        # Unapplied changes shown live on the desktop go back to the saved look.
-        self._live_timer.stop()
         self._speed_poll.stop()
         self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
-        if self._glass_live and self._s != self._saved:
-            self._write_live_glass(self._saved)
         if self._monitor is not None:
             self._monitor.kill()
             self._monitor.waitForFinished(500)
@@ -1206,6 +1168,14 @@ class Backend(QObject):
                 self._set_header_note("pending")
             self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
                                       "message": r.message} for r in results])
+            # Apply brings the login screen along when its glass is on: new colours, or the
+            # rules of a newer Fedora Glass. It changes a system file, so this asks for the password.
+            self._login_state = self._read_login_state()
+            if self._login_stale(s):
+                self._run_login(["apply", *self.login_values(s)],
+                                "The login screen has your new look. You'll see it the next time you restart your PC.")
+            else:
+                self.loginGlassChanged.emit()
         self._run("apply", job, done)
 
     @Slot()
@@ -1217,7 +1187,6 @@ class Backend(QObject):
             self.busyChanged.emit()
             return
         # From here on the extension's config is the engine's to remove; stop writing it.
-        self._live_timer.stop()
         self._glass_live = False
         header_changed = _header_key(self._saved) != _header_key(Settings())
 
@@ -1321,10 +1290,26 @@ class Backend(QObject):
     def loginGlassNote(self) -> str:
         return self._login_note
 
-    def login_values(self) -> list[str]:
-        """The three values the helper takes: accent, tint and frost from the current look."""
-        s = self._s.normalized()
-        return [self._dark_t.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
+    def _login_stale(self, s: Settings | None = None) -> bool:
+        """Glass is on the login screen, but not the look Apply gives now: other colours,
+        or the rules of an older Fedora Glass (1.5.7 made the password prompt compact)."""
+        if self._login_state != "on":
+            return False
+        try:
+            return not login_screen.up_to_date(*self.login_values(s))
+        except Exception:  # noqa: BLE001 (a status read never stops the app)
+            return False
+
+    @Property(bool, notify=loginGlassChanged)
+    def loginGlassStale(self) -> bool:
+        return self._login_proc is None and self._login_stale(self._saved)
+
+    def login_values(self, s: Settings | None = None) -> list[str]:
+        """The three values the helper takes: accent, tint and frost from the current look
+        (or from s, such as the look just applied)."""
+        s = (self._s if s is None else s).normalized()
+        dark = self._dark_t if s == self._s.normalized() else palette.build(s, dark=True, system_accent=self._system_accent)
+        return [dark.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
 
     @Slot()
     def turnOnLoginGlass(self) -> None:
@@ -1424,7 +1409,6 @@ class Backend(QObject):
         if self._task is not None or self._removing or not self._remove_package:
             return
         self._set_removing(True)
-        self._live_timer.stop()
         self._glass_live = False
 
         def job(report):
