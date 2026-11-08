@@ -8,8 +8,8 @@ import re
 import pytest
 from pathlib import Path
 
-QML = Path(__file__).resolve().parents[1] / "liquidglass/gui/qml"
-LG = QML / "LiquidGlass"
+QML = Path(__file__).resolve().parents[1] / "fedoraglass/gui/qml"
+LG = QML / "FedoraGlass"
 
 
 def _src(name: str) -> str:

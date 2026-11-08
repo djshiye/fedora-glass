@@ -46,18 +46,19 @@ fi
 
 # ---- the app ------------------------------------------------------------------
 say "Installing Fedora Glass to $prefix"
-rm -rf "$prefix/liquidglass.new"
+rm -rf "$prefix/fedoraglass.new"
 mkdir -p "$prefix" "$bin"
-cp -r "$here/liquidglass" "$prefix/liquidglass.new"
-find "$prefix/liquidglass.new" -name '__pycache__' -prune -exec rm -rf {} +
-rm -rf "$prefix/liquidglass"
-mv "$prefix/liquidglass.new" "$prefix/liquidglass"
+cp -r "$here/fedoraglass" "$prefix/fedoraglass.new"
+find "$prefix/fedoraglass.new" -name '__pycache__' -prune -exec rm -rf {} +
+rm -rf "$prefix/fedoraglass"
+mv "$prefix/fedoraglass.new" "$prefix/fedoraglass"
+rm -rf "$prefix/liquidglass"      # the code folder's name up to 1.5.10
 
 cat > "$bin/fedora-glass" <<EOF
 #!/bin/sh
 # Fedora Glass launcher. -I keeps Python from importing anything from the
 # current folder or PYTHONPATH.
-exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "$prefix"); from liquidglass.__main__ import main; sys.exit(main())' "\$@"
+exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "$prefix"); from fedoraglass.__main__ import main; sys.exit(main())' "\$@"
 EOF
 chmod 755 "$bin/fedora-glass"
 # The old command name (Liquid Glass) keeps working.

@@ -9,11 +9,11 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import kvantum
-from liquidglass.settings import Settings
-from liquidglass.targets import qt
-from liquidglass.targets.base import Context, FlatpakOverride, WriteFile
+from fedoraglass import palette
+from fedoraglass.render import kvantum
+from fedoraglass.settings import Settings
+from fedoraglass.targets import qt
+from fedoraglass.targets.base import Context, FlatpakOverride, WriteFile
 
 SIDES = kvantum.SIDES
 CASES = [(f, d) for f in (0.0, 0.5, 1.0) for d in (True, False)]
@@ -212,13 +212,13 @@ def test_qt_title_bars_like_gnome_are_opt_in_and_fall_back_to_wayland(fake_env):
 
 
 def test_the_customizer_itself_stays_on_wayland():
-    src = (Path(__file__).resolve().parents[1] / "liquidglass/gui/app.py").read_text()
+    src = (Path(__file__).resolve().parents[1] / "fedoraglass/gui/app.py").read_text()
     assert 'os.environ.get("QT_QPA_PLATFORM") == "xcb;wayland"' in src
     assert 'os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"' in src
 
 
 def test_qt_title_bar_switch_names_the_x11_trade_off():
-    qml = (Path(__file__).resolve().parents[1] / "liquidglass/gui/qml/LiquidGlass/HeaderBarCard.qml").read_text()
+    qml = (Path(__file__).resolve().parents[1] / "fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml").read_text()
     tip = qml[qml.index('objectName: "qtGnomeTitlebars"'):]
     assert "other X11 apps can see what you type" in tip and "fractional scaling" in tip
     # Security council: the warning shows under the switch whenever it is on.

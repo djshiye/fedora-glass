@@ -39,12 +39,12 @@ def preview(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.gui import app as gui_app
+    from fedoraglass.gui import app as gui_app
     comp = QQmlComponent(qml)
     comp.setData(b"""
 import QtQuick
-import LiquidGlass
-import LiquidGlass.Core
+import FedoraGlass
+import FedoraGlass.Core
 PreviewDesktop {
     width: 960; height: 540
     t: Backend.tokens

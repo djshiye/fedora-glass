@@ -39,7 +39,7 @@ class Clock {
 const clock = new Clock();
 globalThis.fake = {timeouts: clock};
 const {GlassHold, HOLD_LIMIT_MS, CATCH_UP_STEP_MS} =
-    await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/holdstate.js');
+    await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/holdstate.js');
 
 const FRAME_MS = 60;   // software GL: a frame that renders glass is slow
 

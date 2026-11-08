@@ -31,7 +31,7 @@ jobs:
 
       - name: Find the last release (for the upgrade check)
         run: |
-          v=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' liquidglass/__init__.py)
+          v=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' fedoraglass/__init__.py)
           last=$(git tag -l 'v*' --sort=-v:refname --merged HEAD | grep -vx "v$v" | head -n 1 || true)
           if [ -z "$last" ]; then echo "No earlier release: no upgrade check."; exit 0; fi
           echo "Upgrade check from $last to $v."

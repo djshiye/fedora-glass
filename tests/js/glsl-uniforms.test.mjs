@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import {readFileSync, readdirSync} from 'node:fs';
 import {test} from 'node:test';
 
-import {Shader, ShaderBase, snippet, textureFrame, uniformNames, withShader} from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glsl.js';
+import {Shader, ShaderBase, snippet, textureFrame, uniformNames, withShader} from '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/glsl.js';
 
-const EXT = new URL('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/', import.meta.url);
+const EXT = new URL('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/', import.meta.url);
 const read = f => readFileSync(new URL(f, EXT), 'utf8');
 // The source without its // comments (shader text included).
 const code = f => read(f).replace(/\/\/[^\n]*/g, '');

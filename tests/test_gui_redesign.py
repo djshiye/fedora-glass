@@ -14,14 +14,14 @@ pytest.importorskip("PySide6.QtGui")
 pytest.importorskip("PySide6.QtQuick")
 from PySide6.QtQuick import QQuickWindow  # noqa: F401 - the window comes back as a QQuickWindow
 
-from liquidglass.engine import Engine
+from fedoraglass.engine import Engine
 
 SECTIONS = ["colour", "glass", "windows", "motion", "desktop", "more"]
 _keep: list = []
 
 
 def _backend_at(fake_env, settings: Path):
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.gui.backend import Backend
     return Backend(env=fake_env, engine_factory=lambda: Engine(fake_env, []),
                    settings_path=settings, ui_dark=True, start=False)
 
@@ -60,7 +60,7 @@ def _window(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.gui import app as gui_app
+    from fedoraglass.gui import app as gui_app
     comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
     win = comp.create()
     assert win is not None, comp.errorString()
@@ -170,7 +170,7 @@ def _probe_backend(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
     probe = QQmlComponent(qml)
-    probe.setData(b"import QtQuick\nimport LiquidGlass.Core\nQtObject { property var b: Backend }", QUrl())
+    probe.setData(b"import QtQuick\nimport FedoraGlass.Core\nQtObject { property var b: Backend }", QUrl())
     obj = probe.create()
     _keep.append((probe, obj))
     return obj.property("b")

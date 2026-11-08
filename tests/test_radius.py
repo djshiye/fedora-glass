@@ -1,4 +1,4 @@
-"""The one corner-radius scale (liquidglass/radius.py) and the places that must use it."""
+"""The one corner-radius scale (fedoraglass/radius.py) and the places that must use it."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import palette, radius
-from liquidglass.render import apps, glass, gtk3, gtk4, kvantum
-from liquidglass.render import shell as rs
-from liquidglass.settings import Settings
+from fedoraglass import palette, radius
+from fedoraglass.render import apps, glass, gtk3, gtk4, kvantum
+from fedoraglass.render import shell as rs
+from fedoraglass.settings import Settings
 
 DATA = Path(radius.__file__).resolve().parent / "data"
 TEMPLATES = {

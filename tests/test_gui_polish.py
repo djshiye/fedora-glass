@@ -19,7 +19,7 @@ def _backend(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
     probe = QQmlComponent(qml)
-    probe.setData(b"import QtQuick\nimport LiquidGlass.Core\nQtObject { property var b: Backend }", QUrl())
+    probe.setData(b"import QtQuick\nimport FedoraGlass.Core\nQtObject { property var b: Backend }", QUrl())
     return probe.create().property("b")
 
 
@@ -27,7 +27,7 @@ def _window(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.gui import app as gui_app
+    from fedoraglass.gui import app as gui_app
     comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
     win = comp.create()
     assert win is not None, comp.errorString()
@@ -160,9 +160,9 @@ def test_results_sheet_asks_for_a_restart_only_when_needed(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.engine import WAITING
-    from liquidglass.gui import app as gui_app
-    comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "LiquidGlass" / "ResultsSheet.qml")))
+    from fedoraglass.engine import WAITING
+    from fedoraglass.gui import app as gui_app
+    comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "FedoraGlass" / "ResultsSheet.qml")))
     sheet = comp.create()
     assert sheet is not None, comp.errorString()
     _keep.append(comp)
@@ -214,7 +214,7 @@ class _Rect:
     (None, (1280, 820)),
 ])
 def test_first_window_size_fits_the_screen(screen, want):
-    from liquidglass.gui.app import fit_size
+    from fedoraglass.gui.app import fit_size
     avail = None if screen is None else _Rect(*screen)
     w, h = fit_size(avail, 18)
     assert (w, h) == want

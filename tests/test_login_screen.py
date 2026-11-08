@@ -1,4 +1,4 @@
-"""Glass on the login screen (liquidglass/login_screen.py), the only part that runs as root.
+"""Glass on the login screen (fedoraglass/login_screen.py), the only part that runs as root.
 
 The apply/undo tests build a small theme file with the real GLib tools in a temporary
 folder that stands in for /usr/share/gnome-shell, so nothing outside it is touched.
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import login_screen as ls
+from fedoraglass import login_screen as ls
 
 TOOLS = shutil.which("gresource") and shutil.which("glib-compile-resources")
 needs_tools = pytest.mark.skipif(not TOOLS, reason="needs gresource and glib-compile-resources")
@@ -102,7 +102,7 @@ def test_needs_root_and_takes_no_paths(capsys):
 
 
 def test_runs_with_only_the_standard_library():
-    """pkexec runs it as root with python3 -I -S: no liquidglass, no site packages."""
+    """pkexec runs it as root with python3 -I -S: no fedoraglass, no site packages."""
     src = Path(ls.__file__).read_text()
     assert src.startswith("#!/usr/bin/python3 -IS\n")
     imports = {l.split()[1].split(".")[0] for l in src.splitlines() if l.startswith(("import ", "from "))}

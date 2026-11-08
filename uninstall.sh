@@ -16,9 +16,9 @@ if [[ -x "$bin/fedora-glass" ]]; then
   lg=("$bin/fedora-glass")
 elif [[ -x "$bin/liquid-glass" ]]; then
   lg=("$bin/liquid-glass")
-elif [[ -d "$here/liquidglass" ]]; then
+elif [[ -d "$here/fedoraglass" ]]; then
   # launcher gone: run the copy next to this script, so the backup is still restored
-  lg=(/usr/bin/python3 -I -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from liquidglass.__main__ import main; sys.exit(main())' "$here")
+  lg=(/usr/bin/python3 -I -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from fedoraglass.__main__ import main; sys.exit(main())' "$here")
 fi
 if ((${#lg[@]})); then
   echo "Restoring your original settings and files..."

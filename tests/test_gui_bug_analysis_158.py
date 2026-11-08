@@ -10,14 +10,14 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6.QtGui")
 
-from liquidglass import settings as settings_mod  # noqa: E402
+from fedoraglass import settings as settings_mod  # noqa: E402
 
 from test_gui_backend import _KEEP, FakeEnv, FakeEngine, FakeTarget, app, home  # noqa: E402,F401
 
 
 @pytest.fixture
 def backend(app, home):
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.gui.backend import Backend
     env = FakeEnv(home=home)
     targets = [FakeTarget("alpha", "Desktop", path=home / "out/alpha.css"),
                FakeTarget("beta", "Apps", path=home / "out/beta.css")]
@@ -68,7 +68,7 @@ def test_queued_apply_shows_busy(backend):
 
 
 def test_refresh_weather_updates(backend, monkeypatch):
-    from liquidglass.gui import backend as bmod
+    from fedoraglass.gui import backend as bmod
     states = iter(["no-app", "ready"])
     monkeypatch.setattr(bmod, "_weather_state", lambda env: next(states))
     assert backend.property("weatherState") == "no-app"

@@ -5,7 +5,7 @@ import queue
 import threading
 
 
-from liquidglass import __main__ as cli
+from fedoraglass import __main__ as cli
 
 
 class FakeProc:
@@ -126,5 +126,5 @@ def test_the_watcher_restarts_itself_when_dnf_installs_a_new_version(monkeypatch
 
 
 def test_the_version_on_disk_is_read_from_the_package():
-    from liquidglass import __version__
+    from fedoraglass import __version__
     assert cli.disk_version() == __version__

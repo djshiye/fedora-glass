@@ -69,14 +69,14 @@ package name, with the repository file for the new name, so the next
 
 %install
 install -d %{buildroot}%{_datadir}/fedora-glass
-cp -r liquidglass %{buildroot}%{_datadir}/fedora-glass/
+cp -r fedoraglass %{buildroot}%{_datadir}/fedora-glass/
 find %{buildroot}%{_datadir}/fedora-glass -name '__pycache__' -prune -exec rm -rf {} +
 
 # -I keeps Python from importing anything from the current folder or PYTHONPATH.
 install -d %{buildroot}%{_bindir}
 cat > %{buildroot}%{_bindir}/fedora-glass <<'LAUNCHER'
 #!/bin/sh
-exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from liquidglass.__main__ import main; sys.exit(main())' "$@"
+exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from fedoraglass.__main__ import main; sys.exit(main())' "$@"
 LAUNCHER
 chmod 755 %{buildroot}%{_bindir}/fedora-glass
 # The old command name keeps working (older copies of the Shell extension call it).
@@ -88,7 +88,7 @@ install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datad
 
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec
 # after your password. Standard library only, run with python3 -I -S.
-install -Dm755 liquidglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-glass-login-screen
+install -Dm755 fedoraglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-glass-login-screen
 install -Dm644 data/io.github.djshiye.LiquidGlass.policy %{buildroot}%{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 
 # dnf remove runs this first: Restore original for each person with a look applied, as them.

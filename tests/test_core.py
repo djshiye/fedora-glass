@@ -7,12 +7,12 @@ from pathlib import Path
 import pytest
 from dataclasses import dataclass
 
-import liquidglass
-from liquidglass import palette, settings
-from liquidglass.color import Color
-from liquidglass.engine import Engine
-from liquidglass.settings import Settings
-from liquidglass.targets.base import Command, Context, GSet, Target, WriteFile
+import fedoraglass
+from fedoraglass import palette, settings
+from fedoraglass.color import Color
+from fedoraglass.engine import Engine
+from fedoraglass.settings import Settings
+from fedoraglass.targets.base import Command, Context, GSet, Target, WriteFile
 
 
 @dataclass
@@ -203,7 +203,7 @@ def test_backups_of_same_named_files_never_collide(fake_env):
 
 
 def test_flatpak_override_is_undone_item_by_item(fake_env):
-    from liquidglass.targets.base import FlatpakOverride
+    from fedoraglass.targets.base import FlatpakOverride
 
     @dataclass
     class Fp(Target):
@@ -276,7 +276,7 @@ def test_revert_keeps_current_file_when_backup_copy_is_lost(fake_env):
 
 
 def test_untouched_list_is_not_recorded_as_a_change(fake_env):
-    from liquidglass.targets.base import ListEdit
+    from fedoraglass.targets.base import ListEdit
 
     @dataclass
     class Ext(Target):
@@ -290,7 +290,7 @@ def test_untouched_list_is_not_recorded_as_a_change(fake_env):
 
 
 def test_gui_subcommand_passes_its_options_through(monkeypatch):
-    from liquidglass import __main__ as cli
+    from fedoraglass import __main__ as cli
     seen = {}
     monkeypatch.setattr(cli, "cmd_gui", lambda a: seen.setdefault("args", a.qt_args) and 0)
     cli.main(["gui", "--screenshot", "out.png", "--page", "1"])
@@ -386,14 +386,14 @@ def test_version_is_the_same_everywhere():
     # The app, the RPM and the Shell extension must ship one version.
     root = Path(__file__).resolve().parent.parent
     spec = re.search(r"^Version:\s*(\S+)", (root / "packaging/fedora-glass.spec").read_text(), re.M).group(1)
-    meta = json.loads((root / "liquidglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
-    assert liquidglass.__version__ == spec == meta["version-name"]
+    meta = json.loads((root / "fedoraglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
+    assert fedoraglass.__version__ == spec == meta["version-name"]
 
 
 def test_one_damaged_value_costs_only_that_setting(tmp_path):
     """A bad value used to reset every setting to the defaults (and the next Apply saved them)."""
     import json
-    from liquidglass import settings as settings_mod
+    from fedoraglass import settings as settings_mod
     p = tmp_path / "settings.json"
     p.write_text(json.dumps({"frost": "lots", "radius": 9, "overview_off": True, "lock_dim": None,
                              "targets": {"terminal": False}}))
