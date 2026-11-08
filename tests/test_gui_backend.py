@@ -86,8 +86,9 @@ def make_backend(app, home):
         b = Backend(env=env, engine_factory=lambda: FakeEngine(env, targets),
                     settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=start)
         made.append(b)
+        _KEEP.append(b)
         return b
-    made = _KEEP
+    made = []
     yield make
     for b in made:
         b.waitIdle()
