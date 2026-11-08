@@ -92,6 +92,7 @@ const STUBS = {
     'resource/fileUtils.js': 'export const loadInterfaceXML = () => "";',
     'resource/overviewControls.js': 'export const ControlsState = {HIDDEN: 0, WINDOW_PICKER: 1, APP_GRID: 2};',
     'resource/boxpointer.js': 'export class BoxPointer extends globalThis.fake.Actor {}',
+    'resource/messageList.js': 'export const NotificationMessageGroup = globalThis.fake.NotificationMessageGroup ?? class {};',
     'glass': `export class GlassPane extends globalThis.fake.Actor {
         constructor(name) { super(); this.name = name; this.pad = 0; }
         setLook() { if (globalThis.fake.glassFails) throw new Error('forced test failure'); }

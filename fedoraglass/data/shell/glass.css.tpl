@@ -737,6 +737,15 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 .spawn-menu-popup .popup-menu-content {
   border-top-color: ${glass_rim};
   box-shadow: 0 2px 6px 0 ${shadow}; }
+/* Spawn also paints its menu colour on the box pointer behind each pop-up. That box is
+   bigger than the menu: it holds the 14 px shadow margin above the content (3 px at the
+   sides), where no glass is. Over anything bright it showed as a second, see-through frame
+   around the menu. The content paints the colour already; the box pointer paints none.
+   Loaded as an extension sheet, this block gets a #uiGroup in front of each selector (see
+   popupstyle.js), which outranks Spawn's own one-class .spawn-popup rule. */
+.spawn-popup, .spawn-context-menu {
+  -arrow-background-color: transparent;
+  -arrow-border-width: 0; }
 .spawn-context-menu .popup-menu-content {
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};

@@ -14,6 +14,7 @@ import {WindowAnimationHold} from './hold.js';
 import {Motion} from './motion.js';
 import {Panels} from './panels.js';
 import {Popups} from './popups.js';
+import {StackClip} from './stackclip.js';
 import {Wallpaper} from './wallpaper.js';
 import {Windows} from './windows.js';
 
@@ -55,7 +56,7 @@ export class GlassManager {
             wallpaper.current = new Wallpaper();
             motion.current = new Motion();
             this._motion = motion.current;   // reachable from Looking Glass, for testing
-            for (const Part of [Panels, Popups, Windows, OverviewBackdrop])
+            for (const Part of [Panels, Popups, StackClip, Windows, OverviewBackdrop])
                 this._parts.push(new Part(cfg));
             // While a window animates, the glass keeps its picture (see glass.js holdPanes).
             this._hold = new WindowAnimationHold();

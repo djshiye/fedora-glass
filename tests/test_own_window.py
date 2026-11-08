@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import configparser
+import shutil
+import subprocess
 import re
 from pathlib import Path
+
+import pytest
 
 from fedoraglass import APP_ID
 from fedoraglass.render import glass as rg
@@ -34,3 +38,14 @@ def test_own_app_pattern_matches_the_app_ids_the_shell_sees():
     # Other apps keep their glass.
     for other in ("org.gnome.Nautilus", "io.github.djshiye.LiquidGlassy", "fedora-glass-helper", "ptyxis"):
         assert not rx.match(other)
+
+
+NODE = shutil.which("node")
+
+
+@pytest.mark.skipif(NODE is None, reason="needs Node.js")
+def test_frameless_apps_get_glass_on_their_card_not_their_shadow_margin():
+    """RGBeast and Wheelguard: glass on the card inside their shadow margin (Node test)."""
+    r = subprocess.run([NODE, "--import", "./tests/js/register.mjs", "--test", "tests/js/client-card.test.mjs"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
