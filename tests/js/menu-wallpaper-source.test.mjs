@@ -43,3 +43,28 @@ test('before the copy exists, the glass still has a wallpaper', () => {
     C.wallpaper.current = null;
     assert.deepEqual(C.sourcesFor('wallpaper', 100, 100, 400, 300), [shellWallpaper]);
 });
+
+// A docked panel and a maximized window on its screen touch: the panel's glass reached
+// past its own edge (its padding) and took that window in, and the window's colours,
+// reflected into the glass at the edge, lit and tinted the whole panel. The panels on
+// two screens never matched whenever only one screen had a maximized window.
+test('a window that only touches the panel edge is not behind the panel', () => {
+    C.wallpaper.current = {actor: ourCopy};
+    const below = {
+        visible: true,
+        meta_window: {
+            get_monitor: () => 0, minimized: false, located_on_workspace: () => true,
+            get_buffer_rect: () => ({x: 0, y: 44, width: 1600, height: 856}),
+        },
+    };
+    const saved = globalThis.global.get_window_actors;
+    globalThis.global.get_window_actors = () => [below];
+    try {
+        // The panel's own rectangle (what Panels asks for): wallpaper only.
+        assert.deepEqual(C.sourcesFor('windows', 0, 0, 1600, 44), [ourCopy]);
+        // With the padding a menu uses, the window is in reach.
+        assert.deepEqual(C.sourcesFor('windows', -32, -32, 1664, 108), [ourCopy, below]);
+    } finally {
+        globalThis.global.get_window_actors = saved;
+    }
+});

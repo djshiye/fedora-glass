@@ -143,7 +143,7 @@ export class Panels {
         this._followers = [];
         for (const [target, anchor] of pairs) {
             this._followers.push(new Follower(target, anchor, this.cfg.parts.panel,
-                f => (this._followers = this._followers.filter(x => x !== f))));
+                f => (this._followers = this._followers.filter(x => x !== f)), {onlyBehind: true}));
         }
     }
 
