@@ -1581,11 +1581,58 @@ def _glass_surface(c: Check, ctx: Ctx, label: str, js: str, lim: dict, shot: str
           f"{lim['max_surface_alpha'] * 100:.0f} %), glass under it: {'yes' if s['glass'] else 'no'}.", img)
 
 
+PICKER_JS = """const ui = Main.screenshotUI; if (!ui._windowButton.checked) return null; const out = [];
+ for (const s of ui._windowSelectors) for (const w of s.windows()) { if (!w.mapped) continue;
+   const [x, y] = w.get_transformed_position(), [ww, wh] = w.get_transformed_size(); out.push([x, y, ww, wh]); }
+ return {wins: out, depth: global.get_window_actors().map(a => a.z_position)};"""
+
+
+def screenshot_window_picker(ctx: Ctx, c: Check) -> None:
+    """GNOME's screenshot tool (Print Screen), Window mode: each window shows as a picture of
+    itself. A window an animation left a hair off depth 0 shows as an empty box there (1.5.11)."""
+    sh, lim = ctx.sh, LIMITS["popups"]
+    lgqa.open_terminal()      # paints its whole area green, easy to find in the picture
+    term = sh.wait_window(r"ptyxis|terminal|dino@|bash")
+    sh.put(term["id"], 300, 200, 900, 560, focus=True)
+    settle(2.5)                # opened with Fedora Glass's own open animation
+    sh.eval("Main.screenshotUI.open(); 1")
+    try:
+        settle(1.5)
+        sh.eval("Main.screenshotUI._windowButton.checked = true; 1")
+        settle(1.5)
+        p = sh.json(PICKER_JS)
+        a = lgqa.load(sh.shot("popup-screenshot-picker"))
+    finally:
+        sh.eval("Main.screenshotUI.close(true); 1")
+    settle(1)
+    if not p or not p["wins"]:
+        c.add(False, "The screenshot tool's Window mode showed no windows to pick.")
+        return
+    best, box = 0.0, None
+    for b in p["wins"]:
+        x, y, w, h = ctx.px(b)
+        part = lgqa.crop(a, (x, y, w, h))
+        share = float(lgqa.green(part).mean()) if part.size else 0.0
+        if share >= best:
+            best, box = share, (x, y, w, h)
+    x, y, w, h = box
+    img = picture("popup-screenshot-picker", lgqa.crop(a, (x - 40, y - 40, w + 80, h + 80)), width=700)
+    off = [d for d in p["depth"] if d != 0]
+    ok = best >= lim["min_picker_fill"] and not off
+    c.add(ok, f"The screenshot tool's Window mode shows the terminal's picture ({best * 100:.0f} % of its box "
+          f"is the terminal's green)." if ok else
+          f"The screenshot tool's Window mode shows an empty box for the terminal ({best * 100:.0f} % of its box "
+          f"is the terminal's green, at least {lim['min_picker_fill'] * 100:.0f} % expected; "
+          f"{len(off)} window(s) left off depth 0).", img)
+    sh.close_all()
+    lgqa.kill_apps()
+
+
 def check_popups(ctx: Ctx) -> Check:
     c = Check("popups", "Pop-ups and title bars show the glass",
               "Shows the volume pop-up and Alt+Tab (with an app's window previews) under Dino's Just Perfection "
               "theme, which paints them near-black, the taskbar's window previews, the Run a Command dialog, "
-              "and opens gedit, whose title bar is made of several bars.")
+              "the screenshot tool's window pictures, and opens gedit, whose title bar is made of several bars.")
     sh, lim = ctx.sh, LIMITS["popups"]
     sh.close_all()
     lgqa.kill_apps()
@@ -1638,6 +1685,7 @@ def check_popups(ctx: Ctx) -> Check:
     settle(1)
     sh.close_all()
     lgqa.kill_apps()
+    screenshot_window_picker(ctx, c)
 
     # gedit's title bar: two header bars inside a title bar. Nothing may paint the
     # square corner outside the window's rounded corner.
