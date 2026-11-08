@@ -87,12 +87,15 @@ def make_backend(app, home):
                     settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=start)
         made.append(b)
         return b
-    made = []
+    made = _KEEP
     yield make
-    # A backend freed while its background check still runs takes that thread with it,
-    # and the thread's result then lands on a deleted object (a crash in a later test).
     for b in made:
         b.waitIdle()
+
+
+# Every backend stays alive for the whole run, as the app's one does. Freeing one in the
+# middle of the run (its Qt objects with it) crashed a later test at random.
+_KEEP: list = []
 
 
 
