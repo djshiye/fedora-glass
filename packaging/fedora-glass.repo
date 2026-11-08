@@ -4,9 +4,12 @@ baseurl=https://djshiye.github.io/fedora-glass/rpms/
 enabled=1
 # Only the fedora-glass package is ever taken from here, whatever else appears.
 includepkgs=fedora-glass
-# Published by this project's GitHub Actions from each tagged release, after
-# checking the RPMs against the release's SHA256SUMS. Served over HTTPS from
-# GitHub Pages. The packages are not GPG-signed.
-gpgcheck=0
+# The packages and the repository metadata are signed with Dino's own OpenPGP key,
+# on Dino's PC (docs/SIGNING.md). dnf refuses anything this key didn't sign. The key
+# comes with the package and is never fetched from the web, so nobody can swap it
+# through the website.
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 metadata_expire=1h
 skip_if_unavailable=True

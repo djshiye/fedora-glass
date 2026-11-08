@@ -119,6 +119,8 @@ PRESET
 
 # Where `dnf upgrade` finds new versions.
 install -Dm644 packaging/fedora-glass.repo %{buildroot}%{_sysconfdir}/yum.repos.d/fedora-glass.repo
+# The public key that the packages in that repository are signed with.
+install -Dm644 packaging/RPM-GPG-KEY-fedora-glass %{buildroot}%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %check
 # The same tests a GitHub release runs: a build that fails them never reaches dnf.
@@ -177,6 +179,7 @@ fi
 %{_libexecdir}/fedora-glass-undo-for-users
 %{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
+%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %files -n liquid-glass
 %license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
@@ -192,6 +195,7 @@ fi
 %{_libexecdir}/fedora-glass-undo-for-users
 %{_datadir}/polkit-1/actions/io.github.djshiye.LiquidGlass.policy
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
+%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
 * Sun Nov 08 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.10-1

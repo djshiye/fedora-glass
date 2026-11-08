@@ -6,7 +6,8 @@ enabled=1
 includepkgs=liquid-glass
 # Published by this project's GitHub Actions from each tagged release, after
 # checking the RPM against the release's SHA256SUMS. Served over HTTPS from
-# GitHub Pages. The packages are not GPG-signed.
+# GitHub Pages. Old Liquid Glass installs only: the fedora-glass.repo it brings
+# checks the signatures from then on.
 gpgcheck=0
 metadata_expire=1h
 skip_if_unavailable=True

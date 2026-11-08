@@ -124,7 +124,21 @@ def test_package_moves_old_installs_over():
     # The bridge package sorts after every older liquid-glass and before fedora-glass.
     assert "%package -n liquid-glass" in spec and "Release:        0%{?dist}" in spec
     repo = (Path(__file__).resolve().parents[1] / "packaging/fedora-glass.repo").read_text()
-    assert "includepkgs=fedora-glass\n" in repo and "gpgcheck=0" in repo
+    assert "includepkgs=fedora-glass\n" in repo
+    assert "gpgcheck=1\n" in repo and "repo_gpgcheck=1\n" in repo
+
+
+def test_repository_is_signed_with_a_key_from_the_package():
+    root = Path(__file__).resolve().parents[1]
+    repo = (root / "packaging/fedora-glass.repo").read_text()
+    # The key comes only from the installed package, never from the web.
+    keys = [l for l in repo.splitlines() if l.startswith("gpgkey=")]
+    assert keys == ["gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass"]
+    spec = (root / "packaging/fedora-glass.spec").read_text()
+    assert spec.count("%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass") == 3  # install + both packages
+    key = (root / "packaging/RPM-GPG-KEY-fedora-glass").read_text()
+    assert key.startswith("-----BEGIN PGP PUBLIC KEY BLOCK-----")
+    assert "PRIVATE KEY" not in key
 
 
 def test_extension_shows_the_new_name():
