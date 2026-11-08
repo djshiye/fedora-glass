@@ -443,8 +443,7 @@ def test_apply_brings_the_login_screen_glass_up_to_date(make_backend, app, monke
     b.setProperty("frost", 0.8)
     b.apply()
     assert b.waitIdle()
-    for _ in range(50):
-        app.processEvents()
+    assert b.waitIdle()                      # the target check Apply starts afterwards ends too
     if fresh:
         assert runs == []                    # nothing to change: no password asked
     else:
