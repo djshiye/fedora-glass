@@ -494,7 +494,7 @@ Item {
                             text: "Glass effects"
                             captionName: "glassStatus"
                             caption: Backend.glassLive
-                                     ? "Live: your desktop follows these as you change them."
+                                     ? "The preview shows these as you change them. Your desktop changes when you press Apply."
                                      : "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
                         }
                         LabeledSlider {

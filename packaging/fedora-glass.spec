@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.9
+Version:        1.5.10
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -194,6 +194,12 @@ fi
 %config(noreplace) %{_sysconfdir}/yum.repos.d/fedora-glass.repo
 
 %changelog
+* Sun Nov 08 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.10-1
+- Your desktop only changes when you press Apply; moving a slider changes the preview only
+- Apply keeps the glass on the login screen up to date (it asks for your password when the login screen changes)
+- Dragging a slider no longer makes the desktop stutter
+- The panels on two screens match: a maximized window no longer lights up its panel
+
 * Sat Nov 07 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.9-1
 - After an upgrade, the glass no longer comes back by itself when an earlier Restore original kept one of your folders
 - Restore original puts back your theme's links in a kept gtk-4.0 folder, and never writes into your theme's own files

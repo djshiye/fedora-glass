@@ -419,12 +419,13 @@ Window {
                     visible: !Backend.busy
                     width: 8; height: 8; radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Backend.dirty ? Theme.accent : Backend.lostNote !== "" ? Theme.warn : Backend.hasBackup ? Theme.good : Theme.textFaint
+                    color: Backend.dirty ? Theme.accent : Backend.lostNote !== "" || Backend.loginGlassStale ? Theme.warn : Backend.hasBackup ? Theme.good : Theme.textFaint
                 }
                 Text {
                     visible: !Backend.busy
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Backend.dirty ? "Unapplied changes" : Backend.lostNote !== "" ? "Needs re-apply" : Backend.hasBackup ? "Up to date" : "Not applied yet"
+                    text: Backend.dirty ? "Unapplied changes" : Backend.lostNote !== "" ? "Needs re-apply"
+                        : Backend.loginGlassStale ? "Login screen needs Apply" : Backend.hasBackup ? "Up to date" : "Not applied yet"
                     color: Theme.textDim
                     font.pixelSize: 13
                 }

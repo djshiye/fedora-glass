@@ -85,8 +85,18 @@ def make_backend(app, home):
         ]
         b = Backend(env=env, engine_factory=lambda: FakeEngine(env, targets),
                     settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=start)
+        made.append(b)
+        _KEEP.append(b)
         return b
-    return make
+    made = []
+    yield make
+    for b in made:
+        b.waitIdle()
+
+
+# Every backend stays alive for the whole run, as the app's one does. Freeing one in the
+# middle of the run (its Qt objects with it) crashed a later test at random.
+_KEEP: list = []
 
 
 
@@ -265,37 +275,20 @@ def test_apply_waits_for_the_startup_check_instead_of_being_dropped(make_backend
     assert settings_mod.load(home / "config/liquid-glass/settings.json").frost == pytest.approx(0.7)
 
 
-def test_live_glass_follows_sliders_and_falls_back_on_quit(make_backend, home):
-    import json
+def test_desktop_only_changes_on_apply(make_backend, home):
+    """Moving sliders, Undo and closing the app never touch the desktop; only Apply does."""
     b = make_backend()
     path = home / "config/liquid-glass/shell-glass.json"
-    b.setProperty("refraction", 0.9)
-    b._live_timer.stop()
-    assert not path.exists(), "nothing is written while the extension isn't running"
-    b._glass_live = True
-    b.setProperty("refraction", 0.0)
-    b._write_live_glass(b.settings())
-    assert json.loads(path.read_text())["look"]["bend"] == 0
-    b.shutdown()                           # unapplied: the desktop goes back to the saved look
-    assert json.loads(path.read_text())["look"]["bend"] > 0
-
-
-def test_live_glass_stays_solid_under_high_contrast(make_backend, home):
-    """Apply turns the glass off while High Contrast is on; moving a slider, or closing
-    the app with changes unapplied, must not bring it back (1.5.2 did)."""
-    import json
-    b = make_backend()
-    path = home / "config/liquid-glass/shell-glass.json"
-    b._env.high_contrast = lambda: True
-    b._glass_live = True
+    b._glass_live = True                   # the glass extension is running
+    for v in (0.0, 0.4, 0.9):
+        b.setProperty("refraction", v)
+    b.setProperty("lockBlur", 30)
+    assert not path.exists(), "a slider must not change the desktop before Apply"
+    b.discardChanges()
     b.setProperty("refraction", 0.2)
-    b._write_live_glass(b.settings())
-    cfg = json.loads(path.read_text())
-    assert cfg["panel"]["enabled"] is False and cfg["menus"]["enabled"] is False
-    b.shutdown()                           # unapplied: back to the saved look, still solid
-    cfg = json.loads(path.read_text())
-    assert cfg["panel"]["enabled"] is False and cfg["windows"]["enabled"] is False
-    assert b.settings().reduce_transparency is False, "the user's own setting is left as it is"
+    b.shutdown()
+    assert not path.exists(), "closing with changes unapplied must not touch the desktop"
+
 
 
 def test_part_overrides(make_backend):
@@ -443,6 +436,29 @@ def test_login_glass_gets_only_the_current_colours(make_backend):
     from liquidglass import login_screen as ls
     ls.check_values(accent, tint, float(frost))
     assert tint == b.settings().normalized().tint.lower()
+
+
+@pytest.mark.parametrize("fresh", [False, True])
+def test_apply_brings_the_login_screen_glass_up_to_date(make_backend, app, monkeypatch, fresh):
+    """Glass on the login screen kept its old look after Apply and after app updates (1.5.9)."""
+    from liquidglass import login_screen as ls
+    from liquidglass.gui.backend import Backend
+    monkeypatch.setattr(Backend, "_read_login_state", lambda self: "on")
+    seen = []
+    monkeypatch.setattr(ls, "up_to_date", lambda a, t, f: seen.append((a, t, f)) or fresh)
+    runs = []
+    monkeypatch.setattr(Backend, "_run_login", lambda self, args, done: runs.append(args))
+    b = make_backend()
+    assert b.property("loginGlassStale") is (not fresh)
+    b.setProperty("frost", 0.8)
+    b.apply()
+    assert b.waitIdle()
+    assert b.waitIdle()                      # the target check Apply starts afterwards ends too
+    if fresh:
+        assert runs == []                    # nothing to change: no password asked
+    else:
+        assert runs == [["apply", *b.login_values()]] and runs[0][3] == "0.800"
+    assert seen[-1][2] == "0.800", "checked against the look just applied"
 
 
 def test_undo_on_remove_saves_straight_away(make_backend, home):
