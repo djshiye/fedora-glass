@@ -16,7 +16,7 @@ EXT=$HOME/.local/share/gnome-shell/extensions; mkdir -p "$EXT" "$HOME/.themes" "
 cp -r /opt/lgqa/ext/. "$EXT"/
 cp -a /opt/lgqa/themes/Orchis-Dark "$HOME/.themes/"
 ln -sfn "$HOME/.themes/Orchis-Dark/gtk-4.0" "$HOME/.config/gtk-4.0"
-cp -r /src "$HOME/liquid-glass-src"      # the version under test (read-only mount)
+cp -r /src "$HOME/fedora-glass-src"      # the version under test (read-only mount)
 
 # GNOME settings
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark
@@ -80,16 +80,18 @@ PY
 # Dino's settings before Fedora Glass ever ran: Restore original must bring these back
 # (the restore check compares them).
 dconf dump / > "$OUT/dconf-before.ini"
-if [ -d /from/liquidglass ]; then
+# The last release's code folder: fedoraglass, or liquidglass up to 1.5.10.
+OLD_PKG=fedoraglass; [ -d /from/fedoraglass ] || OLD_PKG=liquidglass
+if [ -d "/from/$OLD_PKG" ]; then
     # The upgrade check: Dino's PC on the last release, then `dnf upgrade` and a restart.
     # The older version is applied and runs for one session; then the new app arrives
     # (nobody presses Apply) and the PC restarts twice: at the first login the new login
     # helper brings the look up to date, at the second GNOME Shell loads the new glass.
-    cp -r /from "$HOME/.liquid-glass-old"      # hidden, so Files shows the same home folder
-    (cd "$HOME/.liquid-glass-old" && python3 -m liquidglass apply) > "$OUT/apply-old.txt" 2>&1
+    cp -r /from "$HOME/.fedora-glass-old"      # hidden, so Files shows the same home folder
+    (cd "$HOME/.fedora-glass-old" && python3 -m "$OLD_PKG" apply) > "$OUT/apply-old.txt" 2>&1
     echo "apply exit $?" >> "$OUT/apply-old.txt"
     start_shell shell-old.log
-    (cd "$HOME/.liquid-glass-old" && exec python3 -m liquidglass watch) > "$OUT/watch-old.txt" 2>&1 &
+    (cd "$HOME/.fedora-glass-old" && exec python3 -m "$OLD_PKG" watch) > "$OUT/watch-old.txt" 2>&1 &
     WATCH_PID=$!
     for _ in $(seq 60); do [ -e "$HOME/.config/liquid-glass/pending-shell.json" ] || break; sleep 1; done
     sleep 5
@@ -103,7 +105,7 @@ if [ -d /from/liquidglass ]; then
     python3 -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); d["glass_quality"] = "full"; json.dump(d, open(p, "w"))' \
         "$HOME/.config/liquid-glass/settings.json"
     start_shell shell-upgrade.log
-    (cd "$HOME/liquid-glass-src" && exec python3 -m liquidglass watch) > "$OUT/watch-upgrade.txt" 2>&1 &
+    (cd "$HOME/fedora-glass-src" && exec python3 -m fedoraglass watch) > "$OUT/watch-upgrade.txt" 2>&1 &
     WATCH_PID=$!
     for _ in $(seq 90); do grep -q "updating the applied look" "$OUT/watch-upgrade.txt" 2>/dev/null && break; sleep 1; done
     sleep 20      # the update itself, and any Shell parts it leaves for the glass
@@ -115,7 +117,7 @@ if [ -d /from/liquidglass ]; then
         echo "apply exit 1 (the login helper did not bring the look up to date)" > "$OUT/apply.txt"
     fi
 else
-    (cd "$HOME/liquid-glass-src" && python3 -m liquidglass apply) > "$OUT/apply.txt" 2>&1
+    (cd "$HOME/fedora-glass-src" && python3 -m fedoraglass apply) > "$OUT/apply.txt" 2>&1
     echo "apply exit $?" >> "$OUT/apply.txt"
 fi
 
@@ -139,7 +141,7 @@ echo "$quick" > "$OUT/quick-restarts.txt"
 
 # The fresh login: GNOME Shell, then the Fedora Glass login helper (finishes held parts).
 start_shell
-(cd "$HOME/liquid-glass-src" && exec python3 -m liquidglass watch) > "$OUT/watch.txt" 2>&1 &
+(cd "$HOME/fedora-glass-src" && exec python3 -m fedoraglass watch) > "$OUT/watch.txt" 2>&1 &
 WATCH_PID=$!
 python3 /opt/lgqa/suite/checks/scale.py "${LGQA_SCALE:-1.25}" > "$OUT/scale.txt" 2>&1
 echo READY

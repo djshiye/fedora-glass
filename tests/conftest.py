@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from liquidglass.env import Env, RunResult  # noqa: E402
+from fedoraglass.env import Env, RunResult  # noqa: E402
 
 
 class FakeEnv(Env):
@@ -117,9 +117,9 @@ def qml(tmp_path_factory):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlEngine, qmlRegisterSingletonInstance
 
-    from liquidglass.engine import Engine
-    from liquidglass.gui import app as gui_app
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.engine import Engine
+    from fedoraglass.gui import app as gui_app
+    from fedoraglass.gui.backend import Backend
     QtGui.QGuiApplication.instance() or QtGui.QGuiApplication([])
     home = tmp_path_factory.mktemp("qml-home")
     mp = pytest.MonkeyPatch()
@@ -129,7 +129,7 @@ def qml(tmp_path_factory):
     b = Backend(env=env, engine_factory=lambda: Engine(env, []),
                 settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
     mp.undo()        # a session fixture: don't leave its home for the tests after it
-    qmlRegisterSingletonInstance(Backend, "LiquidGlass.Core", 1, 0, "Backend", b)
+    qmlRegisterSingletonInstance(Backend, "FedoraGlass.Core", 1, 0, "Backend", b)
     engine = QQmlEngine()
     engine.addImportPath(str(gui_app.QML_DIR))
     engine.rootContext().setContextProperty("appIconUrl", QUrl())

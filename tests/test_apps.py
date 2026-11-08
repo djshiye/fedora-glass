@@ -7,12 +7,12 @@ import zipfile
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import apps as ra
-from liquidglass.settings import Settings
-from liquidglass.targets import apps as ta
-from liquidglass.targets import myapps
-from liquidglass.targets.base import Command, Context, WriteFile
+from fedoraglass import palette
+from fedoraglass.render import apps as ra
+from fedoraglass.settings import Settings
+from fedoraglass.targets import apps as ta
+from fedoraglass.targets import myapps
+from fedoraglass.targets.base import Command, Context, WriteFile
 
 CASES = [(d, f) for d in (True, False) for f in (0.0, 1.0)]
 HEX = re.compile(r"#[0-9a-f]{6}(?:[0-9a-f]{2})?")

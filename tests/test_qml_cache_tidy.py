@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-from liquidglass.gui.app import tidy_qml_caches
+from fedoraglass.gui.app import tidy_qml_caches
 
 
 def test_old_qml_caches_go_and_everything_else_stays(tmp_path: Path):

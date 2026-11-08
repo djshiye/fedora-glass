@@ -17,10 +17,10 @@ import json
 import os
 from pathlib import Path
 
-from liquidglass import __main__ as cli
-from liquidglass.engine import Backup, Engine
-from liquidglass.settings import Settings
-from liquidglass.targets.base import Target, WriteFile
+from fedoraglass import __main__ as cli
+from fedoraglass.engine import Backup, Engine
+from fedoraglass.settings import Settings
+from fedoraglass.targets.base import Target, WriteFile
 from tests.test_linked_folders import gtk4, link_config, orchis
 
 
@@ -75,7 +75,7 @@ def test_dark_light_switch_after_restore_with_leftovers_stays_restored(fake_env)
 def test_upgrade_after_restore_with_leftovers_does_not_bring_the_look_back(fake_env, monkeypatch):
     d = _restore_with_a_kept_folder(fake_env)
     eng = Engine(fake_env, targets=[gtk4()])
-    from liquidglass import engine as engine_mod
+    from fedoraglass import engine as engine_mod
     engine_mod.atomic_write(engine_mod.applied_version_path(fake_env), b"1.0.0\n", 0o600)
     monkeypatch.setattr(cli.settings_mod, "load", lambda path=None: Settings())
     assert cli.update_after_upgrade(eng) is False
@@ -105,8 +105,8 @@ def test_dnf_remove_still_cleans_up_leftovers(fake_env):
 
 # ---- 3. the live preview is not "another app" ---------------------------------------------
 def test_live_preview_write_is_not_reported_as_replaced(fake_env):
-    from liquidglass.render import glass as rg
-    from liquidglass import palette
+    from fedoraglass.render import glass as rg
+    from fedoraglass import palette
     path = fake_env.config / "liquid-glass/shell-glass.json"
     s = Settings()
     Engine(fake_env, targets=[Writes(path, rg.render_config(s, palette.build(s, dark=True)), "glass")]).apply(s)

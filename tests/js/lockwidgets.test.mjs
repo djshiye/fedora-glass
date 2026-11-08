@@ -5,8 +5,8 @@ import {test} from 'node:test';
 
 globalThis.fake = {timeouts: {add: () => 1, remove() {}}, Actor: class {}};
 globalThis.global = {stage: {}};
-const W = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js');
-const C = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/config.js');
+const W = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js');
+const C = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/config.js');
 
 test('the greeting follows the time of day', () => {
     assert.equal(W.greetingFor(4), 'Good night');

@@ -4,11 +4,11 @@ import re
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import gtk3, gtk4
-from liquidglass.settings import Settings
-from liquidglass.targets import gtk as tg
-from liquidglass.targets.base import Context, FlatpakOverride, GSet, WriteFile
+from fedoraglass import palette
+from fedoraglass.render import gtk3, gtk4
+from fedoraglass.settings import Settings
+from fedoraglass.targets import gtk as tg
+from fedoraglass.targets.base import Context, FlatpakOverride, GSet, WriteFile
 
 CASES = [(d, f) for d in (True, False) for f in (0.0, 0.5, 1.0)]
 
@@ -276,7 +276,7 @@ def test_flatpak_absent(fake_env, monkeypatch):
 
 def test_engine_replaces_symlinked_gtk_css(fake_env):
     """A user's gtk.css is often a link into another theme: applying must not write through it."""
-    from liquidglass.engine import Engine
+    from fedoraglass.engine import Engine
     theme = fake_env.home / ".themes/Orchis-Dark/gtk-4.0"
     theme.mkdir(parents=True)
     (theme / "gtk.css").write_text("/* orchis */")

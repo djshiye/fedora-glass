@@ -8,10 +8,10 @@ import os
 import shutil
 from pathlib import Path
 
-from liquidglass import __main__ as cli
-from liquidglass.engine import Backup, Engine, applied_version_path, restored_path
-from liquidglass.settings import Settings
-from liquidglass.targets.base import GSet, Target, WriteFile
+from fedoraglass import __main__ as cli
+from fedoraglass.engine import Backup, Engine, applied_version_path, restored_path
+from fedoraglass.settings import Settings
+from fedoraglass.targets.base import GSet, Target, WriteFile
 from test_linked_folders import gtk4, link_config, orchis
 
 

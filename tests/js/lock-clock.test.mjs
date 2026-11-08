@@ -4,7 +4,7 @@ import {test} from 'node:test';
 
 globalThis.fake = {timeouts: {add: () => 1, remove() {}}, Actor: class {}};
 globalThis.global = {stage: {}};
-const L = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/common.js');
+const L = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/common.js');
 
 test('the middle clock is centred when nothing shows under it', () => {
     assert.equal(L.clockMiddle(900, 500, null), 200);

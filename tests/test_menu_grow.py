@@ -4,12 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from liquidglass import palette
-from liquidglass.render import glass as rg
-from liquidglass.settings import Settings
+from fedoraglass import palette
+from fedoraglass.render import glass as rg
+from fedoraglass.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
-EXT = ROOT / "liquidglass/data/extension/liquid-glass@djshiye.github.io"
+EXT = ROOT / "fedoraglass/data/extension/liquid-glass@djshiye.github.io"
 
 
 def test_menus_grow_by_default_and_the_setting_reaches_the_extension():
@@ -36,5 +36,5 @@ def test_a_menu_is_its_own_size_again_once_closed():
 
 
 def test_the_app_has_a_switch_for_it():
-    qml = (ROOT / "liquidglass/gui/qml/LiquidGlass/LookPage.qml").read_text()
+    qml = (ROOT / "fedoraglass/gui/qml/FedoraGlass/LookPage.qml").read_text()
     assert 'objectName: "menuGrow"' in qml and "Backend.menuGrow = on" in qml

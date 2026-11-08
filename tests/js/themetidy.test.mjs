@@ -52,7 +52,7 @@ const themeContext = {handlers: [], connect(_s, fn) { this.handlers.push(fn); re
 globalThis.global = {stage: {}};
 globalThis.fake = {Settings, signalTrackers: trackers, timeouts, extensionManager: manager, themeContext};
 globalThis.console = {...console, log: () => {}};
-const {UserThemesTidy, tidyTrackers} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/themetidy.js');
+const {UserThemesTidy, tidyTrackers} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/themetidy.js');
 
 test('each lock leaves one more listener in User Themes as GNOME ships it', () => {
     const tm = new ThemeManager();

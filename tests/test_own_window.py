@@ -6,8 +6,8 @@ import configparser
 import re
 from pathlib import Path
 
-from liquidglass import APP_ID
-from liquidglass.render import glass as rg
+from fedoraglass import APP_ID
+from fedoraglass.render import glass as rg
 
 ROOT = Path(__file__).resolve().parents[1]
 

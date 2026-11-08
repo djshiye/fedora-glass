@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from liquidglass import palette, settings as settings_mod
-from liquidglass.render import headerbar
-from liquidglass.settings import Settings
-from liquidglass.targets import gtk as tg
-from liquidglass.targets import terminal as tt
-from liquidglass.targets.base import Context, WriteFile
+from fedoraglass import palette, settings as settings_mod
+from fedoraglass.render import headerbar
+from fedoraglass.settings import Settings
+from fedoraglass.targets import gtk as tg
+from fedoraglass.targets import terminal as tt
+from fedoraglass.targets.base import Context, WriteFile
 
 from test_gtk import balanced
 

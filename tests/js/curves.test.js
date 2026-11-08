@@ -1,5 +1,5 @@
 // gjs -m tests/js/curves.test.js : checks the animation curves (no GNOME Shell needed).
-import * as C from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/curves.js';
+import * as C from '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/curves.js';
 
 let failed = 0;
 function check(ok, what) {

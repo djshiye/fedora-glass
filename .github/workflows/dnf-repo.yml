@@ -28,8 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The Pages address follows the repository's name (fedora-liquid-glass until the
-  # rename to fedora-glass; GitHub does not redirect Pages after a rename).
+  # The Pages address follows the repository's name.
   SITE: https://djshiye.github.io/${{ github.event.repository.name }}
 
 jobs:
@@ -37,7 +36,7 @@ jobs:
     # Only in this repository (never a fork), and only after a Release from a
     # v* tag push or a hand-started Release on main, or when run by hand on main.
     if: >-
-      (github.repository == 'djshiye/fedora-glass' || github.repository == 'djshiye/fedora-liquid-glass') && (
+      github.repository == 'djshiye/fedora-glass' && (
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
         (github.event_name == 'workflow_run' &&
          github.event.workflow_run.conclusion == 'success' &&

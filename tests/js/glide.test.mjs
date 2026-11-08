@@ -148,7 +148,7 @@ const laters = new Laters();
 let dtp = new Actor({panels: []});
 globalThis.global = {compositor: {get_laters: () => laters}, dashToPanel: dtp};
 
-const {HoverGlide} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/glide.js');
+const {HoverGlide} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/glide.js');
 
 const LOOK = {enabled: true, color: 'rgba(255,255,255,0.08)', radius: 8};
 
@@ -177,7 +177,7 @@ function hover(icon, on) {
 }
 
 function tileOf(panel) {
-    return panel.get_children().find(c => c.name === 'liquid-glass-hover-glide');
+    return panel.get_children().find(c => c.name === 'fedora-glass-hover-glide');
 }
 
 test('one tile per panel, under the icons, styled from the config', () => {
@@ -289,7 +289,7 @@ test('turning it off or a panel rebuild leaves no tile, timer or handler behind'
 });
 
 test('config: only plain colours reach the style string', async () => {
-    const {cleanGlide} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/config.js');
+    const {cleanGlide} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/config.js');
     assert.equal(cleanGlide({enabled: true, color: 'rgba(0,0,0,0.05)', radius: 8}).color, 'rgba(0,0,0,0.05)');
     assert.equal(cleanGlide({enabled: true, color: '#11223344'}).color, '#11223344');
     assert.equal(cleanGlide({color: 'red; background-image: url(x)'}).color, 'rgba(255,255,255,0.08)');
@@ -298,7 +298,7 @@ test('config: only plain colours reach the style string', async () => {
 });
 
 test('the shared spring settles on its target with a small overshoot, also over long frames', async () => {
-    const {springStep} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/curves.js');
+    const {springStep} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/curves.js');
     let [x, v, peak] = [0, 0, 0];
     for (let i = 0; i < 60; i++) {
         [x, v] = springStep(x, v, 1, 700, 46, 0.016);

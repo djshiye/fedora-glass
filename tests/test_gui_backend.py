@@ -14,10 +14,10 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtGui = pytest.importorskip("PySide6.QtGui")
 
-from liquidglass import settings as settings_mod  # noqa: E402
-from liquidglass.env import Env, RunResult  # noqa: E402
-from liquidglass.settings import PRESETS  # noqa: E402
-from liquidglass.targets.base import Detection, Target, WriteFile  # noqa: E402
+from fedoraglass import settings as settings_mod  # noqa: E402
+from fedoraglass.env import Env, RunResult  # noqa: E402
+from fedoraglass.settings import PRESETS  # noqa: E402
+from fedoraglass.targets.base import Detection, Target, WriteFile  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +55,7 @@ class FakeTarget(Target):
 
 class FakeEngine:
     def __init__(self, env, targets):
-        from liquidglass.engine import Engine
+        from fedoraglass.engine import Engine
         self._real = Engine(env, targets)
         self.env = env
         self.targets = targets
@@ -74,7 +74,7 @@ def home(tmp_path, monkeypatch):
 
 @pytest.fixture
 def make_backend(app, home):
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.gui.backend import Backend
 
     def make(targets=None, start=False):
         env = FakeEnv(home=home)
@@ -232,7 +232,7 @@ def test_qml_loads(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.gui import app as gui_app
+    from fedoraglass.gui import app as gui_app
     comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
     assert comp.status() == QQmlComponent.Status.Ready, comp.errorString()
 
@@ -242,11 +242,11 @@ def test_popups_compile_on_glass(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.gui import app as gui_app
+    from fedoraglass.gui import app as gui_app
     comp = QQmlComponent(qml)
     comp.setData(b"""
 import QtQuick
-import LiquidGlass
+import FedoraGlass
 Item {
     width: 400; height: 300
     LgDropdown { model: [{ value: "a", label: "A", tip: "first" }]; value: "a"; tip: "pick" }
@@ -259,7 +259,7 @@ Item {
 
 def test_missing_icon_is_transparent_not_black(app):
     from PySide6.QtCore import QSize
-    from liquidglass.gui.icons import IconProvider
+    from fedoraglass.gui.icons import IconProvider
     pm = IconProvider().requestPixmap("no-such-icon-xyz", QSize(), QSize(16, 16))
     assert pm.toImage().pixelColor(0, 0).alpha() == 0
 
@@ -337,7 +337,7 @@ def test_header_bar_properties(make_backend):
 
 
 def test_restart_files_only_after_header_change_and_only_on_click(make_backend, monkeypatch):
-    from liquidglass.gui import backend as be
+    from fedoraglass.gui import backend as be
 
     started = []
     monkeypatch.setattr(be.QProcess, "startDetached", lambda prog, args: started.append([prog, *args]) or True)
@@ -362,8 +362,8 @@ def test_restart_files_only_after_header_change_and_only_on_click(make_backend, 
 
 
 def test_terminal_palette_is_reported_not_changed(make_backend, home, monkeypatch):
-    from liquidglass.targets.base import Detection
-    from liquidglass.targets.terminal import Ptyxis
+    from fedoraglass.targets.base import Detection
+    from fedoraglass.targets.terminal import Ptyxis
 
     gs = {("org.gnome.Ptyxis", None): {"profile-uuids": "['aaaabbbbcccc']", "default-profile-uuid": "'aaaabbbbcccc'"},
           ("org.gnome.Ptyxis.Profile", "/org/gnome/Ptyxis/Profiles/aaaabbbbcccc/"): {"palette": "'gooey'"}}
@@ -372,7 +372,7 @@ def test_terminal_palette_is_reported_not_changed(make_backend, home, monkeypatc
     b = make_backend(targets=[Ptyxis()], start=True)
     assert b.waitIdle()
     assert b.property("terminalPalette") == "gooey"
-    assert b.property("liquidGlassPalette") == "Fedora Glass"
+    assert b.property("fedoraGlassPalette") == "Fedora Glass"
     assert b.property("terminalColors") is False
     b.setProperty("terminalColors", True)
     assert b.settings().terminal_colors is True
@@ -419,7 +419,7 @@ def test_replaced_files_show_a_reapply_note(make_backend, home):
 def test_login_glass_hidden_without_a_root_owned_helper(make_backend, tmp_path, monkeypatch):
     import os
 
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.gui.backend import Backend
     helper = tmp_path / "liquid-glass-login-screen"
     helper.write_text("#!/bin/sh\n")
     monkeypatch.setattr(Backend, "LOGIN_HELPER", helper)
@@ -433,7 +433,7 @@ def test_login_glass_hidden_without_a_root_owned_helper(make_backend, tmp_path, 
 def test_login_glass_gets_only_the_current_colours(make_backend):
     b = make_backend()
     accent, tint, frost = b.login_values()
-    from liquidglass import login_screen as ls
+    from fedoraglass import login_screen as ls
     ls.check_values(accent, tint, float(frost))
     assert tint == b.settings().normalized().tint.lower()
 
@@ -441,8 +441,8 @@ def test_login_glass_gets_only_the_current_colours(make_backend):
 @pytest.mark.parametrize("fresh", [False, True])
 def test_apply_brings_the_login_screen_glass_up_to_date(make_backend, app, monkeypatch, fresh):
     """Glass on the login screen kept its old look after Apply and after app updates (1.5.9)."""
-    from liquidglass import login_screen as ls
-    from liquidglass.gui.backend import Backend
+    from fedoraglass import login_screen as ls
+    from fedoraglass.gui.backend import Backend
     monkeypatch.setattr(Backend, "_read_login_state", lambda self: "on")
     seen = []
     monkeypatch.setattr(ls, "up_to_date", lambda a, t, f: seen.append((a, t, f)) or fresh)
@@ -482,7 +482,7 @@ def _wait_for(sig_list, app, ms=10000):
 
 @pytest.mark.parametrize("code, removed", [(0, True), (126, False)])
 def test_remove_app_restores_then_removes_the_package(make_backend, home, app, tmp_path, monkeypatch, code, removed):
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.gui.backend import Backend
     log = tmp_path / "pkexec.log"
     pkexec = tmp_path / "pkexec"
     pkexec.write_text(f"#!/bin/sh\necho \"$@\" > {log}\nexit {code}\n")
@@ -505,7 +505,7 @@ def test_remove_app_restores_then_removes_the_package(make_backend, home, app, t
 
 
 def test_lock_screen_tab_properties(make_backend, tmp_path):
-    from liquidglass.gui import backend as backend_mod
+    from fedoraglass.gui import backend as backend_mod
     b = make_backend()
     for name, value in {"lockWidgetBattery": False, "lockWidgetWeather": True, "lockWeatherPlace": True,
                         "lockGreeting": True, "lockWidgetStyle": "plain", "lockHideNotifications": True}.items():
@@ -532,7 +532,7 @@ def test_lock_screen_tab_properties(make_backend, tmp_path):
 def test_weather_switch_says_when_gnome_weather_has_nothing_to_show(tmp_path, monkeypatch):
     """The lock screen's weather comes from GNOME Weather: without the app, or without a
     place, the switch says so instead of showing nothing without a word."""
-    from liquidglass.gui import backend as backend_mod
+    from fedoraglass.gui import backend as backend_mod
     env = FakeEnv(home=tmp_path)
     monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path / "sys"))
     gs = {}

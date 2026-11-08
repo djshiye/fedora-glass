@@ -10,7 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 NODE = shutil.which("node")
-EXT = ROOT / "liquidglass/data/extension/liquid-glass@djshiye.github.io"
+EXT = ROOT / "fedoraglass/data/extension/liquid-glass@djshiye.github.io"
 
 
 @pytest.mark.skipif(NODE is None, reason="needs Node.js")
@@ -21,7 +21,7 @@ def test_user_themes_listeners_left_at_each_lock_are_let_go():
 
 
 def test_user_themes_tidy_ships_and_runs_for_the_whole_extension_life():
-    from liquidglass.render import glass
+    from fedoraglass.render import glass
     assert "themetidy.js" in glass.FILES
     ext = (EXT / "extension.js").read_text()
     assert "new UserThemesTidy()" in ext and "this._tidy?.destroy()" in ext

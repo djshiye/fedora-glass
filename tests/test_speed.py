@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import glass as rg
-from liquidglass.settings import GLASS_QUALITIES, Settings
+from fedoraglass import palette
+from fedoraglass.render import glass as rg
+from fedoraglass.settings import GLASS_QUALITIES, Settings
 
 
 def test_glass_quality_is_normalized():
@@ -32,7 +32,7 @@ def test_render_config_carries_speed_quality():
 
 
 def test_env_cache_honours_xdg(monkeypatch, tmp_path):
-    from liquidglass.env import Env
+    from fedoraglass.env import Env
     monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
     assert Env(home=tmp_path).cache == tmp_path / ".cache"
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "c"))
@@ -41,7 +41,7 @@ def test_env_cache_honours_xdg(monkeypatch, tmp_path):
 
 def test_speed_card_is_registered_and_placed():
     from pathlib import Path
-    qml = Path(rg.__file__).resolve().parent.parent / "gui/qml/LiquidGlass"
+    qml = Path(rg.__file__).resolve().parent.parent / "gui/qml/FedoraGlass"
     assert re.search(r"^SpeedCard 1\.0 SpeedCard\.qml$", (qml / "qmldir").read_text(), re.M)
     look = (qml / "LookPage.qml").read_text()
     assert look.index("SpeedCard {") < look.index("MotionCard {")

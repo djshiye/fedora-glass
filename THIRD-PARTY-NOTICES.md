@@ -3,8 +3,8 @@
 ## AndroidLiquidGlass (Backdrop)
 
 The glass lens in the GNOME Shell extension
-(`liquidglass/data/extension/liquid-glass@djshiye.github.io/glass.js`) and in the app's preview
-(`liquidglass/gui/qml/LiquidGlass/shaders/glass.frag`) builds on Kyant's
+(`fedoraglass/data/extension/liquid-glass@djshiye.github.io/glass.js`) and in the app's preview
+(`fedoraglass/gui/qml/FedoraGlass/shaders/glass.frag`) builds on Kyant's
 [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass): the rounded-rectangle
 distance field and its gradient and the circular edge profile come from it. They were rewritten
 from AGSL to GLSL and changed to fit GNOME Shell and Qt Quick, and the light transport (Snell

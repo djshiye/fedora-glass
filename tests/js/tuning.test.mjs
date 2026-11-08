@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
-const T = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/tuning.js');
+const T = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/tuning.js');
 const HZ60 = 1e6 / 60;
 
 function feed(tuner, start, n, late, every = HZ60) {
