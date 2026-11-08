@@ -169,8 +169,31 @@ def test_state_file_holds_only_hashes(dirs):
     shell, state = dirs
     ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
     s = json.loads(Path(state, ls.STATE).read_text())
-    assert set(s) == {"original", "written", "target"}
-    assert all(len(s[k]) == 64 for k in ("original", "written"))
+    assert set(s) == {"original", "written", "target", "look", "shared"}
+    assert all(len(s[k]) == 64 for k in ("original", "written", "look"))
+    assert s["shared"] is False                     # this test theme has gdm.css
+
+
+@needs_tools
+def test_knows_when_the_login_glass_is_out_of_date(dirs):
+    """1.5.9: the login screen kept the look from when its glass was turned on, through
+    Apply and through app updates (1.5.7's compact password prompt never reached it)."""
+    shell, state = dirs
+    assert not ls.up_to_date("#3584e4", "#6a3fb5", 0.4, state)          # off
+    ls.apply("#3584e4", "#6a3fb5", "0.400", shell, state)
+    assert ls.up_to_date("#3584e4", "#6a3fb5", 0.4, state)
+    assert not ls.up_to_date("#3584e4", "#6a3fb5", 0.7, state)          # other frost
+    assert not ls.up_to_date("#e62d42", "#6a3fb5", 0.4, state)          # other accent
+    # Glass put on by an older version has no record of its look: out of date.
+    p = Path(state, ls.STATE)
+    s = json.loads(p.read_text())
+    del s["look"]
+    p.write_text(json.dumps(s))
+    assert not ls.up_to_date("#3584e4", "#6a3fb5", 0.4, state)
+    # Rules that changed in a newer version: out of date too.
+    s["look"] = "0" * 64
+    p.write_text(json.dumps(s))
+    assert not ls.up_to_date("#3584e4", "#6a3fb5", 0.4, state)
 
 
 @needs_tools

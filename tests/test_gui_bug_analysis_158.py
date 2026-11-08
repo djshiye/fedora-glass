@@ -12,7 +12,7 @@ pytest.importorskip("PySide6.QtGui")
 
 from liquidglass import settings as settings_mod  # noqa: E402
 
-from test_gui_backend import FakeEnv, FakeEngine, FakeTarget, app, home  # noqa: E402,F401
+from test_gui_backend import _KEEP, FakeEnv, FakeEngine, FakeTarget, app, home  # noqa: E402,F401
 
 
 @pytest.fixture
@@ -21,8 +21,12 @@ def backend(app, home):
     env = FakeEnv(home=home)
     targets = [FakeTarget("alpha", "Desktop", path=home / "out/alpha.css"),
                FakeTarget("beta", "Apps", path=home / "out/beta.css")]
-    return Backend(env=env, engine_factory=lambda: FakeEngine(env, targets),
-                   settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
+    b = Backend(env=env, engine_factory=lambda: FakeEngine(env, targets),
+                settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
+    _KEEP.append(b)   # alive for the whole run, as the app's one is (see test_gui_backend)
+    yield b
+    if b._task is None or hasattr(b._task, "wait"):   # one test puts a stand-in there
+        b.waitIdle()
 
 
 def test_discard_emits_targets_changed(backend):

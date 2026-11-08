@@ -280,8 +280,9 @@ def _check_file(path: str) -> None:
         raise LoginScreenError(f"{path} is unexpectedly large")
 
 
-def build(original: str, out: str, accent: str, tint: str, frost: float) -> None:
-    """Write to out a copy of original whose login screen style sheets end with our block; checked."""
+def build(original: str, out: str, accent: str, tint: str, frost: float) -> str:
+    """Write to out a copy of original whose login screen style sheets end with our block; checked.
+    Returns the block."""
     _check_file(original)
     names = list_files(original)
     targets = sheets(names)
@@ -312,6 +313,7 @@ def build(original: str, out: str, accent: str, tint: str, frost: float) -> None
                 raise LoginScreenError(f"{n} came out different in the new theme file")
     finally:
         shutil.rmtree(work, ignore_errors=True)
+    return block
 
 
 def _write_into(src: str, dest: str) -> None:
@@ -341,6 +343,30 @@ def _state(state_dir: str) -> dict:
         return s if isinstance(s, dict) else {}
     except (OSError, ValueError):
         return {}
+
+
+def block_targets(path: str) -> list[str]:
+    return sheets(list_files(path))
+
+
+def look_id(accent: str, tint: str, frost: float, shared: bool) -> str:
+    """What apply() records for these colours with this version's rules."""
+    accent, tint, frost = check_values(accent, tint, frost)
+    return hashlib.sha256(css(accent, tint, frost, shared=shared).encode()).hexdigest()
+
+
+def up_to_date(accent: str, tint: str, frost: float, state_dir: str = STATE_DIR) -> bool:
+    """Whether the glass on the login screen is the one these colours give with this version
+    of Fedora Glass. Glass put on by an older version (no record of its look) is out of date.
+    Reads only the state file, so no root is needed."""
+    s = _state(state_dir)
+    look = s.get("look")
+    if not isinstance(look, str):
+        return False
+    try:
+        return look == look_id(accent, tint, frost, shared=bool(s.get("shared")))
+    except LoginScreenError:
+        return False
 
 
 def status(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
@@ -377,12 +403,14 @@ def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, stat
     fd, out = tempfile.mkstemp(prefix="liquid-glass-login-", suffix=".gresource")
     os.close(fd)
     try:
-        build(original, out, accent, tint, frost)
+        block = build(original, out, accent, tint, frost)
         written = sha256(out)
         _write_into(out, dest)
     finally:
         os.unlink(out)
-    s.update(written=written, target=dest)
+    # Which look went in, so the app can tell when Apply or an update of the app makes it old.
+    s.update(written=written, target=dest, look=hashlib.sha256(block.encode()).hexdigest(),
+             shared=GDM_CSS not in block_targets(original))
     tmp = os.path.join(state_dir, STATE + ".new")
     with open(tmp, "w") as f:
         json.dump(s, f)
