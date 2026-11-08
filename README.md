@@ -43,11 +43,21 @@ Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the log
 
 ## How the glass works
 
-Each panel and menu sits on a live, blurred copy of what's behind it, seen through a slab of glass
-with a rounded edge. The shader follows real optics: light bends at the curved edge (refraction),
-splits into a faint rainbow (dispersion), reflects more at grazing angles (Fresnel), and picks up
-colour from the icons beneath it. Idle glass costs nothing, and **Reduce animation** turns the
-motion off.
+The glass is modelled on how real glass behaves, using the physics of light that optics textbooks
+describe, not a flat blur with a glow painted on. Each panel, menu and window sits on a live,
+blurred copy of what's behind it, seen through a slab of glass with a rounded edge:
+
+- **Refraction:** light bends where it enters the curved edge (Snell's law), so the rim magnifies
+  what's behind it while the flat middle stays true.
+- **Dispersion:** each colour bends by a slightly different amount, so the edge splits light into a
+  faint rainbow.
+- **Reflection:** the glass reflects about 4 % of light head-on and much more at grazing angles
+  (Fresnel), so the rim catches light the way a real pane does.
+- **Absorption:** light crossing more glass near the edge comes out a shade darker (Beer-Lambert).
+
+<p align="center"><img src="docs/screenshots/glass-edge.png" width="860" alt="Close-up: the rounded glass edge of ArcMenu bending the starfield behind it"></p>
+
+Idle glass costs nothing, and **Reduce animation** turns the motion off.
 
 The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass).
 
