@@ -25,7 +25,8 @@ def backend(app, home):
                 settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
     _KEEP.append(b)   # alive for the whole run, as the app's one is (see test_gui_backend)
     yield b
-    b.waitIdle()
+    if b._task is None or hasattr(b._task, "wait"):   # one test puts a stand-in there
+        b.waitIdle()
 
 
 def test_discard_emits_targets_changed(backend):
