@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass.engine import Backup, Engine
-from liquidglass.settings import Settings
-from liquidglass.targets import gtk as tg
-from liquidglass.targets.base import Target, WriteFile
+from fedoraglass.engine import Backup, Engine
+from fedoraglass.settings import Settings
+from fedoraglass.targets import gtk as tg
+from fedoraglass.targets.base import Target, WriteFile
 
 
 def gtk4():

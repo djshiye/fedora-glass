@@ -164,7 +164,7 @@ class Shell:
         return self.json("const o = {}; for (const [u, e] of Main.extensionManager._extensions) o[u] = e.state; return o;")
 
     def glass_panes(self) -> int:
-        return int(self.eval("(() => { let n = 0; const w = a => { if (a.constructor.name === 'LiquidGlassPane') n++;"
+        return int(self.eval("(() => { let n = 0; const w = a => { if (a.constructor.name === 'FedoraGlassPane') n++;"
                              " for (const c of a.get_children()) w(c); }; w(global.stage); return n; })()"))
 
     def uninhibit_animations(self) -> None:

@@ -6,12 +6,12 @@ import re
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import apps as ra
-from liquidglass.render import terminal as rt
-from liquidglass.settings import Settings
-from liquidglass.targets import terminal as tt
-from liquidglass.targets.base import Context, GSet, WriteFile
+from fedoraglass import palette
+from fedoraglass.render import apps as ra
+from fedoraglass.render import terminal as rt
+from fedoraglass.settings import Settings
+from fedoraglass.targets import terminal as tt
+from fedoraglass.targets.base import Context, GSet, WriteFile
 
 CASES = [(d, f) for d in (True, False) for f in (0.0, 0.5, 1.0)]
 
@@ -196,7 +196,7 @@ def test_detect_missing(fake_env, monkeypatch):
 
 
 def test_ptyxis_follows_light_and_dark_only_when_asked(fake_env):
-    from liquidglass.engine import Engine
+    from fedoraglass.engine import Engine
     fake_env.gs[("org.gnome.Ptyxis", None)] = {"profile-uuids": "['abcdef0123456789']",
                                                "default-profile-uuid": "'abcdef0123456789'",
                                                "interface-style": "'dark'"}

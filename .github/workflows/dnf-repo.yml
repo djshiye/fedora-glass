@@ -30,8 +30,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The Pages address follows the repository's name (fedora-liquid-glass until the
-  # rename to fedora-glass; GitHub does not redirect Pages after a rename).
+  # The Pages address follows the repository's name.
   SITE: https://djshiye.github.io/${{ github.event.repository.name }}
 
 jobs:

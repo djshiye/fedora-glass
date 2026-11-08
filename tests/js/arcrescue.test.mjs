@@ -69,7 +69,7 @@ const clock = new Clock();
 const manager = new Manager();
 globalThis.fake = {timeouts: clock, extensionManager: manager};
 globalThis.console = {...console, log: () => {}};
-const mod = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/arcrescue.js');
+const mod = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/arcrescue.js');
 const {ArcMenuRescue, ARCMENU, DASH_TO_PANEL, MAX_RESCUES, GIVE_UP_MS, isPanelRace} = mod;
 
 function reset() {

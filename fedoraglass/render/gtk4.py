@@ -1,0 +1,188 @@
+"""GTK 4 / libadwaita stylesheet.
+
+libadwaita 1.9 colours everything from `--*-bg-color` custom properties (and
+the matching `@define-color` names for older apps), so overriding those
+recolours every app. The glass rules below only use `--lg-*` properties, which
+means the rule block is written once and the two schemes differ only in a
+small `:root` block wrapped in `@media (prefers-color-scheme: ...)`.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from string import Template
+
+from ..color import Color
+from ..palette import Tokens
+from ..radius import scale, check
+
+_TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk4.css.tpl"
+
+HEADER = "/* Fedora Glass for GTK 4 and libadwaita. Generated, edits are overwritten. */\n"
+
+
+def popover_color(t: Tokens) -> Color:
+    """Menus sit over text and controls, so they never get thinner than this."""
+    return t.popover.with_alpha(max(t.popover.a, 0.90))
+
+
+def text_popover_color(t: Tokens) -> Color:
+    """Menus that open over bright, sharp text with no blur between (the terminal's)
+    need a little more body than other menus, or the text behind reads as a ghost
+    under dim menu items."""
+    return t.popover.with_alpha(max(t.popover.a, 0.95))
+
+
+def dialog_color(t: Tokens) -> Color:
+    return t.dialog.with_alpha(max(t.dialog.a, 0.95))
+
+
+def bar_color(t: Tokens) -> Color:
+    """Search and action bars sit on the window, so they only add a little to its alpha."""
+    return t.window_chrome.with_alpha(max(0.0, t.window_chrome.a - t.window.a * 0.6))
+
+
+def view_color(t: Tokens) -> Color:
+    """Content views (the Files grid, text areas) sit on the window's own background, so
+    they are painted only as solid as the rest needs: the two together come to the view
+    token's alpha, and a little of the frosted glass below shows through."""
+    a = 1.0 - (1.0 - t.view.a) / max(1.0 - t.window.a, 1e-3)
+    return t.view.with_alpha(round(min(1.0, max(0.0, a)), 3))
+
+
+def adwaita_colors(t: Tokens) -> dict[str, Color]:
+    """Every colour libadwaita 1.9 (and adw-gtk3) derives its look from, by token name."""
+    clear = Color(0, 0, 0, 0)
+    ink, white = Color(0.07, 0.07, 0.09), Color(1, 1, 1)
+    on_status = ink if t.dark else white
+    sidebar = t.window_chrome
+    secondary = t.window_chrome.with_alpha(t.window_chrome.a * 0.7)
+    return {
+        "window-bg-color": t.window, "window-fg-color": t.fg,
+        "view-bg-color": view_color(t), "view-fg-color": t.fg,
+        # Header bars are part of the window glass, so they add no surface of their own.
+        "headerbar-bg-color": clear, "headerbar-fg-color": t.fg,
+        "headerbar-backdrop-color": clear, "headerbar-border-color": t.fg,
+        "headerbar-shade-color": t.divider, "headerbar-darker-shade-color": t.divider,
+        "sidebar-bg-color": sidebar, "sidebar-fg-color": t.fg,
+        "sidebar-backdrop-color": sidebar,
+        "sidebar-shade-color": t.divider, "sidebar-border-color": t.divider,
+        "secondary-sidebar-bg-color": secondary, "secondary-sidebar-fg-color": t.fg,
+        "secondary-sidebar-backdrop-color": secondary,
+        "secondary-sidebar-shade-color": t.divider, "secondary-sidebar-border-color": t.divider,
+        "card-bg-color": t.card, "card-fg-color": t.fg, "card-shade-color": t.divider,
+        "dialog-bg-color": dialog_color(t), "dialog-fg-color": t.fg,
+        "popover-bg-color": popover_color(t), "popover-fg-color": t.fg,
+        "popover-shade-color": t.divider,
+        "thumbnail-bg-color": t.view, "thumbnail-fg-color": t.fg,
+        "shade-color": t.divider, "scrollbar-outline-color": t.edge,
+        "accent-bg-color": t.accent, "accent-fg-color": t.accent_fg, "accent-color": t.accent_text,
+        "destructive-bg-color": t.destructive, "destructive-fg-color": white if not t.dark else ink,
+        "destructive-color": t.destructive,
+        "success-bg-color": t.success, "success-fg-color": on_status, "success-color": t.success,
+        "warning-bg-color": t.warning, "warning-fg-color": on_status, "warning-color": t.warning,
+        "error-bg-color": t.destructive, "error-fg-color": white if not t.dark else ink,
+        "error-color": t.destructive,
+    }
+
+
+def glass_colors(t: Tokens) -> dict[str, Color]:
+    """Colours only the glass rules use (as --lg-* properties)."""
+    return {
+        "lg-rim": t.highlight, "lg-edge": t.edge, "lg-divider": t.divider,
+        "lg-shadow": t.shadow, "lg-hover": t.hover, "lg-active": t.active,
+        "lg-fg-dim": t.fg_dim, "lg-fg-faint": t.fg_faint,
+        "lg-accent": t.accent, "lg-accent-text": t.accent_text,
+        "lg-selection": t.selection,
+        "lg-chrome": t.window_chrome, "lg-bar": bar_color(t),
+        "lg-glass": t.fg.with_alpha(0.10 if t.dark else 0.07),
+        "lg-glass-hi": t.fg.with_alpha(0.16 if t.dark else 0.11),
+        "lg-sheen-top": Color(1, 1, 1, 0.16 if t.dark else 0.55),
+        "lg-sheen-bottom": Color(1, 1, 1, 0.0),
+        "lg-popover-solid": text_popover_color(t),
+        "lg-tooltip": t.osd.with_alpha(max(t.osd.a, 0.88)),
+        "lg-tooltip-fg": Color.hex("#f4f5f9") if t.dark else t.fg,
+        "lg-deep-shadow": Color(0, 0, 0, 0.34 if t.dark else 0.22),
+        # Header bar buttons: a glass tile under the hovered button only, a little
+        # less dense while pressed, and a soft red under Close.
+        "lg-tile": Color(1, 1, 1, 0.06 if t.dark else 0.50),
+        "lg-tile-press": Color(1, 1, 1, 0.035 if t.dark else 0.32),
+        "lg-close": Color.hex("#ff5f57").with_alpha(0.85),
+    }
+
+
+def scheme_vars(t: Tokens) -> str:
+    """The colour variables of one scheme (inside :root)."""
+    extra = {
+        "overview-bg-color": t.window.with_alpha(max(t.window.a, 0.8)), "overview-fg-color": t.fg,
+        # The chosen toggle of a toggle group: a lighter tile in dark, a white one in light
+        # (the text colour at 90 % made it a near-black tile under near-black text).
+        "active-toggle-bg-color": t.fg.with_alpha(0.22) if t.dark else Color(1, 1, 1, 0.9),
+        "active-toggle-fg-color": t.fg,
+    }
+    rows = {**adwaita_colors(t), **extra, **glass_colors(t)}
+    return "\n".join(f"  --{k}: {v.css};" for k, v in rows.items())
+
+
+def named_colors(t: Tokens) -> str:
+    """@define-color aliases for apps written against the named colours."""
+    return "\n".join(f"  @define-color {k.replace('-', '_')} {v.css};"
+                     for k, v in adwaita_colors(t).items())
+
+
+# Where header bar buttons live: libadwaita and GTK 3 header bars, Ptyxis's top bar,
+# and the buttons at either end of a tab bar.
+_HEADER_SCOPES = ("headerbar", ".top-bar", "tabbar .start-action", "tabbar .end-action")
+# Buttons that keep their own look in a header bar: calls to action, the window
+# controls (styled on their own), and Files' path bar (a field, not a button row).
+# The list is also long on purpose: it has to outrank $glass_btn, which carries nine :not()s.
+_HEADER_KEEP = (".suggested-action", ".destructive-action", ".opaque", ".osd", ".close",
+                ".minimize", ".maximize", ".chip", ".swatch", ".nautilus-path-button", ".titlebutton")
+
+
+def header_buttons(state: str = "", child: str = "") -> str:
+    """Selector list for flat header bar buttons, with an optional state and child node."""
+    keep = "".join(f":not({c})" for c in _HEADER_KEEP)
+    return ", ".join(f"{scope} button{keep}{state}{child}" for scope in _HEADER_SCOPES)
+
+
+def _geometry(t: Tokens) -> dict[str, str]:
+    # Window-level things follow the windows' ladder; popovers and menus follow the menus'
+    # ladder (a part can have its own radius), see radius.py for the roles.
+    w, m = scale(t.window_radius), scale(t.menu_radius)
+    glass = ("button:not(.flat):not(.suggested-action):not(.destructive-action)"
+             ":not(.opaque):not(.osd):not(.close):not(.minimize):not(.maximize):not(.chip):not(.swatch)")
+    return {
+        "r_xs": f"{w['xs']}px", "r_s": f"{w['s']}px", "r_m": f"{w['m']}px", "r_l": f"{w['l']}px",
+        "pop_xs": f"{m['xs']}px", "pop_m": f"{m['m']}px",
+        "r_check": f"{check(t.window_radius)}px",
+        "glass_btn": glass,
+        # Files' folder segments: as strong as $glass_btn plus two classes, so they stay flat.
+        "path_btn": f".nautilus-pathbar {glass}.nautilus-path-button",
+        "path_btn_hover": f".nautilus-pathbar {glass}.nautilus-path-button:hover:not(.current-dir)",
+        "hdr_btn": header_buttons(),
+        "hdr_btn_hover": header_buttons(":hover"),
+        "hdr_btn_active": header_buttons(":active"),
+        "hdr_btn_checked": header_buttons(":checked"),
+        "hdr_btn_icon": header_buttons(child=" image"),
+        "hdr_btn_icon_active": header_buttons(":active", " image"),
+    }
+
+
+def rules(t: Tokens) -> str:
+    return Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(_geometry(t))
+
+
+def render(dark: Tokens, light: Tokens | None = None) -> str:
+    """Full gtk.css. With both schemes the file switches live with GNOME's
+    light/dark setting through prefers-color-scheme; with one it is fixed."""
+    parts = [HEADER]
+    if light is not None:
+        for name, t in (("light", light), ("dark", dark)):
+            parts.append(f"@media (prefers-color-scheme: {name}) {{\n:root {{\n{scheme_vars(t)}\n}}\n"
+                         f"{named_colors(t)}\n}}\n")
+    else:
+        parts.append(f":root {{\n{scheme_vars(dark)}\n}}\n"
+                     f"{named_colors(dark).replace('  ', '')}\n")
+    parts.append(rules(dark))
+    return "\n".join(parts)

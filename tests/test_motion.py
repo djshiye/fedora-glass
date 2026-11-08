@@ -10,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import glass as rg
-from liquidglass.settings import MOTION_DEFAULTS, MOTION_EVENTS, MOTION_PRESETS, Settings, load, save
-from liquidglass.targets import shell as ts
-from liquidglass.targets.base import Context, GReset, GSet
+from fedoraglass import palette
+from fedoraglass.render import glass as rg
+from fedoraglass.settings import MOTION_DEFAULTS, MOTION_EVENTS, MOTION_PRESETS, Settings, load, save
+from fedoraglass.targets import shell as ts
+from fedoraglass.targets.base import Context, GReset, GSet
 
 ROOT = Path(__file__).resolve().parent.parent
-EXT = ROOT / "liquidglass/data/extension" / rg.UUID
+EXT = ROOT / "fedoraglass/data/extension" / rg.UUID
 
 
 def test_defaults_match_the_extension():

@@ -7,13 +7,13 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from liquidglass import unmerge
-from liquidglass.engine import Backup, Engine
-from liquidglass.render import apps as ra
-from liquidglass.render import glass as rg
-from liquidglass import palette
-from liquidglass.settings import Settings
-from liquidglass.targets.base import Command, Target, WriteFile
+from fedoraglass import unmerge
+from fedoraglass.engine import Backup, Engine
+from fedoraglass.render import apps as ra
+from fedoraglass.render import glass as rg
+from fedoraglass import palette
+from fedoraglass.settings import Settings
+from fedoraglass.targets.base import Command, Target, WriteFile
 
 
 @dataclass
@@ -142,8 +142,8 @@ def test_glass_config_carries_the_marker():
 
 
 def test_turning_terminal_colours_off_puts_the_palette_back(fake_env):
-    from liquidglass.targets.terminal import Ptyxis
-    from liquidglass.targets.base import GReset
+    from fedoraglass.targets.terminal import Ptyxis
+    from fedoraglass.targets.base import GReset
     t = Ptyxis()
     eng = Engine(fake_env, [t])
     ctx = eng.context(Settings(terminal_colors=False))

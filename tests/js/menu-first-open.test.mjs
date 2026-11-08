@@ -118,8 +118,8 @@ globalThis.fake = fake;
 const laters = new Laters();
 globalThis.global = {compositor: {get_laters: () => laters}, stage: Object.assign(new Actor(), {queue_redraw() {}})};
 
-const {Popups, partOf, previewBox, dialogBox, seeThrough, tintOf, PreviewTint} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
-const {HOLD_MAX_MS} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/common.js');
+const {Popups, partOf, previewBox, dialogBox, seeThrough, tintOf, PreviewTint} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
+const {HOLD_MAX_MS} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/common.js');
 
 const cfg = {menus: {enabled: true, look: {}}, calendar: {enabled: true, look: {}},
     quicksettings: {enabled: true, look: {}}, arcmenu: {enabled: true, look: {}}};

@@ -40,14 +40,14 @@ def test_menu_glass_never_shows_a_window_sharp_through_a_hole_in_the_wallpaper()
 
 
 def test_glide_setting_reaches_the_extension():
-    from liquidglass.settings import Settings
-    from liquidglass.palette import build
-    from liquidglass.render import glass
+    from fedoraglass.settings import Settings
+    from fedoraglass.palette import build
+    from fedoraglass.render import glass
     s = Settings()
     assert s.hover_glide is True
     t = build(s, dark=True)
     cfg = glass.config(s, t)
-    from liquidglass.render.shell import dtp_values
+    from fedoraglass.render.shell import dtp_values
     # The same tile as Dash to Panel's own hover highlight would have drawn.
     assert cfg["glide"] == {"enabled": True, "color": t.hover.css,
                             "radius": int(dtp_values(t)["highlight-appicon-hover-border-radius"])}
@@ -66,7 +66,7 @@ def test_arcmenu_comes_back_after_gnome_restarts_it_before_dash_to_panel():
 
 
 def test_arcmenu_rescue_ships_and_runs_only_in_the_session():
-    from liquidglass.render import glass
+    from fedoraglass.render import glass
     assert "arcrescue.js" in glass.FILES
     ext = (glass.SOURCE / "extension.js").read_text()
     assert "new ArcMenuRescue()" in ext and "this._rescue?.destroy()" in ext

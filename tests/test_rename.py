@@ -7,10 +7,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from liquidglass.engine import Backup, Engine, is_legacy
-from liquidglass.settings import Settings
-from liquidglass.targets import shell as ts
-from liquidglass.targets.base import Target, WriteFile
+from fedoraglass.engine import Backup, Engine, is_legacy
+from fedoraglass.settings import Settings
+from fedoraglass.targets import shell as ts
+from fedoraglass.targets.base import Target, WriteFile
 
 from test_shell import seeded_env
 
@@ -143,5 +143,5 @@ def test_repository_is_signed_with_a_key_from_the_package():
 
 def test_extension_shows_the_new_name():
     root = Path(__file__).resolve().parents[1]
-    meta = json.loads((root / "liquidglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
+    meta = json.loads((root / "fedoraglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text())
     assert meta["name"] == "Fedora Glass" and "Liquid Glass" not in meta["description"]

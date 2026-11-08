@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass.render import glass as rg
+from fedoraglass.render import glass as rg
 
 ROOT = Path(__file__).resolve().parents[1]
 

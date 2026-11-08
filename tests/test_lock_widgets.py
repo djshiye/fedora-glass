@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import glass as rg
-from liquidglass.settings import LOCK_MESSAGE_MAX, Settings, clean_message
+from fedoraglass import palette
+from fedoraglass.render import glass as rg
+from fedoraglass.settings import LOCK_MESSAGE_MAX, Settings, clean_message
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = rg.SOURCE
@@ -125,7 +125,7 @@ def test_widget_text_under_node():
 
 
 def test_settings_json_round_trip_keeps_the_widgets(tmp_path):
-    from liquidglass import settings as settings_mod
+    from fedoraglass import settings as settings_mod
     s = Settings(lock_widget_weather=True, lock_message="Hi", lock_widget_style="plain")
     settings_mod.save(s, tmp_path / "s.json")
     got = settings_mod.load(tmp_path / "s.json")
@@ -135,7 +135,7 @@ def test_settings_json_round_trip_keeps_the_widgets(tmp_path):
 
 def test_a_hand_edited_false_never_switches_a_widget_on(tmp_path):
     """settings.json with "false" (a string) must not show the weather or the place."""
-    from liquidglass import settings as settings_mod
+    from fedoraglass import settings as settings_mod
     p = tmp_path / "settings.json"
     p.write_text(json.dumps({"lock_widget_weather": "false", "lock_weather_place": 1, "lock_greeting": "yes",
                              "lock_widget_battery": False, "lock_hide_notifications": True}))

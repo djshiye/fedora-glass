@@ -6,7 +6,7 @@ import {test} from 'node:test';
 
 globalThis.fake = {timeouts: {add: () => 1, remove: () => {}}, ui: null, Actor: class {}, Widget: class {}};
 const Clutter = (await import('gi://Clutter')).default;
-const {placeToggleMenus} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
+const {placeToggleMenus} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/popups.js');
 
 function menu(at) {
     const bp = {name: 'boxpointer'};

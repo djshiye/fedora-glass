@@ -4,11 +4,11 @@ them, or change Dash to Panel, ArcMenu and Spawn for nothing. `fedora-glass watc
 
 from __future__ import annotations
 
-from liquidglass import __main__ as cli
-from liquidglass.engine import WAITING, Engine, pending_path, read_pending
-from liquidglass.render import shell as rs
-from liquidglass.settings import Settings
-from liquidglass.targets import shell as ts
+from fedoraglass import __main__ as cli
+from fedoraglass.engine import WAITING, Engine, pending_path, read_pending
+from fedoraglass.render import shell as rs
+from fedoraglass.settings import Settings
+from fedoraglass.targets import shell as ts
 from test_shell import install
 
 DTP = "org.gnome.shell.extensions.dash-to-panel"
@@ -211,13 +211,13 @@ def test_without_arcmenu_but_with_spawn_nothing_is_set_aside(fake_env):
 
 
 def rg_uuid():
-    from liquidglass.render import glass as rg
+    from fedoraglass.render import glass as rg
     return rg.UUID
 
 
 def test_reads_the_error_as_gnome_prints_it(fake_env):
     # A message holding ' comes back quoted with ".
-    from liquidglass.env import RunResult
+    from fedoraglass.env import RunResult
     out = ("({'uuid': <'arcmenu@arcmenu.com'>, 'error': <\"TypeError: can't access property "
            "\\\"statusArea\\\", this.panel is undefined\">, 'state': <3.0>},)")
     fake_env.run = lambda argv, timeout=30: RunResult(0, out, "")
@@ -227,7 +227,7 @@ def test_reads_the_error_as_gnome_prints_it(fake_env):
 
 
 def _enabled(env):
-    from liquidglass.engine import parse_strv
+    from fedoraglass.engine import parse_strv
     return parse_strv(env.gs[("org.gnome.shell", None)]["enabled-extensions"])
 
 
@@ -243,7 +243,7 @@ def test_turning_one_shell_part_off_keeps_the_other_parts_extension(fake_env):
     engine.apply(Settings())
     engine.apply(Settings(targets={"shell": False}))
     assert _enabled(fake_env) == [rg_uuid()]
-    from liquidglass.engine import Backup
+    from fedoraglass.engine import Backup
     changed = Backup(fake_env).targets_with_changes()
     assert "glass" in changed and "shell" not in changed
     engine.revert()
@@ -254,7 +254,7 @@ def test_a_list_record_from_an_older_version_is_split_by_owner(fake_env):
     """Dino's backup from 1.5.2 and older has one record for enabled-extensions, tagged with
     the Shell theme, holding the glass extension too."""
     import json
-    from liquidglass.engine import Backup
+    from fedoraglass.engine import Backup
     engine = desktop(fake_env)
     engine.apply(Settings())
     b = Backup(fake_env)
@@ -291,7 +291,7 @@ def test_spawn_turned_off_before_the_restart_is_not_left_waiting(fake_env):
 def test_a_busy_shell_that_misses_an_answer_still_gets_arcmenu_set_aside(fake_env):
     """Apply reloads the Shell theme just before the glass goes, and a slow Shell can then
     miss the question "is ArcMenu running?" (the release check caught that)."""
-    from liquidglass.env import RunResult
+    from fedoraglass.env import RunResult
     engine = desktop(fake_env)
     engine.apply(Settings())
     fake_env.ext_info = {ts.ARCMENU: ("1.0", ""), ts.DASH_TO_PANEL: ("1.0", ""), rg_uuid(): ("1.0", "")}
@@ -311,7 +311,7 @@ def test_a_busy_shell_that_misses_an_answer_still_gets_arcmenu_set_aside(fake_en
 
 def test_without_arcmenu_turning_the_glass_off_does_not_wait(fake_env):
     """A Shell that answers "no such extension" is an answer: nothing to wait for."""
-    from liquidglass.env import RunResult
+    from fedoraglass.env import RunResult
     engine = desktop(fake_env)
     engine.apply(Settings())
     real_run = fake_env.run
@@ -378,7 +378,7 @@ def test_app_style_apply_one_part_at_a_time_after_restore(fake_env):
 def test_a_brand_new_extension_still_waits_without_delay(fake_env):
     """First Apply ever: the Shell doesn't know the extension (it finds new ones at login), so
     the Shell parts wait for the restart and Apply doesn't sit waiting for it."""
-    from liquidglass.env import RunResult
+    from fedoraglass.env import RunResult
     engine = desktop(fake_env)
     _run = fake_env.run
     fake_env.run = lambda argv, timeout=30: (RunResult(0, "(@a{sv} {},)", "")

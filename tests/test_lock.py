@@ -7,9 +7,9 @@ import re
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import glass as rg
-from liquidglass.settings import LOCK_CHOICES, Settings
+from fedoraglass import palette
+from fedoraglass.render import glass as rg
+from fedoraglass.settings import LOCK_CHOICES, Settings
 
 EXT = rg.SOURCE
 

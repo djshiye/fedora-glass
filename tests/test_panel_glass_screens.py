@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXT = ROOT / "liquidglass/data/extension/liquid-glass@djshiye.github.io"
+EXT = ROOT / "fedoraglass/data/extension/liquid-glass@djshiye.github.io"
 NODE = shutil.which("node")
 
 

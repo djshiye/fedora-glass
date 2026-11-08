@@ -4,11 +4,11 @@ import re
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.render import gtk3, gtk4
-from liquidglass.settings import Settings
-from liquidglass.targets import gtk as tg
-from liquidglass.targets.base import Context, FlatpakOverride, GSet, WriteFile
+from fedoraglass import palette
+from fedoraglass.render import gtk3, gtk4
+from fedoraglass.settings import Settings
+from fedoraglass.targets import gtk as tg
+from fedoraglass.targets.base import Context, FlatpakOverride, GSet, WriteFile
 
 CASES = [(d, f) for d in (True, False) for f in (0.0, 0.5, 1.0)]
 
@@ -85,6 +85,23 @@ def test_gtk4_menus_and_dialogs_stay_solid_enough():
         t = toks(dark, 0.0)
         assert gtk4.popover_color(t).a >= 0.9
         assert gtk4.dialog_color(t).a >= 0.95
+
+
+def test_gtk4_terminal_menus_get_their_own_fill():
+    # Ptyxis fills its menus with its top bar colour from a style sheet that outranks
+    # ours, and Fedora Glass makes that colour clear: without a layer of our own the
+    # right-click menu had no fill at all (1.5.10). Ptyxis sets only background-color,
+    # so the fill has to come through background-image.
+    for preset_frost in (0.0, 0.45):
+        dark, light = toks(True, preset_frost), toks(False, preset_frost)
+        css = gtk4.render(dark, light)
+        rule = re.search(r"\.window-contents popover > contents \{([^}]*)\}", css)
+        assert rule and "background-image" in rule.group(1)
+        assert "var(--lg-popover-solid)" in rule.group(1)
+        assert re.search(r"\.window-contents popover > arrow \{[^}]*background-image[^}]*lg-popover-solid", css)
+        for t in (dark, light):
+            assert gtk4.text_popover_color(t).a >= 0.95
+            assert f"--lg-popover-solid: {gtk4.text_popover_color(t).css}" in css
 
 
 def test_gtk4_does_not_touch_terminal_surface():
@@ -259,7 +276,7 @@ def test_flatpak_absent(fake_env, monkeypatch):
 
 def test_engine_replaces_symlinked_gtk_css(fake_env):
     """A user's gtk.css is often a link into another theme: applying must not write through it."""
-    from liquidglass.engine import Engine
+    from fedoraglass.engine import Engine
     theme = fake_env.home / ".themes/Orchis-Dark/gtk-4.0"
     theme.mkdir(parents=True)
     (theme / "gtk.css").write_text("/* orchis */")

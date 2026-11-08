@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import __main__ as cli
-from liquidglass import settings as settings_mod
-from liquidglass.engine import Engine
-from liquidglass.settings import Settings
-from liquidglass.targets.base import Context, Target, WriteFile
+from fedoraglass import __main__ as cli
+from fedoraglass import settings as settings_mod
+from fedoraglass.engine import Engine
+from fedoraglass.settings import Settings
+from fedoraglass.targets.base import Context, Target, WriteFile
 
 ROOT = Path(__file__).resolve().parent.parent
 

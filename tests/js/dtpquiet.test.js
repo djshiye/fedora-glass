@@ -1,5 +1,5 @@
 // gjs -m tests/js/dtpquiet.test.js : checks the Dash to Panel animator wrap and its undo.
-import {wrapAnimator} from '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/dtpquiet.js';
+import {wrapAnimator} from '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/dtpquiet.js';
 
 let failed = 0;
 function check(ok, what) {
