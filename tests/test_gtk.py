@@ -87,6 +87,23 @@ def test_gtk4_menus_and_dialogs_stay_solid_enough():
         assert gtk4.dialog_color(t).a >= 0.95
 
 
+def test_gtk4_terminal_menus_get_their_own_fill():
+    # Ptyxis fills its menus with its top bar colour from a style sheet that outranks
+    # ours, and Fedora Glass makes that colour clear: without a layer of our own the
+    # right-click menu had no fill at all (1.5.10). Ptyxis sets only background-color,
+    # so the fill has to come through background-image.
+    for preset_frost in (0.0, 0.45):
+        dark, light = toks(True, preset_frost), toks(False, preset_frost)
+        css = gtk4.render(dark, light)
+        rule = re.search(r"\.window-contents popover > contents \{([^}]*)\}", css)
+        assert rule and "background-image" in rule.group(1)
+        assert "var(--lg-popover-solid)" in rule.group(1)
+        assert re.search(r"\.window-contents popover > arrow \{[^}]*background-image[^}]*lg-popover-solid", css)
+        for t in (dark, light):
+            assert gtk4.text_popover_color(t).a >= 0.95
+            assert f"--lg-popover-solid: {gtk4.text_popover_color(t).css}" in css
+
+
 def test_gtk4_does_not_touch_terminal_surface():
     css = gtk4.render(toks(True, 0.4), toks(False, 0.4))
     assert "vte-terminal" not in css

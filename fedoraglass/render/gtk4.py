@@ -26,6 +26,13 @@ def popover_color(t: Tokens) -> Color:
     return t.popover.with_alpha(max(t.popover.a, 0.90))
 
 
+def text_popover_color(t: Tokens) -> Color:
+    """Menus that open over bright, sharp text with no blur between (the terminal's)
+    need a little more body than other menus, or the text behind reads as a ghost
+    under dim menu items."""
+    return t.popover.with_alpha(max(t.popover.a, 0.95))
+
+
 def dialog_color(t: Tokens) -> Color:
     return t.dialog.with_alpha(max(t.dialog.a, 0.95))
 
@@ -92,6 +99,7 @@ def glass_colors(t: Tokens) -> dict[str, Color]:
         "lg-glass-hi": t.fg.with_alpha(0.16 if t.dark else 0.11),
         "lg-sheen-top": Color(1, 1, 1, 0.16 if t.dark else 0.55),
         "lg-sheen-bottom": Color(1, 1, 1, 0.0),
+        "lg-popover-solid": text_popover_color(t),
         "lg-tooltip": t.osd.with_alpha(max(t.osd.a, 0.88)),
         "lg-tooltip-fg": Color.hex("#f4f5f9") if t.dark else t.fg,
         "lg-deep-shadow": Color(0, 0, 0, 0.34 if t.dark else 0.22),
