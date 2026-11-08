@@ -596,8 +596,13 @@ void main() {
     // wallpaper the glass reads as a polished surface, not a flat dark box.
     // Dark glass only (light glass is already milky white), and before the ceiling,
     // so over a bright backdrop white text keeps its contrast.
-    if (rim > OFF && light_glass < 0.5)
-        col.rgb = min(col.rgb + vec3(0.07 * rim * smoothstep(-0.4, 1.1, dot(c / h, L))) * col.a, vec3(col.a));
+    // Along a long bar (a panel) it stays even: faded end to end, the main screen's
+    // panel went dim at its right end, right next to the bright start of the second
+    // screen's panel (1.5.11). Panes up to twice as long as they are high are as before.
+    if (rim > OFF && light_glass < 0.5) {
+        vec2 sq = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
+        col.rgb = min(col.rgb + vec3(0.07 * rim * smoothstep(-0.4, 1.1, dot(sq, L))) * col.a, vec3(col.a));
+    }
 
     // A ceiling on brightness, for glass that carries white text over any backdrop
     // (the lock screen). Dark backdrops pass unchanged; brighter ones ease into

@@ -29,7 +29,7 @@ quality (which steps down when frames are late) is not exercised here.
 
 | Check | What it does | Bug it would have caught |
 |---|---|---|
-| The glass looks right | Desktop, panel, ArcMenu, Quick Settings, Extension List menu and windows against reference pictures; window glass brightness against the wallpaper | 1.3.0 black glass, 1.4.2 dark box in menus at 125 % |
+| The glass looks right | Desktop, panel, ArcMenu, Quick Settings, Extension List menu and windows against reference pictures; window glass brightness against the wallpaper; each panel lit evenly along its length | 1.3.0 black glass, 1.4.2 dark box in menus at 125 %, 1.5.11 panel dim at its right end next to the second screen's |
 | No leftover pieces of windows | Moves, resizes, minimizes, closes Electron windows; across the screen edge, in corners, maximized on the second screen; behind a terminal's glass | 1.4.3 window pieces and the glass strip at the screen edge |
 | Window content stays in place while resizing | Corner drags, app resizes, maximize and restore for the terminal, Files and Electron | app content sliding away from the window corner (a general guard) |
 | Light on the processor | Waits for the desktop to settle, then: almost no redraws while nothing moves, no redraws of a panel's glass while the pointer moves near it (only its rim light changes), and no redraws of glass that a streaming app (like Claude writing) does not touch. Processor use and frame rates are shown for information | redraw loops; 1.5.3 re-rendered the panel's glass for every pointer move near it |
