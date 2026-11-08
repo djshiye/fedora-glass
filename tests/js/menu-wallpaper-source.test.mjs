@@ -11,7 +11,7 @@ class Actor {
 }
 globalThis.fake = {Actor, ui: new Actor(), overview: {visible: false}};
 const shellWallpaper = {name: 'GNOME wallpaper'};
-const ourCopy = {name: 'liquid-glass-wallpaper'};
+const ourCopy = {name: 'fedora-glass-wallpaper'};
 const sheet = {
     visible: true,
     meta_window: {
@@ -27,7 +27,7 @@ globalThis.global = {
 const Main = await import('resource:///org/gnome/shell/ui/main.js');
 Main.layoutManager._backgroundGroup = shellWallpaper;
 Main.layoutManager.monitors = [{x: 0, y: 0, width: 1600, height: 900}];
-const C = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/common.js');
+const C = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/common.js');
 
 test('lightest glass (wallpaper only) copies the whole wallpaper, never the one with holes', () => {
     C.wallpaper.current = {actor: ourCopy};

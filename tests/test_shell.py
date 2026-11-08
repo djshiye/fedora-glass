@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.color import Color
-from liquidglass.engine import Engine
-from liquidglass.render import glass as rg
-from liquidglass.render import shell as rs
-from liquidglass.settings import Settings
-from liquidglass.targets import shell as ts
-from liquidglass.targets.base import GSet, ListEdit, WriteFile
+from fedoraglass import palette
+from fedoraglass.color import Color
+from fedoraglass.engine import Engine
+from fedoraglass.render import glass as rg
+from fedoraglass.render import shell as rs
+from fedoraglass.settings import Settings
+from fedoraglass.targets import shell as ts
+from fedoraglass.targets.base import GSet, ListEdit, WriteFile
 
 GRID = [(f, d) for f in (0.0, 0.5, 1.0) for d in (True, False)]
 
@@ -275,7 +275,7 @@ def test_window_glass_has_a_lens_and_no_bleed(fake_env):
 
 
 def test_content_views_let_a_little_glass_through():
-    from liquidglass.render.gtk4 import view_color
+    from fedoraglass.render.gtk4 import view_color
     for dark in (True, False):
         for f in (0.0, 0.45, 1.0):
             t = palette.build(Settings(frost=f), dark=dark)
@@ -431,7 +431,7 @@ def test_template_has_no_hardcoded_colours_outside_neutral_ones():
 
 
 def test_glass_running_reads_the_shell_state(fake_env, monkeypatch):
-    from liquidglass.env import RunResult
+    from fedoraglass.env import RunResult
     for out, code, want in (("({'uuid': <'x'>, 'state': <1.0>, 'path': <'/p'>},)", 0, True),
                             ("({'uuid': <'x'>, 'state': <6.0>},)", 0, False),   # initialized, not running yet
                             ("({},)", 0, False), ("", 1, False)):
@@ -650,7 +650,7 @@ def test_a_change_made_in_their_settings_while_ours_is_on_is_kept(fake_env):
 
 
 def engine_backup_keys(env):
-    from liquidglass.engine import Backup
+    from fedoraglass.engine import Backup
     return list(Backup(env).data["gsettings"])
 
 

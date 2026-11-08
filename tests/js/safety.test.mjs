@@ -26,7 +26,7 @@ globalThis.fake = {};
 const STATE = '/home/u/.cache/liquid-glass/safe-mode.json';
 const RESET = '/home/u/.config/liquid-glass/safe-mode-reset.json';
 const {Safety, report, guarded, ERROR_LIMIT, STABLE_S, RESTART_LIMIT} = await import(
-    '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/safety.js');
+    '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/safety.js');
 
 let calls, shutdown;
 beforeEach(() => {

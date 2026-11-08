@@ -742,7 +742,7 @@ PROBE_JS = """(() => { const GLib = imports.gi.GLib; const S = global.stage; con
  return 1; })()"""
 STOP_JS = ("(() => { const p = globalThis._lgqaProbe; global.stage.disconnect(p.a); global.stage.disconnect(p.b);"
            " return JSON.stringify(p.frames); })()")
-PANES_JS = ("const r = []; const w = a => { for (const e of a.get_effects?.() ?? []) if (e.constructor.name === 'LiquidGlassEffect'"
+PANES_JS = ("const r = []; const w = a => { for (const e of a.get_effects?.() ?? []) if (e.constructor.name === 'FedoraGlassEffect'"
             " && a.mapped) { const [x, y] = a.get_transformed_position(); const [W, H] = a.get_transformed_size();"
             " r.push({x, y, w: W, h: H, renders: e.renders ?? 0, name: a.name || a.constructor.name}); }"
             " for (const c of a.get_children()) w(c); }; w(global.stage); return r;")
@@ -774,7 +774,7 @@ def pointer_near_panel(ctx: Ctx, x: float, y: float) -> dict:
     worst = 0.0
     for p in sh.json(PANES_JS):
         before = next((q for q in panes0 if abs(q["x"] - p["x"]) < 1 and abs(q["y"] - p["y"]) < 1 and q["name"] == p["name"]), None)
-        if p["name"] != "liquid-glass-reflections":    # the panel's own content may light up under the pointer
+        if p["name"] != "fedora-glass-reflections":    # the panel's own content may light up under the pointer
             worst = max(worst, (p["renders"] - (before["renders"] if before else 0)) / wall)
     return {"rate": worst, "seconds": wall}
 
@@ -812,7 +812,7 @@ def set_glass(ctx: Ctx, on: bool) -> bool:
     sh = ctx.sh
     lgqa.subprocess.run(["gnome-extensions", "enable" if on else "disable", LG], env=lgqa.ENV, check=False)
     return sh.wait_for(f"return Main.extensionManager.lookup('{LG}').state === {1 if on else 2};", 20) and \
-        (not on or sh.wait_for("let n = 0; const w = a => { if (a.constructor.name === 'LiquidGlassPane') n++;"
+        (not on or sh.wait_for("let n = 0; const w = a => { if (a.constructor.name === 'FedoraGlassPane') n++;"
                                " for (const c of a.get_children()) w(c); }; w(global.stage); return n > 0;", 15))
 
 
@@ -948,7 +948,7 @@ def check_lock(ctx: Ctx) -> Check:
         if cycle == 1:
             now = lgqa.load(sh.shot("lock-screen"))
             against_reference(ctx, c, "lock", "Lock screen", now, lock_mask(ctx, now.shape), LIMITS["lock"])
-            bad = sh.json("const g = []; const w = a => { if (/LiquidGlass/.test(a.constructor.name) && (a.reactive || a.can_focus))"
+            bad = sh.json("const g = []; const w = a => { if (/FedoraGlass/.test(a.constructor.name) && (a.reactive || a.can_focus))"
                           " g.push(a.constructor.name); a.get_children().forEach(w); }; w(global.stage); return g;")
             c.add(not bad, "The lock screen glass never takes clicks or keyboard focus." if not bad else
                   f"{len(bad)} glass pieces on the lock screen can take clicks or focus.")
@@ -1042,8 +1042,8 @@ for i, ((conn, *_), modes, _mp) in enumerate(sorted(monitors, key=lambda m: m[0]
 call("ApplyMonitorsConfig", GLib.Variant("(uua(iiduba(ssa{sv}))a{sv})", (serial, 1, layout, {})))
 """
 
-PANEL_GLASS_JS = """(() => { let n = 0; const w = a => { if (a.constructor.name === 'LiquidGlassPane' && a.mapped
-  && a.name === 'liquid-glass-glass' && a.height < 200 && a.width > 400) n++; a.get_children().forEach(w); };
+PANEL_GLASS_JS = """(() => { let n = 0; const w = a => { if (a.constructor.name === 'FedoraGlassPane' && a.mapped
+  && a.name === 'fedora-glass-glass' && a.height < 200 && a.width > 400) n++; a.get_children().forEach(w); };
   w(global.stage); return JSON.stringify({screens: global.display.get_n_monitors(),
   panels: global.dashToPanel?.panels?.length ?? 0, glass: n}); })()"""
 
@@ -1079,7 +1079,7 @@ def screen_unplugged(ctx: Ctx, c: Check) -> None:
 
 LOCK_SHEETS_JS = """
 const d = Main.screenShield._dialog;
-const sheets = (d ? d.get_children() : []).filter(a => a.name === 'liquid-glass-lock-sheet').map(a => {
+const sheets = (d ? d.get_children() : []).filter(a => a.name === 'fedora-glass-lock-sheet').map(a => {
     const [x, y] = a.get_transformed_position(); const [w, h] = a.get_transformed_size();
     return [x, y, w, h].map(Math.round); });
 return {monitors: Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]), sheets};
@@ -1152,7 +1152,7 @@ def login_backdrop(ctx: Ctx, c: Check) -> None:
     """
     sh = ctx.sh
     sys.path.insert(0, "/src")
-    from liquidglass import login_screen
+    from fedoraglass import login_screen
     css = Path("/tmp/lgqa-login.css")
     css.write_text(login_screen.css("#3584e4", "#6a3fb5", 0.4, shared=True))
     css.chmod(0o644)
@@ -1214,7 +1214,7 @@ def login_prompt(ctx: Ctx, c: Check) -> None:
     """
     sh = ctx.sh
     sys.path.insert(0, "/src")
-    from liquidglass import login_screen
+    from fedoraglass import login_screen
     css = Path("/tmp/lgqa-login.css")
     css.write_text(login_screen.css("#3584e4", "#6a3fb5", 0.4, shared=True))
     css.chmod(0o644)
@@ -1256,7 +1256,7 @@ HEALTH_JS = """const m = Main.extensionManager, o = {};
  const arc = m.lookup('arcmenu@arcmenu.com')?.stateObj?.menuControllers;
  o.arcmenu_ok = !!(arc && arc.length && arc[0]._menuButton && arc[0]._menuButton.get_parent());
  o.panels = global.dashToPanel?.panels?.length ?? 0;
- let n = 0; const w = a => { if (a.constructor.name === 'LiquidGlassPane') n++; for (const c of a.get_children()) w(c); }; w(global.stage);
+ let n = 0; const w = a => { if (a.constructor.name === 'FedoraGlassPane') n++; for (const c of a.get_children()) w(c); }; w(global.stage);
  o.panes = n; return o;"""
 
 
@@ -1322,7 +1322,7 @@ def wait_healthy(ctx: Ctx, expected: list[str], glass: bool, seconds: float) -> 
 
 
 def run_lg(*args: str) -> tuple[int, str]:
-    p = lgqa.subprocess.run(["python3", "-m", "liquidglass", *args], cwd=str(lgqa.HOME / "liquid-glass-src"),
+    p = lgqa.subprocess.run(["python3", "-m", "fedoraglass", *args], cwd=str(lgqa.HOME / "fedora-glass-src"),
                             env=lgqa.ENV, capture_output=True, text=True, timeout=180)
     return p.returncode, (p.stdout + p.stderr).strip()
 
@@ -1542,7 +1542,7 @@ def shell_parts_done(c: Check, when: str) -> None:
 # (covers at least 90 % of it and reaches at most 60 px past each side, which leaves out other glass).
 SURFACE_JS = """const a = %s; if (!a || !a.mapped) return null;
  const [x, y] = a.get_transformed_position(), [w, h] = a.get_transformed_size();
- let glass = false; const walk = b => { if (!b.visible) return; if (b.constructor.name === 'LiquidGlassPane' && b.mapped && b.opacity > 0) {
+ let glass = false; const walk = b => { if (!b.visible) return; if (b.constructor.name === 'FedoraGlassPane' && b.mapped && b.opacity > 0) {
    const [px, py] = b.get_transformed_position(), [pw, ph] = b.get_transformed_size();
    const ix = Math.max(0, Math.min(x + w, px + pw) - Math.max(x, px)), iy = Math.max(0, Math.min(y + h, py + ph) - Math.max(y, py));
    if (ix * iy >= 0.9 * w * h && pw <= w + 120 && ph <= h + 120) glass = true; } b.get_children().forEach(walk); };
@@ -1707,8 +1707,13 @@ def check_safe(ctx: Ctx) -> Check:
 # ---------------------------------------------------------------------------------------------
 # 8. Upgrade from the last release (only with run.sh --from)
 # ---------------------------------------------------------------------------------------------
+def _code_dir(tree: Path) -> Path:
+    """The app's code folder in a source tree: fedoraglass, or liquidglass up to 1.5.10."""
+    return tree / "fedoraglass" if (tree / "fedoraglass").is_dir() else tree / "liquidglass"
+
+
 def _version_of(tree: Path) -> str:
-    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (tree / "liquidglass/__init__.py").read_text())
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (_code_dir(tree) / "__init__.py").read_text())
     return m.group(1) if m else "?"
 
 
@@ -2033,7 +2038,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     # The upgrade check needs the older tree (run.sh --from) and goes first, before other
     # checks Apply or Restore.
-    upgrade = ["upgrade"] if Path("/from/liquidglass").is_dir() else []
+    upgrade = ["upgrade"] if _code_dir(Path("/from")).is_dir() else []
     # "safe" looks at how this login started, so it goes before anything restarts the glass.
     ap.add_argument("--only", default=",".join(upgrade + ["safe"] + [k for k in ALL if k not in ("upgrade", "safe")]))
     ap.add_argument("--update-references", action="store_true")
@@ -2052,7 +2057,7 @@ def main() -> int:
         return 2
     ctx = Ctx(sh, args.update_references)
     version = args.version or re.search(r"__version__\s*=\s*['\"]([^'\"]+)",
-                                        Path("/src/liquidglass/__init__.py").read_text()).group(1)
+                                        Path("/src/fedoraglass/__init__.py").read_text()).group(1)
     meta = {"version": version, "when": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
             "desktop": f"GNOME 50 on Wayland, {sh.scale * 100:.0f} % scaling, Orchis Dark, Dino's extensions, overview off"}
     checks = []

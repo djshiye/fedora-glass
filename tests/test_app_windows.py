@@ -6,12 +6,12 @@ import re
 
 import pytest
 
-from liquidglass import palette
-from liquidglass.color import Color
-from liquidglass.render import gtk3, gtk4, kvantum
-from liquidglass.settings import Settings
-from liquidglass.targets import gtk as tg
-from liquidglass.targets.base import GReset, GSet, WriteFile
+from fedoraglass import palette
+from fedoraglass.color import Color
+from fedoraglass.render import gtk3, gtk4, kvantum
+from fedoraglass.settings import Settings
+from fedoraglass.targets import gtk as tg
+from fedoraglass.targets.base import GReset, GSet, WriteFile
 
 from test_gtk import ctx_for
 

@@ -54,7 +54,7 @@ class Timeouts {
 
 globalThis.global = {stage: {}};
 globalThis.fake = {fs: new Map(), themeContext: new Context(), Actor: class {}, Widget: class {}, timeouts: new Timeouts()};
-const DIR = '../../liquidglass/data/extension/liquid-glass@djshiye.github.io';
+const DIR = '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io';
 const {PopupStyle, SETTLE_MS} = await import(`${DIR}/popupstyle.js`);
 const {cleanPopupCss, POPUP_CSS_MAX} = await import(`${DIR}/config.js`);
 const FILE = '/run/user/1000/fedora-glass/popups.css';

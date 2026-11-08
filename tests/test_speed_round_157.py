@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-EXT = Path(__file__).resolve().parents[1] / "liquidglass/data/extension/liquid-glass@djshiye.github.io"
+EXT = Path(__file__).resolve().parents[1] / "fedoraglass/data/extension/liquid-glass@djshiye.github.io"
 
 
 def src(file: str) -> str:

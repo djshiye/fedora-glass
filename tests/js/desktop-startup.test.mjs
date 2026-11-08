@@ -27,7 +27,7 @@ const lm = Main.layoutManager;
 Object.assign(lm, new Signals());
 for (const k of ['connect', 'disconnect', 'emit', 'count'])
     lm[k] = Signals.prototype[k].bind(lm);
-const {DesktopBehaviour} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/desktop.js');
+const {DesktopBehaviour} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/desktop.js');
 
 const CFG = {desktop: {overviewOff: true, startOnDesktop: true}};
 

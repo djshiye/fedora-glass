@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from liquidglass.render import glass as rg
+from fedoraglass.render import glass as rg
 
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
-EXT = ROOT / "liquidglass/data/extension/liquid-glass@djshiye.github.io"
+EXT = ROOT / "fedoraglass/data/extension/liquid-glass@djshiye.github.io"
 
 
 @pytest.mark.skipif(NODE is None, reason="needs Node.js")
@@ -41,8 +41,8 @@ def backend(tmp_path, monkeypatch):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtGui import QGuiApplication
 
-    from liquidglass.env import Env
-    from liquidglass.gui.backend import Backend
+    from fedoraglass.env import Env
+    from fedoraglass.gui.backend import Backend
     QGuiApplication.instance() or QGuiApplication([])
     for k in ("CONFIG", "CACHE", "STATE", "DATA"):
         monkeypatch.setenv(f"XDG_{k}_HOME", str(tmp_path / k.lower()))
@@ -119,9 +119,9 @@ def test_the_banner_shows_only_in_safe_mode(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent
 
-    from liquidglass.gui import app as gui_app
+    from fedoraglass.gui import app as gui_app
     probe = QQmlComponent(qml)
-    probe.setData(b"import QtQuick\nimport LiquidGlass.Core\nQtObject { property var b: Backend }", QUrl())
+    probe.setData(b"import QtQuick\nimport FedoraGlass.Core\nQtObject { property var b: Backend }", QUrl())
     b = probe.create().property("b")
     comp = QQmlComponent(qml, QUrl.fromLocalFile(str(Path(gui_app.QML_DIR) / "Main.qml")))
     win = comp.create()

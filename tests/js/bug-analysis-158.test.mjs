@@ -137,7 +137,7 @@ globalThis.global = {
 };
 const cursor = new Obj();
 
-const EXT = '../../liquidglass/data/extension/liquid-glass@djshiye.github.io/';
+const EXT = '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/';
 const {Animations} = await import(`${EXT}animations.js`);
 const {GlassManager} = await import(`${EXT}surfaces.js`);
 const common = await import(`${EXT}common.js`);

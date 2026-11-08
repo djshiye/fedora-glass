@@ -61,7 +61,7 @@ const laters = new Laters();
 const shellwm = new Emitter();
 globalThis.global = {compositor: {get_laters: () => laters}, window_manager: shellwm};
 
-const {WindowAnimationHold} = await import('../../liquidglass/data/extension/liquid-glass@djshiye.github.io/hold.js');
+const {WindowAnimationHold} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/hold.js');
 
 let hold;
 beforeEach(() => {

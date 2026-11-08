@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 
-from liquidglass import unmerge
-from liquidglass.engine import Backup, Engine
-from liquidglass.settings import Settings
-from liquidglass.targets import shell as ts
-from liquidglass.targets.apps import QBittorrent
-from liquidglass.env import RunResult
+from fedoraglass import unmerge
+from fedoraglass.engine import Backup, Engine
+from fedoraglass.settings import Settings
+from fedoraglass.targets import shell as ts
+from fedoraglass.targets.apps import QBittorrent
+from fedoraglass.env import RunResult
 
 from test_restore_safety import edit_engine
 from test_shell import seeded_env
