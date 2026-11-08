@@ -313,7 +313,7 @@ class Backend(QObject):
             os.replace(tmp, d / "safe-mode-reset.json")
         except OSError:
             return
-        QTimer.singleShot(800, self._poll_safe_mode)
+        QTimer.singleShot(800, self, self._poll_safe_mode)   # dropped if this object goes first
 
     # ---- helpers -----------------------------------------------------------------
     @staticmethod
