@@ -66,6 +66,7 @@ qa/desktop/run.sh --from ../last-release   # also check the upgrade from the las
 qa/desktop/run.sh --screen 2560x1440       # at the size of Dino's two screens
 qa/desktop/run.sh --gnome 51               # the same on GNOME 51
 qa/desktop/run.sh --ubuntu-desktop         # a stock Ubuntu desktop instead (add --gnome 51 for 26.10)
+qa/desktop/run.sh --stock-desktop          # stock GNOME, no extensions (add --with-dock for Dash to Dock)
 ```
 
 `--gnome 51` builds the test desktop on Ubuntu 26.10, which has GNOME 51 (Fedora 45 has it
@@ -77,14 +78,22 @@ settings, one screen at 100 %, and none of Dino's extensions. It takes pictures 
 desktop, presses Apply from the running desktop, checks the glass, the dock, Quick Settings
 and Files, then Restore original, and checks every setting and the look are back as before.
 
+`--stock-desktop` checks Fedora Glass on GNOME as GNOME ships it, as a new Fedora
+Workstation user has it: the top bar, Activities, the overview with its dash and search,
+Adwaita, one screen at 100 %, and no extensions at all (`--with-dock` adds Dash to Dock,
+pinned by commit). It takes pictures of the stock desktop and overview, presses Apply and
+logs in again, then checks that GNOME started on the desktop with every app icon still in
+the overview's dash, that glass is behind the top bar, the dash and the dock, and that
+Restore original brings every setting and the look back.
+
 The screens are 2000x1125 by default, which keeps a run quick. `--screen 2560x1440` runs
 the same checks on two screens the size of Dino's, against the pictures in
 `references/2560x1440/`. A size with no pictures of its own runs every other check and
 says the pictures were not compared.
 
-The report is `qa-report/report/report.html`. In GitHub each run has four:
-`release-check-report-gnome50`, `release-check-report-gnome51`, `ubuntu-check-report-gnome50`
-and `ubuntu-check-report-gnome51`, and a short table for each is on the run's summary page.
+The report is `qa-report/report/report.html`. In GitHub each run has these:
+`release-check-report-gnome50`, `release-check-report-gnome51`, `ubuntu-check-report-gnome50`,
+`ubuntu-check-report-gnome51` and the four `stock-check-report-gnome5x[-dock]`, and a short table for each is on the run's summary page.
 
 On a pull request the checks run only when it has the `release-checks` label, to keep
 Actions use down. They always run before a release and can be started by hand from the

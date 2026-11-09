@@ -138,8 +138,13 @@ def check_stock(ctx: Ctx) -> Check:
     panes = sh.json(PANES_JS)
     dash_box = sh.json(DASH_BOX)
     if WITH_DOCK:
-        c.add(dash_box is None, "Dash to Dock took the overview's dash." if dash_box is None else
+        # Dash to Dock makes GNOME's dash its dock, which stays on screen in the overview.
+        own = sh.eval("Main.uiGroup.get_children().find(a => a.name === 'dashtodockContainer')?.dash === Main.overview.dash ? 'dock' : 'gnome'")
+        took = own == "dock" or dash_box is None
+        c.add(took, "Dash to Dock took the overview's dash." if took else
               "The overview shows GNOME's dash beside Dash to Dock.")
+        c.add(covered(panes, dash_box) or dash_box is None, "Glass is behind the dock in the overview."
+              if covered(panes, dash_box) or dash_box is None else "No glass behind the dock in the overview.")
     else:
         c.add(covered(panes, dash_box), "Glass is behind the overview's dash." if covered(panes, dash_box) else
               "No glass behind the overview's dash.")
