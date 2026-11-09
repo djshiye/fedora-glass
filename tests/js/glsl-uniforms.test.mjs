@@ -58,7 +58,7 @@ class FakeEffect {
 }
 
 const SHADERS = [
-    {file: 'glass.js', name: 'SHADER', calls: ['setFloats', 'GLASS.set']},
+    {file: 'glass.js', name: 'SHADER', calls: ['setFloats', '_set', 'GLASS.setOn']},
     {file: 'animations.js', name: 'GENIE_SHADER', calls: ['_set', 'GENIE.set']},
 ];
 
@@ -173,8 +173,8 @@ test('the texture frame is in the pane\'s own pixels at any display scale', () =
     assert.deepEqual(textureFrame(406, 106, pane(200, 50, 2)), {tex_w: 203, tex_h: 53, org_x: 2, org_y: 2});
 });
 
-test('both effects that map a texture onto an actor use textureFrame', () => {
-    for (const f of ['glass.js', 'animations.js']) {
+test('the genie maps its offscreen texture with textureFrame', () => {
+    for (const f of ['animations.js']) {
         assert.match(code(f), /textureFrame\(w, h, a\)/, f);
         assert.doesNotMatch(code(f), /tex_w: w/, f);
     }
@@ -188,6 +188,22 @@ test('a clipped pane starts where Clutter frames its clip', () => {
     assert.equal(f.org_y, 2);
 });
 
+
+// The glass draws with a Cogl pipeline of its own (one program for every pane).
+test('glass uniforms go to its pipeline as 1f, looked up once, 0 as exactly 0', () => {
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'));
+    const looked = [], calls = [];
+    const p = {
+        get_uniform_location: name => (looked.push(name), name === 'width' ? 7 : looked.length),
+        set_uniform_1f: (loc, v) => calls.push([loc, v]),
+    };
+    const at = new Map();
+    shader.setOn(p, at, {width: 1920, ceil_y: 0, nope: 1, hl: NaN});
+    shader.setOn(p, at, {width: 800});
+    assert.deepEqual(calls, [[7, 1920], [2, 0], [7, 800]]);
+    assert.ok(Object.is(calls[1][1], 0));
+    assert.deepEqual(looked, ['width', 'ceil_y']);
+});
 
 // GNOME 51 removed Shell.GLSLEffect; the same shaders run as a Clutter.ShaderEffect.
 test('on GNOME 51 uniforms are set by name, as floats', () => {

@@ -31,10 +31,12 @@ import Cogl from 'gi://Cogl';
 import Mtk from 'gi://Mtk';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
 
-import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
+import System from 'system';
+
+import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
 const SHADER = `
@@ -766,6 +768,14 @@ function followPainting(on) {
             global.stage.connect('before-paint', (_s, view) => (painting.view = view)),
             global.stage.connect('after-paint', () => (painting.view = null)),
         ];
+        // The graphics driver threw the pictures away (NVIDIA, after a resume). GNOME 51
+        // has no such signal.
+        if (GObject.signal_lookup('gl-video-memory-purged', global.stage.constructor.$gtype)) {
+            painting.ids.push(global.stage.connect('gl-video-memory-purged', () => panes.forEach(p => {
+                p._glass.drop();
+                p.queue_redraw();
+            })));
+        }
     } else if (!on && painting.ids.length) {
         painting.ids.forEach(id => global.stage.disconnect(id));
         painting.ids = [];
@@ -773,13 +783,134 @@ function followPainting(on) {
     }
 }
 
+// The lens's own pipeline: one GL program for every pane (each pane's pipeline is a
+// copy of this one, with its own uniforms and texture), on GNOME 50 and 51 alike.
+let lensTemplate = null;
+let plainTemplate = null;
+function coglContext() {
+    return global.stage.get_context().get_backend().get_cogl_context();
+}
+function lensPipeline() {
+    if (!lensTemplate) {
+        lensTemplate = Cogl.Pipeline.new(coglContext());
+        lensTemplate.set_layer_null_texture(0);
+        lensTemplate.set_layer_filters(0, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+        lensTemplate.set_layer_wrap_mode(0, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
+        lensTemplate.add_snippet(GLASS.cogl());
+    }
+    return lensTemplate.copy();
+}
+function plainPipeline() {
+    plainTemplate ??= Cogl.Pipeline.new(coglContext());
+    return plainTemplate;
+}
+
+/**
+ * The screen's own px per px of the actor: 1.25 at 125 %. Clutter's resource scale
+ * rounds that up to 2, and a picture kept at 2 has 2.56 times the px the screen
+ * shows. On two screens with different scales, the larger of those it is on.
+ */
+function screenScale(a) {
+    let s = 0;
+    try {
+        const [x, y] = a.get_transformed_position();
+        const [w, h] = a.get_transformed_size();
+        for (const v of global.stage.peek_stage_views()) {
+            const r = new Mtk.Rectangle();
+            v.get_layout(r);
+            if (x < r.x + r.width && x + w > r.x && y < r.y + r.height && y + h > r.y)
+                s = Math.max(s, v.get_scale());
+        }
+    } catch {}   // never stop the glass from drawing
+    return s > 0 && Number.isFinite(s) ? s : Math.max(1, a.get_resource_scale?.() ?? 1);
+}
+
+// Pictures are kept in sizes rounded up to this many px, so a window that is being
+// resized reuses its picture instead of making a new one for every frame (Cogl
+// textures are freed only when GJS collects them).
+const TARGET_STEP = 32;
+// How long a hidden pane keeps its picture (a menu opened again soon has it ready).
+const DROP_HIDDEN_MS = 3000;
+
+// A picture let go of is freed only when GJS collects its JS object, and GJS knows
+// nothing of the graphics memory behind it: closing a few windows left hundreds of
+// MB waiting. Once enough is let go of, collect it, once, when things are quiet.
+const COLLECT_BYTES = 24 * 1024 * 1024;
+const COLLECT_QUIET_MS = 1500;
+const COLLECT_EVERY_US = 5e6;
+const collect = {bytes: 0, timer: 0, last: 0};
+function retire(t) {
+    if (!t)
+        return;
+    if (!panes.size) {
+        stopCollecting();    // the glass is going away: GJS collects it in its own time
+        return;
+    }
+    collect.bytes += t.w * t.h * 8;    // colour plus depth and stencil
+    if (collect.bytes < COLLECT_BYTES)
+        return;
+    if (collect.timer)
+        GLib.source_remove(collect.timer);
+    const wait = Math.max(COLLECT_QUIET_MS, (collect.last + COLLECT_EVERY_US - GLib.get_monotonic_time()) / 1000);
+    collect.timer = GLib.timeout_add(GLib.PRIORITY_LOW, Math.ceil(wait), () => {
+        collect.timer = 0;
+        collect.bytes = 0;
+        collect.last = GLib.get_monotonic_time();
+        collections++;    // read by the QA tools
+        System.gc();
+        return GLib.SOURCE_REMOVE;
+    });
+}
+let collections = 0;
+
+/** Stop a collection that is waiting (the extension turns off). */
+export function stopCollecting() {
+    if (collect.timer)
+        GLib.source_remove(collect.timer);
+    collect.timer = 0;
+    collect.bytes = 0;
+}
+
+/** Pictures the glass holds now, in px and as a count, and collections so far (QA tools). */
+export function pictureStats() {
+    let px = 0, n = 0;
+    for (const p of panes) {
+        for (const t of [p._glass._target, p._glass._out]) {
+            if (t) {
+                px += t.w * t.h;
+                n++;
+            }
+        }
+    }
+    return {pictures: n, px, collections};
+}
+
+/**
+ * The glass of one pane in a single step, where up to 1.5.18 it took three: GNOME's
+ * blur kept its own copy of what is behind the pane, the lens copied the blurred result
+ * again, and both at twice the screen's size under fractional scaling such as 125 %
+ * (Clutter rounds the scale up for its offscreen effects). Here what is behind is drawn
+ * once, straight into a picture at the blur's own resolution (GNOME's blur works at
+ * half size and less for a wide blur, so a bigger picture holds nothing more), blurred
+ * there, and the lens reads that picture as it draws the glass on screen. A maximized
+ * window's glass went from about 180 MB to a few MB.
+ */
 const GlassEffect = GObject.registerClass(
-withShader(class FedoraGlassEffect extends ShaderBase {
+class FedoraGlassEffect extends Clutter.Effect {
     _init() {
         super._init();
         this._frame = '';
         this._renderedAt = 0;
         this._catchUp = 0;
+        this._radius = 0;
+        this._target = null;     // {tex, fb, w, h, s}: the picture of what is behind
+        this._targetFor = '';
+        this._pipeline = lensPipeline();
+        this._uniformAt = new Map();
+        this._opacity = -1;
+        this._keep = false;
+        this._out = null;
+        this._lensDirty = true;
     }
 
     stopCatchUp() {
@@ -788,26 +919,241 @@ withShader(class FedoraGlassEffect extends ShaderBase {
         this._catchUp = 0;
     }
 
-    vfunc_paint_target(node, paintContext) {
-        // Map the texture onto the pane exactly, or every edge is smeared out by a px or two.
-        const t = this.get_texture();
-        const a = this.get_actor();
-        if (t && a) {
-            const [w, h] = [t.get_width(), t.get_height()];
-            // Its clip counts too: a clipped pane starts later in its texture.
-            const clip = a.has_clip ? a.get_clip().join() : '';
-            const key = `${w}x${h}/${a.width}x${a.height}@${a.get_resource_scale?.() ?? 1}/${clip}`;
-            if (key !== this._frame) {
-                this._frame = key;
-                GLASS.set(this, textureFrame(w, h, a));
-            }
-        }
-        super.vfunc_paint_target(node, paintContext);
+    /** Blur radius in px; 0 for none (the rim over a window mirrors the backdrop sharp). */
+    set radius(r) {
+        const v = r > 0.5 ? r : 0;
+        if (v === this._radius)
+            return;
+        this._radius = v;
+        this.queue_repaint();
     }
 
-    vfunc_paint(node, paintContext, flags) {
-        const dirty = Clutter.EffectPaintFlags.ACTOR_DIRTY;
+    get radius() {
+        return this._radius;
+    }
+
+    /** Let go of the picture (the pane is hidden); the next paint renders a new one. */
+    drop() {
+        retire(this._out);
+        retire(this._target);
+        this._out = null;
+        this._target = null;
+        this._targetFor = '';
+        this._pipeline.set_layer_null_texture(0);
+    }
+
+    /** px of picture per px of pane, and the picture's size, for this pane now. */
+    _wants(a) {
+        const w = Math.max(1, Math.ceil(a.width)), h = Math.max(1, Math.ceil(a.height));
+        let s;
+        if (this._radius > 0) {
+            // GNOME's own rule (shell-blur-effect.c): the blur runs in the pane's
+            // logical px, halved while the radius is over 12 px and the picture
+            // stays over 256 px.
+            let d = 1;
+            while (this._radius / d > 12 && w / d > 256 && h / d > 256)
+                d *= 2;
+            s = 1 / d;
+        } else {
+            // A sharp copy, at the screen's own px (125 %: 1.25, where Clutter's
+            // offscreens round up to 2).
+            s = screenScale(a);
+        }
+        return `${w}x${h}@${s}/${this._radius}`;
+    }
+
+    _ensureTarget(a) {
+        const want = this._wants(a);
+        if (this._target && this._targetFor === want)
+            return this._target;
+        const [size, rest] = want.split('@');
+        const [w, h] = size.split('x').map(Number);
+        const s = Number(rest.split('/')[0]);
+        const t = this._fit(this._target, w, h, s);
+        if (!t) {
+            this.drop();
+            return null;
+        }
+        if (t !== this._target) {
+            retire(this._target);
+            this._target = t;
+            this._pipeline.set_layer_texture(0, t.tex);
+            this._frame = '';
+            this._lensDirty = true;
+        }
+        this._targetFor = want;
+        return t;
+    }
+
+    /** A picture for w x h px of pane at s px per px: t itself while it still fits. */
+    _fit(t, w, h, s) {
+        const pw = Math.max(1, Math.ceil(w * s)), ph = Math.max(1, Math.ceil(h * s));
+        // Reuse the picture while the pane fits in it and fills most of it.
+        if (t && t.s === s && pw <= t.w && ph <= t.h && pw * ph >= 0.6 * t.w * t.h)
+            return t;
+        // Growing (a window opening up or being resized larger): leave room to grow
+        // into, so the next frames keep this picture instead of each making one.
+        const room = t && t.s === s && (pw > t.w || ph > t.h) ? 1.15 : 1;
+        const tw = Math.ceil(pw * room / TARGET_STEP) * TARGET_STEP, th = Math.ceil(ph * room / TARGET_STEP) * TARGET_STEP;
+        try {
+            const tex = Cogl.Texture2D.new_with_size(coglContext(), tw, th);
+            tex.set_premultiplied(true);
+            const fb = Cogl.Offscreen.new_with_texture(tex);
+            fb.allocate();
+            const m = new Graphene.Matrix();
+            m.init_translate(new Graphene.Point3D({x: -tw / 2, y: -th / 2, z: 0}));
+            m.scale(2 / tw, -2 / th, 1);
+            fb.set_projection_matrix(m);
+            return {tex, fb, w: tw, h: th, s, painted: false};
+        } catch (e) {
+            this._warnOnce(`Fedora Glass: no picture for the glass (${e.message})`);
+            return null;
+        }
+    }
+
+    /**
+     * Keep the finished glass (an app window's): a window that repaints (an app
+     * streaming text, a workspace switch) then shows the kept glass instead of
+     * running the lens again. Kept at the screen's own px, where up to 1.5.18 a
+     * holder actor kept it at twice the size under fractional scaling.
+     */
+    set keep(on) {
+        on = Boolean(on);
+        if (on === this._keep)
+            return;
+        this._keep = on;
+        if (!on) {
+            retire(this._out);
+            this._out = null;
+        }
+        this.queue_repaint();
+    }
+
+    get keep() {
+        return this._keep;
+    }
+
+    _warnOnce(message) {
+        if (this._warned)
+            return;
+        this._warned = true;
+        console.warn(message);
+    }
+
+    /** Copy (and blur) what is behind the pane into its picture. */
+    _render(node, a, t) {
+        const w = Math.ceil(a.width), h = Math.ceil(a.height);
+        const layer = Clutter.LayerNode.new_to_framebuffer(t.fb, plainPipeline());
+        layer.set_static_name?.('Fedora Glass (picture)');
+        node.add_child(layer);
+        let into = layer;
+        if (this._radius > 0) {
+            const bw = Math.max(1, Math.ceil(w * t.s)), bh = Math.max(1, Math.ceil(h * t.s));
+            const blur = Clutter.BlurNode.new(bw, bh, this._radius * t.s);
+            blur.set_static_name?.('Fedora Glass (blur)');
+            layer.add_child(blur);
+            blur.add_rectangle(new Clutter.ActorBox({x1: 0, y1: 0, x2: bw, y2: bh}));
+            into = blur;
+        }
+        const m = new Graphene.Matrix();
+        m.init_scale(t.s, t.s, 1);
+        const scale = Clutter.TransformNode.new(m);
+        into.add_child(scale);
+        scale.add_child(Clutter.ActorNode.new(a, 255));
+    }
+
+    /** Draw the glass: render its picture first when asked, then the lens over it. */
+    _draw(node, a, render) {
+        const t = this._ensureTarget(a);
+        if (!t) {
+            node.add_child(Clutter.ActorNode.new(a, -1));
+            return;
+        }
+        if (render || !t.painted) {
+            this._render(node, a, t);
+            t.painted = true;
+            this._lensDirty = true;
+        }
+        const [w, h] = [a.width, a.height];
+        // The lens reads the picture in the pane's own px: tex_* is how much of the
+        // pane the whole picture would cover, and the pane starts at its top left.
+        const key = `${t.w}x${t.h}@${t.s}`;
+        if (key !== this._frame) {
+            this._frame = key;
+            this._set({tex_w: t.w / t.s, tex_h: t.h / t.s, org_x: 0, org_y: 0});
+        }
+        const o = a.get_paint_opacity();
+        const box = new Clutter.ActorBox({x1: 0, y1: 0, x2: w, y2: h});
+        if (this._keep) {
+            const out = this._keepLens(node, a, t, w, h);
+            if (out) {
+                this._blit ??= plainPipeline().copy();
+                if (this._blitTex !== out.tex) {
+                    this._blitTex = out.tex;
+                    this._blit.set_layer_texture(0, out.tex);
+                    this._blit.set_layer_filters(0, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+                }
+                this._blit.set_color(new Cogl.Color({red: o, green: o, blue: o, alpha: o}));
+                const kept = Clutter.PipelineNode.new(this._blit);
+                kept.set_static_name?.('Fedora Glass (kept)');
+                node.add_child(kept);
+                kept.add_texture_rectangle(box, 0, 0, w * out.s / out.w, h * out.s / out.h);
+                return;
+            }
+        }
+        this._lens(node, t, box, w, h, o);
+    }
+
+    _lens(node, t, box, w, h, o) {
+        if (o !== this._opacity) {
+            this._opacity = o;
+            this._pipeline.set_color(new Cogl.Color({red: o, green: o, blue: o, alpha: o}));
+        }
+        const lens = Clutter.PipelineNode.new(this._pipeline);
+        lens.set_static_name?.('Fedora Glass (lens)');
+        node.add_child(lens);
+        lens.add_texture_rectangle(box, 0, 0, w * t.s / t.w, h * t.s / t.h);
+    }
+
+    /** Run the lens into the kept picture when anything changed; returns that picture. */
+    _keepLens(node, a, t, w, h) {
+        const s = screenScale(a);
+        const out = this._fit(this._out, w, h, s);
+        if (!out)
+            return null;
+        if (out !== this._out) {
+            retire(this._out);
+            this._out = out;
+            this._lensDirty = true;
+        }
+        if (this._lensDirty || !out.painted) {
+            const layer = Clutter.LayerNode.new_to_framebuffer(out.fb, plainPipeline());
+            layer.set_static_name?.('Fedora Glass (keep)');
+            node.add_child(layer);
+            const m = new Graphene.Matrix();
+            m.init_scale(s, s, 1);
+            const scale = Clutter.TransformNode.new(m);
+            layer.add_child(scale);
+            this._lens(scale, t, new Clutter.ActorBox({x1: 0, y1: 0, x2: w, y2: h}), w, h, 255);
+            out.painted = true;
+            this._lensDirty = false;
+            this.keptLens = (this.keptLens ?? 0) + 1;    // read by the QA tools
+        }
+        return out;
+    }
+
+    vfunc_paint_node(node, paintContext, flags) {
         const a = this.get_actor();
+        if (!a)
+            return;
+        if (flags & Clutter.EffectPaintFlags.BYPASS_EFFECT) {
+            node.add_child(Clutter.ActorNode.new(a, -1));
+            return;
+        }
+        // No picture yet (new, resized, or let go of while hidden): render now.
+        if (!this._target || this._targetFor !== this._wants(a))
+            flags |= Clutter.EffectPaintFlags.ACTOR_DIRTY;
+        const dirty = Clutter.EffectPaintFlags.ACTOR_DIRTY;
         const size = a ? `${a.width}x${a.height}` : '';
         // While a window animates (see holdPanes), a pane that has a picture of
         // the right size shows it again instead of re-rendering: what changed
@@ -816,7 +1162,7 @@ withShader(class FedoraGlassEffect extends ShaderBase {
         if ((flags & dirty) && hold.held && !a?._free && this._picture === size) {
             this._stale = true;
             this.held = (this.held ?? 0) + 1;    // read by the QA tools
-            super.vfunc_paint(node, paintContext, flags & ~dirty);
+            this._draw(node, a, false);
             return;
         }
         // A window behind that repaints all the time (a chat app streaming text, a
@@ -837,7 +1183,7 @@ withShader(class FedoraGlassEffect extends ShaderBase {
                         return GLib.SOURCE_REMOVE;
                     });
                 }
-                super.vfunc_paint(node, paintContext, flags & ~dirty);
+                this._draw(node, a, false);
                 return;
             }
             // Time to catch up, but this frame redraws only part of the screen (the
@@ -848,7 +1194,7 @@ withShader(class FedoraGlassEffect extends ShaderBase {
             this._stale = true;
             this.deferred = (this.deferred ?? 0) + 1;    // read by the QA tools
             a?.queueFull?.();
-            super.vfunc_paint(node, paintContext, flags & ~dirty);
+            this._draw(node, a, false);
             return;
         }
         // Painted along with the other screen, the glass would copy only that
@@ -861,7 +1207,7 @@ withShader(class FedoraGlassEffect extends ShaderBase {
             this._stale = true;
             this.offScreen = (this.offScreen ?? 0) + 1;    // read by the QA tools
             a?.queueFull?.(home);
-            super.vfunc_paint(node, paintContext, flags & ~dirty);
+            this._draw(node, a, false);
             return;
         }
         if (flags & dirty)
@@ -888,14 +1234,19 @@ withShader(class FedoraGlassEffect extends ShaderBase {
             else
                 this.get_actor()?.queueFull?.();
         }
-        super.vfunc_paint(node, paintContext, flags);
+        this._draw(node, a, Boolean(flags & dirty));
+    }
+
+    _set(values) {
+        GLASS.setOn(this._pipeline, this._uniformAt, values);
     }
 
     setFloats(values) {
-        GLASS.set(this, values);
+        this._set(values);
+        this._lensDirty = true;
         this.queue_repaint();
     }
-}, GLASS));
+});
 
 export const DEFAULT_LOOK = Object.freeze({
     blur: 6,            // px
@@ -1172,6 +1523,7 @@ export function panesHeld() {
 
 
 export function stopMoving() {
+    stopCollecting();
     if (cheapTimer)
         GLib.source_remove(cheapTimer);
     cheapTimer = 0;
@@ -1203,17 +1555,14 @@ class FedoraGlassPane extends Clutter.Actor {
         // Hidden until placed: an effect on an empty actor asks Cogl for a 0×0 texture.
         super._init({name: `fedora-glass-${layer}`, clip_to_allocation: true, reactive: false, visible: false});
         this._layer = LAYERS[layer] ?? 0;
-        this._blur = new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR, radius: 0, brightness: 1});
         if (this._layer === LAYERS.reflections) {
             // Its source is the surface's own content; a black background keeps it
             // painted (an empty actor gets no offscreen) and adds no light.
             this.background_color = new Cogl.Color({red: 0, green: 0, blue: 0, alpha: 255});
         }
-        // The lens goes on first: the first effect is the outermost, so the lens
-        // reads the blurred backdrop and its edges and reflections stay sharp.
+        // One effect copies and blurs what is behind and draws the lens over it.
         this._glass = new GlassEffect();
         this.add_effect_with_name('fedora-glass-lens', this._glass);
-        this.add_effect_with_name('fedora-glass-blur', this._blur);
         this._look = {...DEFAULT_LOOK};
         this._radii = [0, 0, 0, 0];
         this._pad = 0;
@@ -1236,12 +1585,32 @@ class FedoraGlassPane extends Clutter.Actor {
         panes.add(this);
         followPainting(true);
         this._fullLater = 0;
+        // Hidden (a menu closed, the panel's screen gone): let go of the picture after
+        // a little while, so a closed menu keeps no copy of what was behind it.
+        this._dropLater = 0;
+        this.connect('notify::mapped', () => {
+            if (this._dropLater)
+                GLib.source_remove(this._dropLater);
+            this._dropLater = 0;
+            if (!this.mapped) {
+                this._dropLater = GLib.timeout_add(GLib.PRIORITY_LOW, DROP_HIDDEN_MS, () => {
+                    this._dropLater = 0;
+                    if (!this.mapped)
+                        this._glass.drop();
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+        });
         this.connect('destroy', () => {
             if (this._fullLater)
                 global.compositor.get_laters().remove(this._fullLater);
             this._fullLater = 0;
+            if (this._dropLater)
+                GLib.source_remove(this._dropLater);
+            this._dropLater = 0;
             this._glass.stopCatchUp();
             panes.delete(this);
+            this._glass.drop();
             followPainting(panes.size > 0);
             this._clones.clear();
         });
@@ -1344,6 +1713,11 @@ class FedoraGlassPane extends Clutter.Actor {
             below = clone;
         }
         this._syncClones();
+    }
+
+    /** Keep the finished glass (see FedoraGlassEffect.keep). */
+    setKeep(on) {
+        this._glass.keep = on;
     }
 
     /** Which sides touch the screen edge ([left, top, right, bottom], booleans): those get no rim. */
@@ -1515,8 +1889,7 @@ class FedoraGlassPane extends Clutter.Actor {
         // The reflections layer blurs a copy of the content into a glow map.
         // The rim over a window mirrors the backdrop sharp: it needs no blur of its own.
         const blur = top ? GLOW_BLUR : this._layer === LAYERS.rim ? 0 : Math.max(0, Math.min(100, L.blur));
-        this._blur.radius = blur;
-        this._blur.enabled = blur > 0.5;
+        this._glass.radius = blur;
         // Room around the surface for the blur and the edge reflections to see past
         // the edge, and for the shadow.
         this._pad = Math.ceil(Math.min(64, Math.max(blur, top ? 0 : blur * 0.5 + ENV_REACH, !top && L.shadow > 0 ? SHADOW_PAD : 0, 2)));

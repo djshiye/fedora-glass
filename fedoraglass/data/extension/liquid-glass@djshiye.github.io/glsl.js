@@ -101,6 +101,27 @@ export class Shader {
         console.warn(message);
     }
 
+    /** set() for a Cogl pipeline of our own; at caches the uniform locations. */
+    setOn(pipeline, at, values) {
+        for (const [k, v] of Object.entries(values)) {
+            if (!this.names.has(k)) {
+                this._warn(`Fedora Glass: no uniform ${k} in this shader; skipped`);
+                continue;
+            }
+            if (typeof v !== 'number' || !Number.isFinite(v)) {
+                this._warn(`Fedora Glass: uniform ${k} skipped, not a finite number`);
+                continue;
+            }
+            let loc = at.get(k);
+            if (loc === undefined) {
+                loc = pipeline.get_uniform_location(k);
+                at.set(k, loc);
+            }
+            if (loc >= 0)
+                pipeline.set_uniform_1f(loc, v);
+        }
+    }
+
     set(effect, values) {
         effect._uniformAt ??= new Map();
         for (const [k, v] of Object.entries(values)) {
