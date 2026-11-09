@@ -20,6 +20,10 @@ builds the RPMs         checks the RPMs, signs         checks every            c
 - **DNF repository** (`dnf-repo.yml`) has no key and can't sign. It publishes only if every package
   and the index are signed by the key in `packaging/RPM-GPG-KEY-fedora-glass` on `main`, and never
   goes back to an older version.
+- **Ubuntu and Arch**: the same run also signs the apt index (`InRelease`, which lists each
+  `.deb`'s SHA-256) and each Arch package (`.sig`) plus the pacman database, with the same key and
+  only gpg and Python. The DNF repository workflow first has real `apt` (Ubuntu 26.04) and `pacman`
+  (Arch) accept them, trusting only the key on main, and serves them at `/apt` and `/arch`.
 - **dnf** on each PC checks the index and every package against the key that came with the
   package (`/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass`). It never fetches a key from the web, so
   nobody can swap the key through the website or the repository. `gpgcheck=1` and
@@ -34,6 +38,10 @@ Signing key: Dino Klisura (djshiye package signing), RSA 4096, fingerprint
 `D49A308168257FDBF9D5AE14BD1AC1C6F56A7252`, without spaces).
 
 ## One-time setup (Dino's PC)
+
+Already set up before Ubuntu and Arch support (1.5.16)? Only download the script again (the
+`curl` line below): the old one signs only the Fedora packages, so the publish workflow stops and
+says so. Automatic signing keeps working with the new script, nothing else changes.
 
 ```sh
 sudo dnf install rpm-sign createrepo_c gh

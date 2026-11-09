@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ]; then
+    # Removing the app (not an upgrade) puts each person's original look back, unless they
+    # turned that off in the app, and the normal login screen if the glass was on there.
+    /usr/libexec/fedora-glass-undo-for-users || :
+    /usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+    systemctl --global disable liquid-glass-watch.service >/dev/null 2>&1 || :
+fi
+exit 0

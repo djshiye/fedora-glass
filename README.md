@@ -3,26 +3,52 @@
   Fedora Glass
 </h1>
 
-<p align="center">A glass look for the whole Fedora GNOME desktop, with an app to tune it from liquid to frosted.</p>
+<p align="center">A glass look for the whole GNOME desktop, with an app to tune it from liquid to frosted.</p>
 
 <p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Fedora Glass on a GNOME desktop: glass panel, ArcMenu and app windows"></p>
 
-Made for **Fedora 44 with GNOME 50**, and ready for GNOME 51 (Fedora 45).
+Made for **GNOME 50 and 51** on **Fedora** (44, 45), **Ubuntu** (26.04 LTS, 26.10) and **Arch Linux**.
 
 ## Install
+
+Pick your Linux. Each one installs the same app, and from then on your normal system update brings
+new versions.
+
+**Fedora**
 
 ```sh
 sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
 ```
 
+**Ubuntu**
+
+```sh
+wget -O /tmp/fedora-glass.deb https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.deb
+sudo apt install /tmp/fedora-glass.deb
+```
+
+**Arch Linux**
+
+```sh
+curl -fsSLo /tmp/fedora-glass.key https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass
+sudo pacman-key --add /tmp/fedora-glass.key
+sudo pacman-key --lsign-key D49A308168257FDBF9D5AE14BD1AC1C6F56A7252
+printf '\n[fedora-glass]\nSigLevel = Required DatabaseRequired\nServer = https://djshiye.github.io/fedora-glass/arch\n' | sudo tee -a /etc/pacman.conf
+sudo pacman -Syu fedora-glass
+```
+
+Then:
+
 1. Open **Fedora Glass** from the app grid.
 2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**.
 3. Restart your PC once, so GNOME loads the glass.
 
-Updates come with the rest of your system through `sudo dnf upgrade`: the package adds its own dnf
-repository, served from GitHub Pages. Every package and the repository index are signed with the
-maintainer's own OpenPGP key, and dnf checks them against the key that comes with the package
-([how the signing works](docs/SIGNING.md)). The first signed update asks you to accept the key once.
+**Updates** come with the rest of your system: `sudo dnf upgrade` on Fedora, `sudo apt update && sudo apt upgrade`
+on Ubuntu, `sudo pacman -Syu` on Arch. They are served from GitHub Pages, and every package and
+repository index is signed with the maintainer's own OpenPGP key
+([how the signing works](docs/SIGNING.md)). The Fedora and Ubuntu packages bring the key with them; on
+Arch the `--lsign-key` line above trusts only the key with that fingerprint, so a swapped key file
+is refused. Fedora asks you to accept the key once, on the first update.
 
 ## Works with
 
@@ -39,8 +65,9 @@ Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the log
 ## Undo or remove
 
 - **Restore original** in the app puts your desktop back exactly as it was before the first Apply.
-- **Remove Fedora Glass…** (at the bottom of the Look page), or `sudo dnf remove fedora-glass`,
-  restores your original look and then removes the app.
+- **Remove Fedora Glass…** (at the bottom of the Look page), or `sudo dnf remove fedora-glass`
+  (Ubuntu: `sudo apt remove fedora-glass`, Arch: `sudo pacman -R fedora-glass`), restores your
+  original look and then removes the app.
 
 ## How the glass works
 

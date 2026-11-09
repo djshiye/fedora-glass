@@ -1,0 +1,8 @@
+# Where `sudo apt upgrade` finds new versions of Fedora Glass.
+# Everything in it is signed with Dino's own OpenPGP key, on Dino's PC (docs/SIGNING.md).
+# apt refuses anything that key didn't sign. The key comes with the package
+# (/usr/share/keyrings/fedora-glass.asc) and is never fetched from the web.
+Types: deb
+URIs: https://djshiye.github.io/fedora-glass/apt/
+Suites: ./
+Signed-By: /usr/share/keyrings/fedora-glass.asc

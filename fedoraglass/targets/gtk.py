@@ -5,11 +5,16 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .. import distro
 from ..env import Env
 from ..render import gtk3, gtk4, headerbar
 from .base import Action, Context, FlatpakOverride, Detection, GReset, GSet, Target, WriteFile
 
-GTK3_PARTIAL = "Some GTK 3 details need adw-gtk3: sudo dnf install adw-gtk3-theme"
+def gtk3_partial() -> str:
+    """What to say when adw-gtk3 is missing, with this Linux's install command."""
+    how = distro.hint("adw-gtk3")
+    return (f"Some GTK 3 details need adw-gtk3: {how}" if how else
+            "Some GTK 3 details need the adw-gtk3 theme (github.com/lassekongo83/adw-gtk3)")
 
 
 class Gtk4(Target):
@@ -119,7 +124,7 @@ class Gtk3(Target):
         return Detection(True, f"adw-gtk3 found in {found.parent}")
 
     def live_notes(self, ctx: Context) -> list[str]:
-        return [] if find_adw_gtk3(ctx.env) else [GTK3_PARTIAL]
+        return [] if find_adw_gtk3(ctx.env) else [gtk3_partial()]
 
     def plan(self, ctx: Context) -> list[Action]:
         t = ctx.tokens

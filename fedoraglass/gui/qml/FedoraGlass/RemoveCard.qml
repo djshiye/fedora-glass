@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
-// Taking Fedora Glass off the PC: whether `dnf remove` puts the original look back first,
+// Taking Fedora Glass off the PC: whether removing the package (dnf, apt or pacman) puts the original look back first,
 // and a button that does both (Restore original, then removes the app after your password).
 Card {
     id: root
@@ -17,7 +17,7 @@ Card {
             objectName: "undoOnRemove"
             label: "Put my original look back"
             caption: "When Fedora Glass is removed, your desktop goes back to how it was before"
-            tip: "On: removing Fedora Glass (here, or with sudo dnf remove fedora-glass) first does what Restore original does. Off: the glass and themes stay after the app is gone. Saved straight away."
+            tip: "On: removing Fedora Glass (here, or with " + Backend.removeCommand + ") first does what Restore original does. Off: the glass and themes stay after the app is gone. Saved straight away."
             checked: Backend.undoOnRemove
             onToggled: (on) => Backend.undoOnRemove = on
         }

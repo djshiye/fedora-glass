@@ -18,7 +18,7 @@ What it does, as root:
 It takes three colours or numbers, never a path or any other text, and only ever writes
 the file GNOME Shell reads for the login screen, its backup and a small state file. A
 gnome-shell update replaces the file and so turns the glass off again by itself; the app
-then says so. "sudo dnf reinstall gnome-shell" always brings the original back too.
+then says so. Reinstalling gnome-shell (dnf, apt or pacman) always brings the original back too.
 
 Runs with python3 -I -S (no environment, no user or site packages): standard library only.
 """
@@ -57,6 +57,34 @@ class LoginScreenError(Exception):
 
 
 # ---- the look ----------------------------------------------------------------------
+
+def reinstall_hint(os_release: str = "/etc/os-release", shell_dir: str = SHELL_DIR) -> str:
+    """The command that puts GNOME's own login screen file back, for this Linux."""
+    ids = []
+    try:
+        with open(os_release, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                key, _, value = line.strip().partition("=")
+                if key in ("ID", "ID_LIKE"):
+                    ids += value.strip('"\'').lower().split()
+    except OSError:
+        pass
+    if "ubuntu" in ids or "debian" in ids:
+        # Ubuntu's login screen file can come from the Yaru theme package: ask dpkg.
+        pkg = "gnome-shell-common"
+        try:
+            real = os.path.realpath(target(shell_dir))
+            r = subprocess.run(["/usr/bin/dpkg-query", "-S", real], capture_output=True, text=True, timeout=10)
+            name = r.stdout.split(":")[0].strip() if r.returncode == 0 else ""
+            if re.fullmatch(r"[a-z0-9][a-z0-9.+-]+", name):
+                pkg = name
+        except (OSError, LoginScreenError, subprocess.SubprocessError):
+            pass
+        return f"sudo apt install --reinstall {pkg}"
+    if "arch" in ids:
+        return "sudo pacman -S gnome-shell"
+    return "sudo dnf reinstall gnome-shell"
+
 def _rgb(hex6: str) -> tuple[int, int, int]:
     return int(hex6[1:3], 16), int(hex6[3:5], 16), int(hex6[5:7], 16)
 
@@ -212,15 +240,16 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
 def target(shell_dir: str = SHELL_DIR) -> str:
     """The file GNOME Shell reads gdm.css from in login-screen mode.
 
-    Upstream GNOME (Fedora) reads gnome-shell-theme.gresource; Ubuntu adds
-    gdm-theme.gresource, usually a link back to it. Both stay inside shell_dir.
+    Upstream GNOME (Fedora, Arch) reads gnome-shell-theme.gresource; Ubuntu adds
+    gdm-theme.gresource, a link (through /etc/alternatives) to that file or to its Yaru
+    theme's theme/Yaru/gnome-shell-theme.gresource. The file must stay inside shell_dir.
     """
     base = os.path.realpath(shell_dir)
     for name in ("gdm-theme.gresource", "gnome-shell-theme.gresource"):
         p = os.path.join(base, name)
         if os.path.lexists(p):
             real = os.path.realpath(p)
-            if os.path.dirname(real) != base:
+            if not real.startswith(base + os.sep) or not real.endswith(".gresource"):
                 raise LoginScreenError(f"{p} points outside {base}")
             return real
     raise LoginScreenError(f"GNOME Shell's theme file is not in {base}")
@@ -396,7 +425,7 @@ def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, stat
         if s.get("written") == now or any(MARK_START in extract(dest, n).decode(errors="replace")
                                           for n in sheets(list_files(dest))):
             raise LoginScreenError("the login screen file was changed before but its original is missing; "
-                                   "run: sudo dnf reinstall gnome-shell")
+                                   "run: " + reinstall_hint())
         shutil.copyfile(dest, backup + ".new")    # the file as GNOME installed it
         os.chmod(backup + ".new", 0o644)
         os.replace(backup + ".new", backup)
@@ -429,7 +458,7 @@ def undo(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
     done = "a GNOME update had already put the normal login screen back"
     if sha256(dest) == s["written"]:
         if not (os.path.isfile(backup) and sha256(backup) == s.get("original")):
-            raise LoginScreenError("the saved original is missing or changed; run: sudo dnf reinstall gnome-shell")
+            raise LoginScreenError("the saved original is missing or changed; run: " + reinstall_hint())
         _write_into(backup, dest)
         done = "the normal login screen is back"
     for name in (STATE, BACKUP):

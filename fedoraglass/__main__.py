@@ -6,7 +6,7 @@
   fedora-glass status          list targets and whether they're available
   fedora-glass revert [TARGET] restore the original look (everything, or one target)
   fedora-glass watch           re-apply when GNOME switches dark/light or High Contrast (run by a user service)
-  fedora-glass on-remove       restore the original look before `dnf remove` takes the app away (run by dnf)
+  fedora-glass on-remove       restore the original look before the package manager takes the app away (run by dnf, apt or pacman)
 """
 
 from __future__ import annotations
@@ -250,7 +250,8 @@ def cmd_gui(args: argparse.Namespace) -> int:
     try:
         from .gui.app import main
     except ImportError as e:
-        print(f"The customizer needs PySide6: sudo dnf install python3-pyside6 ({e})", file=sys.stderr)
+        from . import distro
+        print(f"The customizer needs PySide6: {distro.hint('pyside6', 'install PySide6')} ({e})", file=sys.stderr)
         return 1
     return main(args.qt_args)
 
@@ -273,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("target", nargs="?")
     r.set_defaults(func=cmd_revert)
     sub.add_parser("watch", help="follow dark/light and High Contrast switches").set_defaults(func=cmd_watch)
-    sub.add_parser("on-remove", help="restore the original look before the app is removed (run by dnf)").set_defaults(func=cmd_on_remove)
+    sub.add_parser("on-remove", help="restore the original look before the app is removed (run by dnf, apt or pacman)").set_defaults(func=cmd_on_remove)
     g = sub.add_parser("gui", help="open the customizer")
     g.add_argument("qt_args", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_gui)

@@ -1,0 +1,12 @@
+post_install() {
+    # Turn the dark/light watcher on for everyone's sessions.
+    systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
+}
+
+pre_remove() {
+    # Removing the app (not an upgrade) puts each person's original look back, unless they
+    # turned that off in the app, and the normal login screen if the glass was on there.
+    /usr/libexec/fedora-glass-undo-for-users || :
+    /usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+    systemctl --global disable liquid-glass-watch.service >/dev/null 2>&1 || :
+}

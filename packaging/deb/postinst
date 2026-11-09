@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ] && [ -z "${2:-}" ]; then
+    # First install: turn the dark/light watcher on for everyone's sessions.
+    systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
+fi
+command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || :
+exit 0

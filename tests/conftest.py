@@ -134,3 +134,11 @@ def qml(tmp_path_factory):
     engine.addImportPath(str(gui_app.QML_DIR))
     engine.rootContext().setContextProperty("appIconUrl", QUrl())
     yield engine
+
+
+@pytest.fixture(autouse=True)
+def _fedora_by_default(monkeypatch):
+    """Tests see a Fedora PC wherever they run (install hints, remove command);
+    tests/test_distro.py covers Ubuntu and Arch."""
+    from fedoraglass import distro
+    monkeypatch.setattr(distro, "current", lambda: distro.FEDORA)
