@@ -552,6 +552,10 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${card}; }
 
 /* ---------------------------------------------------------------- overview and app grid */
+/* Each workspace in the overview is the sharp wallpaper over the same wallpaper blurred:
+   a lift keeps it apart from the glass behind it, as the grey overview does in GNOME. */
+.workspace-background {
+  box-shadow: 0 6px 22px 2px ${shadow}; }
 .search-entry {
   border-radius: 999px;
   margin-top: 12px;
@@ -562,16 +566,25 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   box-shadow: 0 4px 14px 0 ${shadow}; }
 .search-entry:focus {
   box-shadow: inset 0 0 0 2px ${focus_ring} !important; }
-.search-section-content, .list-search-result, .search-provider-icon {
+.search-section-content {
   color: ${fg};
   background-color: ${card};
   border: 1px solid ${edge};
-  border-top-color: ${rim}; }
-.search-section-content {
+  border-top-color: ${rim};
   border-radius: ${ov_r_m}px; }
+/* Rows sit flat on their section's card, as in GNOME; only hover and focus light them. */
 .list-search-result, .search-provider-icon {
-  border-radius: ${ov_r_xs}px;
-  border-color: transparent; }
+  color: ${fg};
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: ${ov_r_xs}px; }
+/* GNOME's theme gives the provider's name and each result's description fixed light
+   colours; on a light glass card they all but vanished. */
+.search-provider-icon .list-search-provider-content .list-search-provider-details,
+.list-search-result .list-search-result-title {
+  color: ${fg}; }
+.list-search-result .list-search-result-description {
+  color: ${fg_dim}; }
 .list-search-result:hover, .search-provider-icon:hover, .list-search-result:focus, .search-provider-icon:focus {
   color: ${fg};
   background-color: ${hover};

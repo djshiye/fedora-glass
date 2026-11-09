@@ -21,7 +21,11 @@ NODE = shutil.which("node")
 
 def test_panels_ask_only_for_windows_really_behind_them():
     panels = (EXT / "panels.js").read_text()
-    assert re.search(r"new Follower\([^;]*\{onlyBehind: true\}\)", panels, re.S)
+    # Every surface Panels follows (bars, docks, the overview's dash) asks only for what is behind it.
+    opts = re.search(r"_optionsFor\(kind\) \{(.*?)\n    \}", panels, re.S).group(1)
+    returns = re.findall(r"return \{[^}]*\}", opts)
+    assert returns and all("onlyBehind: true" in r for r in returns)
+    assert "this._optionsFor(kind)" in panels
     follower = (EXT / "follower.js").read_text()
     assert "const reach = this._onlyBehind ? 0 : p;" in follower
     # Menus keep their reach (popups.js passes no options).

@@ -111,7 +111,9 @@ def test_scenes_show_the_part_being_edited(preview):
     for scene in ("quicksettings", "calendar", "overview", "desktop"):
         pv.setProperty("scene", scene)
         assert pv.property("scene") == scene
-    assert pv.property("menuOpen")
+    # The desktop scene opens the start menu when the desktop has one (ArcMenu, Spawn or
+    # Dash to Panel's bar); on GNOME's own top bar without them there is none to show.
+    assert pv.property("menuOpen") == pv.property("hasMenu")
     pv.setProperty("scene", "quicksettings")
     assert not pv.property("menuOpen")
     closeup = pv.findChild(QQuickItem, "edgeCloseUp")

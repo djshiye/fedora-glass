@@ -20,10 +20,18 @@ export class Follower {
      * window on its screen: their colours, reflected into the glass at its edge, made
      * the panel on a screen with a maximized window lighter and tinted, so the panels
      * on two screens never matched.
+     *
+     * sources: what the glass shows instead of what is behind on screen (a function
+     * returning actors). The overview's dash sits inside the overview, which the glass
+     * can't copy from inside it, so it shows the wallpaper the overview blurs.
+     * glow: what lights the glass instead of the anchor (the overview's dash, not the
+     * whole overview with its windows).
      */
-    constructor(target, anchor, settings, onGone, {onlyBehind = false} = {}) {
+    constructor(target, anchor, settings, onGone, {onlyBehind = false, sources = null, glow = null} = {}) {
         this.target = target;
         this._onlyBehind = onlyBehind;
+        this._sources = sources;
+        this._glow = glow;
         this.anchor = anchor;
         this.settings = settings;
         this.pane = new GlassPane('glass');
@@ -251,12 +259,16 @@ export class Follower {
         const [gok, glx, gly] = room ? parent.transform_stage_point(gx, gy) : [true, lx, ly];
         const still = !room || !gok;
         const reach = this._onlyBehind ? 0 : p;
-        pane.setSources(still
-            ? sourcesFor(this.settings.behind, sx - reach, sy - reach, w + 2 * reach, h + 2 * reach)
-            : sourcesFor(this.settings.behind, gx - reach, gy - reach, gw + 2 * reach, gh + 2 * reach));
+        if (this._sources)
+            pane.setSources(this._sources());
+        else {
+            pane.setSources(still
+                ? sourcesFor(this.settings.behind, sx - reach, sy - reach, w + 2 * reach, h + 2 * reach)
+                : sourcesFor(this.settings.behind, gx - reach, gy - reach, gw + 2 * reach, gh + 2 * reach));
+        }
         // The light the content casts into the glass comes from the content itself.
         // Both panes are the anchor's siblings; never clone an actor into itself.
-        const glow = glowSource(anchor, target);
+        const glow = this._glow ?? glowSource(anchor, target);
         const nested = top.contains(glow) || glow.contains(top) || glow.contains(pane);
         top.setSources(nested ? [] : [glow]);
         const edges = screenEdges(target, sx, sy, w, h);

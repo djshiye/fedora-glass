@@ -891,6 +891,21 @@ class Backend(QObject):
     def targetsReady(self) -> bool:
         return self._targets_ready
 
+    @Property(bool, notify=targetsChanged)
+    def hasDashToPanel(self) -> bool:
+        """Dash to Panel is installed. Until the targets are known, yes: the panel settings
+        stay put rather than flash away and back."""
+        if not self._targets_ready:
+            return True
+        return any(t["id"] == "dash-to-panel" and t["available"] for t in self._targets)
+
+    @Property(bool, notify=targetsChanged)
+    def hasStartMenu(self) -> bool:
+        """ArcMenu or Spawn is installed (yes until the targets are known, as above)."""
+        if not self._targets_ready:
+            return True
+        return any(t["id"] in ("arcmenu", "spawn") and t["available"] for t in self._targets)
+
     @Property(int, notify=targetsChanged)
     def activeTargetCount(self) -> int:
         return sum(1 for t in self._targets if t["available"] and self._s.target_enabled(t["id"]))
