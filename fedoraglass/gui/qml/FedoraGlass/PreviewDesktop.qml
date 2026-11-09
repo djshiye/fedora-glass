@@ -784,6 +784,55 @@ Item {
     }
     readonly property color panelFg: dtpThemed || (topBar && shellThemed) ? fg : "white"
 
+    // ---------------------------------------------------------------- Dash to Dock
+    // Dash to Dock or Ubuntu Dock on GNOME's own desktop: a dock along the bottom edge,
+    // with glass behind it as on the desktop. It stays on screen in the overview, where
+    // it takes the place of GNOME's dash.
+    readonly property bool showDock: topBar && Backend.hasDock
+    ShellGlass {
+        id: deskDock
+        part: "panel"
+        visible: root.showDock
+        glass: root.panelGlass
+        z: 5
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: root.height - height - root.u(10)
+        width: deskDockRow.width + root.u(20); height: root.u(64)
+        radius: Math.min(height / 2, root.u(root.lad(root.rPanel, "l")))
+        tint: root.shellThemed ? root.part("panel", "chrome", "transparent") : Qt.rgba(0, 0, 0, 0.7)
+        shadowColor: root.t.shadow || "transparent"
+        shadowBlur: root.u(30)
+        shadowY: root.u(6)
+        Row {
+            id: deskDockRow
+            anchors.centerIn: parent
+            spacing: root.u(6)
+            Repeater {
+                model: root.dock
+                delegate: Item {
+                    required property var modelData
+                    width: root.u(52); height: root.u(64)
+                    AppIcon {
+                        anchors.centerIn: parent
+                        anchors.verticalCenterOffset: -root.u(2)
+                        size: root.u(42)
+                        source: modelData.icon
+                        label: modelData.name
+                        tileColor: root.t.accent || "#3584e4"
+                    }
+                    Rectangle {     // a dot under each running app
+                        visible: modelData.running
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: parent.height - root.u(7)
+                        width: root.u(4); height: width; radius: width / 2
+                        color: root.panelFg
+                        opacity: 0.8
+                    }
+                }
+            }
+        }
+    }
+
 
     // ---------------------------------------------------------------- ArcMenu
     ShellGlass {
@@ -1204,6 +1253,7 @@ Item {
         ShellGlass {    // the dash
             id: dash
             part: "overview"
+            visible: !root.showDock      // Dash to Dock takes the dash's place
             glass: root.panelGlass && root.overviewGlass   // real glass behind GNOME's dash, as on the desktop
             anchors.horizontalCenter: parent.horizontalCenter
             y: root.topBar ? root.height - height - root.u(16) : panel.y - height - root.u(28)

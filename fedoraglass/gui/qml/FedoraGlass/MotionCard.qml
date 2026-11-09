@@ -530,6 +530,7 @@ Card {
 
         SwitchRow {
             objectName: "motionGlide"
+            visible: Backend.hasDashToPanel     // it glides along Dash to Panel's taskbar only
             label: "Gliding highlight"
             caption: "One highlight slides from icon to icon along the taskbar"
             tip: "Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on."

@@ -43,3 +43,32 @@ def test_search_results_follow_the_glass_text_colour(dark):
 def test_overview_workspaces_are_lifted():
     css = rs.render_css(palette.build(Settings(), dark=True))
     assert "box-shadow" in _rule(css, ".workspace-background")
+
+
+class _Env:
+    def __init__(self, enabled: str, installed: set[str], disabled: str = "false"):
+        self.enabled, self.installed, self.disabled = enabled, installed, disabled
+
+    def gsettings_get(self, schema, key, path=None):
+        return self.disabled if key == "disable-user-extensions" else self.enabled
+
+    def extension_path(self, uuid):
+        return Path("/x") / uuid if uuid in self.installed else None
+
+
+@pytest.mark.parametrize("enabled, installed, want", [
+    ("@as []", {"spawn@djshiye.github.io"}, (False, False)),           # stock: Spawn only installed
+    ("['dash-to-dock@micxgx.gmail.com']", {"dash-to-dock@micxgx.gmail.com"}, (True, False)),
+    ("['ubuntu-dock@ubuntu.com', 'arcmenu@arcmenu.com']", {"ubuntu-dock@ubuntu.com", "arcmenu@arcmenu.com"}, (True, True)),
+    ("['arcmenu@arcmenu.com']", set(), (False, False)),                 # switched on, but not installed
+])
+def test_the_app_knows_which_dock_and_menu_are_in_use(enabled, installed, want):
+    """The preview draws a dock and a start menu only for extensions that are installed AND on."""
+    pytest.importorskip("PySide6")
+    from fedoraglass.gui.backend import Backend
+
+    class E:
+        env = _Env(enabled, installed)
+    assert Backend._extensions_on(E) == want
+    E.env = _Env(enabled, installed, disabled="true")     # extensions switched off altogether
+    assert Backend._extensions_on(E) == (False, False)

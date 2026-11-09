@@ -91,7 +91,10 @@ class Settings:
     glass_see_windows: bool = True  # panel and menus show the windows behind them, not just the wallpaper
 
     # Desktop behaviour, done by the same Shell extension.
-    start_on_desktop: bool = True   # log in to the desktop, not the Activities overview
+    # Log in to the desktop, not the Activities overview. None (not chosen yet) follows the
+    # desktop: on with Dash to Panel, whose users start on the desktop anyway; off on GNOME's
+    # own desktop, which opens Activities at login (see start_on_desktop_for).
+    start_on_desktop: bool | None = None
     overview_off: bool = False      # Activities never opens: no hot corner, Super key or swipe
 
     # When the app is removed (`dnf remove fedora-glass`), put the original look back
@@ -163,6 +166,10 @@ class Settings:
         return self.targets.get(target_id, True)
 
     # ---- validation ---------------------------------------------------
+    def start_on_desktop_for(self, has_dash_to_panel: bool) -> bool:
+        """Whether GNOME starts on the desktop, with the default following the desktop."""
+        return has_dash_to_panel if self.start_on_desktop is None else bool(self.start_on_desktop)
+
     def normalized(self) -> "Settings":
         s = Settings(**asdict(self))
         s.frost = _clamp(float(s.frost))
@@ -178,9 +185,11 @@ class Settings:
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
-                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars", "start_on_desktop",
+                  "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars",
                   "overview_off"):
             setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
+        if s.start_on_desktop is not None:
+            s.start_on_desktop = _bool(s.start_on_desktop, True)
         if s.opacity is not None:
             s.opacity = _clamp(float(s.opacity), 0.6)
         if s.blur is not None:

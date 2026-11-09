@@ -688,9 +688,11 @@ Item {
                             objectName: "startOnDesktop"
                             label: "Start on the desktop"
                             caption: "Start straight on your desktop, not the Activities overview"
-                            tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
+                            tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. Until you choose, it is on with Dash to Panel and off on GNOME's own desktop. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
                             enabled: !Backend.overviewOff
-                            checked: Backend.startOnDesktop || Backend.overviewOff
+                            // Not chosen yet, it follows the desktop (on with Dash to Panel), which is
+                            // known once the installed extensions are: read hasDashToPanel to follow it.
+                            checked: (Backend.hasDashToPanel, Backend.startOnDesktop) || Backend.overviewOff
                             onToggled: (on) => Backend.startOnDesktop = on
                         }
                         SwitchRow {
@@ -731,11 +733,11 @@ Item {
                           tip: "Look of app windows" },
                         { id: "terminal", label: "Terminal", caption: "Terminal windows",
                           tip: "Look of terminal windows" }
-                    ]
+                    ].filter(p => p.id !== "arcmenu" || Backend.hasStartMenu)   // no start menu, no tab for it
                     property string part: "panel"
                     // Bring the part being edited into view in the preview.
                     onPartChanged: preview.scene = ({ quicksettings: "quicksettings", calendar: "calendar", overview: "overview" })[part] || "desktop"
-                    readonly property var info: partList.find(p => p.id === part)
+                    readonly property var info: partList.find(p => p.id === part) ?? partList[0]
                     readonly property var own: Backend.parts[part] || ({})
                     readonly property bool any: Object.keys(own).length > 0
                     // Which settings make sense for the chosen part.
