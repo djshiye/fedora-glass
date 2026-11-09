@@ -1279,7 +1279,12 @@ class FedoraGlassPane extends Clutter.Actor {
         });
     }
 
-    setSources(actors) {
+    /**
+     * restack: put the copies in order even when the order is the same. The relayout
+     * that queues is what redraws all of a pane whose owner just moved or changed size,
+     * so owners pass false when theirs didn't (see WindowGlass._place).
+     */
+    setSources(actors, restack = true) {
         const keep = new Set(actors);
         for (const [src, clone] of this._clones) {
             if (!keep.has(src)) {
@@ -1288,9 +1293,14 @@ class FedoraGlassPane extends Clutter.Actor {
             }
         }
         let below = null;
+        const order = this._order ?? [];
+        if (!restack && (order.length !== actors.length || actors.some((a, i) => order[i] !== a)))
+            restack = true;
+        this._order = [...actors];
         for (const src of actors) {
             let clone = this._clones.get(src);
             if (!clone) {
+                restack = true;
                 clone = new Clutter.Clone({source: src});
                 // A clone outlives its source, so a source that goes away takes its copy with it.
                 const ids = [src.connect('destroy', () => {
@@ -1321,15 +1331,16 @@ class FedoraGlassPane extends Clutter.Actor {
                 this._clones.set(src, clone);
                 this.add_child(clone);
             }
-            // Restack only when the order changed: owners call this for every window
-            // move anywhere, and each restack queues a relayout of the pane.
-            // Always restack, even in the same order: the relayout it queues is what
-            // redraws the whole pane when a window grows under a corner drag (skipping
-            // it left a black patch below a growing terminal in the release checks).
-            if (below)
-                this.set_child_above_sibling(clone, below);
-            else
-                this.set_child_below_sibling(clone, null);
+            // Restacked even in the same order unless the owner says it stayed put: the
+            // relayout it queues is what redraws the whole pane when a window grows under
+            // a corner drag (skipping it left a black patch below a growing terminal in
+            // the release checks).
+            if (restack) {
+                if (below)
+                    this.set_child_above_sibling(clone, below);
+                else
+                    this.set_child_below_sibling(clone, null);
+            }
             below = clone;
         }
         this._syncClones();
