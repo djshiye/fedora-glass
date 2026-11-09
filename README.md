@@ -34,6 +34,24 @@ It also themes GTK 3, GTK 4 and libadwaita apps (Files included), Flatpak apps, 
 Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the login screen. The app's
 **Apps** page lists every part, shows which ones you have, and has a switch for each.
 
+### Optional: Orchis Dark Compact
+
+Fedora Glass doesn't install a GTK theme for you. The maintainer's own desktop uses
+[Orchis](https://github.com/vinceliuice/Orchis-theme) in its dark, compact variant, which gives
+apps slimmer title bars and pairs well with the glass. To get the same setup, install it **before**
+you press Apply:
+
+```sh
+git clone https://github.com/vinceliuice/Orchis-theme.git && cd Orchis-theme
+./install.sh -t default -c dark -s compact --tweaks primary -l
+gsettings set org.gnome.desktop.interface gtk-theme 'Orchis-Dark-Compact'
+```
+
+Fedora Glass keeps Orchis for GTK 3 apps (unless adw-gtk3 is installed, which it uses instead) and
+draws its glass on top of it in GTK 4 apps. If you
+reinstall or update Orchis later, press **Apply** again, because the Orchis installer replaces the
+GTK 4 style files.
+
 <p align="center"><img src="docs/screenshots/app.png" width="860" alt="The Fedora Glass app: live preview and the Liquid to Frosted slider"></p>
 
 ## Undo or remove
