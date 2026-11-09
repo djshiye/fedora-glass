@@ -779,6 +779,16 @@ withShader(class FedoraGlassEffect extends ShaderBase {
                 super.vfunc_paint(node, paintContext, flags & ~dirty);
                 return;
             }
+            // Time to catch up, but this frame redraws only part of the screen (the
+            // window behind that changed). Rendered now, the glass would copy only that
+            // part of what is behind it and show the rest wrong for a frame (another
+            // window's glow came and went behind Slack's title bar on 1.5.13). Keep the
+            // picture and render it whole next frame instead.
+            this._stale = true;
+            this.deferred = (this.deferred ?? 0) + 1;    // read by the QA tools
+            a?.queueFull?.();
+            super.vfunc_paint(node, paintContext, flags & ~dirty);
+            return;
         }
         // A pane that moved this frame is inside Mutter's redraw area as a whole.
         const moved = (flags & dirty) && this._placedAt !== (a?._placed ?? '');

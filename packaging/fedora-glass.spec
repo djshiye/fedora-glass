@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.13
+Version:        1.5.14
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -198,6 +198,9 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.14-1
+- No more flickering glow behind see-through title bars (Slack, other Electron apps) while windows behind them repaint
+
 * Sun Nov 08 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.13-1
 - No second see-through frame around Spawn's menu, RGBeast or Wheelguard over bright backgrounds
 - Notifications stacked in the calendar no longer show through the card in front of them
