@@ -28,6 +28,7 @@
 
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
+import Mtk from 'gi://Mtk';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
@@ -712,6 +713,66 @@ void main() {
 
 const GLASS = new Shader(SHADER);
 
+/**
+ * Each screen is painted on its own, and only inside what changed on it. A pane
+ * that reaches onto the next screen (a window by the seam, or the soft edge of its
+ * glass) can come up for a render while that screen paints: Mutter then draws the
+ * windows and wallpaper behind it only on that screen, and the glass keeps a
+ * picture with the wallpaper's glow where the windows behind should be until it
+ * renders again (Slack's title bar flickered as the pointer moved on the other
+ * screen, 1.5.15). Returns the stage rect of the pane's part on the screen holding
+ * most of it when that is not the screen being painted, else null.
+ */
+function homeScreen(a) {
+    try {
+        return offHome(a);
+    } catch {
+        return null;     // never stop the glass from rendering
+    }
+}
+
+function offHome(a) {
+    const view = painting.view;
+    const views = a && view ? global.stage.peek_stage_views() : [];
+    if (views.length < 2)
+        return null;     // one screen, or drawn off screen (a screenshot): all of it is drawn
+    const [x0, y0] = a.get_transformed_position();
+    const [w, h] = a.get_transformed_size();
+    const part = v => {
+        const r = new Mtk.Rectangle();
+        v.get_layout(r);
+        const x = Math.max(x0, r.x), y = Math.max(y0, r.y);
+        const pw = Math.min(x0 + w, r.x + r.width) - x, ph = Math.min(y0 + h, r.y + r.height) - y;
+        return pw > 0 && ph > 0 ? {x, y, width: Math.ceil(pw), height: Math.ceil(ph), area: pw * ph} : {area: 0};
+    };
+    const here = part(view).area;
+    let best = null;
+    for (const v of views) {
+        if (v === view)
+            continue;
+        const p = part(v);
+        if (p.area > here && p.area > (best?.area ?? 0))
+            best = p;
+    }
+    return best && {x: best.x, y: best.y, width: best.width, height: best.height};
+}
+
+// The screen being painted right now (null between screen paints), followed while
+// any glass exists.
+const painting = {view: null, ids: []};
+function followPainting(on) {
+    if (on && !painting.ids.length) {
+        painting.ids = [
+            global.stage.connect('before-paint', (_s, view) => (painting.view = view)),
+            global.stage.connect('after-paint', () => (painting.view = null)),
+        ];
+    } else if (!on && painting.ids.length) {
+        painting.ids.forEach(id => global.stage.disconnect(id));
+        painting.ids = [];
+        painting.view = null;
+    }
+}
+
 const GlassEffect = GObject.registerClass(
 withShader(class FedoraGlassEffect extends ShaderBase {
     _init() {
@@ -790,6 +851,21 @@ withShader(class FedoraGlassEffect extends ShaderBase {
             super.vfunc_paint(node, paintContext, flags & ~dirty);
             return;
         }
+        // Painted along with the other screen, the glass would copy only that
+        // screen's part of what is behind it (see homeScreen). Keep the picture and
+        // render it while its own screen paints. Three times in a row at most, so
+        // a pane that can't tell its screen apart still renders.
+        const home = (flags & dirty) && this._picture === size && (this._offHome ?? 0) < 3 ? homeScreen(a) : null;
+        if (home) {
+            this._offHome = (this._offHome ?? 0) + 1;
+            this._stale = true;
+            this.offScreen = (this.offScreen ?? 0) + 1;    // read by the QA tools
+            a?.queueFull?.(home);
+            super.vfunc_paint(node, paintContext, flags & ~dirty);
+            return;
+        }
+        if (flags & dirty)
+            this._offHome = 0;
         // A pane that moved this frame is inside Mutter's redraw area as a whole.
         const moved = (flags & dirty) && this._placedAt !== (a?._placed ?? '');
         if (flags & dirty) {
@@ -1158,6 +1234,7 @@ class FedoraGlassPane extends Clutter.Actor {
         this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1};
         this._applyLook();
         panes.add(this);
+        followPainting(true);
         this._fullLater = 0;
         this.connect('destroy', () => {
             if (this._fullLater)
@@ -1165,6 +1242,7 @@ class FedoraGlassPane extends Clutter.Actor {
             this._fullLater = 0;
             this._glass.stopCatchUp();
             panes.delete(this);
+            followPainting(panes.size > 0);
             this._clones.clear();
         });
     }
@@ -1173,19 +1251,30 @@ class FedoraGlassPane extends Clutter.Actor {
         return this._pad;
     }
 
-    /** Redraw all of the pane (see FedoraGlassEffect.vfunc_paint), before the next frame. */
-    queueFull() {
+    /**
+     * Redraw all of the pane (see FedoraGlassEffect.vfunc_paint), before the next
+     * frame. With `only` (a stage rect), redraw just its part on that screen.
+     */
+    queueFull(only = null) {
         // Held (see holdPanes): render once when the hold ends.
         if (this._kept()) {
             this._glass._stale = true;
             return;
         }
+        // A whole redraw asked for since wins over one for a single screen.
+        this._fullOnly = this._fullLater ? (only && this._fullOnly) : only;
         if (this._fullLater)
             return;
         this._fullLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
             this._fullLater = 0;
+            const r = this._fullOnly;
+            this._fullOnly = null;
             this._glass._full = true;
-            this.queue_redraw();
+            const [ok, x, y] = r ? this.transform_stage_point(r.x, r.y) : [false];
+            if (ok)
+                this.queue_redraw_with_clip(new Mtk.Rectangle({x: Math.floor(x), y: Math.floor(y), width: r.width, height: r.height}));
+            else
+                this.queue_redraw();
             return GLib.SOURCE_REMOVE;
         });
     }
