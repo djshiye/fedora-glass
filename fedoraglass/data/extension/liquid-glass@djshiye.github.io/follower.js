@@ -157,18 +157,8 @@ export class Follower {
     sync() {
         const {target, anchor, pane, top} = this;
         const parent = anchor.get_parent();
-        if (!pane || !top || !parent)
+        if (!pane || !top)
             return;
-        if (pane.get_parent() !== parent || top.get_parent() !== parent) {
-            // The surface moved to another container (Dash to Panel rebuilds its
-            // per-screen boxes when screens change, and keeps the panel): without
-            // this the glass stayed behind in the old, detached box, and that panel
-            // had no glass until the next restart.
-            for (const p of [pane, top]) {
-                p.get_parent()?.remove_child(p);
-                parent.insert_child_below(p, anchor);
-            }
-        }
         const hide = () => {
             pane.hide();
             top.hide();
@@ -179,6 +169,24 @@ export class Follower {
                 target.set_scale(1, 1);
             }
         };
+        if (!parent) {
+            // Taken off the stage without being destroyed: Extension List's button
+            // tooltips are box pointers that leave the UI group (removeChrome) mid-fade
+            // and come back on the next hover. The panes stay where they were, so hide
+            // them, or empty glass boxes are left floating where the tooltips were.
+            hide();
+            return;
+        }
+        if (pane.get_parent() !== parent || top.get_parent() !== parent) {
+            // The surface moved to another container (Dash to Panel rebuilds its
+            // per-screen boxes when screens change, and keeps the panel): without
+            // this the glass stayed behind in the old, detached box, and that panel
+            // had no glass until the next restart.
+            for (const p of [pane, top]) {
+                p.get_parent()?.remove_child(p);
+                parent.insert_child_below(p, anchor);
+            }
+        }
         if (!this.settings.enabled || !target.mapped || target.width < 2 || target.height < 2) {
             hide();
             return;
