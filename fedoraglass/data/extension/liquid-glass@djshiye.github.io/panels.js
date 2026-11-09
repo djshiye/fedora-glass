@@ -1,4 +1,5 @@
-// Glass behind the top bar and Dash to Panel.
+// Glass behind the top bar and Dash to Panel, a dock (Dash to Dock, Ubuntu Dock) and
+// the dash in GNOME's own overview.
 
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
@@ -45,7 +46,39 @@ function unquiet(target) {
         delete target.rotation_angle_z;
 }
 
-// ---- top bar and Dash to Panel ------------------------------------------------
+// ---- docks and the overview's dash -----------------------------------------------
+// Dash to Dock and Ubuntu Dock (Dash to Dock underneath) put one dock per screen
+// straight into the UI group, named so; its dash paints the dock's box.
+const DOCK_NAME = 'dashtodockContainer';
+
+function findStyled(actor, cls, depth = 0) {
+    if (!actor || depth > 6)
+        return null;
+    if (actor.has_style_class_name?.(cls))
+        return actor;
+    for (const child of actor.get_children?.() ?? []) {
+        const hit = findStyled(child, cls, depth + 1);
+        if (hit)
+            return hit;
+    }
+    return null;
+}
+
+function docks() {
+    return Main.layoutManager.uiGroup.get_children()
+        .filter(a => a.name === DOCK_NAME)
+        .map(a => [a.dash?._background ?? findStyled(a, 'dash-background'), a])
+        .filter(([bg]) => bg);
+}
+
+// The overview's own blurred wallpaper (surfaces.js), what the dash sits on.
+function overviewBackdrop() {
+    const group = Main.layoutManager.overviewGroup;
+    const ours = group?.get_children().find(a => a.name === 'fedora-glass-overview');
+    return ours ? [ours] : [Main.layoutManager._backgroundGroup];
+}
+
+// ---- top bar, Dash to Panel, docks and the overview's dash ------------------------
 export class Panels {
     constructor(cfg) {
         this.cfg = cfg;
@@ -55,7 +88,43 @@ export class Panels {
         this._rescanId = 0;
         this._quieted = new Map();   // Dash to Panel IconAnimator -> undo
         this._signals.on(Main.extensionManager, 'extension-state-changed', () => this.rescanSoon());
+        // Dash to Dock makes its docks again when screens change, after it starts.
+        this._signals.on(Main.layoutManager.uiGroup, 'child-added', (_g, a) => {
+            if (a.name === DOCK_NAME)
+                this.rescanSoon();
+        });
+        this._signals.on(Main.layoutManager, 'monitors-changed', () => this.rescanSoon());
         this.rescan();
+    }
+
+    /** [target, anchor, kind] for each surface that gets glass. */
+    _surfaces() {
+        const out = this._panels().map(([t, a]) => [t, a, 'panel']);
+        const dockBgs = new Set();
+        for (const [t, a] of docks()) {
+            out.push([t, a, 'dock']);
+            dockBgs.add(t);
+        }
+        // GNOME's dash in the overview. Dash to Dock moves it out to be its dock, and
+        // Dash to Panel hides it: then it is either a dock above or never on screen.
+        const dash = Main.overview?.dash;
+        const ov = Main.overview?._overview;
+        if (dash?._background && !dockBgs.has(dash._background) && ov?.get_parent() === Main.layoutManager.overviewGroup)
+            out.push([dash._background, ov, 'dash']);
+        return out;
+    }
+
+    _settingsFor(kind) {
+        const panel = this.cfg.parts.panel;
+        // The dash only shows in the overview, on its blurred wallpaper: with the overview's
+        // glass off it has nothing to sit on.
+        return kind === 'dash' ? {...panel, enabled: panel.enabled && this.cfg.overview.enabled} : panel;
+    }
+
+    _optionsFor(kind) {
+        if (kind === 'dash')
+            return {onlyBehind: true, sources: overviewBackdrop, glow: Main.overview.dash};
+        return {onlyBehind: true};
     }
 
     _panels() {
@@ -135,21 +204,28 @@ export class Panels {
         // Any extension turning on or off asks for a rescan. When the panels are the
         // same ones, keep their glass: rebuilding it costs a full render of every
         // panel, and the glass would blink.
-        const pairs = this._panels();
+        const pairs = this._surfaces();
         if (pairs.length && pairs.length === this._followers.length &&
             pairs.every(([t, a], i) => this._followers[i].pane && this._followers[i].target === t && this._followers[i].anchor === a))
             return;
         this._followers.forEach(f => f.destroy());
         this._followers = [];
-        for (const [target, anchor] of pairs) {
-            this._followers.push(new Follower(target, anchor, this.cfg.parts.panel,
-                f => (this._followers = this._followers.filter(x => x !== f)), {onlyBehind: true}));
+        for (const [target, anchor, kind] of pairs) {
+            try {
+                const f = new Follower(target, anchor, this._settingsFor(kind),
+                    gone => (this._followers = this._followers.filter(x => x !== gone)), this._optionsFor(kind));
+                f.kind = kind;
+                this._followers.push(f);
+            } catch (e) {
+                // One surface without glass never takes the others' with it.
+                logError(e, `Fedora Glass: no glass behind the ${kind}`);
+            }
         }
     }
 
     update(cfg) {
         this.cfg = cfg;
-        this._followers.forEach(f => f.update(cfg.parts.panel));
+        this._followers.forEach(f => f.update(this._settingsFor(f.kind)));
     }
 
     sync() {

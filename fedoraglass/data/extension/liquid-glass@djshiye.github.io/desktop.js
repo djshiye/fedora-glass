@@ -24,6 +24,47 @@ function running(uuids) {
     return uuids.some(uuid => Main.extensionManager.lookup(uuid)?.state === ACTIVE);
 }
 
+// GNOME's dash in the overview fills itself in the first time it is drawn: each app
+// icon makes its picture once GNOME has worked out its style, which happens when the
+// overview first shows. Starting on the desktop skips that first showing, and the dash
+// then fills itself in while hidden: it finds its first icon without a picture, stops
+// with an error (dash.js _adjustIconSize), and its app icons stay invisible, all but
+// "Show Apps" (stock GNOME, where the dash is on screen; Dash to Panel and Dash to Dock
+// hide it). Working out the icons' style first, and showing the ones it left hidden,
+// puts them back.
+function styleDashItem(item) {
+    try {
+        item.child?.ensure_style?.();
+        item.child?._delegate?.icon?.ensure_style?.();
+    } catch {}
+}
+
+export function repairDash() {
+    const dash = Main.overview?.dash;
+    const box = dash?._box;
+    if (!box)
+        return false;
+    let fixed = false;
+    for (const item of box.get_children()) {
+        if (!item.child)
+            continue;
+        styleDashItem(item);
+        if (item.scale_x === 0 && !item.animatingOut && typeof item.show === 'function' &&
+            item.constructor?.name === 'DashItemContainer') {
+            item.show(false);
+            fixed = true;
+        }
+    }
+    if (fixed) {
+        try {
+            dash._adjustIconSize?.();
+        } catch (e) {
+            console.warn(`Fedora Glass: the dash could not size its icons: ${e}`);
+        }
+    }
+    return fixed;
+}
+
 function enabledInSettings(uuids) {
     const on = global.settings.get_strv('enabled-extensions');
     return uuids.some(uuid => on.includes(uuid));
@@ -35,6 +76,8 @@ export class DesktopBehaviour {
         this._startupId = 0;
         this._closeAfterStartupId = 0;
         this._realHasOverview = null;
+        this._dashId = 0;
+        this._dashAddId = 0;
         this.update(cfg);
         const atLogin = firstEnable;
         firstEnable = false;
@@ -47,6 +90,15 @@ export class DesktopBehaviour {
     }
 
     _skipStartupOverview() {
+        // Each app icon the dash adds while hidden gets its style at once, so the dash
+        // finds a picture on it (see repairDash).
+        const box = Main.overview?.dash?._box;
+        if (typeof box?.connect === 'function') {
+            box.get_children().forEach(styleDashItem);
+            this._dashBox = box;
+            this._dashAddId = box.connect('child-added', (_b, item) => styleDashItem(item));
+        }
+        this._repairDashOnShow();
         // Another extension that manages this may load after us, so go by the
         // settings list rather than what is running yet.
         if (!enabledInSettings(MANAGES_STARTUP)) {
@@ -55,11 +107,35 @@ export class DesktopBehaviour {
         }
         this._startupId = Main.layoutManager.connect('startup-complete', () => {
             this._endStartup();
+            repairDash();
             // From GNOME 50 the startup animation can already be running when
             // extensions load, so the overview may have opened anyway.
             if (Main.overview.visible)
                 Main.overview.hide();
         });
+    }
+
+    // The dash can also fill itself in later, still hidden (GNOME waits up to 20 s
+    // for it): check it again when the overview first opens.
+    _repairDashOnShow() {
+        if (this._dashId || typeof Main.overview?.connect !== 'function')
+            return;
+        this._dashId = Main.overview.connect('showing', () => {
+            Main.overview.disconnect(this._dashId);
+            this._dashId = 0;
+            this._stopStylingDash();
+            repairDash();
+        });
+    }
+
+    _stopStylingDash() {
+        if (this._dashAddId) {
+            try {
+                this._dashBox.disconnect(this._dashAddId);
+            } catch {}   // the dash went
+        }
+        this._dashAddId = 0;
+        this._dashBox = null;
     }
 
     _endStartup() {
@@ -159,6 +235,9 @@ export class DesktopBehaviour {
 
     destroy() {
         this._endStartup();
+        if (this._dashId)
+            Main.overview.disconnect(this._dashId);
+        this._dashId = 0;
         if (this._closeAfterStartupId)
             Main.layoutManager.disconnect(this._closeAfterStartupId);
         this._closeAfterStartupId = 0;

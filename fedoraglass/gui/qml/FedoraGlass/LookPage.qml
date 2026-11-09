@@ -133,7 +133,10 @@ Item {
             // What the preview shows, floating on it like a Shell OSD. Editing a part that
             // isn't on the desktop (Quick Settings, the calendar, the overview) brings it up too.
             Rectangle {
-                anchors.top: parent.top
+                // Over GNOME's own top bar (no Dash to Panel), down in the bottom corner,
+                // out of the way of the bar and its menus.
+                anchors.top: preview.topBar ? undefined : parent.top
+                anchors.bottom: preview.topBar ? parent.bottom : undefined
                 anchors.left: parent.left
                 anchors.margins: 12
                 width: sceneSeg.width + 8
@@ -148,7 +151,7 @@ Item {
                     compact: true
                     iconOnly: true
                     onWallpaper: true
-                    model: [{ value: "desktop", icon: "screen", tip: "Show the desktop with the start menu" },
+                    model: [{ value: "desktop", icon: "screen", tip: preview.hasMenu ? "Show the desktop with the start menu" : "Show the desktop" },
                             { value: "quicksettings", icon: "sliders", tip: "Show Quick Settings" },
                             { value: "calendar", icon: "clock", tip: "Show the calendar and notifications" },
                             { value: "overview", icon: "grid", tip: "Show Activities (the overview)" }]
@@ -160,7 +163,10 @@ Item {
 
             // Dark/light preview switch, floating on the preview like a Shell OSD.
             Rectangle {
-                anchors.top: parent.top
+                // Over GNOME's own top bar (no Dash to Panel), down in the bottom corner,
+                // out of the way of the bar and its menus.
+                anchors.top: preview.topBar ? undefined : parent.top
+                anchors.bottom: preview.topBar ? parent.bottom : undefined
                 anchors.right: parent.right
                 anchors.margins: 12
                 width: schemeSeg.width + 8
@@ -545,8 +551,8 @@ Item {
                             spacing: 4
                             SwitchRow {
                                 label: "Panel"
-                                caption: "Dash to Panel or the top bar"
-                                tip: "Draws real glass behind the panel. Off leaves a plain tinted bar."
+                                caption: "The top bar, Dash to Panel or a dock"
+                                tip: "Draws real glass behind the top bar or Dash to Panel, a dock (Dash to Dock, Ubuntu Dock) and the dash in Activities. Off leaves plain tinted bars."
                                 checked: Backend.glassPanel
                                 onToggled: (on) => Backend.glassPanel = on
                             }
@@ -593,6 +599,9 @@ Item {
                 spacing: 16
 
                 Card {
+                    // Floating or docked, and the margin, are Dash to Panel's: on GNOME's
+                    // own top bar or a dock they would change nothing.
+                    visible: Backend.hasDashToPanel
                     width: parent.width
                     height: implicitHeight
                     Column {
@@ -679,16 +688,18 @@ Item {
                             objectName: "startOnDesktop"
                             label: "Start on the desktop"
                             caption: "Start straight on your desktop, not the Activities overview"
-                            tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
+                            tip: "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. Until you choose, it is on with Dash to Panel and off on GNOME's own desktop. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
                             enabled: !Backend.overviewOff
-                            checked: Backend.startOnDesktop || Backend.overviewOff
+                            // Not chosen yet, it follows the desktop (on with Dash to Panel), which is
+                            // known once the installed extensions are: read hasDashToPanel to follow it.
+                            checked: (Backend.hasDashToPanel, Backend.startOnDesktop) || Backend.overviewOff
                             onToggled: (on) => Backend.startOnDesktop = on
                         }
                         SwitchRow {
                             objectName: "overviewOff"
                             label: "Turn off the overview"
                             caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
-                            tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn or Dash to Panel. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
+                            tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn, Dash to Panel or a dock. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
                             checked: Backend.overviewOff
                             onToggled: (on) => { Backend.overviewOff = on; preview.scene = "overview" }
                         }
@@ -708,8 +719,8 @@ Item {
                     width: parent.width
                     height: implicitHeight
                     readonly property var partList: [
-                        { id: "panel", label: "Panel", caption: "Dash to Panel or the top bar",
-                          tip: "Look of the Dash to Panel bar or the top bar only" },
+                        { id: "panel", label: "Panel", caption: "The top bar, Dash to Panel or a dock",
+                          tip: "Look of the top bar or Dash to Panel, a dock and the dash in Activities only" },
                         { id: "arcmenu", label: "Start menu", caption: "The ArcMenu or Spawn application menu",
                           tip: "Look of the ArcMenu or Spawn application menu only" },
                         { id: "quicksettings", label: "Quick settings", caption: "Quick settings, app menus, on-screen pop-ups and dialogs",
@@ -722,11 +733,11 @@ Item {
                           tip: "Look of app windows" },
                         { id: "terminal", label: "Terminal", caption: "Terminal windows",
                           tip: "Look of terminal windows" }
-                    ]
+                    ].filter(p => p.id !== "arcmenu" || Backend.hasStartMenu)   // no start menu, no tab for it
                     property string part: "panel"
                     // Bring the part being edited into view in the preview.
                     onPartChanged: preview.scene = ({ quicksettings: "quicksettings", calendar: "calendar", overview: "overview" })[part] || "desktop"
-                    readonly property var info: partList.find(p => p.id === part)
+                    readonly property var info: partList.find(p => p.id === part) ?? partList[0]
                     readonly property var own: Backend.parts[part] || ({})
                     readonly property bool any: Object.keys(own).length > 0
                     // Which settings make sense for the chosen part.

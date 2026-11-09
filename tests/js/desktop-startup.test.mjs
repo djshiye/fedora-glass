@@ -14,6 +14,7 @@ class Signals {
 
 const overview = {
     visible: false, hides: 0,
+    connect: () => 1, disconnect() {},
     show() { this.visible = true; },
     hide() { this.hides++; this.visible = false; },
 };

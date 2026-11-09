@@ -22,13 +22,17 @@
 #                       Icons, Yaru, Ubuntu's defaults) on that GNOME's Ubuntu, one screen at 100 %,
 #                       and the Ubuntu checks (Apply and Restore original from the running desktop).
 #                       WxH@R sets the refresh rate too: --screen 2560x1440@144.
+# --stock-desktop       instead of Dino's desktop: stock GNOME as it ships (top bar, Activities, the
+#                       overview's dash, Adwaita), no extensions, one screen at 100 %, and the stock
+#                       checks (Apply, the overview's dash and search, Restore original).
+# --with-dock           with --stock-desktop: Dash to Dock on, as many stock users add it.
 # LGQA_BUILD_ARGS / LGQA_RUN_ARGS: extra arguments for docker build / docker run (podman on SELinux
 #                       needs LGQA_RUN_ARGS="--security-opt label=disable" to read the mounted folders).
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/../.." && pwd)
-SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" NAME=${LGQA_NAME:-lgqa-$$}
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" NAME=${LGQA_NAME:-lgqa-$$}
 while [ $# -gt 0 ]; do
     case $1 in
         --source) SRC=$(cd "$2" && pwd); shift ;;
@@ -40,6 +44,8 @@ while [ $# -gt 0 ]; do
         --screen) SCREEN=$2; shift ;;
         --gnome) GNOME=$2; shift ;;
         --ubuntu-desktop) UBUNTU=1 ;;
+        --stock-desktop) STOCK=1 ;;
+        --with-dock) STOCK_EXTS=dash-to-dock@micxgx.gmail.com ;;
         --start-only) KEEP=1 START_ONLY=1 ;;
         *) echo "unknown option $1" >&2; exit 64 ;;
     esac
@@ -68,13 +74,22 @@ if [ -n "$UBUNTU" ]; then
     IMAGE=$IMAGE-ubuntu SESSION=ubuntu-session CHECKS=ubuntu_checks.py
     [ -z "$ONLY$UPDATE" ] || { echo "--only and --update-references are for Dino's desktop" >&2; exit 64; }
 fi
+if [ -n "$STOCK" ]; then
+    [ -z "$UBUNTU" ] || { echo "--stock-desktop and --ubuntu-desktop are two different desktops" >&2; exit 64; }
+    echo "Adding Dash to Dock for the stock GNOME desktop..."
+    docker build -q -t "$IMAGE-stock" --build-arg IMAGE="$IMAGE" -f "$SUITE/Dockerfile.stock" ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
+    IMAGE=$IMAGE-stock SESSION=stock-session CHECKS=stock_checks.py
+    [ -z "$ONLY$UPDATE" ] || { echo "--only and --update-references are for Dino's desktop" >&2; exit 64; }
+elif [ -n "$STOCK_EXTS" ]; then
+    echo "--with-dock goes with --stock-desktop" >&2; exit 64
+fi
 
 rm -rf "$OUT"; mkdir -p "$OUT"; chmod 0777 "$OUT"
 cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 # No network inside: nothing at run time needs it.
-docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" -e LGQA_GNOME="$GNOME" -e LGQA_SESSION="$SESSION" ${LGQA_RUN_ARGS:-} \
+docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" -e LGQA_GNOME="$GNOME" -e LGQA_SESSION="$SESSION" -e LGQA_STOCK_EXTS="$STOCK_EXTS" ${LGQA_RUN_ARGS:-} \
     -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out ${FROM:+-v "$FROM":/from:ro} \
     "$IMAGE" /opt/lgqa/suite/container/start.sh >/dev/null
 

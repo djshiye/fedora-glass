@@ -1,0 +1,20 @@
+# Stock GNOME desktop for the stock checks (run.sh --stock-desktop): the test desktop image
+# plus Dash to Dock, so the checks can also try Fedora Glass beside a dock. Dash to Dock
+# stays off unless the run asks for it (LGQA_STOCK_EXTS). Ubuntu does not package it, so
+# it is put together like the other extensions: a pinned commit, checked after cloning,
+# and only distribution tools (sassc for its stylesheet, glib for its settings).
+ARG IMAGE=lgqa-desktop
+FROM $IMAGE
+ARG DTD=36529d37c0eb805b04dfd647e5295860771b23ea        # Dash to Dock v109 (GNOME 45-51)
+
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends sassc >/dev/null && rm -rf /var/lib/apt/lists/*
+RUN set -e; s=/tmp/dtd; d=/opt/lgqa/ext/dash-to-dock@micxgx.gmail.com; \
+    git init -q $s; git -C $s fetch -q --depth 1 https://github.com/micheleg/dash-to-dock "$DTD"; git -C $s checkout -q FETCH_HEAD; \
+    [ "$(git -C $s rev-parse HEAD)" = "$DTD" ] || { echo "PIN MISMATCH for Dash to Dock" >&2; exit 1; }; \
+    mkdir -p $d/media $d/schemas; \
+    cd $s; cp extension.js metadata.json appSpread.js dash.js docking.js appIcons.js appIconsDecorator.js appIconIndicators.js \
+       dockStruts.js fileManager1API.js imports.js launcherAPI.js locations.js locationsWorker.js notificationsMonitor.js \
+       windowPreview.js intellihide.js prefs.js theming.js utils.js dbusmenuUtils.js desktopIconsIntegration.js Settings.ui $d/; \
+    cp -a dependencies $d/; sassc _stylesheet.scss $d/stylesheet.css; \
+    cp media/logo.svg media/glossy.svg media/highlight_stacked_bg.svg media/highlight_stacked_bg_h.svg $d/media/; \
+    cp schemas/*.gschema.xml $d/schemas/; glib-compile-schemas $d/schemas; rm -rf $s

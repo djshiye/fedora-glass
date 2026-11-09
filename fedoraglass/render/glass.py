@@ -212,7 +212,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "grow": {"enabled": s.menu_grow},
         "speed": {"quality": s.glass_quality},
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
-        "desktop": {"startOnDesktop": s.start_on_desktop or s.overview_off, "overviewOff": s.overview_off},
+        "desktop": {"startOnDesktop": bool(s.start_on_desktop) or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
         "animations": {ev: s.motion_for(ev) for ev in MOTION_EVENTS},
         # One hover highlight that glides along the Dash to Panel taskbar (glide.js).

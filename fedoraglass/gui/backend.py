@@ -34,6 +34,8 @@ GROUP_ORDER = ("Desktop", "Panel", "Apps", "Terminal", "My apps")
 # The windows the preview opens, so their dock icons get a "running" dot.
 RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
 
+DOCK_EXTENSIONS = ("dash-to-dock@micxgx.gmail.com", "ubuntu-dock@ubuntu.com")
+MENU_EXTENSIONS = ("arcmenu@arcmenu.com", "spawn@djshiye.github.io")
 FALLBACK_DOCK = ("org.gnome.Nautilus.desktop", "org.gnome.Ptyxis.desktop")
 
 
@@ -235,6 +237,8 @@ class Backend(QObject):
         self._remove_package = self._installed_package()
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
+        self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
+        self._has_menu = False      # ArcMenu or Spawn switched on
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -499,7 +503,14 @@ class Backend(QObject):
     lockMessage = _p("lock_message", str)
     lockWidgetStyle = _p("lock_widget_style", str)
     lockHideNotifications = _p("lock_hide_notifications", bool)
-    startOnDesktop = _p("start_on_desktop", bool)
+    def _get_start_on_desktop(self) -> bool:
+        # Not chosen yet: as Apply will decide it for this desktop (Settings.start_on_desktop_for).
+        return self._s.start_on_desktop_for(self.hasDashToPanel)
+
+    def _set_start_on_desktop(self, v: bool) -> None:
+        self._set("start_on_desktop", bool(v))
+
+    startOnDesktop = Property(bool, _get_start_on_desktop, _set_start_on_desktop, notify=settingsChanged)
     overviewOff = _p("overview_off", bool)
     motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
     hoverGlide = _p("hover_glide", bool)
@@ -891,6 +902,27 @@ class Backend(QObject):
     def targetsReady(self) -> bool:
         return self._targets_ready
 
+    @Property(bool, notify=targetsChanged)
+    def hasDashToPanel(self) -> bool:
+        """Dash to Panel is installed. Until the targets are known, yes: the panel settings
+        stay put rather than flash away and back."""
+        if not self._targets_ready:
+            return True
+        return any(t["id"] == "dash-to-panel" and t["available"] for t in self._targets)
+
+    @Property(bool, notify=targetsChanged)
+    def hasDock(self) -> bool:
+        """Dash to Dock or Ubuntu Dock is on: the preview shows a dock along the bottom."""
+        return self._has_dock
+
+    @Property(bool, notify=targetsChanged)
+    def hasStartMenu(self) -> bool:
+        """ArcMenu or Spawn is installed and switched on (yes until the targets are known,
+        as above). One that is only installed is not part of the desktop."""
+        if not self._targets_ready:
+            return True
+        return self._has_menu
+
     @Property(int, notify=targetsChanged)
     def activeTargetCount(self) -> int:
         return sum(1 for t in self._targets if t["available"] and self._s.target_enabled(t["id"]))
@@ -973,8 +1005,23 @@ class Backend(QObject):
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
-                    lost, self._motion_env(engine))
+                    lost, self._motion_env(engine), self._extensions_on(engine))
         self._run("detect", job, self._targets_done, show_busy=False)
+
+    @staticmethod
+    def _extensions_on(engine: Any) -> tuple[bool, bool]:
+        """Whether a dock (Dash to Dock, Ubuntu Dock) and a start menu (ArcMenu, Spawn) are
+        installed and switched on."""
+        try:
+            env = engine.env
+            on = env.gsettings_get("org.gnome.shell", "enabled-extensions") or ""
+            if env.gsettings_get("org.gnome.shell", "disable-user-extensions") == "true":
+                return False, False
+            def any_on(uuids: tuple[str, ...]) -> bool:
+                return any(f"'{u}'" in on and env.extension_path(u) is not None for u in uuids)
+            return any_on(DOCK_EXTENSIONS), any_on(MENU_EXTENSIONS)
+        except Exception:
+            return False, False
 
     @staticmethod
     def _overwritten(engine: Any) -> list[str]:
@@ -1028,7 +1075,7 @@ class Backend(QObject):
             self.failed.emit(f"Could not load targets: {out}")
         else:
             (self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost,
-             self._motion_state) = out
+             self._motion_state, (self._has_dock, self._has_menu)) = out
         self._targets_ready = True
         self.targetsChanged.emit()
 

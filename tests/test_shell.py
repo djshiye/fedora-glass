@@ -557,11 +557,31 @@ def test_menus_never_wait_long_for_their_glass():
 
 def test_desktop_options_reach_the_extension(fake_env):
     t = context(fake_env).tokens
-    assert rg.config(Settings(), t)["desktop"] == {"startOnDesktop": True, "overviewOff": False}
+    assert rg.config(Settings(start_on_desktop=True), t)["desktop"] == {"startOnDesktop": True, "overviewOff": False}
     assert rg.config(Settings(start_on_desktop=False), t)["desktop"] == {"startOnDesktop": False, "overviewOff": False}
     # With the overview off there is nothing to start in.
     assert rg.config(Settings(start_on_desktop=False, overview_off=True), t)["desktop"] == {
         "startOnDesktop": True, "overviewOff": True}
+
+
+def _desktop_cfg(fake_env, settings):
+    ctx = Engine(fake_env, ts.TARGETS).context(settings)
+    w = next(a for a in ts.GlassEffects().plan(ctx) if isinstance(a, WriteFile) and a.path.name == "shell-glass.json")
+    return json.loads(w.content)["desktop"]
+
+
+def test_start_on_desktop_follows_the_desktop_until_chosen(fake_env):
+    """Not chosen yet: GNOME's own desktop keeps opening Activities at login, as GNOME does;
+    with Dash to Panel it starts on the desktop. A choice the user made always wins."""
+    assert Settings().start_on_desktop is None
+    assert _desktop_cfg(fake_env, Settings())["startOnDesktop"] is False
+    assert _desktop_cfg(fake_env, Settings(start_on_desktop=True))["startOnDesktop"] is True
+    install(fake_env, ts.DASH_TO_PANEL)
+    assert _desktop_cfg(fake_env, Settings())["startOnDesktop"] is True
+    assert _desktop_cfg(fake_env, Settings(start_on_desktop=False))["startOnDesktop"] is False
+    # A saved file that says null stays "not chosen"; one that says true stays on.
+    assert Settings(start_on_desktop=None).normalized().start_on_desktop is None
+    assert Settings(start_on_desktop="true").normalized().start_on_desktop is True
 
 
 def test_start_on_desktop_keeps_dash_to_panel_and_just_perfection_in_step(fake_env):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ..env import Env
 from ..render import glass as rg
@@ -93,11 +93,19 @@ class GlassEffects(Target):
     def config_path(self, env: Env):
         return env.config / "liquid-glass/shell-glass.json"
 
+    @staticmethod
+    def resolved(ctx: Context):
+        """The settings with "start on the desktop" decided for this desktop (see Settings)."""
+        s = ctx.settings
+        if s.start_on_desktop is not None:
+            return s
+        return replace(s, start_on_desktop=s.start_on_desktop_for(ctx.env.extension_path(DASH_TO_PANEL) is not None))
+
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
         d = self.ext_dir(env)
         acts: list[Action] = [WriteFile(d / name, text) for name, text in rg.extension_files().items()]
-        acts.append(WriteFile(self.config_path(env), rg.render_config(ctx.settings, ctx.tokens)))
+        acts.append(WriteFile(self.config_path(env), rg.render_config(self.resolved(ctx), ctx.tokens)))
         acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,)))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))
         # Blur my Shell keeps blurring until our glass is there to take over.
@@ -112,7 +120,7 @@ class GlassEffects(Target):
                     (JUST_PERFECTION, "org.gnome.shell.extensions.just-perfection", "startup-status", "0"))
 
     def _startup_actions(self, ctx: Context) -> list[Action]:
-        s = ctx.settings
+        s = self.resolved(ctx)
         on = s.start_on_desktop or s.overview_off
         acts: list[Action] = []
         for uuid, schema, key, value in self.STARTUP_KEYS:

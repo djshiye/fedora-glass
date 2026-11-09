@@ -24,7 +24,9 @@ Item {
     property string motionEvent: ""
     property bool motionPlaying: false
 
-    readonly property bool menuOpen: scene === "desktop" && showMenu
+    readonly property bool menuOpen: scene === "desktop" && showMenu && hasMenu
+    // A start menu to show: ArcMenu or Spawn, or Dash to Panel's own bar (Dino's desktop).
+    readonly property bool hasMenu: Backend.hasStartMenu || !topBar
     property real menuProgress: menuOpen ? 1 : 0
     Behavior on menuProgress { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
 
@@ -331,7 +333,7 @@ Item {
                     },
                     Translate {
                         readonly property real m: files.mf && root.motionEvent === "minimize" ? Math.max(0, Math.min(1, files.mf.m)) : 0
-                        x: m * (panel.x + root.u(56 + 52 * root.filesIcon + 24) - files.x - files.width / 2)
+                        x: m * ((root.topBar ? panel.x + activities.x + activities.width / 2 : panel.x + root.u(56 + 52 * root.filesIcon + 24)) - files.x - files.width / 2)
                         y: m * (panel.y + panel.height / 2 - files.y - files.height / 2)
                     }
                 ]
@@ -578,7 +580,7 @@ Item {
                 Line { text: lines.prompt + "fedora-glass apply" }
                 Line { text: "<font color='" + lines.green + "'>✓</font> GNOME Shell           <font color='" + lines.dim + "'>applied</font>" }
                 Line { text: "<font color='" + lines.green + "'>✓</font> GTK 4 and libadwaita  <font color='" + lines.dim + "'>applied</font>" }
-                Line { text: "<font color='" + lines.green + "'>✓</font> Dash to Panel         <font color='" + lines.dim + "'>applied</font>" }
+                Line { text: "<font color='" + lines.green + "'>✓</font> " + (root.topBar ? "Glass effects  " : "Dash to Panel  ") + "       <font color='" + lines.dim + "'>applied</font>" }
                 Line { text: "<font color='" + lines.green + "'>✓</font> Ptyxis                <font color='" + lines.dim + "'>applied</font>" }
                 Line { text: "<font color='" + lines.yellow + "'>–</font> Steam                 <font color='" + lines.dim + "'>skipped</font>" }
                 Line { text: " " }
@@ -596,21 +598,29 @@ Item {
     // =====================================================================================
     // The Shell layer blurs the desktop and the windows below it.
     // Dash to Panel's own look (its switch off on the Apps page) is a dark bar along the edge.
-    readonly property bool floating: dtpThemed && (t.panel_floating !== undefined ? t.panel_floating : true)
+    // Without Dash to Panel the desktop has GNOME's own top bar: a thin bar along the top
+    // edge with Activities, the clock in the middle and the system icons, and its menus
+    // open downwards.
+    readonly property bool topBar: !Backend.hasDashToPanel
+    readonly property bool floating: !topBar && dtpThemed && (t.panel_floating !== undefined ? t.panel_floating : true)
     readonly property real margin: floating ? (t.panel_margin || 0) : 0
-    readonly property real panelH: 48
+    readonly property real panelH: topBar ? 34 : 48
+    // Where a menu opened from the bar sits: above a bottom bar, below the top bar.
+    function popY(h) { return topBar ? panel.y + panel.height + u(8) : panel.y - h - u(10) }
+    function popOY(h) { return topBar ? -u(8) : h + u(10) }
 
     ShellGlass {
         id: panel
         part: "panel"
-        glass: root.panelGlass && root.dtpThemed
+        glass: root.panelGlass && (root.dtpThemed || root.topBar)
         z: 5
         x: root.u(root.margin)
         width: root.width - 2 * root.u(root.margin)
         height: root.u(root.panelH)
-        y: root.height - height - root.u(root.margin)
+        y: root.topBar ? 0 : root.height - height - root.u(root.margin)
         radius: root.floating ? Math.min(height / 2, root.u(root.lad(root.rPanel, "l"))) : 0
-        tint: root.dtpThemed ? root.part("panel", "chrome", "transparent") : Qt.rgba(0, 0, 0, 0.86)
+        tint: root.topBar ? (root.shellThemed ? root.part("panel", "chrome", "transparent") : Qt.rgba(0, 0, 0, 1))
+            : root.dtpThemed ? root.part("panel", "chrome", "transparent") : Qt.rgba(0, 0, 0, 0.86)
         shadowColor: root.floating ? (root.t.shadow || "transparent") : "transparent"
         shadowBlur: root.u(30)
         shadowY: root.u(6)
@@ -620,14 +630,15 @@ Item {
 
         Rectangle {     // menu button, pressed while the menu is open
             id: menuButton
+            visible: root.hasMenu
             x: root.u(6); anchors.verticalCenter: parent.verticalCenter
-            width: root.u(44); height: root.u(40)
+            width: root.u(44); height: root.u(root.topBar ? 28 : 40)
             radius: Math.min(height / 2, root.rS)
             color: root.menuOpen ? (root.t.active || "transparent") : "transparent"
             Icon {
                 anchors.centerIn: parent
                 name: "fedora"
-                size: root.u(28)
+                size: root.u(root.topBar ? 20 : 28)
                 strokeWidth: Math.max(0.9, root.u(2))
                 color: root.panelFg
             }
@@ -637,6 +648,22 @@ Item {
                     else root.showMenu = !root.showMenu
                 }
             }
+        }
+        Rectangle {     // GNOME's Activities button: the workspace dots, opening the overview
+            id: activities
+            visible: root.topBar
+            x: menuButton.visible ? menuButton.x + menuButton.width + root.u(4) : root.u(8)
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.u(56); height: root.u(24)
+            radius: height / 2
+            color: root.scene === "overview" ? (root.t.active || "transparent") : "transparent"
+            Row {
+                anchors.centerIn: parent
+                spacing: root.u(5)
+                Rectangle { width: root.u(22); height: root.u(8); radius: height / 2; color: root.panelFg; anchors.verticalCenter: parent.verticalCenter }
+                Rectangle { width: root.u(8); height: width; radius: width / 2; color: root.panelFg; opacity: 0.6; anchors.verticalCenter: parent.verticalCenter }
+            }
+            TapHandler { onTapped: root.scene = root.scene === "overview" ? "desktop" : "overview" }
         }
         // Hover glide: one highlight that glides from icon to icon. Off, Dash to Panel
         // lights each icon by itself.
@@ -648,7 +675,7 @@ Item {
             width: root.u(44); height: root.u(40)
             radius: Math.min(height / 2, root.rXs)
             color: root.t.hover || "transparent"
-            visible: Backend.hoverGlide
+            visible: Backend.hoverGlide && !root.topBar
             opacity: on ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: 160 } }
             Behavior on x {
@@ -657,6 +684,7 @@ Item {
             }
         }
         Row {
+            visible: !root.topBar      // GNOME's top bar has no app icons
             x: menuButton.x + menuButton.width + root.u(6)
             height: parent.height
             spacing: root.u(4)
@@ -717,21 +745,28 @@ Item {
             }
         }
         Row {
+            id: trayRow
             anchors.right: parent.right; anchors.rightMargin: root.u(root.floating ? 18 : 14)
             anchors.verticalCenter: parent.verticalCenter
             spacing: root.u(18)
             Rectangle {     // the clock opens the calendar
                 id: clockButton
-                width: clockLabel.width + root.u(20); height: root.u(36)
+                width: clockLabel.width + root.u(20); height: root.u(root.topBar ? 26 : 36)
                 anchors.verticalCenter: parent.verticalCenter
                 radius: Math.min(height / 2, root.rS)
                 color: root.scene === "calendar" ? (root.t.active || "transparent") : "transparent"
                 Label { id: clockLabel; anchors.centerIn: parent; text: root.clock; font.weight: Font.DemiBold; color: root.panelFg }
                 TapHandler { onTapped: root.scene = root.scene === "calendar" ? "desktop" : "calendar" }
             }
+            Item {          // GNOME's top bar: the room that puts the clock in the middle
+                visible: root.topBar
+                height: 1
+                width: Math.max(0, panel.width / 2 - trayRow.anchors.rightMargin + clockButton.width / 2
+                                   - clockButton.width - qsButton.width - 2 * trayRow.spacing)
+            }
             Rectangle {     // the system icons open Quick Settings
                 id: qsButton
-                width: qsIcons.width + root.u(20); height: root.u(36)
+                width: qsIcons.width + root.u(20); height: root.u(root.topBar ? 26 : 36)
                 anchors.verticalCenter: parent.verticalCenter
                 radius: Math.min(height / 2, root.rS)
                 color: root.scene === "quicksettings" ? (root.t.active || "transparent") : "transparent"
@@ -747,7 +782,56 @@ Item {
             }
         }
     }
-    readonly property color panelFg: dtpThemed ? fg : "white"
+    readonly property color panelFg: dtpThemed || (topBar && shellThemed) ? fg : "white"
+
+    // ---------------------------------------------------------------- Dash to Dock
+    // Dash to Dock or Ubuntu Dock on GNOME's own desktop: a dock along the bottom edge,
+    // with glass behind it as on the desktop. It stays on screen in the overview, where
+    // it takes the place of GNOME's dash.
+    readonly property bool showDock: topBar && Backend.hasDock
+    ShellGlass {
+        id: deskDock
+        part: "panel"
+        visible: root.showDock
+        glass: root.panelGlass
+        z: 5
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: root.height - height - root.u(10)
+        width: deskDockRow.width + root.u(20); height: root.u(64)
+        radius: Math.min(height / 2, root.u(root.lad(root.rPanel, "l")))
+        tint: root.shellThemed ? root.part("panel", "chrome", "transparent") : Qt.rgba(0, 0, 0, 0.7)
+        shadowColor: root.t.shadow || "transparent"
+        shadowBlur: root.u(30)
+        shadowY: root.u(6)
+        Row {
+            id: deskDockRow
+            anchors.centerIn: parent
+            spacing: root.u(6)
+            Repeater {
+                model: root.dock
+                delegate: Item {
+                    required property var modelData
+                    width: root.u(52); height: root.u(64)
+                    AppIcon {
+                        anchors.centerIn: parent
+                        anchors.verticalCenterOffset: -root.u(2)
+                        size: root.u(42)
+                        source: modelData.icon
+                        label: modelData.name
+                        tileColor: root.t.accent || "#3584e4"
+                    }
+                    Rectangle {     // a dot under each running app
+                        visible: modelData.running
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: parent.height - root.u(7)
+                        width: root.u(4); height: width; radius: width / 2
+                        color: root.panelFg
+                        opacity: 0.8
+                    }
+                }
+            }
+        }
+    }
 
 
     // ---------------------------------------------------------------- ArcMenu
@@ -760,10 +844,10 @@ Item {
         opacity: root.menuProgress * root.popOpacity
         width: root.u(640); height: root.u(600)
         x: root.u(Math.max(8, root.margin))
-        y: panel.y - height - root.u(10) + root.u(16) * (1 - root.menuProgress) + (root.grow ? 0 : root.u(14) * (1 - Math.min(1, root.pop)))
+        y: root.popY(height) + (root.topBar ? -1 : 1) * (root.u(16) * (1 - root.menuProgress) + (root.grow ? 0 : root.u(14) * (1 - Math.min(1, root.pop))))
         radius: root.lad(root.rMenu, "m")
         tint: root.shellThemed ? root.part("arcmenu", "popover", "transparent") : root.adw.popup
-        transform: Pop { ox: panel.x + menuButton.x + menuButton.width / 2 - menu.x; oy: menu.height + root.u(10) }
+        transform: Pop { ox: panel.x + menuButton.x + menuButton.width / 2 - menu.x; oy: root.popOY(menu.height) }
         shadowBlur: root.u(50)
         shadowY: root.u(14)
 
@@ -885,12 +969,12 @@ Item {
         opacity: root.popOpacity
         width: root.u(440); height: root.u(470)
         x: Math.min(root.width - width - root.u(Math.max(8, root.margin)), panel.x + qsButton.parent.x + qsButton.x + qsButton.width - width)
-        y: panel.y - height - root.u(10) + (root.grow ? 0 : root.u(14) * (1 - Math.min(1, root.pop)))
+        y: root.popY(height) + (root.topBar ? -1 : 1) * (root.grow ? 0 : root.u(14) * (1 - Math.min(1, root.pop)))
         radius: root.lad(root.part("quicksettings", "radius", root.r), "l")
         tint: root.shellThemed ? root.part("quicksettings", "popover", "transparent") : root.adw.popup
         shadowBlur: root.u(50)
         shadowY: root.u(14)
-        transform: Pop { ox: panel.x + qsButton.parent.x + qsButton.x + qsButton.width / 2 - qs.x; oy: qs.height + root.u(10) }
+        transform: Pop { ox: panel.x + qsButton.parent.x + qsButton.x + qsButton.width / 2 - qs.x; oy: root.popOY(qs.height) }
 
         readonly property real pad: root.u(22)
         readonly property color fgQ: root.shellThemed ? root.fg : root.adw.fg
@@ -984,12 +1068,12 @@ Item {
         opacity: root.popOpacity
         width: root.u(760); height: root.u(470)
         x: Math.min(root.width - width - root.u(Math.max(8, root.margin)), panel.x + clockButton.parent.x + clockButton.x + clockButton.width / 2 - width / 2)
-        y: panel.y - height - root.u(10) + (root.grow ? 0 : root.u(14) * (1 - Math.min(1, root.pop)))
+        y: root.popY(height) + (root.topBar ? -1 : 1) * (root.grow ? 0 : root.u(14) * (1 - Math.min(1, root.pop)))
         radius: root.lad(root.part("calendar", "radius", root.r), "l")
         tint: root.shellThemed ? root.part("calendar", "popover", "transparent") : root.adw.popup
         shadowBlur: root.u(50)
         shadowY: root.u(14)
-        transform: Pop { ox: panel.x + clockButton.parent.x + clockButton.x + clockButton.width / 2 - cal.x; oy: cal.height + root.u(10) }
+        transform: Pop { ox: panel.x + clockButton.parent.x + clockButton.x + clockButton.width / 2 - cal.x; oy: root.popOY(cal.height) }
 
         readonly property real pad: root.u(22)
         readonly property real split: root.u(400)
@@ -1169,9 +1253,10 @@ Item {
         ShellGlass {    // the dash
             id: dash
             part: "overview"
-            glass: false            // the theme paints the dash; the glass is the blur behind
+            visible: !root.showDock      // Dash to Dock takes the dash's place
+            glass: root.panelGlass && root.overviewGlass   // real glass behind GNOME's dash, as on the desktop
             anchors.horizontalCenter: parent.horizontalCenter
-            y: panel.y - height - root.u(28)
+            y: root.topBar ? root.height - height - root.u(16) : panel.y - height - root.u(28)
             width: dashRow.width + root.u(24); height: root.u(72)
             radius: root.lad(root.part("overview", "radius", root.r), "l")
             tint: root.shellThemed ? root.part("overview", "chrome", "transparent") : root.withAlpha(root.adw.popup, 0.9)

@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.16
+Version:        1.5.17
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -198,6 +198,13 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.17-1
+- Works on stock GNOME with no extensions: glass on the top bar, the overview's dash and search, and the dash keeps all its app icons when starting on the desktop
+- Glass behind Dash to Dock and Ubuntu Dock
+- The app adapts to your desktop: its preview shows the top bar, a dock or Dash to Panel, and settings for extensions you do not use are hidden
+- Start on the desktop is on by default only with Dash to Panel; GNOME's own desktop keeps its overview at login
+- Readable search results on light glass
+
 * Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.16-1
 - Install and update on Ubuntu (26.04, 26.10) and Arch too: signed apt and pacman repositories next to the dnf one
 - Checked on GNOME 50 and GNOME 51; roomier password field on the GNOME 51 lock and login screens
