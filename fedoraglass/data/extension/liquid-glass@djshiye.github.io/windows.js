@@ -396,7 +396,17 @@ class WindowGlass {
                     out.push({actor, need: r, solid: this.owner.glassOf(actor)?.solidRects() ?? []});
             }
         }
-        return visibleOnly(out, x, y, w, h);
+        // Under the panel nothing of this glass is seen: what windows show there doesn't count.
+        const wa = this.win.get_work_area_current_monitor();
+        const [vx, vy] = [Math.max(x, wa.x), Math.max(y, wa.y)];
+        const [vw, vh] = [Math.min(x + w, wa.x + wa.width) - vx, Math.min(y + h, wa.y + wa.height) - vy];
+        return vw > 0 && vh > 0 && this._inside(wa) ? visibleOnly(out, vx, vy, vw, vh) : visibleOnly(out, x, y, w, h);
+    }
+
+    // Whether the window's frame lies on its screen's work area (not across two screens).
+    _inside(wa) {
+        const f = this.win.get_frame_rect();
+        return f.x >= wa.x - 1 && f.y >= wa.y - 1 && f.x + f.width <= wa.x + wa.width + 1 && f.y + f.height <= wa.y + wa.height + 1;
     }
 
     queue() {
