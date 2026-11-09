@@ -57,7 +57,11 @@ export default class FedoraGlassExtension extends Extension {
         this._locked = locked;
         const cfg = this._config.value;
         if (locked) {
+            // The pop-up sheet goes once the lock screen is up (see PopupStyle.destroyLater).
+            const popups = this._popupStyle;
+            this._popupStyle = null;
             this._stopSession();
+            this._popupsLater(popups);
             this._leaving?.destroy();
             this._leaving = null;
             this._lock?.destroy();
@@ -123,6 +127,31 @@ export default class FedoraGlassExtension extends Extension {
         }
     }
 
+    _popupsLater(popups) {
+        if (!popups)
+            return;
+        this._dropLeavingPopups();
+        this._leavingPopups = popups;
+        try {
+            popups.destroyLater(() => {
+                if (this._leavingPopups === popups)
+                    this._leavingPopups = null;
+            });
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the pop-up styles');
+            this._dropLeavingPopups();
+        }
+    }
+
+    _dropLeavingPopups() {
+        try {
+            this._leavingPopups?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the pop-up styles');
+        }
+        this._leavingPopups = null;
+    }
+
     _effective(cfg) {
         return effectiveConfig(cfg, this._speed?.level ?? 0);
     }
@@ -145,6 +174,8 @@ export default class FedoraGlassExtension extends Extension {
             return;
         }
         // Only with the glass: without it these see-through pop-ups would have nothing behind them.
+        // An unlock right after a lock: the old sheet goes first (both use the same file).
+        this._dropLeavingPopups();
         try {
             this._popupStyle = new PopupStyle(cfg);
         } catch (e) {
@@ -216,6 +247,7 @@ export default class FedoraGlassExtension extends Extension {
         this._leavingWidgets?.destroy();
         this._leavingWidgets = null;
         this._stopSession();
+        this._dropLeavingPopups();
         this._config?.destroy();
         this._config = null;
         this._safety?.destroy();

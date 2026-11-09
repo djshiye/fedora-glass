@@ -134,3 +134,33 @@ test('config: only plain rules of a sane size get through', () => {
         '.a { content: "\\41"; }', 'a'.repeat(POPUP_CSS_MAX + 1)])
         assert.equal(cleanPopupCss(bad), '');
 });
+
+test('at a lock the sheet goes a moment later, once the lock screen hides the desktop', () => {
+    const ctx = globalThis.fake.themeContext;
+    const fake = globalThis.fake;
+    fake.timeouts.fireAll();
+    const p = new PopupStyle({popupCss: CSS});
+    let gone = 0;
+    p.destroyLater(() => gone++);
+    assert.deepEqual(ctx.theme.sheets.map(s => s.text), [CSS], 'not inside the lock itself: that restyled the whole desktop');
+    assert.equal(fake.timeouts.map.size, 1);
+    assert.deepEqual(fake.timeouts.fireAll(), [0], 'right after, when the main loop is back');
+    assert.deepEqual(ctx.theme.sheets, []);
+    assert.ok(!fake.fs.has(FILE), 'and its file removed');
+    assert.equal(ctx.handlers.size, 0);
+    assert.equal(gone, 1);
+
+    // Unlocked before that moment came: the old sheet goes at once, so the new one
+    // (same file) is never removed by it later.
+    const q = new PopupStyle({popupCss: CSS});
+    q.destroyLater(() => gone++);
+    q.destroy();
+    assert.equal(fake.timeouts.map.size, 0, 'the later removal is dropped');
+    assert.deepEqual(ctx.theme.sheets, []);
+    const r = new PopupStyle({popupCss: CSS});
+    assert.deepEqual(fake.timeouts.fireAll(), []);
+    assert.deepEqual(ctx.theme.sheets.map(s => s.text), [CSS], 'the new sheet stays');
+    assert.ok(fake.fs.has(FILE));
+    assert.equal(gone, 1);
+    r.destroy();
+});
