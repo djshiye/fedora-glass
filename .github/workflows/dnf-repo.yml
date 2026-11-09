@@ -54,6 +54,7 @@ jobs:
           case "$TAG" in v[0-9]*) ;; *) echo "not a release tag: $TAG"; exit 1 ;; esac
           apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates >/dev/null
           curl -fsSLo bundle.tar.gz "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dnf-repo.tar.gz"
+          if ! tar -tzf bundle.tar.gz | grep -qx 'apt/'; then echo "::warning::no apt/ in the bundle (old fedora-glass-sign): nothing to check"; exit 0; fi
           mkdir -p /srv/site && tar -xzf bundle.tar.gz -C /srv/site --no-same-owner apt
           install -Dm644 packaging/RPM-GPG-KEY-fedora-glass /usr/share/keyrings/fedora-glass.asc
           # The same source line the package installs, pointed at the files from the bundle.
@@ -80,6 +81,7 @@ jobs:
         run: |
           case "$TAG" in v[0-9]*) ;; *) echo "not a release tag: $TAG"; exit 1 ;; esac
           curl -fsSLo bundle.tar.gz "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dnf-repo.tar.gz"
+          if ! tar -tzf bundle.tar.gz | grep -qx 'arch/'; then echo "::warning::no arch/ in the bundle (old fedora-glass-sign): nothing to check"; exit 0; fi
           mkdir -p /srv/site && tar -xzf bundle.tar.gz -C /srv/site --no-same-owner arch
           chmod -R a+rX /srv/site
           pacman-key --init >/dev/null
@@ -152,10 +154,11 @@ jobs:
             rpmkeys --root "$PWD/vroot" --define '_pkgverify_level all' --checksig "$p"
             case "$(rpm -qp --nosignature --qf '%{name}' "$p")" in fedora-glass|liquid-glass) ;; *) echo "refusing: $p"; exit 1 ;; esac
           done
-          # Ubuntu (apt) and Arch (pacman): since 1.5.16 every release has them.
-          for d in apt arch; do
-            [ -d "site/$d" ] || { echo "the bundle has no $d/ folder: update fedora-glass-sign on Dino's PC (docs/SIGNING.md) and sign $TAG again"; exit 1; }
-          done
+          # Ubuntu (apt) and Arch (pacman). A signer from before 1.5.16 makes only rpms/: then
+          # Fedora still gets its update, and the warning says to update fedora-glass-sign.
+          if ! [ -d site/apt ] || ! [ -d site/arch ]; then
+            echo "::warning::$TAG was signed without the Ubuntu and Arch repositories. Update fedora-glass-sign on Dino's PC (docs/SIGNING.md) and sign $TAG again."
+          else
           gpgv --keyring ./key.gpg site/apt/InRelease
           gpgv --keyring ./key.gpg site/apt/Release.gpg site/apt/Release
           for f in site/arch/*.pkg.tar.xz site/arch/fedora-glass.db site/arch/fedora-glass.db.tar.gz; do
@@ -163,6 +166,7 @@ jobs:
           done
           ls site/apt/fedora-glass_"${TAG#v}"-*_all.deb site/arch/fedora-glass-"${TAG#v}"-*-any.pkg.tar.xz >/dev/null \
             || { echo "the bundle has no Ubuntu or Arch package for $TAG"; exit 1; }
+          fi
           main="$(ls site/rpms/fedora-glass-"${TAG#v}"-*.noarch.rpm 2>/dev/null | head -1)"
           [ -n "$main" ] || { echo "the bundle has no fedora-glass ${TAG#v}"; exit 1; }
           echo "EVR=$(rpm -qp --nosignature --qf '%{evr}' "$main")" >> "$GITHUB_ENV"
