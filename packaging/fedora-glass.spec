@@ -203,6 +203,7 @@ fi
 - Checked on GNOME 50 and GNOME 51; roomier password field on the GNOME 51 lock and login screens
 - Readable top bar on Ubuntu's own desktop (Yaru no longer forces it black under light glass)
 - With two screens, the glass behind see-through title bars (Slack and other apps) no longer flickers while the other screen redraws
+- The close button (and other title-bar buttons) of an unfocused window, such as Terminal, works on the first click again
 
 * Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.15-1
 - No more empty glass boxes left beside the Extension List menu after hovering its buttons

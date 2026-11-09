@@ -12,8 +12,10 @@ window.csd > decoration, decoration {
 window.csd.maximized > decoration, window.csd.fullscreen > decoration, window.csd.tiled > decoration {
   border-radius: 0; box-shadow: none; margin: 0;
 }
+/* Same reach as the focused shadow (only colours change), or the window grows when a
+   click focuses it and that click is lost. */
 window.csd:backdrop > decoration {
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 8px 24px 2px @lg_shadow;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 18px 44px 2px transparent, 0 8px 24px 2px @lg_shadow;
 }
 
 /* ---- header bars -------------------------------------------------------------- */
