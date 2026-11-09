@@ -56,6 +56,7 @@ jobs:
           curl -fsSLo bundle.tar.gz "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dnf-repo.tar.gz"
           if ! tar -tzf bundle.tar.gz | grep -qx 'apt/'; then echo "::warning::no apt/ in the bundle (old fedora-glass-sign): nothing to check"; exit 0; fi
           mkdir -p /srv/site && tar -xzf bundle.tar.gz -C /srv/site --no-same-owner apt
+          chmod -R a+rX /srv/site   # the signer packs owner-only files; apt reads them as _apt
           install -Dm644 packaging/RPM-GPG-KEY-fedora-glass /usr/share/keyrings/fedora-glass.asc
           # The same source line the package installs, pointed at the files from the bundle.
           sed 's|https://djshiye.github.io/fedora-glass/apt/|file:///srv/site/apt/|' packaging/deb/fedora-glass.sources > /etc/apt/sources.list.d/fedora-glass.sources
