@@ -253,7 +253,9 @@ def kill_apps() -> None:
         except subprocess.TimeoutExpired:
             p.kill()
     _procs.clear()
-    subprocess.run(["pkill", "-u", "dino", "-f", "^(nautilus|ptyxis|/opt/electron)"], check=False)
+    # Also by full path: when Desktop Icons asks for Files over D-Bus first, the window belongs
+    # to D-Bus's "/usr/bin/nautilus --gapplication-service", not to the nautilus we started.
+    subprocess.run(["pkill", "-u", "dino", "-f", "^(/usr/bin/)?(nautilus|ptyxis)( |$)|^/opt/electron"], check=False)
 
 
 # ---------------------------------------------------------------------------------------------
