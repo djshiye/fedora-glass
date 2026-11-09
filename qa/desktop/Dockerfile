@@ -4,7 +4,10 @@
 # Every download is pinned: the base image by digest, each extension by git commit
 # (checked after cloning), Orchis by tag commit, Electron and Spawn by SHA-256. Extensions
 # are put together with glib tools only; no third-party build script runs.
-FROM mirror.gcr.io/library/ubuntu@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c
+# The base decides the GNOME version: Ubuntu 26.04 has GNOME 50 (the default), Ubuntu 26.10
+# GNOME 51 (run.sh --gnome 51 passes its digest and the GNOME 51 pins below).
+ARG BASE=mirror.gcr.io/library/ubuntu@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c
+FROM $BASE
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -32,7 +35,8 @@ ARG ARCMENU=c0b8a4d3e303e1d8abce1cf069b01ec6a6fa7b80    # ArcMenu v70.0
 ARG BMS=b1e415cc5ff3dffef72a69b552d8c64ae7d28a45        # Blur my Shell v77
 ARG JP=ae48fd2d75a5747bbda1bdb2b039e9a3384ddf4c         # Just Perfection 37.0
 ARG APPIND=52da5222a17f7a862e8a47d2bc523f29abf59964     # AppIndicator v66
-ARG EXTLIST=8f5b9366a245f1b50a60b1f07f423d5fa9454aca    # Extension List 50.2
+ARG EXTLIST=8f5b9366a245f1b50a60b1f07f423d5fa9454aca    # Extension List 50.2 (GNOME 51: 51.1, set by run.sh)
+ARG EXTLIST_SHELL=50                                     # the one GNOME version Extension List's metadata names
 ARG DEJA=c2cac5444a1bd56e6a287f0d688728cfea4bf7c4       # Deja Window (no tags; 2026-10-10)
 ARG ORCHIS=29975e38624ec93d8e460f8ea17129bcb68c05ef     # Orchis 2026-07-07
 ARG ELECTRON=v44.10.1
@@ -46,7 +50,7 @@ ARG SPAWN_REPO_COMMIT=9fcbc1b9c946992643fbbc82ba04a031a09d4657
 ARG SPAWN_SHA256=c9eeec61d2e4d603223caef0347ca812619f62a880ce62eebdaca28e739491a6
 
 COPY assemble-extensions.sh /opt/lgqa/assemble-extensions.sh
-RUN bash /opt/lgqa/assemble-extensions.sh \
+RUN EXTLIST_SHELL=$EXTLIST_SHELL bash /opt/lgqa/assemble-extensions.sh \
       "home-sweet-gnome/dash-to-panel@$DTP" "gitlab:arcmenu/ArcMenu@$ARCMENU" "aunetx/blur-my-shell@$BMS" \
       "jrahmatzadeh/just-perfection@$JP" "ubuntu/gnome-shell-extension-appindicator@$APPIND" \
       "tuberry/extension-list@$EXTLIST" "ihpled/deja-window@$DEJA" "vinceliuice/Orchis-theme@$ORCHIS"

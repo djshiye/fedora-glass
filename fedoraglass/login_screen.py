@@ -190,7 +190,7 @@ def css(accent: str, tint: str, frost: float, shared: bool = False) -> str:
   border-top-color: rgba(255, 255, 255, {shine:.3f});
   border-radius: 999px;
   padding: 9px 14px;
-  min-width: 13em;
+  min-width: 14em;
   color: #ffffff;
   caret-color: #ffffff;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.30); }}

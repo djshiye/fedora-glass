@@ -128,9 +128,13 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${scroll_hover}; }
 
 /* ---------------------------------------------------------------- top bar */
+/* !important: some shell themes force their own bar. Ubuntu's Yaru, under the user theme in
+   the Ubuntu session, forces a black bar with !important, which left our
+   dark light-style text on a black bar. Ours must win, and the lock and login screens must
+   stay see-through, as GNOME has them. */
 #panel {
-  background-color: ${chrome};
-  box-shadow: inset 0 1px 0 0 ${rim};
+  background-color: ${chrome} !important;
+  box-shadow: inset 0 1px 0 0 ${rim} !important;
   font-weight: 600;
   color: ${fg}; }
 #panel .panel-button {
@@ -153,10 +157,11 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
 #panel .panel-button.clock-display:active .clock, #panel .panel-button.clock-display:checked .clock {
   box-shadow: inset 0 0 0 100px ${active}; }
 #panel .panel-button#panelActivities .workspace-dot {
-  background-color: ${fg}; }
-#panel:overview {
-  background-color: transparent;
-  box-shadow: none; }
+  background-color: ${fg} !important; }
+#panel:overview,
+#panel.unlock-screen, #panel.login-screen, #panel.lock-screen {
+  background-color: transparent !important;
+  box-shadow: none !important; }
 
 /* @boost: extension stylesheets load after the theme, so these need the extra id to win */
 /* ---- Dash to Panel */

@@ -1,0 +1,14 @@
+# Stock Ubuntu desktop for the Ubuntu smoke check (run.sh --ubuntu-desktop): the test
+# desktop image plus what Ubuntu itself ships in its session: the Ubuntu session mode,
+# Ubuntu Dock, Desktop Icons (DING), AppIndicator, the Yaru theme and Ubuntu's own default
+# settings. Kept in its own image, because ubuntu-settings changes GNOME's defaults (theme,
+# fonts, dock), which must not leak into the Dino desktop.
+ARG IMAGE=lgqa-desktop
+FROM $IMAGE
+
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+      ubuntu-session ubuntu-settings ubuntu-wallpapers yaru-theme-gnome-shell yaru-theme-gtk yaru-theme-icon \
+      fonts-ubuntu gnome-shell-extension-ubuntu-dock gnome-shell-extension-desktop-icons-ng \
+      gnome-shell-extension-appindicator >/dev/null \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -f /usr/share/gnome-shell/modes/ubuntu.json

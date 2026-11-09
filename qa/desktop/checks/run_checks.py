@@ -31,7 +31,9 @@ from lgqa import LG, OUT, Shell, ShellError  # noqa: E402
 HERE = Path(__file__).resolve().parent
 # Reference pictures are for the default 2000x1125 screens; other sizes keep their own set.
 SCREEN = os.environ.get("LGQA_SCREEN", "2000x1125").split("@")[0]   # WxH@R: R is the refresh rate
-REFS = HERE.parent / "references" / ("" if SCREEN == "2000x1125" else SCREEN)
+# GNOME 51 draws its own panel, menus and lock screen a little differently: its own set too.
+GNOME = os.environ.get("LGQA_GNOME", "50")
+REFS = HERE.parent / "references" / ("" if GNOME == "50" else f"gnome{GNOME}") / ("" if SCREEN == "2000x1125" else SCREEN)
 NEW_REFS = OUT / "new-references"
 REPORT = OUT / "report"
 LIMITS = tomllib.loads((HERE.parent / "limits.toml").read_text())
@@ -433,8 +435,11 @@ class Leftovers:
 def fresh_screen(ctx: Ctx, name: str) -> np.ndarray:
     """The same screen with all glass rebuilt from scratch (Fedora Glass switched off and on)."""
     sh = ctx.sh
-    sh.eval(f"const m = Main.extensionManager; m._callExtensionDisable('{LG}').then(() => m._callExtensionEnable('{LG}'))"
-            ".catch(e => log('LGQA fresh ' + e)); 1")
+    # GNOME 51 renamed GNOME 50's _callExtensionDisable(uuid) to _callExtensionDisableWithRebase(uuid)
+    # (_callExtensionDisable now takes the extension object and only calls its disable()).
+    sh.eval(f"const m = Main.extensionManager; Promise.resolve(m._callExtensionDisableWithRebase"
+            f" ? m._callExtensionDisableWithRebase('{LG}') : m._callExtensionDisable('{LG}'))"
+            f".then(() => m._callExtensionEnable('{LG}')).catch(e => log('LGQA fresh ' + e)); 1")
     time.sleep(1)
     sh.wait_for(f"return Main.extensionManager.lookup('{LG}').state === 1;", 15)
     settle(2.5)
@@ -976,6 +981,15 @@ def check_lock(ctx: Ctx) -> Check:
                   f"{len(bad)} glass pieces on the lock screen can take clicks or focus.")
             sh.eval("Main.screenShield._dialog._showPrompt(); 1")
             settle(1.5)
+            # There is no PAM in the test desktop, so the check for the password fails at once. GNOME 50
+            # keeps the field shown after that; GNOME 51 hides it until it asks again. Ask once more, the
+            # way GNOME does when PAM wants the password, so the field shows on both.
+            sh.eval("""(() => { const a = Main.screenShield._dialog._authPrompt;
+             if (a._entry.get_parent().visible || a._onAskQuestion.length !== 1) return 1;
+             a._pendingCallback = null;
+             a._onAskQuestion({serviceName: 'gdm-password', question: 'Password:', secret: true, answerHandler: () => {}});
+             return 1; })()""")
+            settle(1.5)
             now = lgqa.load(sh.shot("lock-prompt"))
             against_reference(ctx, c, "lock-prompt", "Password screen", now, lock_mask(ctx, now.shape), LIMITS["lock"])
         sh.eval("Main.screenShield.deactivate(true); 1")
@@ -1148,13 +1162,13 @@ def lock_screens_change(ctx: Ctx, c: Check) -> None:
 
 
 GNOME_LOCK_GREY = (0x22, 0x22, 0x26)
-LOGIN_MOCK_JS = """(() => { const {St, Gio} = imports.gi;
+LOGIN_MOCK_JS = """(() => { const {St, Gio, Clutter} = imports.gi;
  globalThis._lgqaLoginCss = Gio.File.new_for_path(%s);
  St.ThemeContext.get_for_stage(global.stage).get_theme().load_stylesheet(globalThis._lgqaLoginCss);
  const [W, H] = global.stage.get_size(), m = Main.layoutManager.primaryMonitor;
  const g = new St.Widget({name: 'lockDialogGroup', x: 0, y: 0, width: W, height: H});
  const d = new St.Widget({style_class: 'login-dialog', x: m.x, y: m.y, width: m.width, height: m.height});
- const card = new St.BoxLayout({style_class: 'login-dialog-prompt-layout', vertical: true,
+ const card = new St.BoxLayout({style_class: 'login-dialog-prompt-layout', orientation: Clutter.Orientation.VERTICAL,
    x: Math.round(m.width / 2 - 180), y: Math.round(m.height / 2 - 90), width: 360, height: 180});
  card.add_child(new St.Entry({style_class: 'login-dialog-prompt-entry', hint_text: 'Password', x_expand: true}));
  d.add_child(card); g.add_child(d);
@@ -1219,7 +1233,11 @@ LOGIN_PROMPT_JS = """(async () => { const {St, Gio, AccountsService} = imports.g
  const d = new LD.LoginDialog(g); d.show(); d._userSelectionBox.hide();
  const a = d._authPrompt;
  a.setUser(AccountsService.UserManager.get_default().get_user('dino'));
- a._onAskQuestion(null, 'gdm-password', 'Password:', true);
+ // GNOME 51 passes the question as one object; GNOME 50 as (verifier, service, question, secret).
+ if (a._onAskQuestion.length === 1)
+     a._onAskQuestion({serviceName: 'gdm-password', question: 'Password:', secret: true, answerHandler: () => {}});
+ else
+     a._onAskQuestion(null, 'gdm-password', 'Password:', true);
  a.opacity = 255; a.show(); return 1; })()"""
 LOGIN_PROMPT_GEO_JS = """const a = globalThis._lgqaLogin.get_first_child()._authPrompt;
  const [x, y] = a.get_transformed_position(), [w, h] = a.get_transformed_size();
@@ -1232,8 +1250,11 @@ LOGIN_PROMPT_GEO_JS = """const a = globalThis._lgqaLogin.get_first_child()._auth
 LOGIN_FIELD_JS = """(async () => { const a = globalThis._lgqaLogin.get_first_child()._authPrompt, e = a._entry;
  const well = a._webLoginPromptWell; if (well) well.visible = true;
  await new Promise(r => imports.gi.GLib.timeout_add(0, 400, () => { r(); return false; }));
- const [, hint] = e.get_hint_actor().get_preferred_width(-1);
- const o = {squeezed: !!well, field: e.width, text: e.clutter_text.width, hint};
+ // The hint's own text: GNOME 51 pads the hint label on the right to keep it clear of its eye
+ // (show password) and next buttons, and that padding is not text.
+ const [, hint] = e.get_hint_actor().clutter_text.get_preferred_width(-1);
+ const o = {squeezed: !!well, field: e.width, text: e.clutter_text.width, hint,
+            cut: e.get_hint_actor().clutter_text.get_layout().is_ellipsized()};
  if (well) well.visible = false; return JSON.stringify(o); })()"""
 
 
@@ -1268,6 +1289,8 @@ def login_prompt(ctx: Ctx, c: Check) -> None:
           if 0 < w <= mw * 0.2 + 1 else f"The login password prompt is {w:.0f} px wide on a {mw} px screen: too big "
           "(more than a fifth).", picture("login-prompt", now[int(my * k):int((my + mh) * k), int(mx * k):int((mx + mw) * k)]))
     room = field["text"] / max(field["hint"], 1)
+    if field.get("cut"):
+        room = 0      # the hint is already cut short ("Pass...")
     where = " with GNOME's web-login slot showing beside it" if field["squeezed"] else ""
     c.add(room >= 2, f"The login password field leaves room for twice its \"Password\" hint{where} "
           f"({field['text']:.0f} px for a {field['hint']:.0f} px hint)." if room >= 2 else
@@ -2146,7 +2169,7 @@ def main() -> int:
     version = args.version or re.search(r"__version__\s*=\s*['\"]([^'\"]+)",
                                         Path("/src/fedoraglass/__init__.py").read_text()).group(1)
     meta = {"version": version, "when": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
-            "desktop": f"GNOME 50 on Wayland, {sh.scale * 100:.0f} % scaling, Orchis Dark, Dino's extensions, overview off"}
+            "desktop": f"GNOME {GNOME} on Wayland, {sh.scale * 100:.0f} % scaling, Orchis Dark, Dino's extensions, overview off"}
     checks = []
     for key in args.only.split(","):
         print(f"== {key}", flush=True)
