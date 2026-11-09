@@ -324,3 +324,30 @@ test('preview title strips get the pop-up tint, and their own style back when tu
     assert.equal(list.handlerCount(), 0);
     strip.destroy();
 });
+
+// Extension List's button tooltips are box pointers it puts in the UI group on hover and
+// takes out again (removeChrome) mid-fade, without destroying them. Their glass stayed
+// behind as empty boxes beside the menu (1.5.14).
+test('glass of a pop-up taken off the stage is hidden, and comes back with it', () => {
+    const {anchor, surface} = popup();
+    const p = start(new Popups(cfg));
+    p._follow(surface, anchor, 'quicksettings');
+    surface.map();
+    const f = p._followers.get(surface);
+    assert.ok(f, 'the tooltip has glass');
+    f.pane.show();    // as placed on screen (the fake actors cannot be measured)
+    f.top.show();
+    fake.ui.remove_child(anchor);    // Main.layoutManager.removeChrome
+    surface.mapped = false;
+    surface.emit('notify::mapped');
+    laters.run();
+    assert.equal(f.pane.visible, false, 'no glass box left where the tooltip was');
+    assert.equal(f.top.visible, false);
+    assert.ok(p._followers.has(surface), 'kept for the next hover');
+    fake.ui.add_child(anchor);       // hovered again: Main.layoutManager.addTopChrome
+    anchor.emit('parent-set');
+    laters.run();
+    assert.equal(f.pane.get_parent(), fake.ui, 'the glass moves back under it');
+    assert.deepEqual(fake.ui.get_children().slice(-3), [f.pane, f.top, anchor]);
+    p.destroy();
+});
