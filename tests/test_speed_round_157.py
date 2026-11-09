@@ -71,8 +71,8 @@ def test_moving_window_keeps_no_copy_of_its_glass_until_it_settles():
     w = code(body("windows.js", "_moved"))
     assert "offscreen_redirect = 0" in w and "SETTLE_MS" in w
     assert "Clutter.OffscreenRedirect.ALWAYS" in w
-    assert "this._moved()" in code(body("windows.js", "sync"))
-    assert "GLib.source_remove(this._settle)" in code(body("windows.js", "destroy"))
+    assert "this._moved()" in code(body("windows.js", "_place"))
+    assert "GLib.source_remove(this._settle)" in code(body("windows.js", "_release"))
 
 
 def test_growing_menu_keeps_its_glass_in_place():
