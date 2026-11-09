@@ -25,9 +25,14 @@ window.csd {
     0 18px 48px 4px var(--lg-deep-shadow),
     0 4px 12px 0 var(--lg-shadow);
 }
+/* Unfocused: a lighter shadow, but the same reach as the focused one. GTK sizes a
+   window by its shadow, so a smaller one made the window grow when a click focused
+   it, and that click (on the close button, say) was lost (1.5.15). The transparent
+   layer keeps the reach; only colours change between the two states. */
 window.csd:backdrop {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 18px 48px 4px transparent,
     0 8px 28px 2px var(--lg-shadow);
 }
 window.csd.maximized, window.csd.fullscreen, window.csd.tiled,
