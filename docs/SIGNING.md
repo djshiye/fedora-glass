@@ -67,16 +67,27 @@ gpg -d /run/media/$USER/<your USB stick>/fedora-glass-signing-key-backup.asc | g
 fedora-glass-sign setup
 ```
 
-## Each release
+## Each release: automatic
 
-When the Release workflow has finished:
+Turn it on once:
 
 ```sh
-fedora-glass-sign            # signs and publishes the latest release (or: fedora-glass-sign v1.5.11)
+fedora-glass-sign enable-auto
 ```
 
-gpg asks for the key's passphrase. A couple of minutes later the repository serves the new version
-and `sudo dnf upgrade --refresh` picks it up.
+If gpg opens a password window, tick **Save in password manager**, so GNOME's keyring can unlock the
+key from then on. This adds a small systemd user timer (`fedora-glass-sign.timer`) that looks for a
+new release every 10 minutes while you are logged in. When one appears, it signs and publishes it as
+above and shows a notification. If something goes wrong (for example the password window was
+closed) it shows why and tries again an hour later. The details of the last run are in
+`~/.config/fedora-glass-signing/auto.log`.
+
+The key still never leaves your PC, and the PC only signs releases from this repository's Release
+workflow (checked against their `SHA256SUMS`). If your PC is off when a release comes out, it is
+signed a few minutes after you next log in.
+
+To turn it off: `fedora-glass-sign disable-auto`. To sign a release by hand:
+`fedora-glass-sign` (latest) or `fedora-glass-sign v1.5.11`.
 
 ## Lost key
 
