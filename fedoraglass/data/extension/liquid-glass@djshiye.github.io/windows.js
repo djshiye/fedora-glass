@@ -2,6 +2,7 @@
 
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -36,6 +37,20 @@ const CLIENT_CARDS = [
     {app: /^(io\.github\.djshiye\.Wheelguard|wheelguard-settings|Wheelguard)$/, margin: 14, radius: 18},
 ];
 const TERMINALS = /^(org\.gnome\.ptyxis|ptyxis|org\.gnome\.console|kgx|gnome-terminal-server|org\.gnome\.terminal)$/i;
+
+// Mutter skips drawing the parts of a window that an opaque window above it covers.
+// The glass under the focused window copies the windows below it, and was copied with
+// those parts missing whenever it was redrawn as part of the screen: behind a title bar
+// that sees through (Slack, Electron apps), the blur then pulled in the wallpaper from
+// under the window's solid body, and a glow came and went as the glass redrew (1.5.13).
+// Mutter leaves out any window that carries an effect when it works out what is
+// covered, so this empty one on the focused window keeps the windows below it whole.
+let NoCull = null;    // made on first use
+function noCull() {
+    NoCull ??= GObject.registerClass({GTypeName: 'FedoraGlassNoCull'}, class NoCull extends Clutter.Effect {});
+    return new NoCull();
+}
+const NO_CULL = 'fedora-glass-no-cull';
 
 function appIds(w) {
     return [w.get_wm_class(), w.get_wm_class_instance(), w.get_gtk_application_id(), w.get_sandboxed_app_id()]
@@ -217,6 +232,7 @@ class WindowGlass {
                 p.hide();
                 p.setSources([]);
             }
+            this._keepBelowWhole(false);
             this._syncHolder();
             return;
         }
@@ -250,6 +266,7 @@ class WindowGlass {
         const [hx, hy] = [frame.x - buf.x - p, frame.y - buf.y - p];
         this._holder.set_position(hx, hy);
         this._holder.set_size(W + 2 * p, H + 2 * p);
+        this._keepBelowWhole(sources.some(s => s.meta_window));
         pane.setSources(sources);
         pane.setEdges(edges);
         pane.place(p, p, W, H, [r, r, r, r], frame.x, frame.y);
@@ -303,6 +320,15 @@ class WindowGlass {
         });
     }
 
+    /** Windows below this one are drawn whole, also where it covers them (see NoCull). */
+    _keepBelowWhole(on) {
+        const has = !!this.actor.get_effect(NO_CULL);
+        if (on && !has)
+            this.actor.add_effect_with_name(NO_CULL, noCull());
+        else if (!on && has)
+            this.actor.remove_effect_by_name(NO_CULL);
+    }
+
     // An empty holder would ask for a 0×0 picture: hide it with its pane.
     _syncHolder() {
         this._holder.visible = !!this.pane?.visible;
@@ -317,6 +343,9 @@ class WindowGlass {
             GLib.source_remove(this._settle);
         this._settle = 0;
         this._signals.clear();
+        try {
+            this._keepBelowWhole(false);
+        } catch {}   // the window's actor is already gone
         const {pane, rims} = this;
         this.pane = this.rims = null;
         pane?.destroy();
