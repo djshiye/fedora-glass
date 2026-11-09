@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install Fedora Glass for the current user (no root needed, except to add
-# missing Fedora packages, which it asks about first).
+# missing system packages (dnf, apt or pacman), which it asks about first).
 #
 #   ./install.sh            install, then open the customizer
 #   ./install.sh --no-gui   install only
@@ -24,21 +24,32 @@ fi
 case "$prefix$bin" in
   *[!A-Za-z0-9._/@+-]*) echo "Your home or data folder path has spaces or special characters ($prefix). Please install manually." >&2; exit 1;;
 esac
-if ! grep -q '^ID=fedora' /etc/os-release 2>/dev/null; then
-  echo "Note: Fedora Glass is made for Fedora. Continuing anyway."
-fi
-
-# ---- Fedora packages ----------------------------------------------------------
-# python3-pyside6: the customizer app. adw-gtk3-theme: GTK 3 apps.
-# kvantum: Qt apps. user-theme: lets GNOME Shell load the theme.
-want=(python3-gobject python3-pyside6 adw-gtk3-theme kvantum gnome-shell-extension-user-theme)
+# ---- system packages ------------------------------------------------------------
+# PySide6: the customizer app. adw-gtk3: GTK 3 apps. Kvantum: Qt apps. User Themes: lets
+# GNOME Shell load the theme. Named differently on each Linux.
 missing=()
-for p in "${want[@]}"; do rpm -q "$p" >/dev/null 2>&1 || missing+=("$p"); done
-if ((${#missing[@]})) && command -v dnf >/dev/null; then
-  say "These Fedora packages are missing: ${missing[*]}"
-  read -r -p "Install them now with sudo dnf? [Y/n] " ans || ans=n   # no terminal: don't install
+if command -v dnf >/dev/null && command -v rpm >/dev/null; then
+  pm="sudo dnf install -y"
+  want=(python3-gobject python3-pyside6 adw-gtk3-theme kvantum gnome-shell-extension-user-theme)
+  for p in "${want[@]}"; do rpm -q "$p" >/dev/null 2>&1 || missing+=("$p"); done
+elif command -v apt-get >/dev/null && command -v dpkg-query >/dev/null; then
+  pm="sudo apt-get install -y"
+  want=(python3-gi gir1.2-glib-2.0 python3-pyside6.qtquick python3-pyside6.qtquickcontrols2 qml6-module-qtquick-controls
+        qml6-module-qtquick-effects qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-style-kvantum
+        gnome-shell-extension-user-theme)
+  for p in "${want[@]}"; do dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'ok installed' || missing+=("$p"); done
+elif command -v pacman >/dev/null; then
+  pm="sudo pacman -S --needed --noconfirm"
+  want=(python-gobject pyside6 qt6-declarative adw-gtk-theme kvantum gnome-shell-extensions)
+  for p in "${want[@]}"; do pacman -Q "$p" >/dev/null 2>&1 || missing+=("$p"); done
+else
+  echo "Note: Fedora Glass is made for Fedora, Ubuntu and Arch. Continuing anyway."
+fi
+if ((${#missing[@]})); then
+  say "These packages are missing: ${missing[*]}"
+  read -r -p "Install them now with ${pm%% -*}? [Y/n] " ans || ans=n   # no terminal: don't install
   if [[ -z "$ans" || "$ans" =~ ^[Yy] ]]; then
-    sudo dnf install -y "${missing[@]}"
+    $pm "${missing[@]}"
   else
     echo "Skipped. The parts that need them will show as unavailable in the app."
   fi

@@ -34,7 +34,67 @@ env:
   SITE: https://djshiye.github.io/${{ github.event.repository.name }}
 
 jobs:
+  # Before anything is published, apt and pacman themselves must accept the signed
+  # Ubuntu and Arch repositories, trusting only the key on main.
+  apt:
+    if: github.repository == 'djshiye/fedora-glass' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c  # pinned; bump on purpose
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: main
+          sparse-checkout: packaging
+      - name: apt accepts the signed repository
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          case "$TAG" in v[0-9]*) ;; *) echo "not a release tag: $TAG"; exit 1 ;; esac
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates >/dev/null
+          curl -fsSLo bundle.tar.gz "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dnf-repo.tar.gz"
+          if ! tar -tzf bundle.tar.gz | grep -qx 'apt/'; then echo "::warning::no apt/ in the bundle (old fedora-glass-sign): nothing to check"; exit 0; fi
+          mkdir -p /srv/site && tar -xzf bundle.tar.gz -C /srv/site --no-same-owner apt
+          install -Dm644 packaging/RPM-GPG-KEY-fedora-glass /usr/share/keyrings/fedora-glass.asc
+          # The same source line the package installs, pointed at the files from the bundle.
+          sed 's|https://djshiye.github.io/fedora-glass/apt/|file:///srv/site/apt/|' packaging/deb/fedora-glass.sources > /etc/apt/sources.list.d/fedora-glass.sources
+          apt-get update -o APT::Update::Error-Mode=any 2>&1 | tee update.log
+          grep -qiE '^(W|E):' update.log && { echo "apt did not accept the repository"; exit 1; }
+          cd /tmp && apt-get download "fedora-glass=${TAG#v}-1"   # checks the hash from the signed index
+          ls -l /tmp/fedora-glass_*.deb
+
+  pacman:
+    if: github.repository == 'djshiye/fedora-glass' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    container: archlinux@sha256:b1c2fe6e717bfd5673af8fc217e1e1c3ce0dcbb1d53c3414c8425e7ce79fc6d9  # pinned; bump on purpose
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: main
+          sparse-checkout: packaging
+      - name: pacman accepts the signed repository
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          case "$TAG" in v[0-9]*) ;; *) echo "not a release tag: $TAG"; exit 1 ;; esac
+          curl -fsSLo bundle.tar.gz "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/dnf-repo.tar.gz"
+          if ! tar -tzf bundle.tar.gz | grep -qx 'arch/'; then echo "::warning::no arch/ in the bundle (old fedora-glass-sign): nothing to check"; exit 0; fi
+          mkdir -p /srv/site && tar -xzf bundle.tar.gz -C /srv/site --no-same-owner arch
+          chmod -R a+rX /srv/site
+          pacman-key --init >/dev/null
+          pacman-key --add packaging/RPM-GPG-KEY-fedora-glass
+          fpr="$(gpg --batch --with-colons --show-keys packaging/RPM-GPG-KEY-fedora-glass | awk -F: '$1 == "fpr" { print $10; exit }')"
+          pacman-key --lsign-key "$fpr"
+          printf '\n[fedora-glass]\nSigLevel = Required DatabaseRequired\nServer = file:///srv/site/arch\n' >> /etc/pacman.conf
+          pacman -Sy
+          pacman -Swdd --noconfirm fedora-glass        # checks the package signature too
+          pacman -Si fedora-glass | grep -E "^Version +: ${TAG#v}-"
+
   publish:
+    needs: [apt, pacman]
     # Only in this repository (never a fork), and only when run on main.
     if: github.repository == 'djshiye/fedora-glass' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -80,7 +140,7 @@ jobs:
           # Only plain files and folders under rpms/, with plain names.
           tar -tvzf bundle.tar.gz > list.txt
           awk '{ print substr($1, 1, 1) }' list.txt | grep -qv '^[-d]$' && { echo "refusing: links or devices in the bundle"; exit 1; }
-          tar -tzf bundle.tar.gz | grep -Evx 'rpms/?|rpms/repodata/?|rpms/[A-Za-z0-9._+~^-]+\.rpm|rpms/repodata/[A-Za-z0-9._-]+' \
+          tar -tzf bundle.tar.gz | grep -Evx 'rpms/?|rpms/repodata/?|rpms/[A-Za-z0-9._+~^-]+\.rpm|rpms/repodata/[A-Za-z0-9._-]+|apt/?|apt/[A-Za-z0-9._+~-]+|arch/?|arch/[A-Za-z0-9._+~-]+' \
             && { echo "refusing: unexpected paths in the bundle"; exit 1; }
           mkdir -p site
           tar -xzf bundle.tar.gz -C site --no-same-owner --no-same-permissions
@@ -94,6 +154,19 @@ jobs:
             rpmkeys --root "$PWD/vroot" --define '_pkgverify_level all' --checksig "$p"
             case "$(rpm -qp --nosignature --qf '%{name}' "$p")" in fedora-glass|liquid-glass) ;; *) echo "refusing: $p"; exit 1 ;; esac
           done
+          # Ubuntu (apt) and Arch (pacman). A signer from before 1.5.16 makes only rpms/: then
+          # Fedora still gets its update, and the warning says to update fedora-glass-sign.
+          if ! [ -d site/apt ] || ! [ -d site/arch ]; then
+            echo "::warning::$TAG was signed without the Ubuntu and Arch repositories. Update fedora-glass-sign on Dino's PC (docs/SIGNING.md) and sign $TAG again."
+          else
+          gpgv --keyring ./key.gpg site/apt/InRelease
+          gpgv --keyring ./key.gpg site/apt/Release.gpg site/apt/Release
+          for f in site/arch/*.pkg.tar.xz site/arch/fedora-glass.db site/arch/fedora-glass.db.tar.gz; do
+            gpgv --keyring ./key.gpg "$f.sig" "$f"
+          done
+          ls site/apt/fedora-glass_"${TAG#v}"-*_all.deb site/arch/fedora-glass-"${TAG#v}"-*-any.pkg.tar.xz >/dev/null \
+            || { echo "the bundle has no Ubuntu or Arch package for $TAG"; exit 1; }
+          fi
           main="$(ls site/rpms/fedora-glass-"${TAG#v}"-*.noarch.rpm 2>/dev/null | head -1)"
           [ -n "$main" ] || { echo "the bundle has no fedora-glass ${TAG#v}"; exit 1; }
           echo "EVR=$(rpm -qp --nosignature --qf '%{evr}' "$main")" >> "$GITHUB_ENV"
@@ -121,7 +194,7 @@ jobs:
         run: |
           cp packaging/fedora-glass.repo packaging/liquid-glass.repo packaging/RPM-GPG-KEY-fedora-glass site/
           echo "$EVR" > site/version.txt
-          printf '<!doctype html><meta charset="utf-8"><title>Fedora Glass DNF repository</title><pre>sudo dnf install https://github.com/%s/releases/latest/download/fedora-glass.noarch.rpm</pre><p>Serving %s.</p>\n' "$GITHUB_REPOSITORY" "$TAG" > site/index.html
+          printf '<!doctype html><meta charset="utf-8"><title>Fedora Glass repositories</title><p>Fedora Glass %s. How to install it on Fedora, Ubuntu and Arch: <a href="https://github.com/%s#install">github.com/%s</a></p>\n' "$TAG" "$GITHUB_REPOSITORY" "$GITHUB_REPOSITORY" > site/index.html
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa  # v3.0.1
         with:

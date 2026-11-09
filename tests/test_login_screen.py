@@ -147,9 +147,9 @@ def test_never_saves_a_changed_file_as_the_original(dirs):
     shell, state = dirs
     ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
     os.unlink(os.path.join(state, ls.BACKUP))
-    with pytest.raises(ls.LoginScreenError, match="dnf reinstall"):
+    with pytest.raises(ls.LoginScreenError, match="reinstall"):
         ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
-    with pytest.raises(ls.LoginScreenError, match="dnf reinstall"):
+    with pytest.raises(ls.LoginScreenError, match="reinstall"):
         ls.undo(shell, state)
 
 

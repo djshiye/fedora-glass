@@ -1,0 +1,9 @@
+# Only the fedora-glass package is ever taken from the Fedora Glass repository,
+# whatever else appears there.
+Package: *
+Pin: origin "djshiye.github.io"
+Pin-Priority: -1
+
+Package: fedora-glass
+Pin: origin "djshiye.github.io"
+Pin-Priority: 500

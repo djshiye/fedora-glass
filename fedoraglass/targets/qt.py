@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .. import distro
 from ..render import kvantum
 from .base import Action, Context, FlatpakOverride, Detection, Target, WriteFile
 from ..env import Env
@@ -48,7 +49,8 @@ class QtKvantum(Target):
     def detect(self, env: Env) -> Detection:
         if any(Path(p).exists() for p in STYLE_PLUGINS) or env.which("kvantummanager"):
             return Detection(True, "Kvantum found")
-        return Detection(False, "Install Kvantum: sudo dnf install kvantum")
+        how = distro.hint("kvantum")
+        return Detection(False, f"Install Kvantum: {how}" if how else "Install Kvantum (the kvantum package)")
 
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env

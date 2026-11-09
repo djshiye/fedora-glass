@@ -124,7 +124,8 @@ def main(argv: list[str] | None = None) -> int:
         from PySide6.QtQuick import QQuickWindow  # noqa: F401 - registers the window type
         from PySide6.QtQuickControls2 import QQuickStyle
     except ImportError:
-        print("The Fedora Glass app needs PySide6: sudo dnf install python3-pyside6", file=sys.stderr)
+        from .. import distro
+        print(f"The Fedora Glass app needs PySide6: {distro.hint('pyside6', 'install PySide6')}", file=sys.stderr)
         return 1
 
     from .backend import Backend

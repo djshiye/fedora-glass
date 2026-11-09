@@ -14,7 +14,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # create the release and upload the RPM; nothing else
+  contents: write   # create the release and upload the packages
+  actions: read     # fetch the Ubuntu and Arch packages built by the jobs above
 
 jobs:
   # The desktop checks must pass first; a failed check stops the release here.
@@ -23,8 +24,15 @@ jobs:
     permissions:
       contents: read
 
-  rpm:
+  # The Ubuntu and Arch packages (packages.yml), each installed on its own Linux first.
+  packages:
     needs: checks
+    uses: ./.github/workflows/packages.yml
+    permissions:
+      contents: read
+
+  rpm:
+    needs: [checks, packages]
     runs-on: ubuntu-latest
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     steps:
@@ -53,6 +61,8 @@ jobs:
         run: python3 -m pytest -q tests
 
       - name: Build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config --global --add safe.directory "$PWD"
           mkdir -p ~/rpmbuild/SOURCES
@@ -66,11 +76,16 @@ jobs:
           # (and the old liquid-glass.noarch.rpm link still leads to the current version).
           cp out/fedora-glass-$VER-*.noarch.rpm out/fedora-glass.noarch.rpm
           cp out/liquid-glass-$VER-*.noarch.rpm out/liquid-glass.noarch.rpm
-          (cd out && sha256sum *.rpm > SHA256SUMS)
+          # The Ubuntu and Arch packages from the jobs above, under fixed names too.
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n deb -D out
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n arch -D out
+          cp out/fedora-glass_"$VER"-1_all.deb out/fedora-glass.deb
+          cp out/fedora-glass-"$VER"-1-any.pkg.tar.xz out/fedora-glass.pkg.tar.xz
+          (cd out && sha256sum *.rpm *.deb *.pkg.tar.xz > SHA256SUMS)
 
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Fedora Glass $VER" --notes "Install: sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm. After that, sudo dnf upgrade brings each new version. Had Liquid Glass? sudo dnf upgrade moves you to Fedora Glass by itself (run it twice) and keeps your settings."
+            --title "Fedora Glass $VER" --notes "How to install on Fedora, Ubuntu and Arch: https://github.com/djshiye/fedora-glass#install. After that, your normal system update (dnf upgrade, apt upgrade or pacman -Syu) brings each new version."

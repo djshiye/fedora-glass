@@ -7,4 +7,4 @@ mkdir -p /run/dbus /run/systemd/seats && dbus-daemon --system --fork
 (gjs /opt/lgqa/suite/container/login1-stub.js >/dev/null 2>&1 &)
 sleep 1
 mkdir -p /run/user/1000 /out && chown dino:dino /run/user/1000 /out && chmod 700 /run/user/1000
-exec runuser -u dino --whitelist-environment=LGQA_SCALE,LGQA_SCREEN -- /opt/lgqa/suite/container/session.sh
+exec runuser -u dino --whitelist-environment=LGQA_SCALE,LGQA_SCREEN,LGQA_GNOME -- "/opt/lgqa/suite/container/${LGQA_SESSION:-session}.sh"

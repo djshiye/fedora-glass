@@ -23,7 +23,7 @@ from typing import Any
 from PySide6.QtCore import Property, QFileSystemWatcher, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
-from .. import APP_ID, login_screen, palette
+from .. import APP_ID, distro, login_screen, palette
 from .. import settings as settings_mod
 from ..color import Color
 from ..env import Env
@@ -1263,7 +1263,7 @@ class Backend(QObject):
     PKEXEC = Path("/usr/bin/pkexec")
 
     def _login_available(self) -> bool:
-        """Only offered when the dnf package put a root-owned helper in place: pkexec
+        """Only offered when the package put a root-owned helper in place: pkexec
         would run whatever is at that path as root."""
         for p in (self.LOGIN_HELPER, self.PKEXEC):
             try:
@@ -1355,7 +1355,7 @@ class Backend(QObject):
 
     @undoOnRemove.setter
     def undoOnRemove(self, on: bool) -> None:
-        """Saved straight away, without Apply: `dnf remove` reads it from the saved settings."""
+        """Saved straight away, without Apply: removing the package reads it from the saved settings."""
         on = bool(on)
         if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
             return
@@ -1371,23 +1371,32 @@ class Backend(QObject):
         self.savedChanged.emit()
 
     APP_DIR = Path("/usr/share/fedora-glass")
-    DNF = Path("/usr/bin/dnf")
 
     def _installed_package(self) -> str:
-        """The dnf package this app came from ("fedora-glass", or "liquid-glass" before the
-        second upgrade), or "" when it runs from anywhere else (a source install, tests)."""
+        """The package this app came from ("fedora-glass", or "liquid-glass" before the
+        second dnf upgrade), or "" when it runs from anywhere else (a source install, tests).
+        Asked of this Linux's own package tool: rpm, dpkg or pacman."""
+        d = distro.current()
+        if not d.manager:
+            return ""
         try:
             if not Path(__file__).resolve().is_relative_to(self.APP_DIR):
                 return ""
-            for p in (self.DNF, self.PKEXEC):
+            for p in (Path(d.manager), self.PKEXEC):
                 st = p.stat()
                 if st.st_uid != 0 or st.st_mode & 0o022:
                     return ""
         except OSError:
             return ""
-        r = self._env.run(["rpm", "-qf", "--qf", "%{NAME}", str(self.APP_DIR)], timeout=10)
-        name = r.out.strip() if r.ok else ""
+        r = self._env.run([*d.owner_cmd, str(self.APP_DIR)], timeout=10)
+        # rpm and pacman print the name; dpkg-query prints "name: path".
+        name = r.out.strip().split(":")[0].strip() if r.ok else ""
         return name if name in ("fedora-glass", "liquid-glass") else ""
+
+    @Property(str, constant=True)
+    def removeCommand(self) -> str:
+        """The terminal command that removes the app here (shown in a tip)."""
+        return distro.current().remove_command()
 
     @Property(bool, constant=True)
     def canRemoveApp(self) -> bool:
@@ -1431,7 +1440,8 @@ class Backend(QObject):
                 return
             proc = QProcess(self)
             proc.setProgram(str(self.PKEXEC))
-            proc.setArguments([str(self.DNF), "remove", "-y", "--no-autoremove", self._remove_package])
+            d = distro.current()
+            proc.setArguments([d.manager, *d.remove_args, self._remove_package])
             proc.finished.connect(lambda code, _status: self._remove_done(proc, code))
             proc.errorOccurred.connect(lambda _e: self._remove_done(proc, -1))
             self._remove_proc = proc
@@ -1451,7 +1461,7 @@ class Backend(QObject):
         if code in (126, 127):
             self.failed.emit("Your original look is back, but Fedora Glass was not removed: the password wasn't given.")
         else:
-            last = err.splitlines()[-1] if err else "dnf did not finish"
+            last = err.splitlines()[-1] if err else f"{distro.current().tool_name} did not finish"
             self.failed.emit(f"Your original look is back, but removing Fedora Glass failed: {last}")
         self.removeFinished.emit(False)
 

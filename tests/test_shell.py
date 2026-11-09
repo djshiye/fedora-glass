@@ -735,3 +735,22 @@ def test_dark_window_glass_has_a_brightness_ceiling(fake_env):
     assert dark["look"]["ceiling"] == rg.WINDOW_CEILING and dark["terminalLook"]["ceiling"] == rg.WINDOW_CEILING
     light = rg.config(Settings(), context(fake_env, dark=False).tokens)["windows"]
     assert "ceiling" not in light["look"] and "ceiling" not in light["terminalLook"]
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_top_bar_wins_over_a_shell_theme_that_forces_its_own(dark):
+    """Ubuntu's Yaru forces `#panel { background-color: #131313 !important }` under the user
+    theme. Our bar must win, or light style puts dark text on a black bar. The lock and login
+    screens and the overview keep a see-through bar."""
+    css = rs.render_css(palette.build(Settings(), dark=dark))
+    i = css.index("\n#panel {")
+    bar = css[i:css.index("}", i)]
+    assert re.search(r"background-color: [^;]+ !important;", bar)
+    assert re.search(r"box-shadow: [^;]+ !important;", bar)
+    assert re.search(r"workspace-dot {\n  background-color: [^;]+ !important;", css)
+    i = css.index("\n#panel:overview,")
+    clear = css[i:css.index("}", i)]
+    for sel in ("#panel.unlock-screen", "#panel.login-screen", "#panel.lock-screen"):
+        assert sel in clear
+    assert "background-color: transparent !important;" in clear
+    assert "box-shadow: none !important;" in clear
