@@ -69,7 +69,7 @@ d=$EXT/extension-list@tu.berry; s=$SRC/extension-list; mkdir -p "$d/schemas"
 cp "$s"/src/*.js "$d"/
 sed -e 's|@name@|Extension List|; s|@description@|Manage extensions from the top panel|; s|@uuid@|extension-list@tu.berry|' \
     -e 's|@gettext@|gnome-shell-extension-extension-list|; s|@rdnn@|org.gnome.shell.extensions.extension-list|' \
-    -e 's|"@shell@"|"50"|; s|@version@||; s|@url@|https://github.com/tuberry/extension-list|' \
+    -e "s|\"@shell@\"|\"${EXTLIST_SHELL:-50}\"|" -e 's|@version@||; s|@url@|https://github.com/tuberry/extension-list|' \
     "$s/res/data/metadata.json.in" > "$d/metadata.json"
 sed -e 's|@gettext@|gnome-shell-extension-extension-list|; s|@rdnn@|org.gnome.shell.extensions.extension-list|' \
     -e 's|@path@|/org/gnome/shell/extensions/extension-list/|' \
