@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.17
+Version:        1.5.18
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -198,6 +198,11 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.18-1
+- Full-screen games and videos get direct display and variable refresh rate again: the window glass steps out of full-screen windows
+- Glass of windows that are minimized, on another workspace or behind a maximized window frees its memory (about 230 MB per maximized window on 1440p screens) and comes back as soon as the window shows
+- A dragged window's glass copies only the windows behind it that can be seen
+
 * Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.17-1
 - Works on stock GNOME with no extensions: glass on the top bar, the overview's dash and search, and the dash keeps all its app icons when starting on the desktop
 - Glass behind Dash to Dock and Ubuntu Dock

@@ -4,6 +4,6 @@
   "description": "Real glass behind the panel, Dash to Panel, menus, quick settings, ArcMenu, Spawn, app windows, the overview and the lock screen: refraction, blur, rim light and dispersion. Set it up in the Fedora Glass app.",
   "shell-version": ["50", "51"],
   "url": "https://github.com/djshiye/fedora-glass",
-  "version-name": "1.5.17",
+  "version-name": "1.5.18",
   "session-modes": ["user", "unlock-dialog"]
 }
