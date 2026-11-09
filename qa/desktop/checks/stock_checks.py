@@ -10,6 +10,7 @@ run_checks.py.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -106,6 +107,15 @@ def check_stock(ctx: Ctx) -> Check:
     c.steps[-1].images += [picture("stock-desktop", stock["desktop"]), picture("stock-overview", stock["overview"])]
 
     # ---- Apply, then log in again as the app asks ----
+    # Without Dash to Panel, "Start on the desktop" is off until chosen: GNOME keeps its
+    # overview at login. The dock lanes switch it on, as a user may, which is the path where
+    # GNOME fills the dash in while it is hidden.
+    want_desktop = WITH_DOCK
+    if want_desktop:
+        f = lgqa.HOME / ".config/liquid-glass/settings.json"
+        cfg = json.loads(f.read_text()) if f.exists() else {}
+        cfg["start_on_desktop"] = True
+        f.write_text(json.dumps(cfg))
     log0 = ctx.log_lines()
     code, out = run_lg("apply")
     (OUT / "apply.txt").write_text(out + f"\napply exit {code}\n")
@@ -128,13 +138,14 @@ def check_stock(ctx: Ctx) -> Check:
             break
         time.sleep(1)
     rc.shell_parts_done(c, "After logging in again")
-    # "Start on the desktop" is on by default: GNOME skipped its startup overview.
-    on_desktop = sh.eval("Main.overview.visible ? 'overview' : 'desktop'") == "desktop"
-    c.add(on_desktop, "GNOME started on the desktop." if on_desktop else "GNOME started in the overview.")
+    where = sh.eval("Main.overview.visible ? 'overview' : 'desktop'")
+    want = "desktop" if want_desktop else "overview"
+    c.add(where == want, f"GNOME started in the {where}, as {'Start on the desktop asks' if want_desktop else 'GNOME ships it'}."
+          if where == want else f"GNOME started in the {where}, not the {want}.")
     # GNOME fills the dash in while hidden within 20 s of login (its deferred work).
     time.sleep(22)
     overview_open(sh)
-    dash_complete(c, sh, "After logging in on the desktop")
+    dash_complete(c, sh, "After logging in")
     panes = sh.json(PANES_JS)
     dash_box = sh.json(DASH_BOX)
     if WITH_DOCK:
