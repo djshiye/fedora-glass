@@ -6,7 +6,8 @@ A release is only built when all of them pass (`.github/workflows/release.yml` w
 
 ## What the test desktop is
 
-- GNOME 50 on Wayland, two screens side by side at **125 %** scaling
+- GNOME 50 (Ubuntu 26.04) or GNOME 51 (Ubuntu 26.10, `--gnome 51`) on Wayland, two screens
+  side by side at **125 %** scaling
 - **Orchis Dark**, with `~/.config/gtk-4.0` linked into it
 - Spawn is installed but switched off, as Dino's PC runs ArcMenu; only the Spawn check switches to it
 - Dino's extensions in Dino's order, with Dino's panel, menu and blur settings
@@ -63,15 +64,27 @@ qa/desktop/run.sh --only spawn             # just the Spawn check, about a minut
 qa/desktop/run.sh --source ../old-tree     # today's checks against another version
 qa/desktop/run.sh --from ../last-release   # also check the upgrade from the last release
 qa/desktop/run.sh --screen 2560x1440       # at the size of Dino's two screens
+qa/desktop/run.sh --gnome 51               # the same on GNOME 51
+qa/desktop/run.sh --ubuntu-desktop         # a stock Ubuntu desktop instead (add --gnome 51 for 26.10)
 ```
+
+`--gnome 51` builds the test desktop on Ubuntu 26.10, which has GNOME 51 (Fedora 45 has it
+too), and compares against the pictures in `references/gnome51/`. GNOME 50 is the default.
+
+`--ubuntu-desktop` checks Fedora Glass on Ubuntu's own desktop as a new Ubuntu user has it:
+the Ubuntu session with Ubuntu Dock, Desktop Icons, AppIndicator and Yaru, Ubuntu's default
+settings, one screen at 100 %, and none of Dino's extensions. It takes pictures of the stock
+desktop, presses Apply from the running desktop, checks the glass, the dock, Quick Settings
+and Files, then Restore original, and checks every setting and the look are back as before.
 
 The screens are 2000x1125 by default, which keeps a run quick. `--screen 2560x1440` runs
 the same checks on two screens the size of Dino's, against the pictures in
 `references/2560x1440/`. A size with no pictures of its own runs every other check and
 says the pictures were not compared.
 
-The report is `qa-report/report/report.html`. In GitHub it is the run's
-`release-check-report` download, and a short table is on the run's summary page.
+The report is `qa-report/report/report.html`. In GitHub each run has four:
+`release-check-report-gnome50`, `release-check-report-gnome51`, `ubuntu-check-report-gnome50`
+and `ubuntu-check-report-gnome51`, and a short table for each is on the run's summary page.
 
 On a pull request the checks run only when it has the `release-checks` label, to keep
 Actions use down. They always run before a release and can be started by hand from the

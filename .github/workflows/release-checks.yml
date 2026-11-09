@@ -1,4 +1,5 @@
-# Release checks on a test desktop like Dino's (see qa/desktop/README.md).
+# Release checks on a test desktop like Dino's (see qa/desktop/README.md), on GNOME 50 and
+# GNOME 51 side by side, plus a short check on a stock Ubuntu desktop on each.
 #
 # Runs before every release (release.yml calls it and only builds the RPM when it
 # passes), by hand from the Actions tab, and on a pull request only when it has the
@@ -20,9 +21,14 @@ concurrency:
 
 jobs:
   desktop:
+    name: Dino's desktop, GNOME ${{ matrix.gnome }}
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-checks')
     runs-on: ubuntu-24.04
     timeout-minutes: 50
+    strategy:
+      fail-fast: false      # one GNOME failing still shows how the other one did
+      matrix:
+        gnome: ["50", "51"]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -40,7 +46,7 @@ jobs:
           echo "LGQA_FROM=$RUNNER_TEMP/last-release" >> "$GITHUB_ENV"
 
       - name: Run the checks
-        run: qa/desktop/run.sh ${LGQA_FROM:+--from "$LGQA_FROM"} --out "$RUNNER_TEMP/qa-report"
+        run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" ${LGQA_FROM:+--from "$LGQA_FROM"} --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary
         if: always()
@@ -67,11 +73,62 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: release-check-report
+          name: release-check-report-gnome${{ matrix.gnome }}
           path: |
             ${{ runner.temp }}/qa-report/report/
             ${{ runner.temp }}/qa-report/*.log
             ${{ runner.temp }}/qa-report/*.txt
             ${{ runner.temp }}/qa-report/*.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  # A new Ubuntu user's desktop as Ubuntu ships it (Ubuntu Dock, Desktop Icons, Yaru):
+  # Apply and Restore original from the running desktop. Ubuntu 26.04 has GNOME 50,
+  # Ubuntu 26.10 GNOME 51.
+  ubuntu:
+    name: Stock Ubuntu desktop, GNOME ${{ matrix.gnome }}
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-checks')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        gnome: ["50", "51"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Run the Ubuntu checks
+        run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" --ubuntu-desktop --out "$RUNNER_TEMP/qa-report"
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/qa-report/report/report.md" ]; then
+            cat "$RUNNER_TEMP/qa-report/report/report.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report: the test desktop did not start." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Shell log (only when a check failed)
+        if: failure()
+        run: |
+          for f in shell.log apply.txt; do
+            [ -f "$RUNNER_TEMP/qa-report/$f" ] || continue
+            echo "::group::$f (last 300 lines)"
+            tail -n 300 "$RUNNER_TEMP/qa-report/$f"
+            echo "::endgroup::"
+          done
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: ubuntu-check-report-gnome${{ matrix.gnome }}
+          path: |
+            ${{ runner.temp }}/qa-report/report/
+            ${{ runner.temp }}/qa-report/*.log
+            ${{ runner.temp }}/qa-report/*.txt
           retention-days: 14
           if-no-files-found: warn
