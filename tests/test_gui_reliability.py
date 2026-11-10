@@ -545,3 +545,30 @@ def test_damaged_settings_banner(qml):
         b._damage = ""
         b.damageNoteChanged.emit()
         win.close()
+
+
+# ---------------------------------------------------------------- 9. what counts as a change
+
+@pytest.mark.parametrize("dtp", [True, False])
+def test_start_on_desktop_off_and_on_again_is_no_change(qml, fake_env, tmp_path, dtp):
+    b = _backend(fake_env, tmp_path)
+    b._targets_ready, b._has_dtp = True, dtp
+    assert b.settings().start_on_desktop is None
+    assert b.property("startOnDesktop") is dtp
+    b.setProperty("startOnDesktop", not dtp)
+    assert b.property("dirty") and b.property("changeCount") == 1
+    b.setProperty("startOnDesktop", dtp)           # back to what Apply decides here anyway
+    assert not b.property("dirty") and b.property("changeCount") == 0
+    assert "start_on_desktop" not in b.property("changedFromDefault")
+
+
+def test_remove_switch_is_never_an_unapplied_change(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("undoOnRemove", False)
+    assert not b.property("dirty") and b.property("changeCount") == 0
+    assert "undo_on_remove" not in b.property("changedFromDefault")
+    b.setProperty("frost", 0.9)
+    b.resetDefaults()                              # Reset all leaves the saved switch alone
+    assert b.property("undoOnRemove") is False
+    b.resetSettings(["undo_on_remove", "frost"])
+    assert b.property("undoOnRemove") is False and not b.property("dirty")

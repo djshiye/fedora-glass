@@ -174,12 +174,20 @@ def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
     return None
 
 
-def _effective(s: Settings) -> dict:
+# Saved the moment it is switched (removing the package reads it), so never "not applied yet".
+_SAVED_AT_ONCE = ("undo_on_remove",)
+
+
+def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     """What a Settings really does, so a switch flipped off and on again, or a motion picked and
-    then set back to its default, doesn't count as an unapplied change."""
+    then set back to its default, doesn't count as an unapplied change. "Start on the desktop"
+    not chosen yet (None) is what Apply decides for this desktop."""
     d = asdict(s)
     d["targets"] = sorted(k for k, v in s.targets.items() if not v)
     d["motion"] = {ev: s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
+    d["start_on_desktop"] = s.start_on_desktop_for(has_dash_to_panel)
+    for k in _SAVED_AT_ONCE:
+        d.pop(k, None)
     return d
 
 
@@ -893,13 +901,15 @@ class Backend(QObject):
 
     @Property(bool, notify=settingsChanged)
     def dirty(self) -> bool:
-        return _effective(self._s) != _effective(self._saved.normalized())
+        dtp = self.hasDashToPanel
+        return _effective(self._s, dtp) != _effective(self._saved.normalized(), dtp)
 
     @Property(int, notify=settingsChanged)
     def changeCount(self) -> int:
         """How many settings differ from the look applied last (the footer says "3 changes
         not applied yet"). A part or a motion counts once per part or animation changed."""
-        now, was = _effective(self._s), _effective(self._saved.normalized())
+        dtp = self.hasDashToPanel
+        now, was = _effective(self._s, dtp), _effective(self._saved.normalized(), dtp)
         n = 0
         for k in now:
             a, b = now[k], was[k]
@@ -956,7 +966,7 @@ class Backend(QObject):
 
     @Slot()
     def resetDefaults(self) -> None:
-        s = Settings(targets=dict(self._s.targets))
+        s = Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove)
         if s != self._s:
             was_dark = self._effective_dark()
             self._s = s
@@ -984,13 +994,14 @@ class Backend(QObject):
     def changedFromDefault(self) -> list[str]:
         """The settings (Settings names) that differ from their defaults; the app's choice
         of apps (targets) isn't a look setting and is never listed."""
-        d, now = _effective(Settings()), _effective(self._s)
-        return [f.name for f in fields(Settings) if f.name != "targets" and now[f.name] != d[f.name]]
+        dtp = self.hasDashToPanel
+        d, now = _effective(Settings(), dtp), _effective(self._s, dtp)
+        return [f.name for f in fields(Settings) if f.name in now and f.name != "targets" and now[f.name] != d[f.name]]
 
     @Slot("QStringList")
     def resetSettings(self, names: list[str]) -> None:
         """Put these settings back to their defaults (Apply then uses them)."""
-        known = {f.name for f in fields(Settings)} - {"targets"}
+        known = {f.name for f in fields(Settings)} - {"targets", *_SAVED_AT_ONCE}
         values = {n: getattr(Settings(), n) for n in names if n in known}
         if not values:
             return
@@ -1528,6 +1539,7 @@ class Backend(QObject):
             return ""
 
     def _targets_done(self, out: Any) -> None:
+        dtp_before = self.hasDashToPanel
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
@@ -1539,6 +1551,8 @@ class Backend(QObject):
             self._has_dock, self._has_menu = bool(self._dock_name), bool(self._menu_name)
         self._targets_ready = True
         self.targetsChanged.emit()
+        if self.hasDashToPanel != dtp_before:
+            self.settingsChanged.emit()     # "start on the desktop" follows Dash to Panel until chosen
         self._set_restart_needed(restart)
 
     @staticmethod
