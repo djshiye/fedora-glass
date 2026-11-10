@@ -636,7 +636,7 @@ class Backup:
             try:
                 _flatpak_undo(self.env, e)
                 del self.data["flatpak"][tid]
-            except (OSError, configparser.Error) as err:
+            except (OSError, ValueError, configparser.Error) as err:
                 problems.append(f"Flatpak overrides: {err}")
         for key, e in list(self.data["commands"].items()):
             if not mine(e):
@@ -806,14 +806,16 @@ def _flatpak_read(path: Path) -> configparser.RawConfigParser:
     cp = configparser.RawConfigParser(delimiters=("=",), comment_prefixes=("#",), strict=False)
     cp.optionxform = str  # keys are case-sensitive
     if path.is_file():
-        cp.read_string(path.read_text(encoding="utf-8"))
+        # Bytes that aren't UTF-8 (a hand edit in another encoding) are carried through as
+        # they are: Restore must still take our own entries out of the file.
+        cp.read_string(path.read_text(encoding="utf-8", errors="surrogateescape"))
     return cp
 
 
 def _flatpak_write(path: Path, cp: configparser.RawConfigParser) -> None:
     buf = io.StringIO()
     cp.write(buf, space_around_delimiters=False)
-    atomic_write(path, buf.getvalue().encode(), 0o644)
+    atomic_write(path, buf.getvalue().encode("utf-8", "surrogateescape"), 0o644)
 
 
 def _fs_list(cp: configparser.RawConfigParser) -> list[str]:
