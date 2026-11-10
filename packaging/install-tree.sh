@@ -36,6 +36,8 @@ install -Dm644 "$src/data/io.github.djshiye.LiquidGlass.policy" "$dest/usr/share
 
 # Removing the package runs this first: Restore original for each person, as them.
 install -Dm755 "$src/packaging/undo-for-users.sh" "$dest/usr/libexec/fedora-glass-undo-for-users"
+# And this: stops the dark/light watcher in running sessions (the rpm's macros do it there).
+install -Dm755 "$src/packaging/stop-watchers.sh" "$dest/usr/libexec/fedora-glass-stop-watchers"
 
 install -d "$dest/usr/lib/systemd/user"
 cat > "$dest/usr/lib/systemd/user/liquid-glass-watch.service" <<'UNIT'

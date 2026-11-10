@@ -22,8 +22,10 @@ Requires:       gnome-shell-extension-user-theme
 Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
-# runuser: dnf remove puts each person's original look back as that person (undo-for-users).
+# runuser: dnf remove puts each person's original look back as that person (undo-for-users),
+# with setsid keeping that apart from root's terminal.
 Requires:       util-linux-core
+Requires:       /usr/bin/setsid
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
@@ -55,6 +57,7 @@ Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
 Requires:       util-linux-core
+Requires:       /usr/bin/setsid
 
 %description -n liquid-glass
 Liquid Glass is now called Fedora Glass. This is the same app under the old
