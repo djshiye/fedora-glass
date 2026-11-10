@@ -1,0 +1,51 @@
+name: Test desktop base image
+description: >
+  Builds the base image of the release checks' test desktop (qa/desktop/Dockerfile) with a
+  layer cache kept by GitHub, so the eight check jobs do not each build it from scratch. The
+  checks run on the same image as before: qa/desktop/run.sh says what builds it, and takes the
+  result when LGQA_BASE_PREBUILT=1 is set.
+inputs:
+  gnome:
+    description: GNOME version of the test desktop, 50 or 51
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: What builds the image
+      id: base
+      shell: bash
+      env:
+        GNOME: ${{ inputs.gnome }}
+      run: |
+        # The same name and build arguments run.sh would use, so the two can't drift apart.
+        mapfile -t lines < <(qa/desktop/run.sh --gnome "$GNOME" --print-base-build)
+        {
+          echo "image=${lines[0]}"
+          echo "args<<END_OF_ARGS"
+          printf '%s\n' "${lines[@]:1}"
+          echo "END_OF_ARGS"
+          # A new cache every week: the image installs the newest Ubuntu packages, and a
+          # cache that never expired would keep the first ones for good.
+          echo "scope=desktop-gnome$GNOME-$(date -u +%G-W%V)"
+        } >> "$GITHUB_OUTPUT"
+
+    - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+    - name: Build the image (cached)
+      uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
+      with:
+        context: qa/desktop
+        push: false
+        load: true      # into this machine's Docker, where run.sh looks for it
+        tags: ${{ steps.base.outputs.image }}
+        build-args: ${{ steps.base.outputs.args }}
+        cache-from: type=gha,scope=${{ steps.base.outputs.scope }}
+        # A cache that can't be saved must not fail the checks.
+        cache-to: type=gha,mode=max,ignore-error=true,scope=${{ steps.base.outputs.scope }}
+
+    - name: Back to Docker's own builder
+      shell: bash
+      # run.sh builds the Ubuntu and stock layers on top of the image with a plain docker
+      # build, which has to see the image just loaded: that is the default builder.
+      run: docker buildx use default

@@ -1,0 +1,105 @@
+#!/bin/bash
+# Installs, upgrades and removes the built Fedora packages the way dnf does, on a Fedora
+# system (the Release workflow runs it in a Fedora container):
+#
+#   packaging/rpm-install-test.sh OUT_DIR VERSION REPOSITORY      (GH_TOKEN set, gh installed)
+#
+# 1. the new package on a clean system, then the smoke check, then remove;
+# 2. the previous release's package, then the upgrade to the new one, then the smoke check;
+# 3. Liquid Glass 1.4.4 (the last release under the old name), then the move to fedora-glass.
+# The older packages come from the releases' own assets, checked against that release's
+# SHA256SUMS. A step whose old package can't be found is skipped, and says so.
+set -euo pipefail
+out="$(realpath "$1")" ver="$2" repo="$3"
+case "$ver" in *[!0-9.]*|'') echo "bad version: $ver" >&2; exit 1 ;; esac
+src="$(cd "$(dirname "$0")/.." && pwd)"
+new="$(ls "$out"/fedora-glass-"$ver"-*.noarch.rpm)"
+bridge="$(ls "$out"/liquid-glass-"$ver"-*.noarch.rpm)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+# The package's own repository file is switched off: these checks are about the files in
+# $out and the old releases, not about what the website serves.
+dnf_install() { dnf install -y -q --setopt=install_weak_deps=False --setopt=fedora-glass.enabled=0 "$@" >/dev/null; }
+dnf_remove() { dnf remove -y -q --setopt=fedora-glass.enabled=0 "$@" >/dev/null; }
+
+say() { printf '\n== %s\n' "$*"; }
+
+# Downloads one asset of a release (gh api, as the release page does) and checks it against
+# the SHA256SUMS of the same release. Prints the file's path.
+fetch() {
+    local tag="$1" name="$2" id d="$work/$1"
+    mkdir -p "$d"
+    for n in SHA256SUMS "$name"; do
+        id="$(gh api "repos/$repo/releases/tags/$tag" --jq ".assets[] | select(.name == \"$n\") | .id")"
+        [ -n "$id" ] || { echo "$tag has no $n" >&2; return 1; }
+        gh api -H 'Accept: application/octet-stream' "repos/$repo/releases/assets/$id" > "$d/$n"
+    done
+    (cd "$d" && grep " $name\$" SHA256SUMS | sha256sum --quiet -c -) || { echo "$tag $name does not match its SHA256SUMS" >&2; exit 1; }
+    echo "$d/$name"
+}
+
+installed_ok() {
+    fedora-glass --version
+    [ -f /usr/share/icons/fedora-glass-light/cursors/left_ptr ]
+    bash "$src/qa/package-smoke.sh"
+}
+
+is_installed() { rpm -q "$1" >/dev/null 2>&1; }
+
+gone() {
+    if is_installed fedora-glass || is_installed liquid-glass; then return 1; fi
+    [ ! -e /usr/share/icons/fedora-glass-light ] && [ ! -e /usr/share/fedora-glass ]
+}
+
+say "Clean install of $ver"
+dnf_install "$new"
+installed_ok
+dnf_remove fedora-glass
+gone
+
+say "Upgrade from the previous release"
+# The newest published release that is older than this one.
+prev=""
+while read -r t; do
+    [ "$t" != "v$ver" ] || continue
+    [ "$(printf '%s\n%s\n' "${t#v}" "$ver" | sort -V | tail -1)" = "$ver" ] || continue
+    prev="$t"; break
+done < <(gh api "repos/$repo/releases?per_page=30" --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' | grep -E '^v[0-9]+(\.[0-9]+)*$')
+if [ -n "$prev" ] && old="$(fetch "$prev" fedora-glass.noarch.rpm)"; then
+    echo "From $prev to v$ver"
+    dnf_install "$old"
+    [ "$(rpm -q --qf '%{version}' fedora-glass)" = "${prev#v}" ]
+    dnf_install "$new"
+    [ "$(rpm -q --qf '%{version}' fedora-glass)" = "$ver" ]
+    installed_ok
+    dnf_remove fedora-glass
+    gone
+else
+    echo "No earlier release with a fedora-glass package found: upgrade not tested."
+fi
+
+say "Move from Liquid Glass 1.4.4 (the old package name)"
+if old="$(fetch v1.4.4 liquid-glass.noarch.rpm)"; then
+    # The two ways it happens: dnf upgrade brings the liquid-glass package of this release
+    # first (the old repository file only lets that name through), then fedora-glass.
+    dnf_install "$old"
+    [ "$(rpm -q --qf '%{version}' liquid-glass)" = 1.4.4 ]
+    dnf_install "$bridge"
+    [ "$(rpm -q --qf '%{version}' liquid-glass)" = "$ver" ]
+    dnf_install "$new"
+    if is_installed liquid-glass; then echo "liquid-glass is still installed" >&2; exit 1; fi   # fedora-glass replaced it
+    [ "$(rpm -q --qf '%{version}' fedora-glass)" = "$ver" ]
+    installed_ok
+    dnf_remove fedora-glass
+    gone
+    # And straight to fedora-glass, as `dnf install fedora-glass` on an old PC does.
+    dnf_install "$old"
+    dnf_install "$new"
+    if is_installed liquid-glass; then echo "liquid-glass is still installed" >&2; exit 1; fi
+    installed_ok
+    dnf_remove fedora-glass
+    gone
+else
+    echo "No Liquid Glass 1.4.4 package found among the release assets: old-name upgrade not tested."
+fi
+echo "rpm install and upgrade checks passed"

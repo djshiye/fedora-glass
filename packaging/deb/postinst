@@ -1,7 +1,10 @@
 #!/bin/sh
 set -e
-if [ "$1" = configure ] && [ -z "${2:-}" ]; then
-    # First install: turn the dark/light watcher on for everyone's sessions.
+watch_mark=/var/lib/fedora-glass/watch-was-on
+if [ "$1" = configure ] && { [ -z "${2:-}" ] || [ -e "$watch_mark" ]; }; then
+    # First install, or installed again after `apt remove` (prerm left the mark because it
+    # was on): turn the dark/light watcher on for everyone's sessions. An ordinary upgrade
+    # leaves it as it is, so an admin who turned it off keeps it off.
     systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
 fi
 
@@ -38,7 +41,7 @@ if [ "$1" = configure ]; then
             install -Dm644 "$new" "$f"
         fi
     done
-    rm -f "$removed_mark"
+    rm -f "$removed_mark" "$watch_mark"
     rmdir /var/lib/fedora-glass 2>/dev/null || :
 fi
 

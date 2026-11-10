@@ -39,8 +39,9 @@ sudo rm -f /etc/apt/sources.list.d/fedora-glass-setup.sources
 **Arch Linux**
 
 ```sh
-curl -fsSLo /tmp/fedora-glass.key https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &&
-sudo pacman-key --add /tmp/fedora-glass.key &&
+k=$(mktemp) && curl -fsSLo "$k" https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &&
+{ [ "$(gpg --show-keys --with-colons "$k" | awk -F: '$1 == "pub" { getline; print $10 }')" = D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 ] || { echo "Stopped: not the Fedora Glass key."; false; }; } &&
+sudo pacman-key --add "$k" &&
 sudo pacman-key --lsign-key D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 &&
 { grep -q '^\[fedora-glass\]' /etc/pacman.conf || printf '\n[fedora-glass]\nSigLevel = Required DatabaseRequired\nServer = https://djshiye.github.io/fedora-glass/arch\n' | sudo tee -a /etc/pacman.conf >/dev/null; } &&
 sudo pacman -Syu fedora-glass

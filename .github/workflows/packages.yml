@@ -12,12 +12,19 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request replaces the run before it. A release's package builds are
+# never cancelled by another run (a called workflow's group must differ from its caller's).
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # The Ubuntu package, built once and installed on Ubuntu 26.04 to prove its
   # dependencies resolve there.
   deb:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'packages')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container: ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c  # pinned; bump on purpose
     permissions:
       contents: read
@@ -72,12 +79,13 @@ jobs:
   rpm:
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'packages')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     permissions:
       contents: read
     steps:
       - name: Tools
-        run: dnf install -y -q --setopt=install_weak_deps=False rpm-build systemd-rpm-macros git python3-pytest python3-gobject >/dev/null
+        run: dnf install -y -q --setopt=install_weak_deps=False rpm-build systemd-rpm-macros python-rpm-macros git python3-pytest python3-gobject >/dev/null
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: Build
         run: |
@@ -93,6 +101,7 @@ jobs:
           fedora-glass --version
           test -f /usr/share/icons/fedora-glass-light/cursors/left_ptr
           test -L /usr/share/icons/fedora-glass-light/cursors/default
+          bash qa/package-smoke.sh    # Apply, Restore and the window, as installed
           dnf remove -y -q fedora-glass >/dev/null
           test ! -e /usr/share/icons/fedora-glass-light
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
@@ -106,6 +115,7 @@ jobs:
   arch:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'packages')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container: archlinux@sha256:b1c2fe6e717bfd5673af8fc217e1e1c3ce0dcbb1d53c3414c8425e7ce79fc6d9  # pinned; bump on purpose
     permissions:
       contents: read

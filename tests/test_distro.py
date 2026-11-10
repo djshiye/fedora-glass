@@ -217,7 +217,17 @@ def _deb_scripts(tmp_path):
         (share / name).write_text((PKG / "deb" / name).read_text())
     bin_ = tmp_path / "bin"
     bin_.mkdir()
-    (bin_ / "systemctl").write_text("#!/bin/sh\nexit 0\n")
+    # Remembers whether the watcher is turned on, in tmp_path/watch-enabled.
+    (bin_ / "systemctl").write_text(
+        f"""#!/bin/sh
+state={tmp_path}/watch-enabled
+case " $* " in
+  *" enable "*) : > "$state" ;;
+  *" disable "*) rm -f "$state" ;;
+  *" is-enabled "*) [ -e "$state" ]; exit $? ;;
+esac
+exit 0
+""")
     # The real helper deletes what preinst set aside as unchanged; that's all needed here.
     (bin_ / "dpkg-maintscript-helper").write_text(
         "#!/bin/sh\n[ \"$1\" = rm_conffile ] && [ \"$DPKG_MAINTSCRIPT_NAME\" = postinst ] && rm -f \"$2.dpkg-remove\"\nexit 0\n")
@@ -230,7 +240,7 @@ def _deb_scripts(tmp_path):
                     .replace("@SOURCES_SUM@", entries_sum(PKG / "deb/fedora-glass.sources"))
                     .replace("@PREF_SUM@", entries_sum(PKG / "deb/fedora-glass.pref")))
     scripts = {}
-    for name in ("postinst", "postrm"):
+    for name in ("postinst", "prerm", "postrm"):
         scripts[name] = tmp_path / name
         scripts[name].write_text(fix((PKG / "deb" / name).read_text()))
     def run(name, *args):
@@ -383,3 +393,53 @@ def test_install_sh_option_for_developers():
     assert "grep -q 'ok installed'" in s
     # The check comes before anything is installed.
     assert s.index("already installed as a package") < s.index("# ---- system packages")
+
+
+def test_deb_watcher_comes_back_after_remove_and_install(tmp_path):
+    """`apt remove` then `apt install` hands postinst the old version, which looked like an
+    upgrade, so the dark/light watcher stayed off. prerm leaves a mark when it was on."""
+    run, src, pref, mark = _deb_scripts(tmp_path)
+    on = tmp_path / "watch-enabled"
+    run("postinst", "configure", "")
+    assert on.exists()
+    run("prerm", "remove")
+    assert not on.exists()
+    run("postrm", "remove")
+    run("postinst", "configure", "1.5.22-1")
+    assert on.exists()
+    # The mark is used up: an upgrade after you turned the watcher off keeps it off.
+    on.unlink()
+    run("postinst", "configure", "1.5.23-1")
+    assert not on.exists()
+    assert not (tmp_path / "var/lib/fedora-glass/watch-was-on").exists()
+
+
+def test_deb_watcher_you_turned_off_stays_off_through_remove_and_install(tmp_path):
+    run, src, pref, mark = _deb_scripts(tmp_path)
+    on = tmp_path / "watch-enabled"
+    run("postinst", "configure", "")
+    on.unlink()                                     # turned off by the admin
+    run("prerm", "remove")
+    run("postrm", "remove")
+    run("postinst", "configure", "1.5.22-1")
+    assert not on.exists()
+
+
+def test_deb_upgrade_leaves_the_watcher_as_it_is(tmp_path):
+    run, src, pref, mark = _deb_scripts(tmp_path)
+    on = tmp_path / "watch-enabled"
+    run("postinst", "configure", "")
+    on.unlink()
+    run("prerm", "upgrade", "1.5.23-1")             # prerm upgrade: no mark, no change
+    run("postinst", "configure", "1.5.22-1")
+    assert not on.exists()
+
+
+def test_deb_purge_takes_the_watcher_mark(tmp_path):
+    run, src, pref, mark = _deb_scripts(tmp_path)
+    run("postinst", "configure", "")
+    run("prerm", "remove")
+    run("postrm", "remove")
+    assert (tmp_path / "var/lib/fedora-glass/watch-was-on").exists()
+    run("postrm", "purge")
+    assert not (tmp_path / "var/lib/fedora-glass").exists()

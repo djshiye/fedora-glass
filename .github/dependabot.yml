@@ -1,0 +1,37 @@
+# Keeps the pinned GitHub Actions (by commit) and Docker images (by digest) up to date, one
+# pull request a week at most per kind, so a new version is looked at once, not many times.
+# A release younger than a week is not offered yet: a bad release is usually found and pulled
+# in the first days. Every pull request still has to pass the quick tests and be merged by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # The workflows, and the composite action the release checks use.
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "CI"
+
+  - package-ecosystem: docker
+    # The test desktop's Dockerfiles (qa/desktop).
+    directory: "/qa/desktop"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    groups:
+      docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "CI"

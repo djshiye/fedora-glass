@@ -12,7 +12,12 @@ dest="$2"
 
 install -d "$dest/usr/share/fedora-glass"
 cp -r "$src/fedoraglass" "$dest/usr/share/fedora-glass/"
+# Stray byte code from a working copy is dropped (other Python, other paths), and ours is
+# made fresh: nobody can write next to the code under /usr/share, so without it every start
+# would compile the whole app again in memory. unchecked-hash: the file's date is not part
+# of it (the same bytes on every build) and the package never changes a .py behind its back.
 find "$dest/usr/share/fedora-glass" -name '__pycache__' -prune -exec rm -rf {} +
+python3 -I -m compileall -q --invalidation-mode unchecked-hash -d /usr/share/fedora-glass "$dest/usr/share/fedora-glass"
 find "$dest/usr/share/fedora-glass" -type d -exec chmod 755 {} +
 find "$dest/usr/share/fedora-glass" -type f -exec chmod 644 {} +
 
@@ -29,6 +34,8 @@ ln -sf fedora-glass "$dest/usr/bin/liquid-glass"
 install -Dm644 "$src/data/io.github.djshiye.LiquidGlass.desktop" "$dest/usr/share/applications/io.github.djshiye.LiquidGlass.desktop"
 sed -i 's|^Exec=.*|Exec=fedora-glass gui|' "$dest/usr/share/applications/io.github.djshiye.LiquidGlass.desktop"
 install -Dm644 "$src/data/icons/io.github.djshiye.LiquidGlass.svg" "$dest/usr/share/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg"
+# What software centres (GNOME Software, Discover) show about the app.
+install -Dm644 "$src/data/io.github.djshiye.LiquidGlass.metainfo.xml" "$dest/usr/share/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml"
 
 # The mouse pointer styles (built by packaging/cursors/build.py): checked against their
 # checksums, then unpacked where every app and the login screen can find them.
