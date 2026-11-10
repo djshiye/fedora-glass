@@ -14,6 +14,8 @@ class Cursor(Target):
             id="cursor", name="Mouse pointer", group="Desktop",
             summary="The pointer style and size picked on the Look page. "
                     "Restore original brings your own pointer back.",
+            plain="Sets the mouse pointer style and size you picked. "
+                  "Restore original brings your own pointer back.",
             scheme_dependent=False,
         )
 

@@ -37,7 +37,7 @@ def _source_install(env, tmp_path):
         (fake_bin / tool).write_text("#!/bin/sh\nexit 0\n")
         (fake_bin / tool).chmod(0o755)
     copy = tmp_path / "src"
-    shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git", "__pycache__", "tests", "qa", "packaging"))
+    shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git", "__pycache__", "tests", "qa"))
     (copy / "install.sh").write_text(script)
     environ = {"HOME": str(env.home), "PATH": f"{fake_bin}:/usr/bin:/bin",
                "XDG_DATA_HOME": str(env.data), "XDG_CONFIG_HOME": str(env.config)}

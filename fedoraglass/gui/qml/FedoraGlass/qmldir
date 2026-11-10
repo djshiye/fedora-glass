@@ -1,4 +1,5 @@
 module FedoraGlass
+AboutSheet 1.0 AboutSheet.qml
 AppIcon 1.0 AppIcon.qml
 AppsPage 1.0 AppsPage.qml
 Card 1.0 Card.qml

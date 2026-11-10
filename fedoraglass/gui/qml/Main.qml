@@ -32,8 +32,22 @@ Window {
     title: "Fedora Glass"
 
     // Quit goes through close too, so unapplied changes are never lost without a word.
-    Shortcut { sequences: [StandardKey.Quit]; onActivated: win.close() }
-    Shortcut { sequence: "Ctrl+W"; onActivated: win.close() }
+    Shortcut { sequences: [StandardKey.Quit]; onActivated: { leaveSheet.openedByKeyboard = true; win.close() } }
+    Shortcut { sequence: "Ctrl+W"; onActivated: { leaveSheet.openedByKeyboard = true; win.close() } }
+    // Enter presses the focused button, chip or switch, as Space does (Qt Quick only knows
+    // Space). It wakes only for buttons: dropdowns, sliders and text fields keep Enter.
+    // Sheets do the same for their own buttons (a sheet blocks the window's shortcuts).
+    function pressable(it) {
+        return !!it && typeof it.click === "function" && it.autoRepeat !== undefined
+               && it.enabled && it.visible
+    }
+    // Typing in a text field: "?" and Ctrl+Z belong to it then.
+    readonly property bool typing: !!activeFocusItem && activeFocusItem.cursorPosition !== undefined
+    Shortcut { sequences: ["Return", "Enter"]; enabled: win.pressable(win.activeFocusItem); onActivated: win.activeFocusItem.click() }
+    Shortcut { sequence: "F1"; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
+    Shortcut { sequence: "?"; enabled: !win.typing; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
+    // Ctrl+Z is the footer's Undo changes: back to the look applied last.
+    Shortcut { sequence: "Ctrl+Z"; enabled: Backend.dirty && !Backend.busy && !win.typing; onActivated: Backend.discardChanges() }
     Shortcut { sequence: "Ctrl+Return"; enabled: !Backend.busy; onActivated: Backend.apply() }
     // Pages: 0 Look, 1 Apps, 2 Lock screen; the switcher shows them as Look, Lock screen, Apps.
     Shortcut { sequence: "Ctrl+1"; onActivated: win.pageIndex = 0 }
@@ -60,18 +74,29 @@ Window {
     // lands on a switch hidden below the fold of a scrolling column.
     onActiveFocusItemChanged: {
         const it = activeFocusItem
+        // The Look page's section bar sends Tab into the section it shows, and Shift+Tab
+        // from there back to the bar: it may move focus on, and then nothing scrolls.
+        if (look.followFocus(it))
+            return
         if (!it || (it.focusReason !== undefined && it.focusReason !== Qt.TabFocusReason
                     && it.focusReason !== Qt.BacktabFocusReason))
             return
         let f = it.parent
-        while (f && !(f.contentItem !== undefined && f.contentY !== undefined && f.flickableDirection !== undefined))
+        let card = null       // the card around the control (a Card has padding and content)
+        while (f && !(f.contentItem !== undefined && f.contentY !== undefined && f.flickableDirection !== undefined)) {
+            if (!card && f.padding !== undefined && f.content !== undefined && f.radius !== undefined)
+                card = f
             f = f.parent
+        }
         if (!f || f.contentHeight <= f.height)
             return
         const top = it.mapToItem(f.contentItem, 0, 0).y
         const pad = 28
-        if (top - pad < f.contentY)
-            f.contentY = Math.max(0, top - pad)
+        // The first control in a card brings the card's title along with it.
+        const upTo = card && card.nextItemInFocusChain(true) === it
+                     ? Math.min(top - pad, card.mapToItem(f.contentItem, 0, 0).y - 12) : top - pad
+        if (upTo < f.contentY)
+            f.contentY = Math.max(0, upTo)
         else if (top + it.height + pad > f.contentY + f.height)
             f.contentY = Math.min(f.contentHeight - f.height, top + it.height + pad - f.height)
     }
@@ -177,24 +202,49 @@ Window {
                 onDoubleTapped: win.visibility = win.maximized ? Window.Windowed : Window.Maximized
             }
 
-            Row {
-                x: 24
+            // The app name opens About and the keyboard shortcuts. Dragging from it still
+            // moves the window (the header's DragHandler takes over once the pointer moves).
+            C.AbstractButton {
+                id: aboutButton
+                objectName: "aboutButton"
+                x: 14
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 12
-                Image {
-                    width: 30; height: 30
-                    source: appIconUrl
-                    sourceSize: Qt.size(60, 60)
-                    smooth: true
-                    mipmap: true
-                    anchors.verticalCenter: parent.verticalCenter
+                width: aboutRow.width + 20
+                height: 42
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                Accessible.name: "About Fedora Glass"
+                onClicked: aboutSheet.open()
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                LgToolTip { shown: aboutButton.hovered || aboutButton.visualFocus; text: "About and keyboard shortcuts (F1)"; below: true }
+                background: Rectangle {
+                    radius: Theme.rS
+                    color: aboutButton.down ? Theme.pressed : aboutButton.hovered ? Theme.hover : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.fast } }
+                    FocusRing { target: aboutButton; radius: Theme.rS + 3 }
                 }
-                Text {
-                    text: "Fedora Glass"
-                    color: Theme.text
-                    font.pixelSize: Theme.fsTitle + 1
-                    font.weight: Font.Bold
-                    anchors.verticalCenter: parent.verticalCenter
+                contentItem: Item {
+                    Row {
+                        id: aboutRow
+                        x: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 12
+                        Image {
+                            width: 30; height: 30
+                            source: appIconUrl
+                            sourceSize: Qt.size(60, 60)
+                            smooth: true
+                            mipmap: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "Fedora Glass"
+                            color: Theme.text
+                            font.pixelSize: Theme.fsTitle + 1
+                            font.weight: Font.Bold
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
                 }
             }
 
@@ -345,7 +395,10 @@ Window {
         Rectangle {
             id: glassBanner
             objectName: "glassBanner"
+            // An update that waits for the restart is already said by the footer ("Restart to
+            // finish", with its button) whenever that shows.
             readonly property bool shown: Backend.glassProblem !== "" && !Backend.safeMode
+                                          && !(Backend.glassProblem === "old" && Backend.restartNeeded)
             anchors.bottom: safeBanner.top
             anchors.bottomMargin: shown ? 12 : 0
             anchors.horizontalCenter: parent.horizontalCenter
@@ -528,23 +581,44 @@ Window {
 
             // status
             Row {
+                id: footerStatus
                 anchors.left: restoreButton.right
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 10
+                // Applied, but the glass only starts after a restart: not "Up to date" yet.
+                readonly property string phase: Backend.dirty ? "dirty" : Backend.lostNote !== "" ? "lost"
+                    : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
+                    : Backend.hasBackup ? "done" : "none"
                 Rectangle {
+                    objectName: "statusDot"
                     visible: !Backend.busy
                     width: 8; height: 8; radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Backend.dirty ? Theme.accent : Backend.lostNote !== "" || Backend.loginGlassStale ? Theme.warn : Backend.hasBackup ? Theme.good : Theme.textFaint
+                    color: footerStatus.phase === "dirty" ? Theme.accent
+                         : footerStatus.phase === "done" ? Theme.good
+                         : footerStatus.phase === "none" ? Theme.textFaint : Theme.warn
                 }
                 Text {
+                    objectName: "statusText"
                     visible: !Backend.busy
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Backend.dirty ? "Unapplied changes" : Backend.lostNote !== "" ? "Needs re-apply"
-                        : Backend.loginGlassStale ? "Login screen needs Apply" : Backend.hasBackup ? "Up to date" : "Not applied yet"
+                    text: ({ dirty: "Unapplied changes", lost: "Needs re-apply", login: "Login screen needs Apply",
+                             restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
                     color: Theme.textDim
                     font.pixelSize: 13
+                }
+                LgButton {
+                    objectName: "restartButton"
+                    visible: footerStatus.phase === "restart" && !Backend.busy
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "secondary"
+                    implicitHeight: 28
+                    leftPadding: 12; rightPadding: 12
+                    font.pixelSize: 13
+                    text: "Restart…"
+                    tip: "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
+                    onClicked: Backend.restartPC()
                 }
                 LgButton {
                     objectName: "discardButton"
@@ -651,6 +725,7 @@ Window {
     ChangesSheet { id: changesSheet }
     WelcomeSheet { id: welcomeSheet }
     ResultsSheet { id: resultsSheet }
+    AboutSheet { id: aboutSheet }
 
     Sheet {
         id: confirmSheet

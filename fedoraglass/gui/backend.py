@@ -12,6 +12,7 @@ import ast
 import configparser
 import json
 import os
+import re
 import secrets
 import stat
 import time
@@ -31,12 +32,38 @@ from ..settings import GNOME_ACCENTS, PRESETS, Settings
 
 GROUP_ORDER = ("Desktop", "Panel", "Apps", "Terminal", "My apps")
 
+# A detection detail that holds one command that installs the missing part.
+_INSTALL_CMD = re.compile(r"\b(?:sudo \S+ install|flatpak install|pacman -S)\b")
+
+
+def _group_rank(group: str) -> tuple[int, str]:
+    return (GROUP_ORDER.index(group) if group in GROUP_ORDER else 99, group)
+
+
+def _missing_text(t: dict) -> dict:
+    """For a part that is not installed: a calm one-line `reason`, or an `install` hint when
+    a single command fixes it. "Dash to Panel is not installed (pkg)" reads "Not installed
+    (pkg)" under its name. Both are "" for an installed part."""
+    if t["available"]:
+        return {"reason": "", "install": ""}
+    detail = (t.get("detail") or "").strip()
+    if _INSTALL_CMD.search(detail):
+        return {"reason": "", "install": detail}
+    lead = f"{t['name']} is not installed"
+    if not detail or detail == lead:
+        return {"reason": "Not installed", "install": ""}
+    if detail.startswith(lead + " "):
+        return {"reason": "Not installed" + detail[len(lead):], "install": ""}
+    return {"reason": detail, "install": ""}
+
 # The windows the preview opens, so their dock icons get a "running" dot.
 RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
 
 DOCK_EXTENSIONS = ("dash-to-dock@micxgx.gmail.com", "ubuntu-dock@ubuntu.com")
 MENU_EXTENSIONS = ("arcmenu@arcmenu.com", "spawn@djshiye.github.io")
 DASH_TO_PANEL = "dash-to-panel@jderose9.github.com"
+EXTENSION_NAMES = {"dash-to-dock@micxgx.gmail.com": "Dash to Dock", "ubuntu-dock@ubuntu.com": "Ubuntu Dock",
+                   "arcmenu@arcmenu.com": "ArcMenu", "spawn@djshiye.github.io": "Spawn"}
 FALLBACK_DOCK = ("org.gnome.Nautilus.desktop", "org.gnome.Ptyxis.desktop")
 
 
@@ -195,6 +222,7 @@ class Backend(QObject):
     removingChanged = Signal()
     removeFinished = Signal(bool)
     noticed = Signal(str)       # a short "done" message for a toast
+    restartNeededChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -244,6 +272,11 @@ class Backend(QObject):
         self._has_dtp = False       # Dash to Panel switched on
         self._problem = ("", "", "")       # what keeps the glass from running (see glassProblem)
         self._leftovers: list = []         # an old source install's files that override the package
+        self._dock_name = self._menu_name = ""     # which of them, for the welcome's "Found on this PC"
+        # Applied, but the glass (or a Shell part waiting for it) only starts after a restart.
+        self._restart_needed = False
+        # "Apply and lock" on the Lock screen page: lock once this Apply finishes well.
+        self._lock_after_apply = False
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -887,6 +920,12 @@ class Backend(QObject):
             return "user"
 
     @Property(str, constant=True)
+    def version(self) -> str:
+        """The app's version, for the About sheet."""
+        from .. import __version__
+        return __version__
+
+    @Property(str, constant=True)
     def hostName(self) -> str:
         import socket
         return socket.gethostname().split(".")[0] or "fedora"
@@ -896,14 +935,33 @@ class Backend(QObject):
         return self._dock
 
     # ---- targets -------------------------------------------------------------------
+    def _target_items(self) -> list[dict]:
+        """Every target to show, in group order, with its switch state. A part that only
+        makes sense where it is installed (the author's own apps) is left out when missing."""
+        items = [dict(t, enabled=self._s.target_enabled(t["id"]), **_missing_text(t))
+                 for t in self._targets if t["available"] or not t.get("hideWhenMissing")]
+        return sorted(items, key=lambda t: _group_rank(t["group"]))   # stable: keeps target order
+
+    @staticmethod
+    def _grouped(items: list[dict]) -> list[dict]:
+        groups: dict[str, list[dict]] = {}
+        for t in items:
+            groups.setdefault(t["group"], []).append(t)
+        return [{"group": g, "items": v} for g, v in groups.items()]
+
     @Property("QVariantList", notify=targetsChanged)
     def targets(self) -> list[dict]:
-        groups: dict[str, list[dict]] = {}
-        for t in self._targets:
-            item = dict(t, enabled=self._s.target_enabled(t["id"]))
-            groups.setdefault(t["group"], []).append(item)
-        order = sorted(groups, key=lambda g: (GROUP_ORDER.index(g) if g in GROUP_ORDER else 99, g))
-        return [{"group": g, "items": groups[g]} for g in order]
+        return self._grouped(self._target_items())
+
+    @Property("QVariantList", notify=targetsChanged)
+    def installedTargets(self) -> list[dict]:
+        """The groups of parts found on this PC, each with only those parts; empty groups go."""
+        return self._grouped([t for t in self._target_items() if t["available"]])
+
+    @Property("QVariantList", notify=targetsChanged)
+    def missingTargets(self) -> list[dict]:
+        """Parts not installed here, flat and in group order, for the folded list."""
+        return [t for t in self._target_items() if not t["available"]]
 
     @Property(bool, notify=targetsChanged)
     def targetsReady(self) -> bool:
@@ -958,6 +1016,77 @@ class Backend(QObject):
         except OSError:
             pass    # worst case it shows again next time
 
+    # ---- restart to finish -------------------------------------------------
+    @Property(bool, notify=restartNeededChanged)
+    def restartNeeded(self) -> bool:
+        """The look is applied, but the glass only starts when the PC restarts: the glass
+        part is applied and GNOME Shell isn't running it yet, or Shell parts still wait for it."""
+        return self._restart_needed
+
+    def _set_restart_needed(self, on: bool) -> None:
+        on = bool(on)
+        if on != self._restart_needed:
+            self._restart_needed = on
+            self.restartNeededChanged.emit()
+
+    @staticmethod
+    def _restart_state(engine: Any, glass_wanted: bool) -> tuple[bool, bool]:
+        """(the glass runs now, a restart is needed to finish), read on a worker thread."""
+        try:
+            from ..engine import Backup, read_pending, restored_path
+            from ..targets.shell import GlassEffects, glass_blocked
+            changed = Backup(engine.env).targets_with_changes()
+            if not changed or restored_path(engine.env).exists():
+                return False, False
+            glass_applied = "glass" in changed
+            running = glass_applied and GlassEffects.running(engine.env)
+            waiting = bool(read_pending())
+            # A glass that can't start (extensions off, an unsupported GNOME, an error) is
+            # not fixed by a restart: the note in the window says what is.
+            restart = glass_wanted and ((glass_applied and not running) or waiting) and not glass_blocked(engine.env)
+            return running, restart
+        except Exception:
+            return False, False
+
+    def _detach(self, program: str, args: list[str]) -> bool:
+        return bool(QProcess.startDetached(program, args))
+
+    @Slot()
+    def restartPC(self) -> None:
+        """Open GNOME's own restart dialog: the user confirms there, nothing restarts without it."""
+        path = self._env.which("gnome-session-quit")
+        if not path or not self._detach(path, ["--reboot"]):
+            self.failed.emit("Could not open the restart dialog. Restart your PC from the system menu instead.")
+
+    @Slot()
+    def applyAndLock(self) -> None:
+        """Apply the unapplied changes, then lock the screen so they can be seen for real.
+        Nothing to apply: just lock."""
+        if not self.dirty:
+            self.lockScreenNow()
+            return
+        self._lock_after_apply = True
+        self.apply()
+
+    def _lock_if_asked(self, results: list) -> None:
+        """After "Apply and lock": lock, unless something failed or the glass needs a restart
+        first (the lock screen would still show the old look)."""
+        if not self._lock_after_apply:
+            return
+        self._lock_after_apply = False
+        if not any(r.status == "failed" for r in results) and not self._restart_needed:
+            self.lockScreenNow()
+
+    @Property(str, notify=targetsChanged)
+    def foundSummary(self) -> str:
+        """What the desktop here is made of, in one line for the welcome ("" until known)."""
+        if not self._targets_ready:
+            return ""
+        parts = ["Dash to Panel" if self.hasDashToPanel else "GNOME's own top bar"]
+        parts += [n for n in (self._dock_name, self._menu_name) if n]
+        text = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+        return f"Found on this PC: {text}."
+
     @Property(bool, notify=targetsChanged)
     def hasBackup(self) -> bool:
         return self._has_backup
@@ -989,6 +1118,7 @@ class Backend(QObject):
     @Slot()
     def refreshTargets(self) -> None:
         s = self._s.normalized()
+        glass_wanted = self._saved.target_enabled("glass")
 
         def job(report):
             engine = self._engine_obj()
@@ -1009,25 +1139,36 @@ class Backend(QObject):
                     available, detail = False, f"Could not check: {e}"
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
-                            "available": available, "detail": detail})
+                            "available": available, "detail": detail,
+                            "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
-            return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
-                    lost, self._motion_env(engine), self._extensions_on(engine), self._glass_problem(engine, s),
-                    self._find_leftovers(engine))
+            return (out, self._backup_exists(engine), self._restart_state(engine, glass_wanted),
+                    self._terminal_palette(engine), lost, self._motion_env(engine), self._extension_names(engine),
+                    self._extensions_on(engine)[2], self._glass_problem(engine, s), self._find_leftovers(engine))
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
     def _extensions_on(engine: Any) -> tuple[bool, bool, bool]:
         """Whether a dock (Dash to Dock, Ubuntu Dock), a start menu (ArcMenu, Spawn) and
         Dash to Panel are installed and switched on: the same rule as Apply (Env.extension_on)."""
+        dock, menu = Backend._extension_names(engine)
+        try:
+            dtp = engine.env.extension_on(DASH_TO_PANEL)
+        except Exception:
+            dtp = False
+        return bool(dock), bool(menu), dtp
+
+    @staticmethod
+    def _extension_names(engine: Any) -> tuple[str, str]:
+        """The dock and the start menu that are installed and switched on, by name ("" for none)."""
         try:
             env = engine.env
-            def any_on(uuids: tuple[str, ...]) -> bool:
-                return any(env.extension_on(u) for u in uuids)
-            return any_on(DOCK_EXTENSIONS), any_on(MENU_EXTENSIONS), any_on((DASH_TO_PANEL,))
+            def first_on(uuids: tuple[str, ...]) -> str:
+                return next((EXTENSION_NAMES[u] for u in uuids if env.extension_on(u)), "")
+            return first_on(DOCK_EXTENSIONS), first_on(MENU_EXTENSIONS)
         except Exception:
-            return False, False, False
+            return "", ""
 
     @staticmethod
     def _overwritten(engine: Any) -> list[str]:
@@ -1159,12 +1300,15 @@ class Backend(QObject):
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
+            restart = False
         else:
-            (self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost,
-             self._motion_state, (self._has_dock, self._has_menu, self._has_dtp), self._problem,
+            (self._targets, self._has_backup, (self._glass_live, restart), self._terminal_pal, self._lost,
+             self._motion_state, (self._dock_name, self._menu_name), self._has_dtp, self._problem,
              self._leftovers) = out
+            self._has_dock, self._has_menu = bool(self._dock_name), bool(self._menu_name)
         self._targets_ready = True
         self.targetsChanged.emit()
+        self._set_restart_needed(restart)
 
     @staticmethod
     def _backup_exists(engine: Any) -> bool:
@@ -1243,10 +1387,11 @@ class Backend(QObject):
         def job(report):
             engine = self._engine_obj()
             names = {t.id: t.name for t in engine.targets}
+            plain = {t.id: getattr(t, "plain", "") or "" for t in engine.targets}
             home = str(engine.env.home)
             report(0.1, "Planning")
             plan = engine.plan(s)
-            return [{"id": tid, "name": names.get(tid, tid),
+            return [{"id": tid, "name": names.get(tid, tid), "plain": plain.get(tid, ""),
                      "actions": [{"kind": type(a).__name__, "text": _tilde(a.describe(), home)} for a in actions]}
                     for tid, actions in plan.items()]
 
@@ -1269,18 +1414,20 @@ class Backend(QObject):
         try:
             settings_mod.save(s, self._path)
         except OSError as e:
+            self._lock_after_apply = False
             self.failed.emit(f"Could not save settings: {e}")
             return
         self._saved = s
         self.settingsChanged.emit()
         self.savedChanged.emit()
+        glass_wanted = s.target_enabled("glass")
 
         def job(report):
             engine = self._engine_obj()
             ts = list(engine.targets)
             if not ts:
                 report(0.5, "Writing tokens")
-                return [], self._backup_exists(engine)
+                return [], self._backup_exists(engine), self._restart_state(engine, glass_wanted)
             results = {}
             for i, t in enumerate(ts):
                 report(i / len(ts), t.name)
@@ -1289,19 +1436,22 @@ class Backend(QObject):
                 for r in engine.apply(s, only={t.id}):
                     results[r.target] = r
             report(1.0, "Done")
-            return list(results.values()), self._backup_exists(engine)
+            return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
             if isinstance(out, Exception):
+                self._lock_after_apply = False
                 self.failed.emit(f"Apply stopped: {out}")
                 return
-            results, self._has_backup = out
+            results, self._has_backup, (self._glass_live, restart) = out
+            self._set_restart_needed(restart)    # before applyFinished: the results sheet reads it
             self.targetsChanged.emit()
             self.refreshTargets()          # the glass may be live now, and notes change
             if header_changed:
                 self._set_header_note("pending")
             self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
                                       "message": r.message} for r in results])
+            self._lock_if_asked(results)
             # Apply brings the login screen along when its glass is on: new colours, or the
             # rules of a newer Fedora Glass. It changes a system file, so this asks for the password.
             self._login_state = self._read_login_state()
@@ -1338,6 +1488,7 @@ class Backend(QObject):
             self._glass_live = False
             self._lost = []
             self.targetsChanged.emit()
+            self._set_restart_needed(False)
             if header_changed:
                 self._set_header_note("pending")
             self.revertFinished.emit(problems)
@@ -1568,6 +1719,7 @@ class Backend(QObject):
             problems, self._has_backup = out
             self._lost = []
             self.targetsChanged.emit()
+            self._set_restart_needed(False)
             if problems:
                 self._set_removing(False)
                 self.revertFinished.emit(problems)      # shows what could not be restored

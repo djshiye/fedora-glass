@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field, replace
 
+from .. import distro
 from ..env import Env
 from ..render import glass as rg
 from ..render import shell as rs
@@ -45,6 +46,7 @@ def _gset(schema: str, values: dict[str, str]) -> list[Action]:
 class GnomeShell(Target):
     id: str = "shell"
     name: str = "GNOME Shell"
+    plain: str = "Turns on the User Themes extension and selects the Fedora Glass theme for menus and pop-ups."
     waits_for_glass: bool = True
     group: str = "Desktop"
     summary: str = "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
@@ -53,7 +55,9 @@ class GnomeShell(Target):
         "Surfaces are translucent; the glass behind them comes from Fedora Glass effects."])
 
     def detect(self, env: Env) -> Detection:
-        return _waits_for_glass(env, _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme"))
+        det = _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
+        how = "" if det.available else distro.hint("user-theme")
+        return Detection(False, f"Install the User Themes extension: {how}") if how else _waits_for_glass(env, det)
 
     def css_path(self, env: Env):
         return env.data / "themes" / THEME_NAME / "gnome-shell/gnome-shell.css"
@@ -83,8 +87,10 @@ class GnomeShell(Target):
 class GlassEffects(Target):
     id: str = "glass"
     name: str = "Fedora Glass effects"
+    plain: str = ("Installs the Fedora Glass extension for GNOME and turns it on. "
+                  "It draws the live glass behind your panel, menus and overview.")
     group: str = "Desktop"
-    summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu or Spawn, app windows and the overview: "
+    summary: str = ("Real glass behind the panel or dock, menus, quick settings, app windows and the overview: "
                     "live blur, a refracting rim, rim light and a rainbow edge.")
     notes: list[str] = field(default_factory=lambda: [
         "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."])
@@ -354,6 +360,7 @@ def unpark_arcmenu(env: Env) -> None:
 class DashToPanel(Target):
     id: str = "dash-to-panel"
     name: str = "Dash to Panel"
+    plain: str = "Sets Dash to Panel's colours, border and hover effect so your panel looks like glass."
     waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
@@ -385,6 +392,7 @@ class DashToPanel(Target):
 class ArcMenu(Target):
     id: str = "arcmenu"
     name: str = "ArcMenu"
+    plain: str = "Sets ArcMenu's colours and corners so the menu and its button look like glass."
     waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass menu and menu button; colours, radius, search pill and hover washes."
@@ -404,6 +412,7 @@ class Spawn(Target):
     has none of ArcMenu's restart bug, so nothing parks it (see park_arcmenu)."""
     id: str = "spawn"
     name: str = "Spawn"
+    plain: str = "Sets Spawn's colours and corners so the menu and its button look like glass."
     waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass menu and menu button; colours, radius, search pill and hover washes."

@@ -1,7 +1,10 @@
 import QtQuick
 import QtQuick.Controls.Basic as C
+import "roving.js" as Roving
 
 // A round colour choice with a check when selected.
+// In a row of swatches set `rovingGroup` to the row: the row is then one Tab stop (the
+// selected swatch) and the arrow keys move along it; Space or Enter picks.
 C.AbstractButton {
     id: control
     property color swatch: "#3584e4"
@@ -10,13 +13,19 @@ C.AbstractButton {
     property bool split: false       // "system": half accent, half neutral
     property string tip: ""
     property real size: 30
+    property Item rovingGroup: null
+    property bool rovingStop: selected
+    property bool rovingSelects: false
+    readonly property bool _groupFocused: rovingGroup !== null && Window.activeFocusItem !== null
+                                          && Window.activeFocusItem.rovingGroup === rovingGroup
     implicitWidth: size
     implicitHeight: size
     hoverEnabled: true
-    focusPolicy: Qt.StrongFocus
+    focusPolicy: !rovingGroup || activeFocus || (rovingStop && !_groupFocused) ? Qt.StrongFocus : Qt.ClickFocus
     Accessible.name: tip
+    Keys.onPressed: (e) => { if (Roving.handleKey(control, e)) e.accepted = true }
     HoverHandler { cursorShape: Qt.PointingHandCursor }
-    LgToolTip { shown: control.hovered; text: control.tip }
+    LgToolTip { shown: control.hovered || control.visualFocus; text: control.tip }
 
     background: Item {
         Rectangle {     // selection ring
@@ -24,9 +33,10 @@ C.AbstractButton {
             radius: width / 2
             color: "transparent"
             border.width: 2
-            border.color: control.selected ? control.swatch : (control.visualFocus ? Theme.accent : "transparent")
+            border.color: control.selected ? control.swatch : "transparent"
             Behavior on border.color { ColorAnimation { duration: Theme.fast } }
         }
+        FocusRing { target: control; gap: 2; radius: width / 2 }
         Rectangle {
             id: dot
             anchors.centerIn: parent

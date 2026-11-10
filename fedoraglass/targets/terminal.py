@@ -36,6 +36,8 @@ def window_opacity(ctx: Context) -> float:
 class Ptyxis(Target):
     id: str = "ptyxis"
     name: str = "Ptyxis"
+    plain: str = ("Makes Ptyxis windows see-through on every profile, and uses the Fedora Glass colours "
+                  "if you turned them on.")
     group: str = "Terminal"
     summary: str = "Window opacity on every profile, and the Fedora Glass colour palette if you turn it on."
     notes: list[str] = field(default_factory=lambda: [
@@ -97,6 +99,7 @@ class Ptyxis(Target):
 class GnomeTerminal(Target):
     id: str = "gnome-terminal"
     name: str = "GNOME Terminal"
+    plain: str = "Sets the colours and the see-through background on every GNOME Terminal profile."
     group: str = "Terminal"
     summary: str = "Glass palette, colours and transparency on every profile."
     notes: list[str] = field(default_factory=lambda: ["GNOME Terminal has one colour set per profile, so it follows the scheme in use when you Apply."])
@@ -136,6 +139,7 @@ class GnomeTerminal(Target):
 class Btop(Target):
     id: str = "btop"
     name: str = "btop"
+    plain: str = "Adds a Fedora Glass colour theme for btop and selects it, without btop's own background."
     group: str = "Terminal"
     summary: str = "Glass colour theme; btop's own background is dropped so the terminal glass shows."
     notes: list[str] = field(default_factory=lambda: ["Restart btop to load the theme. Only color_theme and theme_background are set in btop.conf (made if btop hasn't written one yet)."])
@@ -162,6 +166,7 @@ class Btop(Target):
 class Micro(Target):
     id: str = "micro"
     name: str = "micro"
+    plain: str = "Adds a Fedora Glass colour scheme for micro and selects it."
     group: str = "Terminal"
     summary: str = "Glass colour scheme with a transparent background."
     notes: list[str] = field(default_factory=lambda: ["Needs a true-colour terminal (Ptyxis is one)."])

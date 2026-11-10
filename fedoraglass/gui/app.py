@@ -45,7 +45,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--section", choices=("colour", "glass", "windows", "motion", "desktop", "more"),
                       help="scroll the Look page options to this section")
     shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
-    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave", "welcome"), help="open a sheet")
+    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave", "welcome", "about"), help="open a sheet")
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
     shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
     shot.add_argument("--preview-scene", choices=("desktop", "quicksettings", "calendar", "overview"),
@@ -245,6 +245,9 @@ def main(argv: list[str] | None = None) -> int:
                 win.setProperty("startSheet", "welcome")
             elif args.sheet == "leave":
                 win.close()     # with unapplied changes (--change) this asks first
+            elif args.sheet == "about":
+                from PySide6.QtCore import QMetaObject, QObject
+                QMetaObject.invokeMethod(win.findChild(QObject, "aboutSheet"), "open")
             if args.dropdown or args.tip:
                 from PySide6.QtCore import QMetaObject, QObject
 

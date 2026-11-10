@@ -23,6 +23,8 @@ class Gtk4(Target):
             id="gtk4", name="GTK 4 and libadwaita apps", group="Desktop",
             summary="Glass windows, header bars, sidebars, menus and controls in every "
                     "GTK 4 app. Follows the system light/dark switch live.",
+            plain="Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, "
+                  "read when they open.",
         )
 
     def plan(self, ctx: Context) -> list[Action]:
@@ -115,6 +117,8 @@ class Gtk3(Target):
             id="gtk3", name="GTK 3 apps", group="Desktop",
             summary="Glass for older GTK 3 apps, on top of your GTK 3 theme. "
                     "GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme.",
+            plain="Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, "
+                  "unless adw-gtk3 is installed: then its light or dark version is picked.",
         )
 
     def detect(self, env: Env) -> Detection:
@@ -148,6 +152,8 @@ class Flatpak(Target):
         super().__init__(
             id="flatpak", name="Flatpak apps", group="Desktop",
             summary="Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files.",
+            plain="Lets Flatpak apps read the Fedora Glass style files, so they get the same look. "
+                  "They can read them, not change them.",
             notes=["GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: "
                    "flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"],
         )

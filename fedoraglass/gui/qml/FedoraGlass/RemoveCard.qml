@@ -66,7 +66,17 @@ Card {
         iconColor: Theme.good
         width: Math.min(520, (parent ? parent.width : 800) - 64)
         closePolicy: C.Popup.NoAutoClose
-        buttons: [ LgButton { text: "Close Fedora Glass"; kind: "primary"; onClicked: Qt.quit() } ]
+        buttons: [
+            LgButton {
+                objectName: "removedRestart"
+                text: "Restart now…"
+                kind: "secondary"
+                iconName: "power"
+                tip: "GNOME asks before it restarts, so you can save your work first."
+                onClicked: Backend.restartPC()
+            },
+            LgButton { text: "Close Fedora Glass"; kind: "primary"; onClicked: Qt.quit() }
+        ]
         Item { width: 1; height: 1 }
     }
 
