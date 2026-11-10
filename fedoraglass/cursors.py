@@ -28,19 +28,38 @@ class CursorStyle:
     name: str
     blurb: str
     credit: str         # who made it, and its licence
+    fun: bool = False   # shown under "Just for fun": playful looks, the same standard shapes
 
 
+_BIBATA = "Bibata by Abdulkaiz Khatri · GPL-3.0"
 STYLES: tuple[CursorStyle, ...] = (
     CursorStyle("fedora-glass-light", "Glass Light", "Frosted glass, dark rim",
                 "Fedora Glass, from Bibata by Abdulkaiz Khatri · GPL-3.0"),
     CursorStyle("fedora-glass-dark", "Glass Dark", "Smoked glass, light rim",
                 "Fedora Glass, from Bibata by Abdulkaiz Khatri · GPL-3.0"),
-    CursorStyle("fedora-glass-bibata-ice", "Bibata Ice", "Rounded, white",
-                "Bibata by Abdulkaiz Khatri · GPL-3.0"),
-    CursorStyle("fedora-glass-bibata-classic", "Bibata Classic", "Rounded, black",
-                "Bibata by Abdulkaiz Khatri · GPL-3.0"),
+    CursorStyle("fedora-glass-bibata-ice", "Bibata Ice", "Rounded, white", _BIBATA),
+    CursorStyle("fedora-glass-bibata-classic", "Bibata Classic", "Rounded, black", _BIBATA),
+    CursorStyle("fedora-glass-bibata-original", "Bibata Sharp Ice", "Sharp corners, white", _BIBATA),
+    CursorStyle("fedora-glass-bibata-original-classic", "Bibata Sharp Classic", "Sharp corners, black",
+                _BIBATA),
+    CursorStyle("fedora-glass-phinger-light", "Phinger Light", "Crisp, white",
+                "Phinger by Philipp Schaffrath · CC BY-SA 4.0"),
+    CursorStyle("fedora-glass-phinger-dark", "Phinger Dark", "Crisp, black",
+                "Phinger by Philipp Schaffrath · CC BY-SA 4.0"),
     CursorStyle("fedora-glass-whitesur", "WhiteSur", "Like macOS",
                 "WhiteSur by Vince Liuice · GPL-3.0"),
+    CursorStyle("fedora-glass-banana", "Banana", "Yes, a banana",
+                "Banana by Abdulkaiz Khatri · GPL-3.0", fun=True),
+    CursorStyle("fedora-glass-amber", "Amber", "Bright orange",
+                "Fedora Glass, from Bibata Amber by Abdulkaiz Khatri · GPL-3.0", fun=True),
+    CursorStyle("fedora-glass-catppuccin-mauve", "Catppuccin Mauve", "Soft purple",
+                "Catppuccin Cursors, from Volantes by Alexey Varfolomeev · GPL-2.0", fun=True),
+    CursorStyle("fedora-glass-catppuccin-sky", "Catppuccin Sky", "Soft blue",
+                "Catppuccin Cursors, from Volantes by Alexey Varfolomeev · GPL-2.0", fun=True),
+    CursorStyle("fedora-glass-oreo-pink", "Oreo Pink", "Bold and round",
+                "Oreo by Alexey Varfolomeev · GPL-2.0", fun=True),
+    CursorStyle("fedora-glass-oreo-teal", "Oreo Teal", "Bold and round",
+                "Oreo by Alexey Varfolomeev · GPL-2.0", fun=True),
 )
 STYLE_IDS = tuple(s.id for s in STYLES)
 

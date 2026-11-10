@@ -4,7 +4,7 @@ Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
 Summary:        Glass theme for Fedora GNOME, with a customizer
-License:        MIT AND Apache-2.0 AND GPL-3.0-or-later
+License:        MIT AND Apache-2.0 AND GPL-3.0-or-later AND GPL-2.0-only AND CC-BY-SA-4.0
 URL:            https://github.com/djshiye/fedora-glass
 Source0:        %{url}/archive/v%{version}/fedora-glass-%{version}.tar.gz
 BuildArch:      noarch
@@ -171,7 +171,7 @@ fi
 # and that must not take the login screen glass off.
 
 %files
-%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt THIRD-PARTY-NOTICES.md
+%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt LICENSES/GPL-2.0.txt LICENSES/CC-BY-SA-4.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
 %{_bindir}/fedora-glass
 %{_bindir}/liquid-glass
@@ -188,7 +188,7 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %files -n liquid-glass
-%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt THIRD-PARTY-NOTICES.md
+%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt LICENSES/GPL-2.0.txt LICENSES/CC-BY-SA-4.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
 %{_bindir}/fedora-glass
 %{_bindir}/liquid-glass
