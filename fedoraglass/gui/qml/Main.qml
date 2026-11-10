@@ -597,7 +597,7 @@ Window {
                 id: lostBanner
                 objectName: "lostBanner"
                 readonly property bool shown: Backend.lostNote !== "" && !Backend.busy
-                anchors.bottom: footer.top
+                anchors.bottom: damageBanner.top
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
@@ -637,6 +637,41 @@ Window {
                     enabled: !Backend.busy
                     tip: "Write the Fedora Glass look again. Nothing else changes."
                     onClicked: Backend.apply()
+                }
+            }
+
+            // ------------------------------------- settings.json was damaged and set aside: the
+            // app loaded the last good copy (or the defaults). Said until the next save.
+            Rectangle {
+                id: damageBanner
+                objectName: "damageBanner"
+                readonly property bool shown: Backend.damageNote !== ""
+                anchors.bottom: footer.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "info"
+                    color: Theme.warn
+                    size: 18
+                }
+                Text {
+                    objectName: "damageNote"
+                    x: 42
+                    width: parent.width - x - 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Backend.damageNote
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
                 }
             }
 

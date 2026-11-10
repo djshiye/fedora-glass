@@ -212,6 +212,7 @@ class Backend(QObject):
     targetStatesChanged = Signal()
     weatherChanged = Signal()
     wallpaperChanged = Signal()
+    damageNoteChanged = Signal()
     wallpaperLumaChanged = Signal()
     busyChanged = Signal()
     progressChanged = Signal()
@@ -245,6 +246,8 @@ class Backend(QObject):
         # The last look that applied with no part failing: Undo goes back to it after an
         # Apply that only partly worked (_saved is then that partly applied look).
         self._good = self._saved
+        # settings.json was damaged and set aside at load: said until the next save.
+        self._damage = self._read_damage()
         self._partial: list[dict] = []     # the results of an Apply where some parts failed
         self._applying: Settings | None = None     # the look an Apply in progress writes
         self._ui_override = ui_dark
@@ -320,6 +323,7 @@ class Backend(QObject):
         self._rebuild_tokens()
         self.targetsChanged.connect(self.targetStatesChanged)
         # The preview's Light/Dark pill and GNOME's own style pick the wallpaper.
+        self.savedChanged.connect(self._refresh_damage)
         self.previewChanged.connect(self.wallpaperChanged)
         self.uiChanged.connect(self.wallpaperChanged)
         self.wallpaperChanged.connect(self.wallpaperLumaChanged)
@@ -329,6 +333,27 @@ class Backend(QObject):
             self._watch_wallpaper()
             self._safe_timer.start()
             self._start_speed_watch()
+
+    # ---- damaged settings ----------------------------------------------------------
+    def _read_damage(self) -> str:
+        # settings.damage_notice is newer than some engines this app runs with.
+        notice = getattr(settings_mod, "damage_notice", lambda path=None: None)
+        try:
+            return notice(self._path) or ""
+        except Exception:  # noqa: BLE001 (a note that can't be read is no note)
+            return ""
+
+    @Slot()
+    def _refresh_damage(self) -> None:
+        note = self._read_damage()
+        if note != self._damage:
+            self._damage = note
+            self.damageNoteChanged.emit()
+
+    @Property(str, notify=damageNoteChanged)
+    def damageNote(self) -> str:
+        """One plain line when settings.json was damaged and set aside, or ""."""
+        return self._damage
 
     # ---- safe mode ---------------------------------------------------------------
     def _read_safe_mode(self) -> dict:
@@ -1664,6 +1689,7 @@ class Backend(QObject):
                     settings_mod.save(self._saved, self._path)
                 except OSError:
                     pass
+                self._refresh_damage()
                 self.failed.emit(f"Apply stopped: {out}")
                 return
             results, self._has_backup, (self._glass_live, restart) = out

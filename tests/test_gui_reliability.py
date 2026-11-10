@@ -512,3 +512,36 @@ def test_preview_wallpaper_follows_light_dark_and_a_new_wallpaper(qml, fake_env,
     # Without a dark picture GNOME shows the light one in dark style too.
     b._wallpaper_lines("picture-uri-dark: ''\n")
     assert b.property("wallpaper") == url(pics["new"])
+
+
+# ---------------------------------------------------------------- damaged settings.json
+
+def test_damaged_settings_note_shows_until_the_next_save(qml, fake_env, tmp_path, monkeypatch):
+    notes = ["Your settings file was damaged, so Fedora Glass set it aside and loaded the last good copy."]
+    monkeypatch.setattr(settings_mod, "damage_notice", lambda path=None: notes[0], raising=False)
+    b = _backend(fake_env, tmp_path)
+    assert b.property("damageNote") == notes[0]
+    notes[0] = None                       # the next save clears it
+    b.setProperty("undoOnRemove", False)
+    assert b.property("damageNote") == ""
+    monkeypatch.delattr(settings_mod, "damage_notice", raising=False)
+    assert _backend(fake_env, tmp_path).property("damageNote") == ""     # an engine without it
+
+
+def test_damaged_settings_banner(qml):
+    b = _probe(qml)
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        assert not _find(win, "damageBanner").property("shown")
+        b._damage = "Your settings file was damaged."
+        b.damageNoteChanged.emit()
+        _spin(400)
+        banner = _find(win, "damageBanner")
+        assert banner.property("shown") and banner.height() == 48
+        assert _find(win, "damageNote").property("text") == "Your settings file was damaged."
+    finally:
+        b._damage = ""
+        b.damageNoteChanged.emit()
+        win.close()
