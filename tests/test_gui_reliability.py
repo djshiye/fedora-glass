@@ -572,3 +572,76 @@ def test_remove_switch_is_never_an_unapplied_change(qml, fake_env, tmp_path):
     assert b.property("undoOnRemove") is False
     b.resetSettings(["undo_on_remove", "frost"])
     assert b.property("undoOnRemove") is False and not b.property("dirty")
+
+
+# ---------------------------------------------------------------- 10. nothing slow on the UI thread
+
+def _settle(cond, ms=5000):
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer
+    t = QElapsedTimer()
+    t.start()
+    while not cond() and t.elapsed() < ms:
+        QCoreApplication.processEvents()
+    return cond()
+
+
+def test_package_query_waits_for_the_first_check_and_runs_off_the_ui_thread(qml, fake_env, tmp_path, monkeypatch):
+    import threading
+    from fedoraglass.gui.backend import Backend
+    calls: list = []
+    monkeypatch.setattr(Backend, "_installed_package",
+                        lambda self: calls.append(threading.current_thread()) or "fedora-glass")
+    b = _backend(fake_env, tmp_path)
+    assert calls == [] and b.property("canRemoveApp") is False
+    b.refreshTargets()
+    assert b.waitIdle()
+    assert len(calls) == 1 and calls[0] is not threading.main_thread()
+    assert b.property("canRemoveApp") is True
+    b.refreshTargets()
+    assert b.waitIdle() and len(calls) == 1          # asked once
+
+
+def test_old_copy_clean_up_runs_off_the_ui_thread(qml, fake_env, tmp_path, monkeypatch):
+    import threading
+
+    from fedoraglass import leftovers
+    ran: list = []
+    monkeypatch.setattr(leftovers, "clean_up", lambda env: ran.append(threading.current_thread()) or [])
+    b = _backend(fake_env, tmp_path)
+    b._leftovers = [tmp_path / "old"]
+    said: list = []
+    b.noticed.connect(said.append)
+    b.cleanUpOldCopy()
+    assert b.property("busyKind") == "cleanup"
+    assert b.waitIdle()
+    assert ran and ran[0] is not threading.main_thread() and said
+
+
+def test_weather_is_looked_at_off_the_ui_thread_and_not_on_every_focus(qml, fake_env, tmp_path, monkeypatch):
+    import threading
+
+    from fedoraglass.gui import backend as bmod
+    looks: list = []
+    monkeypatch.setattr(bmod, "_weather_state", lambda env: looks.append(threading.current_thread()) or "no-app")
+    b = _backend(fake_env, tmp_path)
+    for _ in range(5):                    # the window gains focus again and again
+        b.refreshWeather()
+        assert _settle(lambda: b._weather_task is None)
+    assert len(looks) == 1 and looks[0] is not threading.main_thread()
+    assert b.property("weatherState") == "no-app"
+    b._weather_at -= b.WEATHER_EVERY
+    b.refreshWeather()
+    assert _settle(lambda: b._weather_task is None) and len(looks) == 2
+
+
+def test_settings_that_do_not_touch_the_colours_leave_the_tokens_alone(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    seen: list = []
+    b.tokensChanged.connect(lambda: seen.append(1))
+    for name, value in (("lockSlideMs", 900), ("lockClock", "thin"), ("cursorSize", 48), ("menuGrow", False)):
+        b.setProperty(name, value)
+    assert seen == [] and b.property("dirty")
+    b.setProperty("frost", 0.9)
+    assert len(seen) == 1
+    b.setProperty("previewDark", not b.property("previewDark"))     # other tokens show now
+    assert len(seen) == 2

@@ -287,7 +287,9 @@ class Backend(QObject):
         # Removing the app (Restore original, then dnf remove through pkexec).
         self._remove_proc: QProcess | None = None
         self._removing = False
-        self._remove_package = self._installed_package()
+        # The package this app came from: asked of the package manager (up to 10 s) on the
+        # first system check, off the UI thread, not before the window shows. None: not known yet.
+        self._remove_package: str | None = None
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
         self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
@@ -512,13 +514,20 @@ class Backend(QObject):
 
     def _rebuild_tokens(self) -> None:
         s = self._s
-        self._dark_t = palette.build(s, dark=True, system_accent=self._system_accent)
-        self._light_t = palette.build(s, dark=False, system_accent=self._system_accent)
+        dark_t = palette.build(s, dark=True, system_accent=self._system_accent)
+        light_t = palette.build(s, dark=False, system_accent=self._system_accent)
         auto = replace(s, opacity=None, blur=None, terminal_opacity=None)
         a = palette.build(auto, dark=self._preview_dark, system_accent=self._system_accent)
-        self._auto = {"opacity": round(a.chrome.a, 2), "blur": a.blur_radius,
-                      "terminal_opacity": a.terminal_opacity}
-        self._maps = (tokens_map(self._dark_t), tokens_map(self._light_t))
+        auto_values = {"opacity": round(a.chrome.a, 2), "blur": a.blur_radius,
+                       "terminal_opacity": a.terminal_opacity}
+        # Most settings (the lock screen, motion, the pointer...) don't touch the colours:
+        # then nothing that reads the tokens (the whole preview) has to be worked out again.
+        key = (dark_t, light_t, auto_values, self._preview_dark)
+        if key == getattr(self, "_tokens_key", None):
+            return
+        self._tokens_key = key
+        self._dark_t, self._light_t, self._auto = dark_t, light_t, auto_values
+        self._maps = (tokens_map(dark_t), tokens_map(light_t))
         self.tokensChanged.emit()
 
     def _changed(self) -> None:
@@ -580,8 +589,9 @@ class Backend(QObject):
                 proc.kill()
                 proc.waitForFinished(500)
                 setattr(self, name, None)
-        for t in list(self._luma_tasks.values()):
-            t.wait(2000)
+        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None)]:
+            if t is not None:
+                t.wait(2000)
 
     # ---- settings properties ---------------------------------------------------
     def _p(name: str, typ: type, none: Any = None, notify=settingsChanged):  # noqa: N805
@@ -1123,18 +1133,43 @@ class Backend(QObject):
         """Whether this PC has a battery of its own (a laptop), for the lock screen's battery widget."""
         return _has_battery(self._power_supply)
 
+    WEATHER_EVERY = 30.0     # s: the window gaining focus looks again at most this often
+
     @Property(str, notify=weatherChanged)
     def weatherState(self) -> str:
-        """For the lock screen's weather switch: "ready", "no-app" or "no-place"."""
+        """For the lock screen's weather switch: "ready", "no-app" or "no-place". Until the
+        first look (on a worker thread: three gsettings calls) "ready": don't claim it won't work."""
         if getattr(self, "_weather_state", None) is None:
-            self._weather_state = _weather_state(self._env)
+            self._check_weather()
+            return "ready"
         return self._weather_state
 
     @Slot()
     def refreshWeather(self) -> None:
         """Look again (the window just regained focus): GNOME Weather may have been installed
-        or a place chosen meanwhile."""
-        new = _weather_state(self._env)
+        or a place chosen meanwhile. Not more than once every WEATHER_EVERY seconds."""
+        now = time.monotonic()
+        if now - getattr(self, "_weather_at", -1e9) < self.WEATHER_EVERY:
+            return
+        self._weather_at = now
+        self._check_weather()
+
+    def _check_weather(self) -> None:
+        if getattr(self, "_weather_task", None) is not None:
+            return
+        env = self._env
+        task = _Task(lambda _report: _weather_state(env), self)
+        task.finishedWith.connect(self._weather_done)     # bound: arrives on the GUI thread
+        self._weather_task = task
+        task.start()
+
+    @Slot(object)
+    def _weather_done(self, out: Any) -> None:
+        task, self._weather_task = self._weather_task, None
+        if task is not None:
+            task.wait()
+            task.deleteLater()
+        new = out if isinstance(out, str) else "ready"
         if new != getattr(self, "_weather_state", None):
             self._weather_state = new
             self.weatherChanged.emit()
@@ -1385,9 +1420,16 @@ class Backend(QObject):
                             "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
+            package = self._remove_package
+            if package is None:
+                try:
+                    package = self._installed_package()
+                except Exception:
+                    package = ""
             return (out, self._backup_exists(engine), self._restart_state(engine, glass_wanted),
                     self._terminal_palette(engine), lost, self._motion_env(engine), self._extension_names(engine),
-                    self._extensions_on(engine)[2], self._glass_problem(engine, s), self._find_leftovers(engine))
+                    self._extensions_on(engine)[2], self._glass_problem(engine, s), self._find_leftovers(engine),
+                    package)
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -1489,18 +1531,31 @@ class Backend(QObject):
     def cleanUpOldCopy(self) -> None:
         """Take away only that copy's launcher, menu entry and user service (only on this
         click), then start the package's own watcher."""
-        if not self._leftovers:
+        if not self._leftovers or self._removing:
+            return
+        if self._task is not None:
+            # The system check is still running: clean up as soon as it ends.
+            self._pending_action = "cleanUpOldCopy"
+            self.busyChanged.emit()
             return
         from .. import leftovers
-        try:
-            problems = leftovers.clean_up(self._engine_obj().env)
-        except Exception as e:
-            problems = [str(e)]
-        if problems:
-            self.failed.emit(f"Could not clean up the old copy: {problems[0]}")
-        else:
-            self.noticed.emit("Old copy cleaned up. Fedora Glass now runs from the package only.")
-        self.refreshTargets()
+
+        # systemctl can take up to 30 s per call: on a worker thread, never the UI's.
+        def job(report):
+            try:
+                return leftovers.clean_up(self._engine_obj().env)
+            except Exception as e:
+                return [str(e)]
+
+        def done(problems):
+            if isinstance(problems, Exception):
+                problems = [str(problems)]
+            if problems:
+                self.failed.emit(f"Could not clean up the old copy: {problems[0]}")
+            else:
+                self.noticed.emit("Old copy cleaned up. Fedora Glass now runs from the package only.")
+            self.refreshTargets()
+        self._run("cleanup", job, done)
 
     @Slot()
     def copyGlassDetails(self) -> None:
@@ -1547,7 +1602,9 @@ class Backend(QObject):
         else:
             (self._targets, self._has_backup, (self._glass_live, restart), self._terminal_pal, self._lost,
              self._motion_state, (self._dock_name, self._menu_name), self._has_dtp, self._problem,
-             self._leftovers) = out
+             self._leftovers, package) = out
+            if self._remove_package is None:
+                self._remove_package = package
             self._has_dock, self._has_menu = bool(self._dock_name), bool(self._menu_name)
         self._targets_ready = True
         self.targetsChanged.emit()
@@ -1566,7 +1623,8 @@ class Backend(QObject):
     # ---- long-running work --------------------------------------------------------
     def _queued_kind(self) -> str:
         """The asked-for action waiting for the background check to end, as a busy kind."""
-        return {"apply": "apply", "revert": "revert", "requestPlan": "plan"}.get(self._pending_action or "", "")
+        return {"apply": "apply", "revert": "revert", "requestPlan": "plan",
+                "cleanUpOldCopy": "cleanup"}.get(self._pending_action or "", "")
 
     # Removing the app (Restore original, then the package manager behind pkexec) counts
     # as busy from start to end: Apply, Restore or See changes would run over it.
@@ -2002,7 +2060,7 @@ class Backend(QObject):
         """The terminal command that removes the app here (shown in a tip)."""
         return distro.current().remove_command()
 
-    @Property(bool, constant=True)
+    @Property(bool, notify=targetsChanged)
     def canRemoveApp(self) -> bool:
         return bool(self._remove_package)
 
