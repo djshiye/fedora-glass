@@ -42,6 +42,17 @@ def test_hints_per_linux():
     assert distro.DEBIAN.manager == "/usr/bin/apt-get" and distro.ARCH.manager == "/usr/bin/pacman"
 
 
+def test_removing_on_ubuntu_takes_the_repository_entry_too():
+    """The repository entry is one of the package's config files: `apt-get remove` keeps
+    those, `purge` takes them away. The command the app runs through pkexec, and the one it
+    shows for a terminal, both purge."""
+    d = distro.DEBIAN
+    assert [d.manager, *d.remove_args, "fedora-glass"] == ["/usr/bin/apt-get", "purge", "-y", "fedora-glass"]
+    assert d.remove_command() == "sudo apt purge fedora-glass"
+    assert distro.FEDORA.remove_args == ("remove", "-y", "--no-autoremove")      # unchanged
+    assert distro.ARCH.remove_args == ("-R", "--noconfirm")
+
+
 def test_gtk3_note_follows_the_linux(monkeypatch):
     monkeypatch.setattr(distro, "current", lambda: distro.ARCH)
     assert tg.gtk3_partial() == "Some GTK 3 details need adw-gtk3: sudo pacman -S adw-gtk-theme"
