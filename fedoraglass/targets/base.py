@@ -93,9 +93,13 @@ class FlatpakOverride:
     Revert removes exactly what was added."""
     filesystems: tuple[str, ...] = ()
     env: tuple[tuple[str, str], ...] = ()
+    # Grants an older version added that this one no longer wants (a wider folder, say):
+    # taken away again, but only if Fedora Glass added them (the backup says so).
+    drop: tuple[str, ...] = ()
 
     def describe(self) -> str:
         bits = [f"filesystem {f}" for f in self.filesystems] + [f"env {k}={v}" for k, v in self.env]
+        bits += [f"no longer {f}" for f in self.drop]
         return f"flatpak override for all apps: {', '.join(bits)}"
 
 
