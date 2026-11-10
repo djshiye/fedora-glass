@@ -168,14 +168,21 @@ Card {
             summary: "Playful looks, same clear shapes"
             // Open when one of them is the pick, so the choice is never hidden.
             Component.onCompleted: expanded = root.choices.some((c) => c.fun && c.id === Backend.cursorTheme)
-            Grid {
-                objectName: "cursorGridFun"
+            // Built the first time it opens: its pointer pictures are read only then.
+            property bool built: false
+            onExpandedChanged: if (expanded) built = true
+            Loader {
                 width: parent.width
-                columns: root.columns
-                spacing: 10
-                Repeater {
-                    model: root.choices.filter((c) => c.fun)
-                    delegate: Tile {}
+                active: funFold.built
+                sourceComponent: Grid {
+                    objectName: "cursorGridFun"
+                    width: parent ? parent.width : 0
+                    columns: root.columns
+                    spacing: 10
+                    Repeater {
+                        model: root.choices.filter((c) => c.fun)
+                        delegate: Tile {}
+                    }
                 }
             }
         }

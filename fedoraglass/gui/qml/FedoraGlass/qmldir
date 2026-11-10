@@ -28,6 +28,7 @@ LgScrollBar 1.0 LgScrollBar.qml
 LgSlider 1.0 LgSlider.qml
 LgSwitch 1.0 LgSwitch.qml
 LgToolTip 1.0 LgToolTip.qml
+TipPopup 1.0 TipPopup.qml
 LookPage 1.0 LookPage.qml
 MotionCard 1.0 MotionCard.qml
 SpeedCard 1.0 SpeedCard.qml

@@ -17,7 +17,7 @@ def _src(name: str) -> str:
 
 
 def test_tooltip_and_dropdown_use_the_shared_glass():
-    for name in ("LgToolTip.qml", "LgDropdown.qml", "ColorPicker.qml"):
+    for name in ("TipPopup.qml", "LgDropdown.qml", "ColorPicker.qml"):
         assert re.search(r"background:\s*PopupGlass\s*\{", _src(name)), name
 
 
@@ -32,7 +32,7 @@ def test_popup_glass_builds_on_glass_surface_and_the_shared_backdrop():
 
 def test_no_stock_tooltip_outside_lgtooltip():
     for f in QML.rglob("*.qml"):
-        if f.name == "LgToolTip.qml":
+        if f.name == "TipPopup.qml":      # the one stock ToolTip, built lazily by LgToolTip
             continue
         assert not re.search(r"\bC\.ToolTip\b|\bToolTip\s*\{", f.read_text()), f.name
 
@@ -55,7 +55,7 @@ def test_main_publishes_the_content_root_as_backdrop():
 
 
 def test_tooltip_text_follows_theme_and_tint_is_heavy():
-    tip = _src("LgToolTip.qml")
+    tip = _src("TipPopup.qml")
     assert "color: Theme.text" in tip and "#f4f5f9" not in tip
     assert re.search(r"blurRadius:\s*(3[2-9]|[4-9]\d)", tip)
 
@@ -73,7 +73,7 @@ def _contrast(a, b):
     return (la + 0.05) / (lb + 0.05)
 
 
-@pytest.mark.parametrize("name", ["LgToolTip.qml", "LgDropdown.qml", "ColorPicker.qml"])
+@pytest.mark.parametrize("name", ["TipPopup.qml", "LgDropdown.qml", "ColorPicker.qml"])
 def test_popup_text_reads_over_the_worst_backdrop(name):
     """The tint over pure white (dark mode) or pure black (light mode) still gives
     Theme.text at least 4.5:1, even though more of the glass now shows through."""
@@ -87,3 +87,33 @@ def test_popup_text_reads_over_the_worst_backdrop(name):
     assert _contrast(text_d, over_white) >= 4.5
     assert _contrast(text_l, over_black) >= 4.5
     assert dark < 0.85 and light < 0.9, "keep it glass: some backdrop must show through"
+
+
+def test_tooltips_are_built_on_first_use_and_still_show(qml):
+    """A page has dozens of tooltips; each glass popup is built only when first wanted."""
+    from tests.test_gui_polish import _find, _goto, _spin, _window
+    win = _window(qml)
+    try:
+        win.show()
+        _goto(win, "glass")
+        bend = _find(win, "bend")
+        lazy = next(c for c in _walk(bend) if c.metaObject().className().startswith("LgToolTip"))
+        assert lazy.property("item") is None, "no popup until the tooltip is wanted"
+        lazy.setProperty("shown", True)
+        _spin(700)                          # past the tooltip's pause
+        tip = lazy.property("item")
+        assert tip is not None and tip.property("visible") is True
+        assert "bends" in tip.property("text")
+        lazy.setProperty("shown", False)
+        _spin(300)
+        assert tip.property("visible") is False
+    finally:
+        win.close()
+
+
+def _walk(item):
+    todo = [item]
+    while todo:
+        it = todo.pop()
+        yield it
+        todo.extend(it.childItems())

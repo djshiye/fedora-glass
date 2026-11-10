@@ -295,6 +295,8 @@ def test_picking_a_tile_changes_only_the_setting_until_apply(qml):
     try:
         win.show()
         _goto(win, "pointer")
+        _find(win, "cursorFun").setProperty("expanded", True)      # built when first opened
+        _spin()
         grid, fun = _find(win, "cursorGrid"), _find(win, "cursorGridFun")
         assert grid is not None and fun is not None
         names = [it.objectName() for g in (grid, fun) for it in g.childItems()
