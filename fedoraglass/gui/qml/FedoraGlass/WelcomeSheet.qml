@@ -22,8 +22,11 @@ Sheet {
 
     // Nothing changes on the desktop until a button that says Apply: "Customise first"
     // only closes the welcome, "Apply this look" applies the look picked above.
+    // A stray Enter on first launch must not change the desktop: the sheet opens on "Customise first".
+    initialFocusItem: customiseButton
     buttons: [
         LgButton {
+            id: customiseButton
             objectName: "welcomeStart"
             text: "Customise first"
             kind: "secondary"

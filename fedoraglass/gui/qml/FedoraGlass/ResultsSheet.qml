@@ -31,8 +31,11 @@ Sheet {
             : "Open apps pick up the new look when you reopen them."
     iconName: failedCount > 0 ? "alert" : "okCircle"
     iconColor: failedCount > 0 ? Theme.warn : Theme.good
+    // A stray Enter must never start a restart: with one pending, the sheet opens on "Later".
+    initialFocusItem: needsRestart ? laterButton : null
     buttons: [
         LgButton {
+            id: laterButton
             objectName: "restartLater"
             visible: sheet.needsRestart
             text: "Later"
