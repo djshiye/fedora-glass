@@ -435,3 +435,41 @@ def test_window_fits_1280x720_with_apply_in_view(qml):
             assert apply.isVisible() and pos.y() <= win.height() - margin, page
     finally:
         win.close()
+
+
+# ---------------------------------------------------------------- 7. the Apps page keeps its rows
+
+def test_flipping_one_app_keeps_every_row_and_its_open_notes(qml):
+    b = _probe(qml)
+    win = _window(qml)
+    saved = (b._targets, b._targets_ready)
+    try:
+        b._targets = [{"id": i, "name": i.title(), "group": "Apps", "summary": "", "notes": ["a note"],
+                       "available": True, "detail": "", "hideWhenMissing": False} for i in ("one", "two")]
+        b._targets_ready = True
+        b.targetsChanged.emit()
+        win.show()
+        _spin(200)
+        win.setProperty("page", "apps")
+        _spin(300)
+        rows = [it for it in _items(_find(win, "appsPage")) if it.metaObject().indexOfProperty("notesOpen") >= 0]
+        assert sorted(r.property("item")["id"] for r in rows) == ["one", "two"]
+        first = next(r for r in rows if r.property("item")["id"] == "one")
+        second = next(r for r in rows if r.property("item")["id"] == "two")
+        first.setProperty("notesOpen", True)
+        rebuilt: list = []
+        first.destroyed.connect(lambda *_: rebuilt.append(1))
+        b.setTargetEnabled("two", False)
+        _spin(100)
+        assert not rebuilt
+        assert first.property("notesOpen") is True
+        assert second.property("on") is False and first.property("on") is True
+        assert b.property("activeTargetCount") == 1
+        b.discardChanges()
+        _spin(60)
+        assert second.property("on") is True
+    finally:
+        b.discardChanges()
+        b._targets, b._targets_ready = saved
+        b.targetsChanged.emit()
+        win.close()

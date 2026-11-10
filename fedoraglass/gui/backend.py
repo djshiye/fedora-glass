@@ -207,6 +207,9 @@ class Backend(QObject):
     previewChanged = Signal()
     uiChanged = Signal()
     targetsChanged = Signal()
+    # Only which parts are switched on: the Apps page keeps its rows (focus, open notes)
+    # when one is flipped, instead of building every row again as targetsChanged does.
+    targetStatesChanged = Signal()
     weatherChanged = Signal()
     busyChanged = Signal()
     progressChanged = Signal()
@@ -310,6 +313,7 @@ class Backend(QObject):
         self._power_supply = Path("/sys/class/power_supply")
         self._dock = self._find_dock()
         self._rebuild_tokens()
+        self.targetsChanged.connect(self.targetStatesChanged)
         if start:
             self.refreshTargets()
             self._watch_scheme()
@@ -924,7 +928,7 @@ class Backend(QObject):
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
-        self.targetsChanged.emit()   # the app switches and the glass edges follow the saved state
+        self.targetStatesChanged.emit()   # the app switches and the glass edges follow the saved state
 
     @Slot(str, result=bool)
     def isColor(self, value: str) -> bool:
@@ -1104,7 +1108,7 @@ class Backend(QObject):
             return True
         return self._has_menu
 
-    @Property(int, notify=targetsChanged)
+    @Property(int, notify=targetStatesChanged)
     def activeTargetCount(self) -> int:
         return sum(1 for t in self._targets if t["available"] and self._s.target_enabled(t["id"]))
 
@@ -1223,9 +1227,9 @@ class Backend(QObject):
         self._s = replace(self._s, targets=targets)
         self._rebuild_tokens()   # the glass target decides which edges the theme draws
         self.settingsChanged.emit()
-        self.targetsChanged.emit()
+        self.targetStatesChanged.emit()
 
-    @Property("QVariantMap", notify=targetsChanged)
+    @Property("QVariantMap", notify=targetStatesChanged)
     def targetStates(self) -> dict:
         """Target id -> on, for the preview (a missing id is on)."""
         return {k: bool(v) for k, v in self._s.targets.items()}
