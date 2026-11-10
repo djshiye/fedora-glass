@@ -84,7 +84,7 @@ Card {
                             Image {
                                 anchors.fill: parent
                                 visible: Backend.wallpaper !== ""
-                                source: Backend.wallpaper !== "" ? "file://" + Backend.wallpaper : ""
+                                source: Backend.wallpaper
                                 sourceSize.width: 480
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true

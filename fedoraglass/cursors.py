@@ -31,9 +31,9 @@ class CursorStyle:
 
 
 STYLES: tuple[CursorStyle, ...] = (
-    CursorStyle("fedora-glass-light", "Glass Light", "Frosted glass with a dark rim",
+    CursorStyle("fedora-glass-light", "Glass Light", "Frosted glass, dark rim",
                 "Fedora Glass, from Bibata by Abdulkaiz Khatri · GPL-3.0"),
-    CursorStyle("fedora-glass-dark", "Glass Dark", "Smoked glass with a light rim",
+    CursorStyle("fedora-glass-dark", "Glass Dark", "Smoked glass, light rim",
                 "Fedora Glass, from Bibata by Abdulkaiz Khatri · GPL-3.0"),
     CursorStyle("fedora-glass-bibata-ice", "Bibata Ice", "Rounded, white",
                 "Bibata by Abdulkaiz Khatri · GPL-3.0"),
