@@ -840,6 +840,11 @@ def _flatpak_apply(env: Env, target: str, a: FlatpakOverride, backup: Backup) ->
             fs.append(f)
             if f not in rec["filesystems"]:
                 rec["filesystems"].append(f)
+    for f in a.drop:
+        if f in rec["filesystems"]:     # only a grant Fedora Glass added, never the user's own
+            rec["filesystems"].remove(f)
+            if f in fs:
+                fs.remove(f)
     _set_fs(cp, fs)
     for k, v in a.env:
         if not cp.has_section("Environment"):
