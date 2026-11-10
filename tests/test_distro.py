@@ -326,3 +326,49 @@ def test_deb_upgrade_from_conffile_versions(tmp_path):
     assert pref.read_text() == (PKG / "deb/fedora-glass.pref").read_text()
     assert not pref.with_name(pref.name + ".dpkg-remove").exists()
 
+
+def test_rpm_needs_gnome_50_like_the_deb():
+    spec = (PKG / "fedora-glass.spec").read_text()
+    assert spec.count("Requires:       gnome-shell >= 50~\n") == 2
+    assert "Requires:       gnome-shell\n" not in spec
+    assert "gnome-shell (>= 50~)" in (PKG / "deb/control.in").read_text()
+
+
+def _install_sh(tmp_path, fakes, *args):
+    bin_ = tmp_path / "fakebin"
+    bin_.mkdir(exist_ok=True)
+    for name, body in fakes.items():
+        (bin_ / name).write_text("#!/bin/sh\n" + body + "\n")
+        (bin_ / name).chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    return subprocess.run(["bash", str(ROOT / "install.sh"), *args], capture_output=True, text=True,
+                          timeout=120, stdin=subprocess.DEVNULL,
+                          env={"PATH": f"{bin_}:/usr/bin:/bin", "HOME": str(home)}), home
+
+
+@pytest.mark.parametrize("fakes, remove", [
+    ({"rpm": '[ "$2" = fedora-glass ]'}, "sudo dnf remove fedora-glass"),
+    ({"rpm": "exit 1", "dpkg-query": "printf 'install ok installed'"}, "sudo apt remove fedora-glass"),
+    ({"rpm": "exit 1", "dpkg-query": "exit 1", "pacman": '[ "$2" = fedora-glass ]'}, "sudo pacman -R fedora-glass"),
+])
+def test_install_sh_refuses_when_the_package_is_installed(tmp_path, fakes, remove):
+    """A copy in the home folder would take the place of the package's launcher, app-grid
+    entry and watcher, and keep running an older Fedora Glass after every update."""
+    if os.geteuid() == 0:
+        pytest.skip("install.sh refuses root first")
+    out, home = _install_sh(tmp_path, fakes, "--no-gui")
+    assert out.returncode == 1
+    assert "already installed as a package" in out.stdout and remove in out.stdout
+    assert "--alongside-package" in out.stdout
+    assert not any(home.iterdir())          # nothing written
+
+
+def test_install_sh_option_for_developers():
+    s = (ROOT / "install.sh").read_text()
+    assert "--alongside-package) alongside=1;;" in s
+    assert 'if [[ -n "$pkg" && $alongside -eq 0 ]]; then' in s
+    # A removed package that left its settings behind (dpkg's config-files) doesn't count.
+    assert "grep -q 'ok installed'" in s
+    # The check comes before anything is installed.
+    assert s.index("already installed as a package") < s.index("# ---- system packages")

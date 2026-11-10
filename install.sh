@@ -4,6 +4,9 @@
 #
 #   ./install.sh            install, then open the customizer
 #   ./install.sh --no-gui   install only
+#   ./install.sh --alongside-package
+#                           install even though the fedora-glass package is installed
+#                           (for working on Fedora Glass itself)
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +15,14 @@ config="${XDG_CONFIG_HOME:-$HOME/.config}"
 prefix="$data/liquid-glass"
 bin="$HOME/.local/bin"
 open_gui=1
-[[ "${1:-}" == "--no-gui" ]] && open_gui=0
+alongside=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-gui) open_gui=0;;
+    --alongside-package) alongside=1;;
+    *) echo "Unknown option: $arg (see the top of install.sh)" >&2; exit 2;;
+  esac
+done
 
 say() { printf '\033[1m%s\033[0m\n' "$*"; }
 
@@ -24,6 +34,27 @@ fi
 case "$prefix$bin" in
   *[!A-Za-z0-9._/@+-]*) echo "Your home or data folder path has spaces or special characters ($prefix). Please install manually." >&2; exit 1;;
 esac
+# ---- already installed as a package? ------------------------------------------------
+# This copy's launcher, app-grid entry and dark/light watcher in your home folder would
+# take the place of the package's, and keep running this older copy after every update.
+pkg=""
+if command -v rpm >/dev/null && { rpm -q fedora-glass || rpm -q liquid-glass; } >/dev/null 2>&1; then
+  pkg="sudo dnf remove fedora-glass"
+elif command -v dpkg-query >/dev/null && dpkg-query -W -f='${Status}' fedora-glass 2>/dev/null | grep -q 'ok installed'; then
+  pkg="sudo apt remove fedora-glass"
+elif command -v pacman >/dev/null && pacman -Q fedora-glass >/dev/null 2>&1; then
+  pkg="sudo pacman -R fedora-glass"
+fi
+if [[ -n "$pkg" && $alongside -eq 0 ]]; then
+  say "Fedora Glass is already installed as a package on this PC."
+  echo "Nothing was changed. The package updates itself with your system updates, so there is"
+  echo "no need to install it from here: open Fedora Glass from the app grid."
+  echo "To use this copy instead, remove the package first ($pkg), then run ./install.sh again."
+  echo "(Working on Fedora Glass itself? ./install.sh --alongside-package installs it anyway;"
+  echo " your copy then takes the package's place until you run ./uninstall.sh.)"
+  exit 1
+fi
+
 # ---- system packages ------------------------------------------------------------
 # PySide6: the customizer app. adw-gtk3: GTK 3 apps. Kvantum: Qt apps. User Themes: lets
 # GNOME Shell load the theme. Named differently on each Linux.
