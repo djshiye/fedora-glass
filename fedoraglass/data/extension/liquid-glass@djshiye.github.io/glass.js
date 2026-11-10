@@ -91,6 +91,8 @@ uniform float solid;             // 1: the glass fills its pane fully (a full-sc
 uniform float haze;              // 0..1, dark glass: a grey smoke in the glass itself, so it reads as a pane over black
 uniform float ceil_y;            // 0 = off; else the brightest the glass may get (linear Y),
                                  // so white text on it stays readable over any backdrop
+uniform float floor_y;           // 0 = off; light glass: the darkest it may get (linear Y),
+                                 // so dark text on it stays readable over any backdrop
 uniform float edge_l;            // 1 where that side touches the screen edge
 uniform float edge_t;
 uniform float edge_r;
@@ -261,6 +263,38 @@ float squircleSlope(float x) {
     return x3 / max(pow(k, 0.75), 0.03);
 }
 
+// How far a ray through the rounded edge moves sideways, per px of glass, x of
+// the way down the bevel (0 on the flat top, 1 at the edge), along the edge's normal.
+float bendAt(float x, float squircle) {
+    float s = squircle > 0.5 ? squircleSlope(x) * 1.6 : x / max(sqrt(max(1.0 - x * x, 0.0)), 0.06);
+    vec3 R = refract(vec3(0.0, 0.0, -1.0), normalize(vec3(s, 0.0, 1.0)), 1.0 / IOR);
+    return -R.x / max(-R.z, 0.2);
+}
+
+// The share of the bend to keep at x so the backdrop never folds over.
+// Across the bevel each pixel shows the backdrop a bend further in. Near the
+// edge the bend grows faster than the pixels step outwards, so going out the
+// shown spot turned back inwards: a straight line behind a menu became a
+// hairpin loop and the panel's top edge hooked every line (1.5.17). Here the
+// bend follows the lens until it would grow faster than 0.85 px per px, and
+// from there grows at that rate: the edge still squeezes the backdrop in, in
+// order. The bend is convex in x, so that point is found by halving.
+float unfold(float x, float th, float bevel, float squircle) {
+    float K = 0.85 * bevel / max(th, 1e-3);
+    float lo = 0.0, hi = 1.0;
+    for (int i = 0; i < 9; i++) {
+        float m = 0.5 * (lo + hi);
+        if (bendAt(m + 0.004, squircle) - bendAt(m - 0.004, squircle) > K * 0.008)
+            hi = m;
+        else
+            lo = m;
+    }
+    if (x <= lo)
+        return 1.0;
+    float g = bendAt(x, squircle);
+    return min(1.0, (bendAt(lo, squircle) + K * (x - lo)) / max(g, 1e-5));
+}
+
 // A Gaussian-blurred edge: 1 well inside, 0.5 on the edge, 0 well outside, for
 // a signed distance d and a blur sigma. erf by Winitzki's approximation.
 float softEdge(float d, float sigma) {
@@ -354,9 +388,13 @@ void main() {
     // the light, so it reads as lifted rather than outlined.
     float s = 0.0;
     if (shadow > OFF && pad > 1.0 && sd > -0.5) {
-        float spread = min(8.0, pad * 0.3);
-        float ds = sdRoundRect(cc + L * min(5.0, pad * 0.2), hh, r);
-        s = shadow * 0.55 * softEdge(ds, spread);
+        // Over a bright backdrop (a white wallpaper) a dark shadow reads as a heavy
+        // smudge around the pane: there it is lighter and tighter, as a shadow on
+        // a white table is a thin soft line, not a dark halo.
+        float onBright = smoothstep(0.5, 0.9, fg_bl);
+        float spread = min(8.0, pad * 0.3) * (1.0 - 0.4 * onBright);
+        float ds = sdRoundRect(cc + L * min(5.0, pad * 0.2) * (1.0 - 0.5 * onBright), hh, r);
+        s = shadow * 0.55 * (1.0 - 0.5 * onBright) * softEdge(ds, spread);
     }
     if (sd > 0.5) {
         cogl_color_out = vec4(0.0, 0.0, 0.0, s) * cogl_color_in.a;
@@ -515,15 +553,16 @@ void main() {
 
     // The ray refracted at IOR: the main tap and Beer-Lambert below share it.
     vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
-    vec2 thru = Rt.xy * th / max(-Rt.z, 0.2);
+    float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bevel, lens_share) : 1.0;
+    vec2 thru = Rt.xy * th / max(-Rt.z, 0.2) * keep;
     vec4 col;
     if (th > 0.01) {
         if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5 && lite > 0.5) {
             // Lighter glass: three wavelengths keep the rainbow edge at 3/5 of the reads.
             float B = 0.08 * dispersion;
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
             vec4 s550 = at(px + thru);
-            vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th));
+            vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th) * keep);
             col.r = (0.15 * s550.r + s630.r) / 1.15;
             col.g = s550.g;
             col.b = (s450.b + 0.15 * s550.b) / 1.15;
@@ -531,11 +570,11 @@ void main() {
         } else if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5) {
             // Five wavelengths, each refracted by its own index, then mixed back to RGB.
             float B = 0.08 * dispersion;   // crown glass is ~0.004, dense flint ~0.015: exaggerated, as Apple does
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
-            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th));
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
+            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th) * keep);
             vec4 s550 = at(px + thru);
-            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th));
-            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th));
+            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th) * keep);
+            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th) * keep);
             col.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
             col.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
             col.b = (s450.b + 0.4 * s500.b) / 1.4;
@@ -553,7 +592,17 @@ void main() {
         col = vec4(col.rgb / max(col.a, 1e-3), 1.0);
 
     // Vibrancy and brightness (premultiplied colour).
-    col.rgb = min(vivid(col.rgb, saturation) * brightness, vec3(col.a));
+    // Light glass: colours that are already strong (an orange wallpaper) are only
+    // nudged. Pushed the full way, the stock top bar over a warm wallpaper was a
+    // neon strip, and orange in Activities. Dull colours still get the full lift.
+    // Dark glass keeps it all: its smoke dulls colour, which this makes up for.
+    float sat = saturation;
+    if (light_glass > 0.5 && sat > 1.0) {
+        vec3 sc = col.rgb / max(col.a, 1e-3);
+        float chroma = max(sc.r, max(sc.g, sc.b)) - min(sc.r, min(sc.g, sc.b));
+        sat = mix(sat, min(sat, 1.1), smoothstep(0.15, 0.5, chroma));
+    }
+    col.rgb = min(vivid(col.rgb, sat) * brightness, vec3(col.a));
 
     // Beer-Lambert: light crossing the rounded edge slants through more glass than
     // light crossing the flat top, and soda-lime glass takes a little more red
@@ -623,7 +672,17 @@ void main() {
         const vec3 Yw = vec3(0.2126, 0.7152, 0.0722);
         // The outer part of the lens holds no text: there it may stay brighter,
         // so the bent backdrop reads in its own colours.
-        float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge);
+        // Only colour gets this: over white or grey the lighter outer lens was a
+        // soft grey band all round the pane, a smudged frame on a white wallpaper.
+        float hue = max(st.r, max(st.g, st.b)) - min(st.r, min(st.g, st.b));
+        float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge * smoothstep(0.06, 0.3, hue));
+        // Over white everything bright met the same ceiling, so the pane was one
+        // flat grey slab. The ceiling now falls off a little away from the light
+        // (to 70 % on the far side, never above it), so even over white the pane
+        // keeps the soft light-to-shade of the glass.
+        vec2 sq2 = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
+        if (rim > OFF)      // panes with a lit edge; the lock screen's sheet stays even
+            cy *= mix(0.7, 1.0, smoothstep(-0.9, 0.9, dot(sq2, L)));
         float knee = 0.6 * cy;
         // The weights add up to 1, so a pixel whose brightest channel is below the
         // knee (in display values) is below it in Y too, and is left as it is. Over
@@ -646,6 +705,31 @@ void main() {
                 float room = cy - knee;
                 float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
                 col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+            }
+        }
+    }
+
+    // A floor on brightness, the light glass's mirror of the ceiling: dark text on
+    // clear light glass over a vivid or dark backdrop (a purple wallpaper put the
+    // panel clock at 3.3:1) lightens towards the glass's own milk, so the text
+    // keeps 5:1 under the theme's veil. Lighter backdrops pass unchanged; darker
+    // ones ease into the floor, keeping some of their colour. By the pixel, not
+    // the area: light glass is blurred enough that a thin line is no text's backdrop.
+    if (floor_y > OFF && light_glass > 0.5) {
+        vec3 st = col.rgb / max(col.a, 1e-3);
+        const vec3 Yf = vec3(0.2126, 0.7152, 0.0722);
+        float knee = min(1.5 * floor_y, 0.95);
+        // A pixel under the knee in Y has a channel under it: the rest skip the pows.
+        if (min(st.r, min(st.g, st.b)) < pow(knee, 1.0 / 2.2)) {
+            vec3 lin = pow(max(st, vec3(0.0)), vec3(2.2));
+            float Yp = dot(lin, Yf);
+            if (Yp < knee) {
+                float room = knee - floor_y;
+                float Yc = knee - room * (1.0 - exp(-(knee - Yp) / room));
+                vec3 mk = pow(vec3(milk_r, milk_g, milk_b), vec3(2.2));
+                float Ym = dot(mk, Yf);
+                float k = clamp((Yc - Yp) / max(Ym - Yp, 1e-4), 0.0, 1.0);
+                col.rgb = pow(mix(lin, mk, k), vec3(1.0 / 2.2)) * col.a;
             }
         }
     }
@@ -1410,6 +1494,7 @@ export const DEFAULT_LOOK = Object.freeze({
     lightAngle: -125,   // degrees, -90 = from the top: where the reflections are strongest
     bleed: 0.6,         // 0..1, how much the content's colours light up the glass
     ceiling: 0,         // 0 = off; else the brightest the glass may get (linear Y, 0..1)
+    floor: 0,           // 0 = off; light glass: the darkest it may get (linear Y, 0..0.9)
     haze: 0,            // 0..0.7, dark glass: grey smoke in the glass, so it shows over black
     solid: 0,           // 1: fill the pane fully, for a full-screen sheet
     pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
@@ -2121,6 +2206,7 @@ class FedoraGlassPane extends Clutter.Actor {
             hl: Math.max(0, Math.min(1, L.highlight)),
             solid: L.solid > 0.5 ? 1 : 0,
             ceil_y: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.ceiling)),
+            floor_y: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.9, L.floor ?? 0)),
             haze: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.7, L.haze)),
             hl_x: Math.cos(a), hl_y: Math.sin(a),
             env_reach: ENV_REACH,

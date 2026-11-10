@@ -103,6 +103,29 @@ vec2 throughGlass(vec3 N, float n, float th) {
     return R.xy * th / max(-R.z, 0.2);
 }
 
+// How far a ray through the squircle edge moves sideways, per px of glass, x of
+// the way down the bevel, and the share of it that keeps the backdrop from folding
+// over (lines turned into hairpin loops near the edge): as in glass.js.
+float bendAt(float x) {
+    vec3 R = refract(vec3(0.0, 0.0, -1.0), normalize(vec3(squircleSlope(x) * 1.6, 0.0, 1.0)), 1.0 / IOR);
+    return -R.x / max(-R.z, 0.2);
+}
+
+float unfold(float x, float th, float bevel) {
+    float K = 0.85 * bevel / max(th, 1e-3);
+    float lo = 0.0, hi = 1.0;
+    for (int i = 0; i < 9; i++) {
+        float m = 0.5 * (lo + hi);
+        if (bendAt(m + 0.004) - bendAt(m - 0.004) > K * 0.008)
+            hi = m;
+        else
+            lo = m;
+    }
+    if (x <= lo)
+        return 1.0;
+    return min(1.0, (bendAt(lo) + K * (x - lo)) / max(bendAt(x), 1e-5));
+}
+
 float cauchy(float um, float B) {
     return IOR + B * (1.0 / (um * um) - 1.0 / 0.3025);
 }
@@ -230,20 +253,21 @@ void main() {
 
     vec2 px = c + p / max(magnify, 0.01);
     vec4 col = vec4(0.0);
+    float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bev) : 1.0;
     if (mode < 1.5) {
         if (th > 0.01 && fringe > 0.001 && slope > 0.02) {
             float B = 0.08 * fringe;
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
-            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th));
-            vec4 s550 = at(px + throughGlass(N, IOR, th));
-            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th));
-            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th));
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
+            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th) * keep);
+            vec4 s550 = at(px + throughGlass(N, IOR, th) * keep);
+            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th) * keep);
+            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th) * keep);
             col.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
             col.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
             col.b = (s450.b + 0.4 * s500.b) / 1.4;
             col.a = (s450.a + s500.a + s550.a + s600.a + s650.a) / 5.0;
         } else if (th > 0.01) {
-            col = at(px + throughGlass(N, IOR, th));
+            col = at(px + throughGlass(N, IOR, th) * keep);
         } else {
             col = at(px);
         }

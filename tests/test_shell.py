@@ -54,6 +54,25 @@ GLASS_SURFACES = (".popup-menu-content", ".quick-settings", ".notification-banne
                   ".spawn-menu-popup .popup-menu-content", ".spawn-context-menu .popup-menu-content")
 
 
+def test_clear_light_glass_has_a_brightness_floor(fake_env):
+    """Light glass carries dark text: over a vivid or dark wallpaper it lightens itself
+    up to a floor that keeps 5:1 under the theme's veil (the panel clock was 3.3:1)."""
+    s = Settings(frost=0.0)
+    t = context(fake_env, dark=False).tokens
+    cfg = rg.config(s, t)
+    for name in ("panel", "calendar", "quicksettings", "arcmenu"):
+        look = cfg["parts"][name]["look"]
+        floor, (vr, vg, vb, a) = look["floor"], look["veil"]
+        assert 0 < floor < 0.9
+        # the glass at its floor, under the veil (display values), against the text colour
+        v = a * (0.2126 * vr ** 2.2 + 0.7152 * vg ** 2.2 + 0.0722 * vb ** 2.2) ** (1 / 2.2) + (1 - a) * floor ** (1 / 2.2)
+        assert (v ** 2.2 + 0.05) / (t.fg.luminance() + 0.05) >= 4.9
+    assert cfg["menus"]["look"]["floor"] == cfg["parts"]["quicksettings"]["look"]["floor"]
+    # dark glass gets a ceiling instead, and no floor
+    dark = rg.config(s, context(fake_env, dark=True).tokens)
+    assert all("floor" not in dark["parts"][n]["look"] for n in ("panel", "calendar"))
+
+
 @pytest.mark.parametrize("dark", [True, False])
 def test_glass_surfaces_keep_their_css_shadow_tight(dark):
     """St cuts a wide box-shadow blur off sharply (a hard line on a smooth wallpaper,
