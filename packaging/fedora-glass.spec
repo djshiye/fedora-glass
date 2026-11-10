@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.18
+Version:        1.5.19
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -198,6 +198,12 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.19-1
+- Glass memory: pictures kept at the screen's real size, about 60 % less memory per window at 125 % scaling
+- Glass shader: 13-28 % cheaper per pane with the same look, and no second full redraw when one frame already drew it all
+- Dragging a window repaints only the moving glass, not the other screen and every window behind it
+- Less CPU when idle: a clock or other small change in a window no longer redraws all the glass over it (GNOME 51), and a window that never stops changing is followed at half rate
+- Faster Apply and lock screen: settings read in-process, unchanged files left alone
 * Mon Nov 09 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.18-1
 - Full-screen games and videos get direct display and variable refresh rate again: the window glass steps out of full-screen windows
 - Glass of windows that are minimized, on another workspace or behind a maximized window frees its memory (about 230 MB per maximized window on 1440p screens) and comes back as soon as the window shows

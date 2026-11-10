@@ -274,7 +274,7 @@ test('build adds the vertex snippet, then the replacing fragment snippet', () =>
     assert.equal(new Shader(shaderSource('glass.js', 'SHADER')).coglVertex(), null);
 });
 
-test('GNOME 51 adds the vertex snippet to each new pipeline of the glass effect', () => {
+test('the lens pipeline every pane copies has the vertex snippet too', () => {
     const src = code('glass.js');
-    assert.match(src, /if \(!SHELL_GLSL\) \{\s*const p = this\.get_pipeline\?\.\(\);\s*if \(p && p !== this\._vertexOn\) \{\s*p\.add_snippet\(GLASS\.coglVertex\(\)\);/);
+    assert.match(src, /lensTemplate\.add_snippet\(GLASS\.cogl\(\)\);\s*lensTemplate\.add_snippet\(GLASS\.coglVertex\(\)\);/);
 });

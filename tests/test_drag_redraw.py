@@ -21,7 +21,9 @@ def test_copies_report_only_their_clip_to_clutter():
     # every window behind were repainted on every frame.
     assert "new Clutter.Clone(" not in GLASS
     assert "new GlassClone({source: src})" in body("setSources")
-    vol = body("vfunc_get_paint_volume")
+    cls = re.search(r"class FedoraGlassClone extends Clutter\.Clone \{(.*?)\n\}\);", GLASS, re.S)
+    assert cls, "the glass copy class is gone"
+    vol = re.search(r"vfunc_get_paint_volume\([^)]*\) \{\n(.*?)\n    \}\n", cls.group(1) + "\n", re.S).group(1)
     assert "this.get_clip()" in vol and "return true;" in vol
 
 
