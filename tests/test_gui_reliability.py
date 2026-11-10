@@ -718,3 +718,12 @@ def test_preview_clock_ticks_each_minute_only_while_the_window_shows(qml):
         assert tick.property("running") and "3:04" not in preview.property("clock")
     finally:
         win.close()
+
+
+def test_search_results_float_above_the_page(qml):
+    """They were drawn under the preview, which cut the list off at the sidebar's edge."""
+    win = _window(qml)
+    try:
+        assert _find(win, "sidebar").z() > _find(win, "pages").parentItem().z()
+    finally:
+        win.close()

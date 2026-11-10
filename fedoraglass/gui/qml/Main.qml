@@ -256,6 +256,8 @@ Window {
         Sidebar {
             id: sidebar
             objectName: "sidebar"
+            // Above the pages: search results float out over them (they were drawn under the preview).
+            z: 1
             width: 232
             height: parent.height
             pages: win.pageList
@@ -930,7 +932,7 @@ Window {
         readonly property bool removal: what === "remove"
         title: ({ remove: "Fedora Glass is being removed", apply: "Your look is being applied",
                   revert: "Your original look is coming back", login: "The login screen is being updated" })[what] || ""
-        subtitle: removal ? "Closing now could stop it half way. Wait until it's done: the window says when."
+        subtitle: removal ? "Closing now could stop it half way. Fedora Glass tells you when it's done."
                 : what === "login" ? "It waits for your password. Closing now would stop it half way."
                 : "Closing now would stop it half way. It only takes a moment."
         iconName: "info"
