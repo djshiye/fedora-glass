@@ -60,7 +60,6 @@ Card {
         return ""
     }
 
-    padding: 16
     Column {
         width: parent.width
         spacing: 12

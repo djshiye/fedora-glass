@@ -66,10 +66,10 @@ SettingsPage {
                 summary: "Bend, rainbow edge, colour bleed and 2 more"
                 Column {
                     width: parent.width
-                    spacing: 16
+                    spacing: 2
                     Item {
                         width: parent.width
-                        height: Math.max(status.implicitHeight, reset.visible ? reset.height : 0)
+                        height: Math.max(status.implicitHeight + 8, reset.visible ? reset.height : 0)
                         Text {
                             id: status
                             objectName: "glassStatus"
@@ -95,6 +95,7 @@ SettingsPage {
                     }
                     LabeledSlider {
                         objectName: "bend"
+                        inline: true
                         label: "Bend"
                         value: Backend.refraction
                         defaultValue: Backend.defaults.refraction
@@ -103,6 +104,7 @@ SettingsPage {
                     }
                     LabeledSlider {
                         objectName: "rainbowEdge"
+                        inline: true
                         label: "Rainbow edge"
                         value: Backend.dispersion
                         defaultValue: Backend.defaults.dispersion
@@ -111,6 +113,7 @@ SettingsPage {
                     }
                     LabeledSlider {
                         objectName: "colourThroughGlass"
+                        inline: true
                         label: "Colour through glass"
                         value: Backend.vibrancy
                         defaultValue: Backend.defaults.vibrancy
@@ -119,6 +122,7 @@ SettingsPage {
                     }
                     LabeledSlider {
                         objectName: "colourBleed"
+                        inline: true
                         label: "Colour bleed"
                         value: Backend.bleed
                         defaultValue: Backend.defaults.bleed
@@ -127,6 +131,7 @@ SettingsPage {
                     }
                     LabeledSlider {
                         objectName: "lightFollowsPointer"
+                        inline: true
                         label: "Light follows pointer"
                         value: Backend.pointerLight
                         defaultValue: Backend.defaults.pointer_light
@@ -144,22 +149,10 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 14
-            Row {
-                width: parent.width
-                spacing: 10
-                SectionTitle {
-                    width: Math.min(implicitWidth, parent.width)
-                    text: "Where the glass shows"
-                    resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows"]
-                }
-            }
-            Text {
-                width: parent.width
-                text: "Each one costs some graphics power. Turn it off where you don't need it."
-                wrapMode: Text.WordWrap
-                color: Theme.textFaint
-                font.pixelSize: Theme.fsSmall
-                topPadding: -8
+            SectionTitle {
+                text: "Where the glass shows"
+                caption: "Each one costs some graphics power. Turn it off where you don't need it."
+                resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows"]
             }
             Flow {
                 width: parent.width

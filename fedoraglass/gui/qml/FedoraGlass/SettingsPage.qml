@@ -65,7 +65,7 @@ Item {
             return null
         if (root.objectName === name)
             return root
-        const kids = root.childItems || []
+        const kids = root.children || []
         for (let i = 0; i < kids.length; ++i) {
             const hit = findNamed(kids[i], name)
             if (hit)

@@ -234,7 +234,8 @@ def main(argv: list[str] | None = None) -> int:
                     side.setProperty("contentY", args.scroll)
             if args.reveal:
                 from PySide6.QtCore import Q_ARG, QMetaObject
-                QMetaObject.invokeMethod(win, "goTo", Q_ARG("QVariant", page), Q_ARG("QVariant", args.reveal))
+                ok = QMetaObject.invokeMethod(win, "goTo", Q_ARG("QVariant", page), Q_ARG("QVariant", args.reveal))
+                print(f"reveal {args.reveal}: {ok}", flush=True)
             if args.lock_preview:
                 from PySide6.QtCore import QObject
                 lp = win.findChild(QObject, "lockPage")

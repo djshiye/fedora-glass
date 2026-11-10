@@ -16,11 +16,19 @@ Item {
     readonly property bool hasDefault: !isNaN(defaultValue)
     // Within half a step counts as the default: a dragged slider lands on 0.449 for 0.45.
     readonly property bool atDefault: !hasDefault || Math.abs(value - defaultValue) <= Math.max(stepSize, 1e-6) / 2
+    // On one line: the label on the left, the slider in the middle, the value on the right
+    // (the compact rows inside folds).
+    property bool inline: false
+    property real labelWidth: 170
     signal moved(real value)
     width: parent ? parent.width : 300
-    implicitHeight: 20 + 6 + slider.height
+    implicitHeight: inline ? 40 : 20 + 6 + slider.height
 
     Text {
+        id: labelText
+        anchors.verticalCenter: root.inline ? parent.verticalCenter : undefined
+        width: root.inline ? root.labelWidth - 12 : implicitWidth
+        elide: Text.ElideRight
         text: root.label
         color: root.enabled ? Theme.text : Theme.textFaint
         font.pixelSize: Theme.fsBody
@@ -31,7 +39,7 @@ Item {
         objectName: "sliderDefault"
         visible: !root.atDefault && root.enabled
         anchors.right: valueText.left
-        anchors.rightMargin: 10
+        anchors.rightMargin: root.inline ? 8 : 10
         anchors.verticalCenter: valueText.verticalCenter
         tip: "Back to the default, " + root.format(root.defaultValue)
         onClicked: root.moved(root.defaultValue)
@@ -39,6 +47,9 @@ Item {
     Text {
         id: valueText
         anchors.right: parent.right
+        anchors.verticalCenter: root.inline ? parent.verticalCenter : undefined
+        width: root.inline ? Math.max(44, implicitWidth) : implicitWidth
+        horizontalAlignment: Text.AlignRight
         text: root.format(slider.value)
         color: Theme.textDim
         font.pixelSize: 13
@@ -48,8 +59,10 @@ Item {
     LgToolTip { shown: (hover.hovered || slider.visualFocus) && !slider.pressed && !reset.hovered; text: root.tip }
     LgSlider {
         id: slider
-        y: 26
-        width: parent.width
+        y: root.inline ? (root.height - height) / 2 : 26
+        x: root.inline ? root.labelWidth : 0
+        width: root.inline ? parent.width - root.labelWidth - valueText.width - 12
+                             - (reset.visible ? reset.width + 8 : 0) : parent.width
         from: root.from
         to: root.to
         stepSize: root.stepSize
