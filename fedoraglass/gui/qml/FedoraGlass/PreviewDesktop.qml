@@ -1298,7 +1298,7 @@ Item {
         }
     }
 
-    // The pointer of the pointer-light demo: the style picked on the Look page, if any.
+    // The pointer of the pointer-light demo: the style picked on the Pointer and desktop page, if any.
     readonly property string cursorStyle: Backend.cursorTheme
     onCursorStyleChanged: if (!hover.hovered) demoPointer.restart()
     // Over the preview, the app's own pointer takes the picked style before Apply.

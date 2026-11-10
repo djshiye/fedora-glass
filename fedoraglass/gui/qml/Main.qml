@@ -395,7 +395,6 @@ Window {
                     objectName: "previewPane"
                     parent: pages.slot || previewParking
                     anchors.fill: parent
-                    outlinedPart: parent && parent.outlinedPart !== undefined ? parent.outlinedPart : ""
                 }
             }
 

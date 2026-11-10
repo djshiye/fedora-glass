@@ -14,8 +14,8 @@ Item {
     property var format: (v) => Math.round(v * 100) + "%"
     property string tip: ""
     property string autoText: "Auto"    // the chip's label ("Global" for per-part values)
-    property string autoTip: "Follows the Liquid to Frosted slider"
-    property string resetTip: "Go back to following the Liquid to Frosted slider"
+    property string autoTip: "Follows How much glass on the Glass page"
+    property string resetTip: "Go back to following How much glass"
     // One row: label on the left, slider in the middle, value and chip on the right.
     property bool inline: false
     property real labelWidth: 150

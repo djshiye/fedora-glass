@@ -128,6 +128,13 @@ SettingsPage {
             x: 8
             width: parent.width - 16
             spacing: 0
+            SectionTitle {
+                width: parent.width
+                topPadding: 8
+                bottomPadding: 4
+                text: "Glass in motion"
+                resetKeys: ["liquid_motion", "menu_grow", "hover_glide"]
+            }
             SwitchRow {
                 objectName: "liquidMotion"
                 label: "Liquid motion"

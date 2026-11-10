@@ -52,7 +52,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
     shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
     shot.add_argument("--preview-scene", choices=("desktop", "quicksettings", "calendar", "overview"),
-                      help="what the Look page's preview shows")
+                      help="what the preview shows")
     shot.add_argument("--preview-pointer", metavar="X,Y",
                       help="hold a pointer over the preview at these px of its 1920x1080 desktop")
     shot.add_argument("--preview-set", metavar="PROP=JSON", action="append", default=[],

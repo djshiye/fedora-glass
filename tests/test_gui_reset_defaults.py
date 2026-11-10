@@ -20,7 +20,7 @@ from PySide6.QtQuick import QQuickWindow  # noqa: E402,F401 - the window comes b
 
 from fedoraglass.settings import Settings  # noqa: E402
 from tests.test_gui_backend import app, home, make_backend  # noqa: E402,F401 - fixtures
-from tests.test_gui_polish import _backend, _spin, _window  # noqa: E402
+from tests.test_gui_polish import _backend, _spin, _visit_all, _window  # noqa: E402
 
 
 def _items(win):
@@ -99,6 +99,7 @@ def test_corner_roundness_shows_its_default_and_goes_back(qml):
     try:
         win.show()
         _spin(200)
+        _visit_all(win, "colour")
         row = _slider_row(win, "Corner roundness")
         pill = _child(row, "sliderDefault")
         mark = _child(row, "defaultMark")
@@ -123,6 +124,7 @@ def test_card_reset_puts_back_only_its_own_card(qml):
     try:
         win.show()
         _spin(200)
+        _visit_all(win, "colour")
         title = _title(win, "Tint and corners")
         reset = _child(title, "cardReset")
         assert not reset.property("visible")
@@ -148,6 +150,7 @@ def test_every_slider_and_card_has_a_way_back(qml):
     try:
         win.show()
         _spin(200)
+        _visit_all(win)
         sliders = [it for it in _items(win) if it.property("hasDefault") is not None]
         assert len(sliders) >= 10
         missing = [it.property("label") for it in sliders if not it.property("hasDefault")]
@@ -155,6 +158,8 @@ def test_every_slider_and_card_has_a_way_back(qml):
         keys = set()
         for it in _items(win):
             rk = it.property("resetKeys")
+            if rk is None and it.objectName() == "cardReset":     # a Reset pill of its own
+                rk = it.property("keys")
             if rk is not None:
                 keys.update(rk.toVariant() if hasattr(rk, "toVariant") else rk)
         # Settings with their own way back elsewhere: the Auto/Global chips (opacity, blur,
@@ -174,6 +179,7 @@ def test_reset_all_is_in_plain_sight(qml):
     try:
         win.show()
         _spin(200)
+        _visit_all(win, "advanced")
         btn = next(it for it in _items(win) if it.objectName() == "resetAll")
         assert not btn.property("enabled"), "nothing to reset at the defaults"
         b.setProperty("radius", 0)

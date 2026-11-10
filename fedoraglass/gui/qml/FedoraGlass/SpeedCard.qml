@@ -79,11 +79,12 @@ Card {
                     Text { text: "Speed"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                     ResetButton {
                         objectName: "cardReset"
+                        readonly property var keys: ["glass_quality"]
                         visible: Backend.changedFromDefault.indexOf("glass_quality") >= 0
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Reset"
                         tip: "Back to Auto (Apply to use it)"
-                        onClicked: Backend.resetSettings(["glass_quality"])
+                        onClicked: Backend.resetSettings(keys)
                     }
                 }
                 Text {

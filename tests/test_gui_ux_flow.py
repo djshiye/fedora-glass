@@ -186,7 +186,7 @@ def test_footer_says_restart_to_finish_with_a_restart_button(qml):
         assert "GNOME asks" in button.property("tip")
         b.setProperty("frost", 0.91 if b.property("frost") != 0.91 else 0.5)    # unapplied changes win
         _spin()
-        assert text.property("text") == "Unapplied changes"
+        assert text.property("text") == "1 change not applied yet"
         assert not button.property("visible")
     finally:
         b._set_restart_needed(False)
@@ -335,6 +335,8 @@ def test_lock_button_reads_apply_and_lock_with_unapplied_changes(qml):
     b = _probe(qml)
     win = _create(qml, "Main.qml")
     try:
+        win.setProperty("page", "lock")
+        _spin()
         lock = _find(win, "lockNow")
         assert lock.property("kind") == "secondary"
         assert lock.property("text") == "Lock now"

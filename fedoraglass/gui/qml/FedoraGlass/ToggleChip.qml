@@ -30,6 +30,15 @@ C.AbstractButton {
             Item {
                 width: 15; height: 15
                 anchors.verticalCenter: parent.verticalCenter
+                Rectangle {     // off: an empty ring where the tick goes, so the gap reads as a box to tick
+                    anchors.centerIn: parent
+                    width: 13; height: 13; radius: 6.5
+                    color: "transparent"
+                    border.width: 1.5
+                    border.color: control.hovered ? Theme.textDim : Theme.textFaint
+                    opacity: control.on ? 0 : 0.8
+                    Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+                }
                 Icon {
                     anchors.centerIn: parent
                     name: "check"

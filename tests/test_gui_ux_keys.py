@@ -14,7 +14,8 @@ pytest.importorskip("PySide6.QtGui")
 pytest.importorskip("PySide6.QtQuick")
 from PySide6.QtQuick import QQuickWindow  # noqa: F401 - the window comes back as a QQuickWindow
 
-LOOK = Path(__file__).resolve().parents[1] / "fedoraglass/gui/qml/FedoraGlass/LookPage.qml"
+QML = Path(__file__).resolve().parents[1] / "fedoraglass/gui/qml/FedoraGlass"
+LOOK = QML / "GlassPage.qml"
 
 
 def _backend(qml):
@@ -53,6 +54,11 @@ def _find(win, name):
             hit = it
         todo.extend(it.childItems())
     return hit
+
+
+def _goto(win, page, ms=200):
+    win.setProperty("page", page)
+    _spin(ms)
 
 
 def _spin(ms=60):
@@ -94,11 +100,12 @@ def win(qml):
 
 def test_enter_presses_the_focused_button_and_the_sheet_gives_focus_back(qml, win):
     from PySide6.QtCore import Qt
-    about, button = _find(win, "aboutSheet"), _find(win, "aboutButton")
+    _goto(win, "about")
+    about, button = _find(win, "aboutSheet"), _find(win, "shortcutsButton")
     button.forceActiveFocus(Qt.TabFocusReason)
     _key(win, Qt.Key_Return)
     _spin(500)
-    assert about.property("opened"), "Enter on the app name opens About"
+    assert about.property("opened"), "Enter on Keyboard shortcuts opens the sheet"
     # About opens on its Close button, with the ring showing (opened from the keyboard).
     focus = win.activeFocusItem()
     assert focus.property("text") == "Close" and focus.property("visualFocus")
@@ -110,9 +117,10 @@ def test_enter_presses_the_focused_button_and_the_sheet_gives_focus_back(qml, wi
 
 def test_enter_leaves_dropdowns_their_own_enter(qml, win):
     from PySide6.QtCore import Qt
+    _goto(win, "motion")
+    _find(win, "eachAnimation").setProperty("expanded", True)
+    _spin(400)
     dd = _find(win, "motionDropdown-open")
-    _find(win, "lookPage").setProperty("jumpSection", "motion")
-    _spin(200)
     dd.forceActiveFocus(Qt.TabFocusReason)
     _key(win, Qt.Key_Return)
     _spin(300)
@@ -122,7 +130,8 @@ def test_enter_leaves_dropdowns_their_own_enter(qml, win):
 
 def test_text_fields_keep_question_mark_and_enter(qml, win):
     from PySide6.QtCore import Qt
-    win.setProperty("pageIndex", 2)
+    _goto(win, "lock")
+    _find(win, "lockMore").setProperty("expanded", True)
     _spin(400)
     field = _find(win, "lockMessage")
     before = field.property("text")
@@ -135,7 +144,7 @@ def test_text_fields_keep_question_mark_and_enter(qml, win):
     assert field.property("text") == before + "?"
     assert win.activeFocusItem() == field
     field.setProperty("text", before)
-    win.setProperty("pageIndex", 0)
+    _goto(win, "home")
 
 
 def test_enter_picks_a_welcome_look(qml, win):
@@ -158,7 +167,7 @@ def test_enter_picks_a_welcome_look(qml, win):
 def test_sheets_open_on_their_safe_button(qml, win):
     from PySide6.QtCore import Qt
     b = _backend(qml)
-    bar = _find(win, "sectionBar")
+    bar = _find(win, "searchField")
     bar.forceActiveFocus(Qt.TabFocusReason)
     b.setProperty("frost", 0.9 if b.property("frost") < 0.85 else 0.2)
     win.close()
@@ -186,6 +195,7 @@ def _group(win, name):
 
 @pytest.mark.parametrize("name", ["swatches", "presetRow", "partRow"])
 def test_chip_and_swatch_rows_are_one_tab_stop(qml, win, name):
+    _goto(win, "advanced" if name == "partRow" else "home")
     if name == "swatches":
         row = _find(win, "accentSystem").parentItem()
         items = [c for c in row.childItems() if c.property("rovingGroup") is not None]
@@ -223,9 +233,8 @@ def test_arrows_move_along_the_swatches_and_enter_picks(qml, win):
 
 def test_arrows_pick_the_part(qml, win):
     from PySide6.QtCore import Qt
+    _goto(win, "advanced")
     row, items = _group(win, "partRow")
-    _find(win, "lookPage").setProperty("jumpSection", "more")
-    _spin(200)
     stop = next(c for c in items if c.property("activeFocusOnTab"))
     stop.forceActiveFocus(Qt.TabFocusReason)
     _key(win, Qt.Key_Right)
@@ -233,21 +242,22 @@ def test_arrows_pick_the_part(qml, win):
     assert win.activeFocusItem().property("selected") is True
 
 
-def test_tab_from_the_section_bar_goes_into_that_section(qml, win):
+def test_search_finds_a_setting_and_lights_it_up(qml, win):
+    """Typing in search lists matching settings; Enter opens the page, opens the fold
+    around the control and hands it the keyboard."""
     from PySide6.QtCore import Qt
-    look, bar, side = _find(win, "lookPage"), _find(win, "sectionBar"), _find(win, "options")
-    bar.forceActiveFocus(Qt.TabFocusReason)
-    _key(win, Qt.Key_Right, n=3)
-    assert look.property("currentSection") == "motion"
-    _key(win, Qt.Key_Tab)
-    _spin(600)
-    motion = _find(win, "section_motion")
-    assert _inside(win.activeFocusItem(), motion)
-    assert side.property("contentY") > 0, "the column stays on Motion"
-    _key(win, Qt.Key_Backtab)
-    _spin(300)
-    assert win.activeFocusItem() == bar
-    assert look.property("currentSection") == "motion"
+    field = _find(win, "searchField")
+    field.forceActiveFocus(Qt.TabFocusReason)
+    for ch in "bend":
+        _key(win, getattr(Qt, "Key_" + ch.upper()))
+    _spin(200)
+    assert _find(win, "searchResults").property("visible")
+    _key(win, Qt.Key_Return)
+    _spin(1200)
+    assert win.property("page") == "glass"
+    assert _find(win, "glassEffects").property("expanded") is True
+    bend = _find(win, "bend")
+    assert _inside(win.activeFocusItem(), bend), "the control gets the keyboard"
 
 
 def test_f1_and_question_mark_open_about_and_ctrl_z_undoes(qml, win):
@@ -283,7 +293,8 @@ def test_wording():
 
 def test_frost_badge_says_solid_at_the_top(qml, win):
     from PySide6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, Qt
-    look = _find(win, "lookPage")
+    _goto(win, "glass")
+    look = _find(win, "glassPage")
 
     def name(v):
         return QMetaObject.invokeMethod(look, "frostName", Qt.DirectConnection,
@@ -295,5 +306,6 @@ def test_frost_badge_says_solid_at_the_top(qml, win):
 
 def test_menu_captions_follow_the_start_menu(qml, win):
     b = _backend(qml)
+    _goto(win, "motion")
     grow = _find(win, "menuGrow")
-    assert ("start menu" in grow.property("caption")) == bool(b.property("hasStartMenu"))
+    assert ("start menu" in grow.property("tip")) == bool(b.property("hasStartMenu"))

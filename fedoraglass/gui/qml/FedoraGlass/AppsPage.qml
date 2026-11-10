@@ -6,6 +6,7 @@ import FedoraGlass.Core
 // apps and extensions that aren't installed fold away into one quiet card at the end.
 Item {
     id: page
+    objectName: "appsPage"
 
     // Survives "Check again": the card is not rebuilt when the lists refresh.
     property bool missingOpen: false

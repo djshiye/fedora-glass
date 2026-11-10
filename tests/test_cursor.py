@@ -289,12 +289,12 @@ def test_picker_pictures_and_trying_a_style(fake_env, qml):
 
 
 def test_picking_a_tile_changes_only_the_setting_until_apply(qml):
-    from tests.test_gui_polish import _backend, _find, _spin, _window
+    from tests.test_gui_polish import _backend, _find, _goto, _spin, _window
     b = _backend(qml)
     win = _window(qml)
     try:
         win.show()
-        _spin()
+        _goto(win, "pointer")
         grid, fun = _find(win, "cursorGrid"), _find(win, "cursorGridFun")
         assert grid is not None and fun is not None
         names = [it.objectName() for g in (grid, fun) for it in g.childItems()

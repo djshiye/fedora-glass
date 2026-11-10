@@ -275,7 +275,7 @@ class Backend(QObject):
         self._dock_name = self._menu_name = ""     # which of them, for the welcome's "Found on this PC"
         # Applied, but the glass (or a Shell part waiting for it) only starts after a restart.
         self._restart_needed = False
-        # "Apply and lock" on the Lock screen page: lock once this Apply finishes well.
+        # "Apply and lock" on the Lock and login page: lock once this Apply finishes well.
         self._lock_after_apply = False
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:

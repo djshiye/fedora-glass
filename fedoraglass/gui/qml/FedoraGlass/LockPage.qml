@@ -97,6 +97,7 @@ SettingsPage {
                     label: "Frost"
                     from: 10; to: 100; stepSize: 1
                     value: Backend.lockBlur
+                    defaultValue: Backend.defaults.lock_blur
                     format: (v) => Math.round(v) + " px"
                     onMoved: (v) => Backend.lockBlur = Math.round(v)
                     tip: "How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture."
@@ -215,6 +216,7 @@ SettingsPage {
                 label: "Darken"
                 from: 0; to: 0.65
                 value: Backend.lockDim
+                defaultValue: Backend.defaults.lock_dim
                 onMoved: (v) => Backend.lockDim = v
                 tip: "How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable."
             }
@@ -223,6 +225,7 @@ SettingsPage {
                 enabled: preview.glass
                 label: "Tint"
                 value: Backend.lockTint
+                defaultValue: Backend.defaults.lock_tint
                 onMoved: (v) => Backend.lockTint = v
                 tip: "How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours."
             }
@@ -346,6 +349,7 @@ SettingsPage {
                 label: "Slide time"
                 from: 250; to: 1200; stepSize: 10
                 value: Backend.lockSlideMs
+                defaultValue: Backend.defaults.lock_slide_ms
                 format: (v) => (v / 1000).toFixed(2) + " s"
                 onMoved: (v) => Backend.lockSlideMs = Math.round(v)
                 tip: "How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant."
@@ -355,6 +359,7 @@ SettingsPage {
                 enabled: preview.glass && Backend.lockSlide === "spring"
                 label: "Bounce"
                 value: Backend.lockBounce
+                defaultValue: Backend.defaults.lock_bounce
                 onMoved: (v) => Backend.lockBounce = v
                 tip: "How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first."
             }
@@ -440,19 +445,21 @@ SettingsPage {
             }
             LgButton {
                 objectName: "lockNow"
-                kind: "primary"
-                text: "Lock now"
+                kind: "secondary"
+                text: Backend.dirty ? "Apply and lock" : "Lock now"
                 iconName: "lock"
                 leftPadding: 14
-                tip: "Locks your screen so you can see it for real. Your password unlocks it as usual."
-                onClicked: Backend.lockScreenNow()
+                enabled: !Backend.busy
+                tip: Backend.dirty ? "Applies your changes, then locks your screen so you can see them for real."
+                                   : "Locks your screen so you can see it for real. Your password unlocks it as usual."
+                onClicked: Backend.dirty ? Backend.applyAndLock() : Backend.lockScreenNow()
             }
         },
         Text {
             objectName: "lockStatus"
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "Changes show the next time you lock, once you Apply."
+            text: "Changes show after Apply, the next time you lock."
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
         }
