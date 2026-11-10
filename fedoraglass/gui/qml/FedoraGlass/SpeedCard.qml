@@ -65,6 +65,7 @@ Card {
         spacing: 16
         SectionTitle {
             text: "Speed"
+            resetKeys: ["glass_quality"]
             caption: "Fedora Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
         }
         Column {
