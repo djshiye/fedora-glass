@@ -599,6 +599,12 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   background-color: ${active}; }
 .search-statustext, .search-section .search-section-separator {
   color: ${fg_dim}; }
+/* App grid and search icon labels are white over the blurred wallpaper, which in
+   light mode is often light too: a soft shade under the text keeps them readable. */
+.icon-grid .overview-tile, .grid-search-result {
+  text-shadow: 0 1px 3px ${tile_label_shadow}; }
+.icon-grid .app-folder {
+  text-shadow: none; }   /* a folder has its own glass card and dark text */
 .overview-tile:hover, .grid-search-result:hover {
   background-color: ${hover}; }
 .overview-tile:focus, .grid-search-result:focus {

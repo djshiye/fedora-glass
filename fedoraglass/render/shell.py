@@ -153,6 +153,8 @@ def values(t: Tokens) -> dict[str, str]:
         "acc_hover_top": acc_top.mix(WHITE, 0.12).css, "acc_hover_bot": acc_bot.mix(WHITE, 0.12).css,
         "acc_press_top": acc_top.mix(BLACK, 0.12).css, "acc_press_bot": acc_bot.mix(BLACK, 0.12).css,
         "field": field.css, "field_hover": field_hover.css, "field_shadow": field_shadow.css,
+        # App grid labels are white on the blurred wallpaper; on a light one they need a shade.
+        "tile_label_shadow": BLACK.with_alpha(0.4 if t.dark else 0.7).css,
         "switch_off": switch_off.css, "switch_off_hover": switch_hover.css,
         "track": track.css, "scroll": scroll.css, "scroll_hover": scroll_hover.css,
     }

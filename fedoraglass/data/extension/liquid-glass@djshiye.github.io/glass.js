@@ -592,7 +592,17 @@ void main() {
         col = vec4(col.rgb / max(col.a, 1e-3), 1.0);
 
     // Vibrancy and brightness (premultiplied colour).
-    col.rgb = min(vivid(col.rgb, saturation) * brightness, vec3(col.a));
+    // Light glass: colours that are already strong (an orange wallpaper) are only
+    // nudged. Pushed the full way, the stock top bar over a warm wallpaper was a
+    // neon strip, and orange in Activities. Dull colours still get the full lift.
+    // Dark glass keeps it all: its smoke dulls colour, which this makes up for.
+    float sat = saturation;
+    if (light_glass > 0.5 && sat > 1.0) {
+        vec3 sc = col.rgb / max(col.a, 1e-3);
+        float chroma = max(sc.r, max(sc.g, sc.b)) - min(sc.r, min(sc.g, sc.b));
+        sat = mix(sat, min(sat, 1.1), smoothstep(0.15, 0.5, chroma));
+    }
+    col.rgb = min(vivid(col.rgb, sat) * brightness, vec3(col.a));
 
     // Beer-Lambert: light crossing the rounded edge slants through more glass than
     // light crossing the flat top, and soda-lime glass takes a little more red
