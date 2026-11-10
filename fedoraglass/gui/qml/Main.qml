@@ -288,6 +288,56 @@ Window {
             }
         }
 
+        // ------------------------------------- an old copy from a source install (install.sh)
+        // still starts at login instead of the package, and brings its older look back.
+        Rectangle {
+            id: oldCopyBanner
+            objectName: "oldCopyBanner"
+            readonly property bool shown: Backend.hasOldCopy && !Backend.busy
+            anchors.bottom: glassBanner.top
+            anchors.bottomMargin: shown ? 12 : 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width - 48, 760)
+            height: shown ? 48 : 0
+            visible: height > 0
+            clip: true
+            radius: Theme.rM
+            color: Theme.well
+            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+            Icon {
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                name: "info"
+                color: Theme.warn
+                size: 18
+            }
+            Text {
+                objectName: "oldCopyNote"
+                x: 42
+                width: parent.width - x - cleanUp.width - 28
+                anchors.verticalCenter: parent.verticalCenter
+                text: "An old hand-installed copy of Fedora Glass still runs at login with its older look."
+                color: Theme.textDim
+                font.pixelSize: Theme.fsSmall
+                elide: Text.ElideRight
+            }
+            LgButton {
+                id: cleanUp
+                objectName: "cleanUpOldCopy"
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                kind: "primary"
+                implicitHeight: 32
+                leftPadding: 14; rightPadding: 14
+                text: "Clean up old copy"
+                iconName: "check"
+                enabled: !Backend.busy
+                tip: "Removes only the old copy's launcher, menu entry and background service. Your look and settings stay."
+                onClicked: Backend.cleanUpOldCopy()
+            }
+        }
+
         // ------------------------------------- the glass can't run this version yet, and
         // the reason is more than the first restart: an update that waits for the restart,
         // extensions switched off (one click puts them back), a GNOME this version doesn't

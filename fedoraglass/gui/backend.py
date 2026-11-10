@@ -243,6 +243,7 @@ class Backend(QObject):
         self._has_menu = False      # ArcMenu or Spawn switched on
         self._has_dtp = False       # Dash to Panel switched on
         self._problem = ("", "", "")       # what keeps the glass from running (see glassProblem)
+        self._leftovers: list = []         # an old source install's files that override the package
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -1010,7 +1011,8 @@ class Backend(QObject):
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
-                    lost, self._motion_env(engine), self._extensions_on(engine), self._glass_problem(engine, s))
+                    lost, self._motion_env(engine), self._extensions_on(engine), self._glass_problem(engine, s),
+                    self._find_leftovers(engine))
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -1084,6 +1086,37 @@ class Backend(QObject):
         self.noticed.emit("Extensions are on again. Press Apply to finish your look.")
         self.refreshTargets()
 
+    # ---- an old source install left behind (see leftovers.py) -----------------------
+    @staticmethod
+    def _find_leftovers(engine: Any) -> list:
+        try:
+            from .. import leftovers
+            return leftovers.find(engine.env)
+        except Exception:
+            return []
+
+    @Property(bool, notify=targetsChanged)
+    def hasOldCopy(self) -> bool:
+        """A copy installed with install.sh still starts at login instead of this package."""
+        return bool(self._leftovers)
+
+    @Slot()
+    def cleanUpOldCopy(self) -> None:
+        """Take away only that copy's launcher, menu entry and user service (only on this
+        click), then start the package's own watcher."""
+        if not self._leftovers:
+            return
+        from .. import leftovers
+        try:
+            problems = leftovers.clean_up(self._engine_obj().env)
+        except Exception as e:
+            problems = [str(e)]
+        if problems:
+            self.failed.emit(f"Could not clean up the old copy: {problems[0]}")
+        else:
+            self.noticed.emit("Old copy cleaned up. Fedora Glass now runs from the package only.")
+        self.refreshTargets()
+
     @Slot()
     def copyGlassDetails(self) -> None:
         text = self._problem[2] or self._problem[1]
@@ -1126,7 +1159,8 @@ class Backend(QObject):
             self.failed.emit(f"Could not load targets: {out}")
         else:
             (self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost,
-             self._motion_state, (self._has_dock, self._has_menu, self._has_dtp), self._problem) = out
+             self._motion_state, (self._has_dock, self._has_menu, self._has_dtp), self._problem,
+             self._leftovers) = out
         self._targets_ready = True
         self.targetsChanged.emit()
 
