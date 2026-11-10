@@ -974,7 +974,17 @@ class FedoraGlassWindowCopy extends Clutter.Clone {
     vfunc_get_paint_volume(_volume) {
         return true;    // valid and empty
     }
+
 });
+
+/**
+ * The pane drawing its copies of what is behind it now, or null. A window's glass drawn in
+ * one of its copies leaves out what the windows above it, drawn in the same pane, cover
+ * (see Holder in windows.js); in anyone else's copy (Alt+Tab, the overview, Dash to Panel's
+ * previews) the window is shown alone. (Marked by the pane, not by its copies: a Clutter.Clone
+ * that draws through its own paint() drew the wallpaper dark.)
+ */
+export const copying = {pane: null};
 
 // The lens's own pipeline: one GL program for every pane (each pane's pipeline is a
 // copy of this one, with its own uniforms and texture), on GNOME 50 and 51 alike.
@@ -1808,6 +1818,7 @@ class FedoraGlassClone extends Clutter.Clone {
         volume.set_height(Math.max(0, h));
         return true;
     }
+
 });
 
 export const GlassPane = GObject.registerClass(
@@ -1879,6 +1890,16 @@ class FedoraGlassPane extends Clutter.Actor {
 
     get pad() {
         return this._pad;
+    }
+
+    vfunc_paint(ctx) {
+        const was = copying.pane;
+        copying.pane = this;
+        try {
+            super.vfunc_paint(ctx);
+        } finally {
+            copying.pane = was;
+        }
     }
 
     /**
@@ -2179,6 +2200,7 @@ class FedoraGlassPane extends Clutter.Actor {
         if (clone._clipKey === key && clone.has_clip)
             return;
         clone._clipKey = key;
+        clone._clipBox = [x0, y0, w, h];    // read while the copy draws (see Holder in windows.js)
         clone.set_clip(x0, y0, w, h);
     }
 

@@ -113,7 +113,7 @@ const STUBS = {
     }
     export const DEFAULT_LOOK = {};
     export function windowLanded() {}
-    export const copying = {source: null, pane: null};
+    export const copying = {pane: null};
     export function holdPanes(key) { globalThis.fake.holds?.push(['hold', key]); }
     export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }
     export function freezeSource() {} export function thawSource() {}
