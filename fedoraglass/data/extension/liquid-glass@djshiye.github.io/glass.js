@@ -91,6 +91,8 @@ uniform float solid;             // 1: the glass fills its pane fully (a full-sc
 uniform float haze;              // 0..1, dark glass: a grey smoke in the glass itself, so it reads as a pane over black
 uniform float ceil_y;            // 0 = off; else the brightest the glass may get (linear Y),
                                  // so white text on it stays readable over any backdrop
+uniform float floor_y;           // 0 = off; light glass: the darkest it may get (linear Y),
+                                 // so dark text on it stays readable over any backdrop
 uniform float edge_l;            // 1 where that side touches the screen edge
 uniform float edge_t;
 uniform float edge_r;
@@ -693,6 +695,31 @@ void main() {
                 float room = cy - knee;
                 float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
                 col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+            }
+        }
+    }
+
+    // A floor on brightness, the light glass's mirror of the ceiling: dark text on
+    // clear light glass over a vivid or dark backdrop (a purple wallpaper put the
+    // panel clock at 3.3:1) lightens towards the glass's own milk, so the text
+    // keeps 5:1 under the theme's veil. Lighter backdrops pass unchanged; darker
+    // ones ease into the floor, keeping some of their colour. By the pixel, not
+    // the area: light glass is blurred enough that a thin line is no text's backdrop.
+    if (floor_y > OFF && light_glass > 0.5) {
+        vec3 st = col.rgb / max(col.a, 1e-3);
+        const vec3 Yf = vec3(0.2126, 0.7152, 0.0722);
+        float knee = min(1.5 * floor_y, 0.95);
+        // A pixel under the knee in Y has a channel under it: the rest skip the pows.
+        if (min(st.r, min(st.g, st.b)) < pow(knee, 1.0 / 2.2)) {
+            vec3 lin = pow(max(st, vec3(0.0)), vec3(2.2));
+            float Yp = dot(lin, Yf);
+            if (Yp < knee) {
+                float room = knee - floor_y;
+                float Yc = knee - room * (1.0 - exp(-(knee - Yp) / room));
+                vec3 mk = pow(vec3(milk_r, milk_g, milk_b), vec3(2.2));
+                float Ym = dot(mk, Yf);
+                float k = clamp((Yc - Yp) / max(Ym - Yp, 1e-4), 0.0, 1.0);
+                col.rgb = pow(mix(lin, mk, k), vec3(1.0 / 2.2)) * col.a;
             }
         }
     }
@@ -1457,6 +1484,7 @@ export const DEFAULT_LOOK = Object.freeze({
     lightAngle: -125,   // degrees, -90 = from the top: where the reflections are strongest
     bleed: 0.6,         // 0..1, how much the content's colours light up the glass
     ceiling: 0,         // 0 = off; else the brightest the glass may get (linear Y, 0..1)
+    floor: 0,           // 0 = off; light glass: the darkest it may get (linear Y, 0..0.9)
     haze: 0,            // 0..0.7, dark glass: grey smoke in the glass, so it shows over black
     solid: 0,           // 1: fill the pane fully, for a full-screen sheet
     pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
@@ -2168,6 +2196,7 @@ class FedoraGlassPane extends Clutter.Actor {
             hl: Math.max(0, Math.min(1, L.highlight)),
             solid: L.solid > 0.5 ? 1 : 0,
             ceil_y: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.ceiling)),
+            floor_y: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.9, L.floor ?? 0)),
             haze: this._layer >= LAYERS.reflections ? 0 : Math.max(0, Math.min(0.7, L.haze)),
             hl_x: Math.cos(a), hl_y: Math.sin(a),
             env_reach: ENV_REACH,

@@ -95,6 +95,25 @@ def _veil(t: Tokens, name: str) -> list[float] | None:
     return [round(c.r, 4), round(c.g, 4), round(c.b, 4), round(c.a, 3)]
 
 
+# Dark text on light glass keeps at least this contrast (WCAG AA 4.5:1, with room).
+LIGHT_TEXT_CONTRAST = 5.0
+
+
+def light_floor(t: Tokens, veil: list[float]) -> float:
+    """Light glass: the darkest its glass may get (linear Y) so dark text on it, under
+    the theme's veil, keeps LIGHT_TEXT_CONTRAST. Over a vivid purple wallpaper the
+    clear light panel showed its clock at 3.3:1. The veil and the glass blend in
+    display values (gamma 2.2), so the sum is done there."""
+    g = 1 / 2.2
+    need = LIGHT_TEXT_CONTRAST * (t.fg.luminance() + 0.05) - 0.05     # Y behind the text
+    vr, vg_, vb, a = veil
+    v_veil = (0.2126 * vr ** 2.2 + 0.7152 * vg_ ** 2.2 + 0.0722 * vb ** 2.2) ** g
+    if a >= 1:
+        return 0.0
+    v_glass = (need ** g - a * v_veil) / (1 - a)
+    return round(min(0.9, max(0.0, v_glass) ** 2.2), 3)
+
+
 def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
     p = t.parts[name]
     look = {"blur": round(p["blur"] * FROST_SCALE.get(name, 1.0)), "refraction": p["lens_width"], "bend": p["lens_bend"],
@@ -113,6 +132,10 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
             # Smoked glass: a grey of its own, so over a black wallpaper it still
             # reads as a pane, with what is behind showing through it.
             look["haze"] = DARK_HAZE
+        elif "milk" in look:
+            # Light glass keeps dark text at 5:1 or better over any backdrop: over
+            # dark or vivid things it lightens itself towards its milk, up to this floor.
+            look["floor"] = light_floor(t, look["veil"])
     if veiled:
         # Dark glass is smoked instead of darkened (DARK_HAZE); the ceiling keeps
         # white text readable over bright backdrops.
@@ -198,7 +221,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
-                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim", "ceiling", "haze") if k in menus_look},
+                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim", "ceiling", "floor", "haze") if k in menus_look},
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
