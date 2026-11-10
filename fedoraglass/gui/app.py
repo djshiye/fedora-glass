@@ -18,7 +18,10 @@ from .. import APP_ID, __version__
 
 HERE = Path(__file__).resolve().parent
 QML_DIR = HERE / "qml"
-PAGES = {"look": 0, "apps": 1, "lock": 2}
+PAGE_IDS = ("home", "colour", "glass", "windows", "motion", "pointer", "lock", "apps", "advanced", "about")
+# Older names still work: the Look page's sections and the page numbers 0 (Look), 1 (Apps), 2 (Lock).
+PAGE_ALIASES = {"look": "home", "0": "home", "1": "apps", "2": "lock", "more": "advanced",
+                "desktop": "pointer"}
 
 
 def find_icon() -> Path | None:
@@ -36,14 +39,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     ap = argparse.ArgumentParser(prog="fedora-glass gui", description="Fedora Glass customizer")
     shot = ap.add_argument_group("screenshots")
     shot.add_argument("--screenshot", metavar="PATH", help="render the window to a PNG, then quit")
-    shot.add_argument("--page", default="0", help="page to show: 0/look, 1/apps or 2/lock")
+    shot.add_argument("--page", default="home", help="page to show: " + ", ".join(PAGE_IDS))
     shot.add_argument("--lock-preview", choices=("rest", "prompt"), help="the moment the lock screen preview shows")
     shot.add_argument("--frost", type=float, help="set the frost slider (0..1) without saving")
     shot.add_argument("--scheme", choices=("dark", "light"), help="force the app and preview style")
     shot.add_argument("--held", action="store_true", help="draw the frost knob as if it were being dragged")
     shot.add_argument("--fine-tune", action="store_true", help="open the Fine-tune section")
-    shot.add_argument("--section", choices=("colour", "glass", "windows", "motion", "desktop", "more"),
-                      help="scroll the Look page options to this section")
+    shot.add_argument("--section", help="same as --page (the old Look page sections are pages now)")
+    shot.add_argument("--reveal", metavar="NAME", help="open the page's fold around this control and light it up, as search does")
     shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
     shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave", "welcome", "about"), help="open a sheet")
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
@@ -101,12 +104,11 @@ def tidy_qml_caches(folder: Path, keep: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    page = PAGES.get(args.page, None)
-    if page is None:
-        try:
-            page = max(0, min(2, int(args.page)))
-        except ValueError:
-            page = 0
+    page = PAGE_ALIASES.get(args.page, args.page)
+    if args.section:
+        page = PAGE_ALIASES.get(args.section, args.section)
+    if page not in PAGE_IDS:
+        page = "home"
 
     cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
     if "QML_DISK_CACHE_PATH" not in os.environ:
@@ -177,8 +179,10 @@ def main(argv: list[str] | None = None) -> int:
         w, h = fit_size(win.screen().availableGeometry() if win.screen() else None, margin)
     win.setWidth(w + 2 * margin)
     win.setHeight(h + 2 * margin)
-    win.setProperty("pageIndex", page)
+    win.setProperty("page", page)
     if args.fine_tune:
+        page = "advanced"
+        win.setProperty("page", page)
         win.setProperty("fineTuneOpen", True)
     win.show()
     # First launch: a short welcome. Screenshots ask for it with --sheet welcome.
@@ -193,7 +197,10 @@ def main(argv: list[str] | None = None) -> int:
 
         def stage() -> None:
             if args.held:
-                win.setProperty("frostHeld", 1.0)
+                from PySide6.QtCore import QObject
+                home = win.findChild(QObject, "homePage")
+                if home is not None:
+                    home.setProperty("frostHeld", 1.0)
             if args.preview_set:
                 import json
                 from PySide6.QtCore import QObject
@@ -222,14 +229,12 @@ def main(argv: list[str] | None = None) -> int:
                     pv.setProperty("pointerPinned", True)
             if args.scroll:
                 from PySide6.QtCore import QObject
-                side = win.findChild(QObject, {1: "appsList", 2: "lockOptions"}.get(page, "options"))
+                side = win.findChild(QObject, {"apps": "appsList", "lock": "lockOptions"}.get(page, page + "Scroller"))
                 if side is not None:
                     side.setProperty("contentY", args.scroll)
-            if args.section:
-                from PySide6.QtCore import QObject
-                lk = win.findChild(QObject, "lookPage")
-                if lk is not None:
-                    lk.setProperty("jumpSection", args.section)
+            if args.reveal:
+                from PySide6.QtCore import Q_ARG, QMetaObject
+                QMetaObject.invokeMethod(win, "goTo", Q_ARG("QVariant", page), Q_ARG("QVariant", args.reveal))
             if args.lock_preview:
                 from PySide6.QtCore import QObject
                 lp = win.findChild(QObject, "lockPage")

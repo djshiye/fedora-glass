@@ -5,19 +5,57 @@ import QtQuick.Window
 import FedoraGlass
 import FedoraGlass.Core
 
-// Frameless window with its own glass header, rounded corners and a soft
-// client-side shadow (the same approach as Wheelguard), so the header, page
-// switcher and window buttons live on one calm surface.
+// Frameless window with its own glass, rounded corners and a soft client-side shadow.
+// One sidebar holds every page; each page is built the first time it is opened, and
+// the one live preview moves to whichever page shows it.
 Window {
     id: win
-    property int pageIndex: 0
-    property alias fineTuneOpen: look.fineTuneOpen
-    property alias frostHeld: look.frostHeld
+    // The pages, in sidebar order. `bottom` ones sit at the foot of the sidebar.
+    readonly property var pageList: [
+        { id: "home", label: "Home", icon: "home", sub: "Your look in one place", tip: "Presets, glass, colour and the big switches (Ctrl+1)" },
+        { id: "colour", label: "Colour", icon: "palette", sub: "", tip: "Light or dark, accent, tint and corners (Ctrl+2)" },
+        { id: "glass", label: "Glass", icon: "droplet", sub: "", tip: "How much glass, its effects, where it shows and speed (Ctrl+3)" },
+        { id: "windows", label: "Panel and windows", icon: "window", sub: "", tip: "The panel, header bars, terminal and Qt apps (Ctrl+4)" },
+        { id: "motion", label: "Motion", icon: "wave", sub: "", tip: "How windows, menus and the panel move (Ctrl+5)" },
+        { id: "pointer", label: "Pointer and desktop", icon: "pointer", sub: "", tip: "Mouse pointer, start on the desktop, the overview (Ctrl+6)" },
+        { id: "lock", label: "Lock and login", icon: "lock", sub: "", tip: "Lock screen glass, clock, widgets and the login screen (Ctrl+7)" },
+        { id: "apps", label: "Apps", icon: "apps", sub: "", tip: "Choose what gets themed (Ctrl+8)" },
+        { id: "advanced", label: "Advanced", icon: "sliders", sub: "For when you want full control", tip: "Part by part, fine-tune and start over (Ctrl+9)", bottom: true },
+        { id: "about", label: "About and restore", icon: "info", sub: "", tip: "Version, shortcuts, restore your original look or remove Fedora Glass", bottom: true }
+    ]
+    property string page: "home"
+    // Pages are built the first time they are shown, then kept.
+    property var visited: ({ home: true })
+    onPageChanged: {
+        if (!visited[page]) {
+            const v = Object.assign({}, visited)
+            v[page] = true
+            visited = v
+        }
+    }
+    readonly property var pageInfo: pageList.find(p => p.id === page) || pageList[0]
+    function pageItem(id) {
+        for (let i = 0; i < pageRepeater.count; ++i) {
+            const l = pageRepeater.itemAt(i)
+            if (l && l.pageId === id)
+                return l.item
+        }
+        return null
+    }
+    // Go to a page and light up one control there (search, tiles, links).
+    function goTo(id, name) {
+        page = id
+        if (name)
+            Qt.callLater(() => { const p = pageItem(id); if (p && p.reveal) p.reveal(name) })
+    }
+    property bool fineTuneOpen: false
     property string startSheet: ""
     onStartSheetChanged: {
         if (startSheet === "restore") confirmSheet.open()
         else if (startSheet === "welcome") welcomeSheet.open()
     }
+    function openRestore() { confirmSheet.open() }
+    function openAbout() { aboutSheet.open() }
 
     readonly property bool maximized: visibility === Window.Maximized || visibility === Window.FullScreen
     readonly property int margin: maximized ? 0 : 18
@@ -46,13 +84,20 @@ Window {
     Shortcut { sequences: ["Return", "Enter"]; enabled: win.pressable(win.activeFocusItem); onActivated: win.activeFocusItem.click() }
     Shortcut { sequence: "F1"; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
     Shortcut { sequence: "?"; enabled: !win.typing; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
-    // Ctrl+Z is the footer's Undo changes: back to the look applied last.
+    // Ctrl+Z is the footer's Undo: back to the look applied last.
     Shortcut { sequence: "Ctrl+Z"; enabled: Backend.dirty && !Backend.busy && !win.typing; onActivated: Backend.discardChanges() }
     Shortcut { sequence: "Ctrl+Return"; enabled: !Backend.busy; onActivated: Backend.apply() }
-    // Pages: 0 Look, 1 Apps, 2 Lock screen; the switcher shows them as Look, Lock screen, Apps.
-    Shortcut { sequence: "Ctrl+1"; onActivated: win.pageIndex = 0 }
-    Shortcut { sequence: "Ctrl+2"; onActivated: win.pageIndex = 2 }
-    Shortcut { sequence: "Ctrl+3"; onActivated: win.pageIndex = 1 }
+    // Search: Ctrl+F, Ctrl+K or "/" from anywhere.
+    Shortcut { sequences: ["Ctrl+F", "Ctrl+K"]; onActivated: sidebar.focusSearch() }
+    Shortcut { sequence: "/"; enabled: !win.typing; onActivated: sidebar.focusSearch() }
+    // Pages: Ctrl+1 to Ctrl+9 in sidebar order.
+    Repeater {
+        model: 9
+        delegate: Item {
+            required property int index
+            Shortcut { sequence: "Ctrl+" + (index + 1); onActivated: win.page = win.pageList[index].id }
+        }
+    }
 
     // Closing with unapplied changes asks first: Apply and close, Discard, or Cancel.
     property bool closeAnyway: false
@@ -74,10 +119,6 @@ Window {
     // lands on a switch hidden below the fold of a scrolling column.
     onActiveFocusItemChanged: {
         const it = activeFocusItem
-        // The Look page's section bar sends Tab into the section it shows, and Shift+Tab
-        // from there back to the bar: it may move focus on, and then nothing scrolls.
-        if (look.followFocus(it))
-            return
         if (!it || (it.focusReason !== undefined && it.focusReason !== Qt.TabFocusReason
                     && it.focusReason !== Qt.BacktabFocusReason))
             return
@@ -103,6 +144,7 @@ Window {
 
     // Popups (tooltips, dropdowns, colour pickers) capture this for their glass.
     Binding { target: Theme; property: "backdrop"; value: frame }
+    Binding { target: Theme; property: "preview"; value: previewPane.preview }
 
     // ------------------------------------------------------------ shadow
     RectangularShadow {
@@ -186,511 +228,520 @@ Window {
             }
         }
 
-        // ---------------------------------------------------------- header
-        Item {
-            id: header
-            width: parent.width
-            height: 64
-
-            DragHandler {
-                target: null
-                grabPermissions: PointerHandler.CanTakeOverFromAnything
-                onActiveChanged: if (active) win.startSystemMove()
-            }
-            TapHandler {
-                acceptedButtons: Qt.LeftButton
-                onDoubleTapped: win.visibility = win.maximized ? Window.Windowed : Window.Maximized
-            }
-
-            // The app name opens About and the keyboard shortcuts. Dragging from it still
-            // moves the window (the header's DragHandler takes over once the pointer moves).
-            C.AbstractButton {
-                id: aboutButton
-                objectName: "aboutButton"
-                x: 14
-                anchors.verticalCenter: parent.verticalCenter
-                width: aboutRow.width + 20
-                height: 42
-                hoverEnabled: true
-                focusPolicy: Qt.StrongFocus
-                Accessible.name: "About Fedora Glass"
-                onClicked: aboutSheet.open()
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
-                LgToolTip { shown: aboutButton.hovered || aboutButton.visualFocus; text: "About and keyboard shortcuts (F1)"; below: true }
-                background: Rectangle {
-                    radius: Theme.rS
-                    color: aboutButton.down ? Theme.pressed : aboutButton.hovered ? Theme.hover : "transparent"
-                    Behavior on color { ColorAnimation { duration: Theme.fast } }
-                    FocusRing { target: aboutButton; radius: Theme.rS + 3 }
+        // ---------------------------------------------------------- sidebar
+        Sidebar {
+            id: sidebar
+            objectName: "sidebar"
+            width: 232
+            height: parent.height
+            pages: win.pageList
+            current: win.page
+            onPicked: (id) => win.page = id
+            onFound: (pg, name) => win.goTo(pg, name)
+            onHomeClicked: win.page = "home"
+            // The top of the sidebar moves the window, like a title bar.
+            Item {
+                width: parent.width
+                height: 64
+                z: -1
+                DragHandler {
+                    target: null
+                    grabPermissions: PointerHandler.CanTakeOverFromAnything
+                    onActiveChanged: if (active) win.startSystemMove()
                 }
-                contentItem: Item {
-                    Row {
-                        id: aboutRow
-                        x: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 12
-                        Image {
-                            width: 30; height: 30
-                            source: appIconUrl
-                            sourceSize: Qt.size(60, 60)
-                            smooth: true
-                            mipmap: true
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            text: "Fedora Glass"
-                            color: Theme.text
-                            font.pixelSize: Theme.fsTitle + 1
-                            font.weight: Font.Bold
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-            }
-
-            Segmented {
-                id: nav
-                anchors.centerIn: parent
-                width: 384
-                model: [{ value: 0, label: "Look", icon: "brush", tip: "Glass, colours and panel (Ctrl+1)" },
-                        { value: 2, label: "Lock screen", icon: "lock", tip: "Lock screen glass, clock and widgets (Ctrl+2)" },
-                        { value: 1, label: "Apps", icon: "apps", tip: "Choose what gets themed (Ctrl+3)" }]
-                value: win.pageIndex
-                onActivated: (v) => win.pageIndex = v
-                Accessible.name: "Page"
-            }
-
-            Row {
-                anchors.right: parent.right
-                anchors.rightMargin: 18
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 10
-                Repeater {
-                    model: [{ icon: "minimize", act: "min", tip: "Minimize" },
-                            { icon: win.maximized ? "restore" : "maximize", act: "max", tip: win.maximized ? "Restore" : "Maximize" },
-                            { icon: "close", act: "close", tip: "Close" }]
-                    delegate: C.AbstractButton {
-                        id: wb
-                        required property var modelData
-                        width: 26; height: 26
-                        hoverEnabled: true
-                        focusPolicy: Qt.TabFocus
-                        Accessible.name: modelData.tip
-                        onClicked: modelData.act === "min" ? win.showMinimized()
-                                 : modelData.act === "max" ? (win.visibility = win.maximized ? Window.Windowed : Window.Maximized)
-                                 : win.close()
-                        background: Rectangle {
-                            radius: Theme.rS
-                            color: wb.down ? Theme.wellHi : wb.hovered ? Theme.alpha(Theme.text, Theme.dark ? 0.16 : 0.12) : Theme.well
-                            Behavior on color { ColorAnimation { duration: Theme.fast } }
-                            FocusRing { target: wb; radius: Theme.rS + 3 }
-                        }
-                        contentItem: Item {
-                            Icon { anchors.centerIn: parent; name: wb.modelData.icon; size: 16; strokeWidth: 1.8; color: Theme.text }
-                        }
-                        LgToolTip { shown: wb.hovered; text: wb.modelData.tip; y: parent.height + 8 }
-                    }
+                TapHandler {
+                    acceptedButtons: Qt.LeftButton
+                    onDoubleTapped: win.visibility = win.maximized ? Window.Windowed : Window.Maximized
                 }
             }
         }
 
-        // ---------------------------------------------------------- pages
         Item {
-            id: pages
-            anchors.top: header.bottom
-            anchors.bottom: oldCopyBanner.top
-            anchors.left: parent.left
+            id: mainArea
+            anchors.left: sidebar.right
             anchors.right: parent.right
-            anchors.leftMargin: 24
-            anchors.rightMargin: 24
-            anchors.topMargin: 4
-            anchors.bottomMargin: 16
+            height: parent.height
 
-            LookPage {
-                id: look
-                objectName: "lookPage"
-                anchors.fill: parent
-                opacity: win.pageIndex === 0 ? 1 : 0
-                visible: opacity > 0
-                enabled: win.pageIndex === 0
-                transform: Translate { x: win.pageIndex === 0 ? 0 : -16; Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
-                Behavior on opacity { NumberAnimation { duration: Theme.normal } }
-            }
-            LockPage {
-                id: lockPage
-                objectName: "lockPage"
-                anchors.fill: parent
-                opacity: win.pageIndex === 2 ? 1 : 0
-                visible: opacity > 0
-                enabled: win.pageIndex === 2
-                transform: Translate { x: win.pageIndex === 2 ? 0 : (win.pageIndex === 0 ? 16 : -16); Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
-                Behavior on opacity { NumberAnimation { duration: Theme.normal } }
-            }
-            AppsPage {
-                anchors.fill: parent
-                anchors.leftMargin: Math.max(0, (parent.width - 880) / 2)
-                anchors.rightMargin: Math.max(0, (parent.width - 880) / 2)
-                opacity: win.pageIndex === 1 ? 1 : 0
-                visible: opacity > 0
-                enabled: win.pageIndex === 1
-                transform: Translate { x: win.pageIndex === 1 ? 0 : 16; Behavior on x { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } } }
-                Behavior on opacity { NumberAnimation { duration: Theme.normal } }
-            }
-        }
+            // ------------------------------------------------------ title bar
+            Item {
+                id: header
+                width: parent.width
+                height: 64
 
-        // ------------------------------------- an old copy from a source install (install.sh)
-        // still starts at login instead of the package, and brings its older look back.
-        Rectangle {
-            id: oldCopyBanner
-            objectName: "oldCopyBanner"
-            readonly property bool shown: Backend.hasOldCopy && !Backend.busy
-            anchors.bottom: glassBanner.top
-            anchors.bottomMargin: shown ? 12 : 0
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 48, 760)
-            height: shown ? 48 : 0
-            visible: height > 0
-            clip: true
-            radius: Theme.rM
-            color: Theme.well
-            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
-            Icon {
-                x: 14
-                anchors.verticalCenter: parent.verticalCenter
-                name: "info"
-                color: Theme.warn
-                size: 18
+                DragHandler {
+                    target: null
+                    grabPermissions: PointerHandler.CanTakeOverFromAnything
+                    onActiveChanged: if (active) win.startSystemMove()
+                }
+                TapHandler {
+                    acceptedButtons: Qt.LeftButton
+                    onDoubleTapped: win.visibility = win.maximized ? Window.Windowed : Window.Maximized
+                }
+
+                Row {
+                    x: 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 12
+                    Text {
+                        objectName: "pageTitle"
+                        text: win.pageInfo.label
+                        color: Theme.text
+                        font.pixelSize: Theme.fsHeading
+                        font.weight: Font.Bold
+                        anchors.baseline: parent.children[1].baseline
+                    }
+                    Text {
+                        text: win.pageInfo.sub
+                        visible: text.length > 0
+                        color: Theme.textFaint
+                        font.pixelSize: 13
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: 2
+                    }
+                }
+
+                Row {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 18
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    Repeater {
+                        model: [{ icon: "minimize", act: "min", tip: "Minimize" },
+                                { icon: win.maximized ? "restore" : "maximize", act: "max", tip: win.maximized ? "Restore" : "Maximize" },
+                                { icon: "close", act: "close", tip: "Close" }]
+                        delegate: C.AbstractButton {
+                            id: wb
+                            required property var modelData
+                            width: 26; height: 26
+                            hoverEnabled: true
+                            focusPolicy: Qt.TabFocus
+                            Accessible.name: modelData.tip
+                            onClicked: modelData.act === "min" ? win.showMinimized()
+                                     : modelData.act === "max" ? (win.visibility = win.maximized ? Window.Windowed : Window.Maximized)
+                                     : win.close()
+                            background: Rectangle {
+                                radius: Theme.rS
+                                color: wb.down ? Theme.wellHi : wb.hovered ? Theme.alpha(Theme.text, Theme.dark ? 0.16 : 0.12) : Theme.well
+                                Behavior on color { ColorAnimation { duration: Theme.fast } }
+                                FocusRing { target: wb; radius: Theme.rS + 3 }
+                            }
+                            contentItem: Item {
+                                Icon { anchors.centerIn: parent; name: wb.modelData.icon; size: 16; strokeWidth: 1.8; color: Theme.text }
+                            }
+                            LgToolTip { shown: wb.hovered; text: wb.modelData.tip; y: parent.height + 8 }
+                        }
+                    }
+                }
             }
-            Text {
-                objectName: "oldCopyNote"
-                x: 42
-                width: parent.width - x - cleanUp.width - 28
-                anchors.verticalCenter: parent.verticalCenter
-                text: "An old hand-installed copy of Fedora Glass still runs at login with its older look."
-                color: Theme.textDim
-                font.pixelSize: Theme.fsSmall
-                elide: Text.ElideRight
-            }
-            LgButton {
-                id: cleanUp
-                objectName: "cleanUpOldCopy"
+
+            // ------------------------------------------------------ pages
+            Item {
+                id: pages
+                objectName: "pages"
+                anchors.top: header.bottom
+                anchors.bottom: oldCopyBanner.top
+                anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                kind: "primary"
-                implicitHeight: 32
-                leftPadding: 14; rightPadding: 14
-                text: "Clean up old copy"
-                iconName: "check"
-                enabled: !Backend.busy
-                tip: "Removes only the old copy's launcher, menu entry and background service. Your look and settings stay."
-                onClicked: Backend.cleanUpOldCopy()
-            }
-        }
+                anchors.leftMargin: 28
+                anchors.rightMargin: 24
+                anchors.topMargin: 4
+                anchors.bottomMargin: 16
 
-        // ------------------------------------- the glass can't run this version yet, and
-        // the reason is more than the first restart: an update that waits for the restart,
-        // extensions switched off (one click puts them back), a GNOME this version doesn't
-        // support yet, or an error (its text can be copied for a bug report).
-        Rectangle {
-            id: glassBanner
-            objectName: "glassBanner"
-            // An update that waits for the restart is already said by the footer ("Restart to
-            // finish", with its button) whenever that shows.
-            readonly property bool shown: Backend.glassProblem !== "" && !Backend.safeMode
-                                          && !(Backend.glassProblem === "old" && Backend.restartNeeded)
-            anchors.bottom: safeBanner.top
-            anchors.bottomMargin: shown ? 12 : 0
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 48, 760)
-            height: shown ? 48 : 0
-            visible: height > 0
-            clip: true
-            radius: Theme.rM
-            color: Theme.well
-            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
-            Icon {
-                x: 14
-                anchors.verticalCenter: parent.verticalCenter
-                name: "info"
-                color: Backend.glassProblem === "old" ? Theme.accentText : Theme.warn
-                size: 18
+                readonly property var components: ({
+                    home: homeC, colour: colourC, glass: glassC, windows: windowsC, motion: motionC,
+                    pointer: pointerC, lock: lockC, apps: appsC, advanced: advancedC, about: aboutC })
+                Component { id: homeC; HomePage {} }
+                Component { id: colourC; ColourPage {} }
+                Component { id: glassC; GlassPage {} }
+                Component { id: windowsC; WindowsPage {} }
+                Component { id: motionC; MotionPage {} }
+                Component { id: pointerC; PointerPage {} }
+                Component { id: lockC; LockPage {} }
+                Component { id: appsC; AppsPage {} }
+                Component { id: advancedC; AdvancedPage {} }
+                Component { id: aboutC; AboutPage {} }
+
+                Repeater {
+                    id: pageRepeater
+                    model: win.pageList
+                    delegate: Loader {
+                        id: loader
+                        required property var modelData
+                        readonly property string pageId: modelData.id
+                        readonly property bool current: win.page === pageId
+                        objectName: pageId + "PageLoader"
+                        anchors.fill: parent
+                        active: win.visited[pageId] === true
+                        sourceComponent: pages.components[pageId]
+                        visible: opacity > 0
+                        enabled: current
+                        opacity: current ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.normal } }
+                        transform: Translate {
+                            y: loader.current ? 0 : 10
+                            Behavior on y { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
+                        }
+                    }
+                }
+
+                // The one live preview, sitting in the shown page's slot.
+                readonly property Item slot: {
+                    const p = win.pageItem(win.page)
+                    return p && p.previewSlot ? p.previewSlot : null
+                }
+                Item { id: previewParking; visible: false; width: 640; height: 360 }
+                PreviewPane {
+                    id: previewPane
+                    objectName: "previewPane"
+                    parent: pages.slot || previewParking
+                    anchors.fill: parent
+                    outlinedPart: parent && parent.outlinedPart !== undefined ? parent.outlinedPart : ""
+                }
             }
-            Text {
-                objectName: "glassNote"
-                x: 42
-                width: parent.width - x - glassActions.width - 28
-                anchors.verticalCenter: parent.verticalCenter
-                text: Backend.glassProblemNote
-                color: Theme.textDim
-                font.pixelSize: Theme.fsSmall
-                elide: Text.ElideRight
-            }
-            Row {
-                id: glassActions
-                anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
+
+            // ------------------------------------- an old copy from a source install (install.sh)
+            // still starts at login instead of the package, and brings its older look back.
+            Rectangle {
+                id: oldCopyBanner
+                objectName: "oldCopyBanner"
+                readonly property bool shown: Backend.hasOldCopy && !Backend.busy
+                anchors.bottom: glassBanner.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "info"
+                    color: Theme.warn
+                    size: 18
+                }
+                Text {
+                    objectName: "oldCopyNote"
+                    x: 42
+                    width: parent.width - x - cleanUp.width - 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "An old hand-installed copy of Fedora Glass still runs at login with its older look."
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
+                }
                 LgButton {
-                    objectName: "extensionsOn"
-                    readonly property bool wanted: Backend.glassProblem === "off"
-                    visible: wanted
+                    id: cleanUp
+                    objectName: "cleanUpOldCopy"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
                     kind: "primary"
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
-                    text: "Switch on"
+                    text: "Clean up old copy"
                     iconName: "check"
-                    tip: "Switch GNOME's extensions back on. Then press Apply to finish your look."
-                    onClicked: Backend.switchExtensionsOn()
-                }
-                LgButton {
-                    objectName: "copyGlassDetails"
-                    readonly property bool wanted: Backend.glassProblem === "error" && Backend.glassProblemDetails !== ""
-                    visible: wanted
-                    kind: "secondary"
-                    implicitHeight: 32
-                    leftPadding: 14; rightPadding: 14
-                    text: "Copy details"
-                    tip: Backend.glassProblemDetails
-                    onClicked: Backend.copyGlassDetails()
+                    enabled: !Backend.busy
+                    tip: "Removes only the old copy's launcher, menu entry and background service. Your look and settings stay."
+                    onClicked: Backend.cleanUpOldCopy()
                 }
             }
-        }
-
-        // ------------------------------------- safe mode: the glass kept failing and
-        // turned itself off. Plain panels until the user turns it back on.
-        Rectangle {
-            id: safeBanner
-            objectName: "safeBanner"
-            readonly property bool shown: Backend.safeMode
-            anchors.bottom: lostBanner.top
-            anchors.bottomMargin: shown ? 12 : 0
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 48, 760)
-            height: shown ? 48 : 0
-            visible: height > 0
-            clip: true
-            radius: Theme.rM
-            color: Theme.well
-            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
-            Icon {
-                x: 14
-                anchors.verticalCenter: parent.verticalCenter
-                name: "info"
-                color: Theme.warn
-                size: 18
-            }
-            Text {
-                objectName: "safeNote"
-                x: 42
-                width: parent.width - x - resumeGlass.width - 28
-                anchors.verticalCenter: parent.verticalCenter
-                text: Backend.safeModeNote
-                color: Theme.textDim
-                font.pixelSize: Theme.fsSmall
-                elide: Text.ElideRight
-            }
-            LgButton {
-                id: resumeGlass
-                objectName: "resumeGlass"
-                anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                kind: "primary"
-                implicitHeight: 32
-                leftPadding: 14; rightPadding: 14
-                text: "Turn glass back on"
-                iconName: "refresh"
-                tip: "Start the glass again. If it keeps failing, it pauses itself again."
-                onClicked: Backend.resumeGlass()
-            }
-        }
-
-        // ------------------------------------- another app replaced what Apply wrote
-        // (a theme update relinking gtk.css, say). Said once, quietly, with a way back.
-        Rectangle {
-            id: lostBanner
-            objectName: "lostBanner"
-            readonly property bool shown: Backend.lostNote !== "" && !Backend.busy
-            anchors.bottom: footer.top
-            anchors.bottomMargin: shown ? 12 : 0
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 48, 760)
-            height: shown ? 48 : 0
-            visible: height > 0
-            clip: true
-            radius: Theme.rM
-            color: Theme.well
-            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
-            Icon {
-                x: 14
-                anchors.verticalCenter: parent.verticalCenter
-                name: "info"
-                color: Theme.warn
-                size: 18
-            }
-            Text {
-                x: 42
-                width: parent.width - x - reapply.width - 28
-                anchors.verticalCenter: parent.verticalCenter
-                text: Backend.lostNote
-                color: Theme.textDim
-                font.pixelSize: Theme.fsSmall
-                elide: Text.ElideRight
-            }
-            LgButton {
-                id: reapply
-                objectName: "reapply"
-                anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                kind: "primary"
-                implicitHeight: 32
-                leftPadding: 14; rightPadding: 14
-                text: "Re-apply"
-                iconName: "refresh"
-                enabled: !Backend.busy
-                tip: "Write the Fedora Glass look again. Nothing else changes."
-                onClicked: Backend.apply()
-            }
-        }
-
-        // ---------------------------------------------------------- footer
-        Item {
-            id: footer
-            anchors.bottom: parent.bottom
-            width: parent.width
-            height: 72
-
-            Rectangle { x: 0; width: parent.width; height: 1; color: Theme.divider }
-
-            LgButton {
-                id: restoreButton
-                x: 16
-                anchors.verticalCenter: parent.verticalCenter
-                kind: "danger"
-                text: "Restore original…"
-                iconName: "undo"
-                leftPadding: 14
-                enabled: !Backend.busy && Backend.hasBackup
-                tip: Backend.hasBackup ? "Put back every file and setting as it was before Fedora Glass"
-                                       : "Nothing to restore: Fedora Glass hasn't changed anything yet"
-                onClicked: confirmSheet.open()
-            }
-
-            // status
-            Row {
-                id: footerStatus
-                anchors.left: restoreButton.right
-                anchors.leftMargin: 16
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 10
-                // Applied, but the glass only starts after a restart: not "Up to date" yet.
-                readonly property string phase: Backend.dirty ? "dirty" : Backend.lostNote !== "" ? "lost"
-                    : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
-                    : Backend.hasBackup ? "done" : "none"
-                Rectangle {
-                    objectName: "statusDot"
-                    visible: !Backend.busy
-                    width: 8; height: 8; radius: 4
+    
+            // ------------------------------------- the glass can't run this version yet, and
+            // the reason is more than the first restart: an update that waits for the restart,
+            // extensions switched off (one click puts them back), a GNOME this version doesn't
+            // support yet, or an error (its text can be copied for a bug report).
+            Rectangle {
+                id: glassBanner
+                objectName: "glassBanner"
+                // An update that waits for the restart is already said by the footer ("Restart to
+                // finish", with its button) whenever that shows.
+                readonly property bool shown: Backend.glassProblem !== "" && !Backend.safeMode
+                                              && !(Backend.glassProblem === "old" && Backend.restartNeeded)
+                anchors.bottom: safeBanner.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
                     anchors.verticalCenter: parent.verticalCenter
-                    color: footerStatus.phase === "dirty" ? Theme.accent
-                         : footerStatus.phase === "done" ? Theme.good
-                         : footerStatus.phase === "none" ? Theme.textFaint : Theme.warn
+                    name: "info"
+                    color: Backend.glassProblem === "old" ? Theme.accentText : Theme.warn
+                    size: 18
                 }
                 Text {
-                    objectName: "statusText"
-                    visible: !Backend.busy
+                    objectName: "glassNote"
+                    x: 42
+                    width: parent.width - x - glassActions.width - 28
                     anchors.verticalCenter: parent.verticalCenter
-                    text: ({ dirty: "Unapplied changes", lost: "Needs re-apply", login: "Login screen needs Apply",
-                             restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
+                    text: Backend.glassProblemNote
                     color: Theme.textDim
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
                 }
-                LgButton {
-                    objectName: "restartButton"
-                    visible: footerStatus.phase === "restart" && !Backend.busy
+                Row {
+                    id: glassActions
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    kind: "secondary"
-                    implicitHeight: 28
-                    leftPadding: 12; rightPadding: 12
-                    font.pixelSize: 13
-                    text: "Restart…"
-                    tip: "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
-                    onClicked: Backend.restartPC()
-                }
-                LgButton {
-                    objectName: "discardButton"
-                    visible: Backend.dirty && !Backend.busy
-                    anchors.verticalCenter: parent.verticalCenter
-                    kind: "secondary"
-                    implicitHeight: 28
-                    leftPadding: 12; rightPadding: 12
-                    font.pixelSize: 13
-                    text: "Undo changes"
-                    tip: "Go back to the look you applied last"
-                    onClicked: Backend.discardChanges()
-                }
-                Item {
-                    visible: Backend.busy
-                    width: 240; height: 32
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text {
-                        text: Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
-                            : Backend.busyKind === "revert" ? "Restoring your original look…"
-                            : "Working out the changes…"
-                        color: Theme.textDim
-                        font.pixelSize: 13
-                        elide: Text.ElideRight
-                        width: parent.width
+                    spacing: 8
+                    LgButton {
+                        objectName: "extensionsOn"
+                        readonly property bool wanted: Backend.glassProblem === "off"
+                        visible: wanted
+                        kind: "primary"
+                        implicitHeight: 32
+                        leftPadding: 14; rightPadding: 14
+                        text: "Switch on"
+                        iconName: "check"
+                        tip: "Switch GNOME's extensions back on. Then press Apply to finish your look."
+                        onClicked: Backend.switchExtensionsOn()
                     }
-                    Rectangle {
-                        y: 22; width: parent.width; height: 4; radius: 2
-                        color: Theme.wellHi
-                        Rectangle {
-                            height: parent.height; radius: 2
-                            width: Math.max(8, parent.width * Backend.progress)
-                            color: Theme.accent
-                            Behavior on width { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
-                        }
+                    LgButton {
+                        objectName: "copyGlassDetails"
+                        readonly property bool wanted: Backend.glassProblem === "error" && Backend.glassProblemDetails !== ""
+                        visible: wanted
+                        kind: "secondary"
+                        implicitHeight: 32
+                        leftPadding: 14; rightPadding: 14
+                        text: "Copy details"
+                        tip: Backend.glassProblemDetails
+                        onClicked: Backend.copyGlassDetails()
                     }
                 }
             }
-
-            Row {
-                anchors.right: parent.right
-                anchors.rightMargin: 16
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
-                LgButton {
-                    kind: "secondary"
-                    text: "Show changes"
-                    iconName: "list"
-                    leftPadding: 16
-                    enabled: !Backend.busy
-                    busy: Backend.busyKind === "plan"
-                    tip: "List every file and setting Apply would change"
-                    onClicked: Backend.requestPlan()
+    
+            // ------------------------------------- safe mode: the glass kept failing and
+            // turned itself off. Plain panels until the user turns it back on.
+            Rectangle {
+                id: safeBanner
+                objectName: "safeBanner"
+                readonly property bool shown: Backend.safeMode
+                anchors.bottom: lostBanner.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "info"
+                    color: Theme.warn
+                    size: 18
+                }
+                Text {
+                    objectName: "safeNote"
+                    x: 42
+                    width: parent.width - x - resumeGlass.width - 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Backend.safeModeNote
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
                 }
                 LgButton {
-                    id: applyButton
-                    objectName: "applyButton"
-                    // While the Re-apply banner shows, it is the one call to action.
-                    kind: lostBanner.shown ? "secondary" : "primary"
-                    text: "Apply"
-                    iconName: "check"
-                    leftPadding: 18
-                    rightPadding: 22
+                    id: resumeGlass
+                    objectName: "resumeGlass"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "primary"
+                    implicitHeight: 32
+                    leftPadding: 14; rightPadding: 14
+                    text: "Turn glass back on"
+                    iconName: "refresh"
+                    tip: "Start the glass again. If it keeps failing, it pauses itself again."
+                    onClicked: Backend.resumeGlass()
+                }
+            }
+    
+            // ------------------------------------- another app replaced what Apply wrote
+            // (a theme update relinking gtk.css, say). Said once, quietly, with a way back.
+            Rectangle {
+                id: lostBanner
+                objectName: "lostBanner"
+                readonly property bool shown: Backend.lostNote !== "" && !Backend.busy
+                anchors.bottom: footer.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "info"
+                    color: Theme.warn
+                    size: 18
+                }
+                Text {
+                    x: 42
+                    width: parent.width - x - reapply.width - 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Backend.lostNote
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
+                }
+                LgButton {
+                    id: reapply
+                    objectName: "reapply"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "primary"
+                    implicitHeight: 32
+                    leftPadding: 14; rightPadding: 14
+                    text: "Re-apply"
+                    iconName: "refresh"
                     enabled: !Backend.busy
-                    busy: Backend.busyKind === "apply"
-                    tip: "Save and apply the theme everywhere (Ctrl+Enter)"
+                    tip: "Write the Fedora Glass look again. Nothing else changes."
                     onClicked: Backend.apply()
                 }
             }
-        }
 
-        Toast { id: toast; anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
+            // ------------------------------------------------------ footer
+            Item {
+                id: footer
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 72
+
+                Rectangle { x: 0; width: parent.width; height: 1; color: Theme.divider }
+
+                // status
+                Row {
+                    id: footerStatus
+                    x: 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    // Applied, but the glass only starts after a restart: not "Up to date" yet.
+                    readonly property string phase: Backend.dirty ? "dirty" : Backend.lostNote !== "" ? "lost"
+                        : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
+                        : Backend.hasBackup ? "done" : "none"
+                    Rectangle {
+                        objectName: "statusDot"
+                        visible: !Backend.busy
+                        width: 8; height: 8; radius: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: footerStatus.phase === "dirty" ? Theme.accent
+                             : footerStatus.phase === "done" ? Theme.good
+                             : footerStatus.phase === "none" ? Theme.textFaint : Theme.warn
+                    }
+                    Text {
+                        objectName: "statusText"
+                        visible: !Backend.busy
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: ({ dirty: Backend.changeCount === 1 ? "1 change not applied yet"
+                                        : Backend.changeCount > 1 ? Backend.changeCount + " changes not applied yet"
+                                        : "Unapplied changes",
+                                 lost: "Needs re-apply", login: "Login screen needs Apply",
+                                 restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
+                        color: Theme.textDim
+                        font.pixelSize: 14
+                    }
+                    LgButton {
+                        objectName: "restartButton"
+                        visible: footerStatus.phase === "restart" && !Backend.busy
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: "secondary"
+                        implicitHeight: 30
+                        leftPadding: 12; rightPadding: 12
+                        font.pixelSize: 13
+                        text: "Restart…"
+                        tip: "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
+                        onClicked: Backend.restartPC()
+                    }
+                    LgButton {
+                        objectName: "discardButton"
+                        visible: Backend.dirty && !Backend.busy
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: "flat"
+                        implicitHeight: 30
+                        leftPadding: 10; rightPadding: 12
+                        font.pixelSize: 14
+                        text: "Undo"
+                        iconName: "undo"
+                        tip: "Go back to the look you applied last (Ctrl+Z)"
+                        onClicked: Backend.discardChanges()
+                    }
+                    Item {
+                        visible: Backend.busy
+                        width: 260; height: 32
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            text: Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
+                                : Backend.busyKind === "revert" ? "Restoring your original look…"
+                                : "Working out the changes…"
+                            color: Theme.textDim
+                            font.pixelSize: 13
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+                        Rectangle {
+                            y: 22; width: parent.width; height: 4; radius: 2
+                            color: Theme.wellHi
+                            Rectangle {
+                                height: parent.height; radius: 2
+                                width: Math.max(8, parent.width * Backend.progress)
+                                color: Theme.accent
+                                Behavior on width { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                            }
+                        }
+                    }
+                }
+
+                Row {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    LgButton {
+                        objectName: "showChanges"
+                        kind: "secondary"
+                        text: "See changes"
+                        leftPadding: 18; rightPadding: 18
+                        enabled: !Backend.busy
+                        busy: Backend.busyKind === "plan"
+                        tip: "List every file and setting Apply would change"
+                        onClicked: Backend.requestPlan()
+                    }
+                    LgButton {
+                        id: applyButton
+                        objectName: "applyButton"
+                        // While the Re-apply banner shows, it is the one call to action.
+                        kind: lostBanner.shown ? "secondary" : "primary"
+                        text: "Apply"
+                        iconName: "check"
+                        leftPadding: 18
+                        rightPadding: 22
+                        enabled: !Backend.busy
+                        busy: Backend.busyKind === "apply"
+                        tip: "Save and apply the look everywhere (Ctrl+Enter)"
+                        onClicked: Backend.apply()
+                    }
+                }
+            }
+
+            Toast { id: toast; anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
+        }
     }
 
     // ------------------------------------------------------------ sheets
