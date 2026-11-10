@@ -341,7 +341,7 @@ def check_looks(ctx: Ctx) -> Check:
     # Quick Settings
     sh.eval("Main.panel.statusArea.quickSettings.menu.open(); 1")
     settle(1.5)
-    now = lgqa.load(sh.shot("looks-quick-settings"))
+    now = steady_shot(sh, "looks-quick-settings", mask)
     against_reference(ctx, c, "quick-settings", "Quick Settings", now, mask)
     sh.eval("Main.panel.statusArea.quickSettings.menu.close(); 1")
     settle(1)
