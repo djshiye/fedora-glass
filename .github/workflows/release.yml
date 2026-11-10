@@ -5,7 +5,9 @@
 #
 # The release RPMs are not signed here: Dino signs them on their own PC with
 # `fedora-glass-sign` (docs/SIGNING.md), which then starts the "DNF repository"
-# workflow (dnf-repo.yml) that publishes them for `sudo dnf upgrade`.
+# workflow (dnf-repo.yml) that publishes them for `sudo dnf upgrade`. Each package
+# gets a GitHub build provenance attestation here, and fedora-glass-sign signs only
+# packages whose attestation says this workflow built them from a commit on main.
 name: Release
 
 on:
@@ -34,19 +36,30 @@ jobs:
   rpm:
     needs: [checks, packages]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release and upload the packages
+      actions: read        # fetch the Ubuntu and Arch packages built by the jobs above
+      id-token: write      # build provenance: a short-lived Sigstore certificate for this run
+      attestations: write  # build provenance: store the attestations with the repository
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     steps:
       - name: Tools
         run: dnf install -y --setopt=install_weak_deps=False rpm-build systemd-rpm-macros git gh python3-pytest python3-gobject
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0   # main's history, for the check below
 
       - name: Only from main
-        # A hand-started run tags and publishes whatever it runs on: only main may ship.
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        # Only main may ship. A hand-started run tags and publishes whatever it runs on,
+        # so it must run on main; a pushed v* tag must point at a commit that is on main.
         run: |
-          echo "Run the release from main, not $GITHUB_REF"
-          exit 1
+          git config --global --add safe.directory "$PWD"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Run the release from main, not $GITHUB_REF"
+            exit 1
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "$GITHUB_SHA ($GITHUB_REF) is not on main"; exit 1; }
 
       - name: Version
         run: |
@@ -57,8 +70,8 @@ jobs:
           echo "VER=$spec" >> "$GITHUB_ENV"
           echo "TAG=v$spec" >> "$GITHUB_ENV"
 
-      - name: Tests
-        run: python3 -m pytest -q tests
+      # No separate test step: rpmbuild runs the whole test suite in the spec's %check,
+      # on the same sources it packages, and a failure stops the release there.
 
       - name: Build
         env:
@@ -82,6 +95,16 @@ jobs:
           cp out/fedora-glass_"$VER"-1_all.deb out/fedora-glass.deb
           cp out/fedora-glass-"$VER"-1-any.pkg.tar.xz out/fedora-glass.pkg.tar.xz
           (cd out && sha256sum *.rpm *.deb *.pkg.tar.xz > SHA256SUMS)
+
+      - name: Build provenance
+        # Signed proof (Sigstore, stored with the repository) that this workflow built each
+        # package from this commit. fedora-glass-sign checks it before it signs anything.
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-path: |
+            out/*.rpm
+            out/*.deb
+            out/*.pkg.tar.xz
 
       - name: Release
         env:
