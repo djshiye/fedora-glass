@@ -21,6 +21,7 @@ import io
 import json
 import os
 import shutil
+import stat
 import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -141,6 +142,24 @@ def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+
+
+def same_file(path: Path, data: bytes, mode: int) -> bool:
+    """Whether `path` already is a plain file with exactly these bytes and this mode. Then
+    writing it again changes nothing but wakes whatever watches it (the glass extension
+    re-reads its settings and refreshes every part for each one)."""
+    try:
+        st = path.lstat()
+        if not stat.S_ISREG(st.st_mode) or st.st_mode & 0o777 != mode or st.st_size != len(data):
+            return False
+        return path.read_bytes() == data
+    except OSError:
+        return False
+
+
+def write_if_changed(path: Path, data: bytes, mode: int = 0o644) -> None:
+    if not same_file(path, data, mode):
+        atomic_write(path, data, mode)
 
 
 def _remove_empty(dirs: set[str]) -> None:
@@ -908,7 +927,7 @@ class Engine:
         self._write_tokens(ctx)
         if not self.env.dry_run:
             with contextlib.suppress(OSError):
-                atomic_write(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+                write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
         # This Apply switched the glass extension back on (after Restore original, or after
         # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
         # it right away, so the parts that wait for the glass are finished now, not after a
@@ -965,7 +984,7 @@ class Engine:
                 backup.record_file(tid, a.path, generated=not a.edits)
                 if not self.env.dry_run:
                     data = a.content.encode() if isinstance(a.content, str) else a.content
-                    atomic_write(a.path, data, _kept_mode(a.path, a.mode))
+                    write_if_changed(a.path, data, _kept_mode(a.path, a.mode))
                     if (rec := backup.data["files"].get(str(a.path))) is not None:
                         rec["wrote"] = hashlib.sha256(data).hexdigest()
                         if a.edits:
@@ -1044,6 +1063,6 @@ class Engine:
         if self.env.dry_run:
             return
         d = config_dir()
-        atomic_write(d / "tokens-dark.json", ctx.dark.to_json().encode())
-        atomic_write(d / "tokens-light.json", ctx.light.to_json().encode())
-        atomic_write(d / "tokens.json", ctx.tokens.to_json().encode())
+        write_if_changed(d / "tokens-dark.json", ctx.dark.to_json().encode())
+        write_if_changed(d / "tokens-light.json", ctx.light.to_json().encode())
+        write_if_changed(d / "tokens.json", ctx.tokens.to_json().encode())

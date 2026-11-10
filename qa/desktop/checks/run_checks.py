@@ -202,6 +202,20 @@ def clock_mask(ctx: Ctx, shape) -> np.ndarray:
     return lgqa.rect_mask(shape, [ctx.px(b) for b in actor_boxes(ctx, "DateMenuButton|clock-display")], grow=6)
 
 
+# The panel clock's width moves everything left of it, menus included: "Nov 10" is wider
+# than "Nov 9", and "16:05" than "1:05". The reference pictures were taken at "Nov 9 16:xx",
+# so the looks check pins every panel clock to that text (and keeps it there if GNOME ticks
+# it on), then lets the clocks go again.
+PIN_CLOCKS_JS = """(() => { const St = imports.gi.St; const pins = globalThis._lgqaClockPins = globalThis._lgqaClockPins ?? [];
+ const fix = t => t.replace(/\\p{L}+/u, 'Nov').replace(/\\d+(?=\\D+\\d+:\\d+)/, '9').replace(/\\d+:\\d+/, '16:00');
+ const walk = a => { const l = a._clockDisplay; if (l instanceof St.Label && !pins.some(p => p[0] === l)) {
+   const t = fix(l.text); l.text = t; pins.push([l, l.connect('notify::text', () => { if (l.text !== t) l.text = t; })]); }
+   for (const c of a.get_children()) walk(c); };
+ walk(global.stage); return pins.length; })()"""
+UNPIN_CLOCKS_JS = """(() => { const pins = globalThis._lgqaClockPins ?? []; for (const [l, id] of pins) { try { l.disconnect(id); } catch (e) {} }
+ globalThis._lgqaClockPins = []; return pins.length; })()"""
+
+
 def panel_mask(ctx: Ctx, shape) -> np.ndarray:
     """The panels' task bars change as apps open and close (the panel glass is checked in "looks")."""
     boxes = ctx.sh.json("return (global.dashToPanel?.panels ?? []).map(p => { const a = p.panelBox ?? p;"
@@ -305,6 +319,7 @@ def check_looks(ctx: Ctx) -> Check:
     sh = ctx.sh
     sh.close_all()
     lgqa.kill_apps()
+    sh.eval(PIN_CLOCKS_JS)
     settle(2)
 
     now = lgqa.load(sh.shot("looks-desktop"))
@@ -379,6 +394,7 @@ def check_looks(ctx: Ctx) -> Check:
           + ("" if ratio >= LIMITS["looks"]["min_glass_vs_wallpaper"] else " The glass is too dark, like 1.3.0's black glass."))
     sh.close_all()
     lgqa.kill_apps()
+    sh.eval(UNPIN_CLOCKS_JS)
     return c
 
 
@@ -874,6 +890,21 @@ def check_speed(ctx: Ctx) -> Check:
         settle(3)
         quiet(ctx)
         idle = timed(ctx, 10)
+        # A clock ticking once a second in the terminal's top-left corner, far from
+        # Files' glass and the panels: no glass may re-render for it.
+        far = None
+        if state == "on":
+            clock = lgqa.launch(["ptyxis", "--new-window", "-x", "bash /opt/lgqa/suite/checks/term-clock.sh"], log="ptyxis-clock")
+            ck = sh.wait_window(r"^LGQA clock$")
+            # Below the terminal, its top-right corner under Files' glass, its clock (top
+            # left) under no glass at all, whatever order the three windows end up in.
+            sh.put(ck["id"], 60, 520, 700, 320)
+            sh.focus(files["id"])
+            settle(3)
+            far = timed(ctx, 8)
+            sh.win_js(ck["id"], "w.delete(global.get_current_time()); return 1;")
+            clock.terminate()
+            settle(1)
         # The pointer just above the second screen's panel, where it lights the rim.
         H = float(sh.eval("global.display.get_monitor_geometry(1).y + global.display.get_monitor_geometry(1).height"))
         pointer = pointer_near_panel(ctx, W + 700, H - 260) if state == "on" else None
@@ -896,7 +927,7 @@ def check_speed(ctx: Ctx) -> Check:
         sh.wait_for("return !globalThis._lgqaMoving;", 90, 0.2)
         wall = time.monotonic() - t0
         frames = json.loads(sh.eval(STOP_JS))
-        results[state] = {"idle": idle, "busy": stream, "pointer": pointer,
+        results[state] = {"idle": idle, "busy": stream, "pointer": pointer, "far": far,
                           "move": {"fps": len(frames) / wall, "cpu": (lgqa.shell_cpu_seconds() - cpu0) / wall * 100}}
     set_glass(ctx, True)
     (OUT / "speed.json").write_text(json.dumps(results, indent=2))
@@ -915,6 +946,16 @@ def check_speed(ctx: Ctx) -> Check:
     c.add(idle_glass <= lim["max_idle_glass_redraws"],
           f"While nothing moves, the busiest piece of glass redraws {idle_glass:.1f} times a second "
           f"(limit {lim['max_idle_glass_redraws']}).")
+
+    far = max((p["rate"] for p in on["far"]["panes"]), default=0)
+    if int(GNOME) >= 51:
+        c.add(far <= lim["max_far_change_glass_redraws"],
+              f"While a clock ticks in a terminal, far from any glass, the busiest piece of glass redraws "
+              f"{far:.1f} times a second (limit {lim['max_far_change_glass_redraws']}; 1.5.17 redrew the glass over "
+              f"that terminal with every tick).")
+    else:    # GNOME 50 redraws a whole pane for any change in a window it copies
+        c.info(f"While a clock ticks in a terminal, far from any glass, the busiest piece of glass redraws "
+               f"{far:.1f} times a second (GNOME 50 always redraws it; for information).")
 
     pr = on["pointer"]["rate"]
     c.add(pr <= lim["max_pointer_glass_redraws"],

@@ -240,15 +240,16 @@ class WindowGlass {
         if (this.pane)
             return;
         this.pane = new GlassPane();
-        // Each pane sits in a holder that keeps its finished picture. A window's glass
-        // is big, and without it the lens would be drawn again for every frame that
-        // repaints the window (the overview opening, a workspace switch, an app
-        // streaming text); with it, it is drawn again only when what is behind the
-        // window changes.
+        // Each pane sits in a holder that places it, and keeps its finished glass
+        // (GlassPane.setKeep). A window's glass is big, and without that the lens
+        // would be drawn again for every frame that repaints the window (a workspace
+        // switch, an app streaming text); with it, it is drawn again only when what
+        // is behind the window changes. Up to 1.5.18 the holder kept it as an
+        // offscreen actor, at twice the screen's size under fractional scaling.
         const holder = p => {
-            const h = new Clutter.Actor({name: 'fedora-glass-holder', reactive: false, visible: false,
-                offscreen_redirect: Clutter.OffscreenRedirect.ALWAYS});
+            const h = new Clutter.Actor({name: 'fedora-glass-holder', reactive: false, visible: false});
             h.add_child(p);
+            p.setKeep(true);
             return h;
         };
         this._holder = holder(this.pane);
@@ -540,18 +541,16 @@ class WindowGlass {
      * fifth of a frame on software rendering). Keep none until it has settled.
      */
     _moved() {
-        if (!this._holder)
+        if (!this.pane)
             return;
-        for (const h of [this._holder, ...this._rimHolders]) {
-            if (h.offscreen_redirect !== 0)
-                h.offscreen_redirect = 0;
-        }
+        for (const p of [this.pane, ...this.rims])
+            p.setKeep(false);
         if (this._settle)
             GLib.source_remove(this._settle);
         this._settle = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SETTLE_MS, () => {
             this._settle = 0;
-            for (const h of this._holder ? [this._holder, ...this._rimHolders] : [])
-                h.offscreen_redirect = Clutter.OffscreenRedirect.ALWAYS;
+            for (const p of this.pane ? [this.pane, ...this.rims] : [])
+                p.setKeep(true);
             return GLib.SOURCE_REMOVE;
         });
     }

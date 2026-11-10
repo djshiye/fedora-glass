@@ -58,7 +58,7 @@ class FakeEffect {
 }
 
 const SHADERS = [
-    {file: 'glass.js', name: 'SHADER', calls: ['setFloats', 'GLASS.set']},
+    {file: 'glass.js', name: 'SHADER', calls: ['setFloats', '_set', 'GLASS.setOn']},
     {file: 'animations.js', name: 'GENIE_SHADER', calls: ['_set', 'GENIE.set']},
 ];
 
@@ -173,8 +173,8 @@ test('the texture frame is in the pane\'s own pixels at any display scale', () =
     assert.deepEqual(textureFrame(406, 106, pane(200, 50, 2)), {tex_w: 203, tex_h: 53, org_x: 2, org_y: 2});
 });
 
-test('both effects that map a texture onto an actor use textureFrame', () => {
-    for (const f of ['glass.js', 'animations.js']) {
+test('the genie maps its offscreen texture with textureFrame', () => {
+    for (const f of ['animations.js']) {
         assert.match(code(f), /textureFrame\(w, h, a\)/, f);
         assert.doesNotMatch(code(f), /tex_w: w/, f);
     }
@@ -188,6 +188,22 @@ test('a clipped pane starts where Clutter frames its clip', () => {
     assert.equal(f.org_y, 2);
 });
 
+
+// The glass draws with a Cogl pipeline of its own (one program for every pane).
+test('glass uniforms go to its pipeline as 1f, looked up once, 0 as exactly 0', () => {
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'));
+    const looked = [], calls = [];
+    const p = {
+        get_uniform_location: name => (looked.push(name), name === 'width' ? 7 : looked.length),
+        set_uniform_1f: (loc, v) => calls.push([loc, v]),
+    };
+    const at = new Map();
+    shader.setOn(p, at, {width: 1920, ceil_y: 0, nope: 1, hl: NaN});
+    shader.setOn(p, at, {width: 800});
+    assert.deepEqual(calls, [[7, 1920], [2, 0], [7, 800]]);
+    assert.ok(Object.is(calls[1][1], 0));
+    assert.deepEqual(looked, ['width', 'ceil_y']);
+});
 
 // GNOME 51 removed Shell.GLSLEffect; the same shaders run as a Clutter.ShaderEffect.
 test('on GNOME 51 uniforms are set by name, as floats', () => {
@@ -215,4 +231,50 @@ test('the GNOME 51 snippet carries the same shader, replacing the fragment hook'
     assert.equal(snip.decls, parts.decls);
     assert.equal(snip.post, null);
     assert.equal(snip.replace, parts.code);
+});
+
+// The glass's overall backdrop brightness ("adapt", "lift") is the same for every
+// pixel of a pane, so its four texture reads run once per corner in a vertex snippet
+// and reach the fragment shader as the varying fg_bl (they were four reads per pixel).
+function adaptVertex() {
+    const m = read('glass.js').match(/const ADAPT_VERTEX = \{\s*decls: `([^`]*)`,\s*code: `([^`]*)`,\s*\};/);
+    assert.ok(m, 'ADAPT_VERTEX in glass.js');
+    return {decls: m[1], code: m[2]};
+}
+
+test('the backdrop brightness is read once per corner, not per pixel', () => {
+    const frag = shaderSource('glass.js', 'SHADER');
+    const v = adaptVertex();
+    assert.match(frag, /varying float fg_bl;/);
+    assert.match(v.decls, /varying float fg_bl;/);
+    assert.match(frag, /float bl = fg_bl;/);
+    assert.doesNotMatch(frag, /at\(size \* 0\.5/);
+    assert.match(v.code, /fg_bl = 0\.0;/);
+    // Cogl already declares the sampler in the vertex stage: declaring it again is a
+    // compile error, and then no glass draws at all.
+    assert.doesNotMatch(v.decls, /sampler2D/);
+    assert.match(v.decls, /texture2DLod\(cogl_sampler0,/);
+    // Its uniforms are the fragment shader's own, so the JS sets them already.
+    const fragNames = new Set(uniformNames(frag));
+    for (const n of uniformNames(v.decls))
+        assert.ok(fragNames.has(n), `vertex uniform ${n} is declared by the glass shader too`);
+});
+
+test('build adds the vertex snippet, then the replacing fragment snippet', () => {
+    const v = adaptVertex();
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'), v);
+    const added = [];
+    shader.build({add_glsl_snippet: (hook, decls, code, replace) => added.push({hook, decls, code, replace})});
+    assert.deepEqual(added.map(s => [s.hook, s.replace]), [['vertex', false], ['fragment', true]]);
+    assert.equal(added[0].code, v.code);
+    const snip = shader.coglVertex();
+    assert.equal(snip.hook, 'vertex');
+    assert.equal(snip.post, v.code);
+    assert.equal(shader.coglVertex(), snip);    // one snippet, shared by every pane
+    assert.equal(new Shader(shaderSource('glass.js', 'SHADER')).coglVertex(), null);
+});
+
+test('the lens pipeline every pane copies has the vertex snippet too', () => {
+    const src = code('glass.js');
+    assert.match(src, /lensTemplate\.add_snippet\(GLASS\.cogl\(\)\);\s*lensTemplate\.add_snippet\(GLASS\.coglVertex\(\)\);/);
 });

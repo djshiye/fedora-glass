@@ -24,7 +24,7 @@ def test_catch_up_render_waits_for_a_whole_redraw():
     start = js.index("Time to catch up, but this frame redraws only part")
     block = js[start:start + 800]
     assert "a?.queueFull?.();" in block
-    assert "super.vfunc_paint(node, paintContext, flags & ~dirty);" in block
+    assert "this._draw(node, a, false);" in block
 
 
 def test_glass_renders_only_while_its_own_screen_paints():
@@ -41,6 +41,6 @@ def test_glass_renders_only_while_its_own_screen_paints():
     block = js[start:start + 600]
     assert "(this._offHome ?? 0) < 3" in block      # never more than three skips in a row
     assert "a?.queueFull?.(home);" in block
-    assert "super.vfunc_paint(node, paintContext, flags & ~dirty);" in block
+    assert "this._draw(node, a, false);" in block
     # A failure there must never stop the glass rendering.
     assert "return null;     // never stop the glass from rendering" in js

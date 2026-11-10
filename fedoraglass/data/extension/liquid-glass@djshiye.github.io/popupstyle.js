@@ -30,6 +30,7 @@ export class PopupStyle {
         this._theme = null;
         this._loading = false;
         this._settleId = 0;
+        this._laterId = 0;
         this._want = '';
         this._context = St.ThemeContext.get_for_stage(global.stage);
         // A theme reload (User Themes, light and dark) builds a new theme; GNOME copies
@@ -120,7 +121,24 @@ export class PopupStyle {
         } catch {}   // already gone
     }
 
+    // Locking: the sheet goes once the lock screen is up. Taking it away inside the
+    // lock itself restyled the whole desktop still on screen (a few hundred ms more of a
+    // frozen screen at every lock); a moment later the desktop is hidden and it is cheap.
+    // `done` runs once it has gone.
+    destroyLater(done) {
+        this._cancelSettle();
+        this._laterId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+            this._laterId = 0;
+            this.destroy();
+            done?.();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     destroy() {
+        if (this._laterId)
+            GLib.source_remove(this._laterId);
+        this._laterId = 0;
         this._cancelSettle();
         if (this._changedId)
             this._context.disconnect(this._changedId);

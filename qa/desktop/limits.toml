@@ -45,6 +45,9 @@ max_content_drift = 30
 max_idle_frames = 6
 # Redraws per second of the busiest piece of glass while nothing moves.
 max_idle_glass_redraws = 0.5
+# Redraws per second of the glass over a window whose only change is a clock ticking far
+# from that glass (1.5.17 re-rendered it with every tick: one a second per pane).
+max_far_change_glass_redraws = 0.3
 # Redraws per second of glass that a busy, streaming window does not touch.
 max_unrelated_glass_redraws = 1.0
 # Redraws per second of a panel's glass while the pointer moves near it. The pointer only
