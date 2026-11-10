@@ -20,14 +20,24 @@ Sheet {
         { name: "Frosted", caption: "Calm, milky frost", blur: 1.0, haze: 0.32 }
     ]
 
+    // Nothing changes on the desktop until a button that says Apply: "Customise first"
+    // only closes the welcome, "Apply this look" applies the look picked above.
     buttons: [
         LgButton {
             objectName: "welcomeStart"
-            text: "Start"
+            text: "Customise first"
+            kind: "secondary"
+            onClicked: sheet.close()
+        },
+        LgButton {
+            objectName: "welcomeApply"
+            text: "Apply this look"
             kind: "primary"
             iconName: "check"
             leftPadding: 18; rightPadding: 22
-            onClicked: sheet.close()
+            enabled: !Backend.busy
+            tip: "Applies the look you picked to your desktop and apps. Restore original undoes it."
+            onClicked: { sheet.close(); Backend.dismissWelcome(); Backend.apply() }
         }
     ]
 
@@ -180,6 +190,16 @@ Sheet {
                     }
                 }
             }
+            // What this desktop is made of, so the look above clearly fits it.
+            Text {
+                objectName: "welcomeFound"
+                visible: text.length > 0
+                width: parent.width
+                text: Backend.foundSummary
+                color: Theme.textDim
+                font.pixelSize: Theme.fsSmall
+                wrapMode: Text.WordWrap
+            }
         }
 
         // How the app works, in three steps.
@@ -197,7 +217,7 @@ Sheet {
                 Repeater {
                     model: [
                         { icon: "eye", title: "Try it here", text: "The preview shows every change straight away." },
-                        { icon: "check", title: "Press Apply", text: "Your desktop and apps get the look." },
+                        { icon: "check", title: "Press Apply", text: "Your apps change at once. Restart once for the glass." },
                         { icon: "undo", title: "Undo any time", text: "Restore original puts everything back." }
                     ]
                     delegate: Row {

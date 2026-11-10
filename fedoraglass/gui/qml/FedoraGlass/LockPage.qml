@@ -143,7 +143,7 @@ Item {
                         objectName: "lockStatus"
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: "Only your wallpaper shows through the glass, never your windows. Changes show the next time you lock."
+                        text: "Only your wallpaper shows through the glass, never your windows. Changes show after Apply, the next time you lock."
                         color: Theme.textDim
                         font.pixelSize: 13
                     }
@@ -163,14 +163,18 @@ Item {
                         tip: "Shows the unlock animation on the preview, with the time and bounce you picked"
                         onClicked: { preview.mode = "rest"; unlockAnim.restart() }
                     }
+                    // Secondary, so Apply stays the one main action. With unapplied changes it
+                    // applies them first: locking alone would show the old look.
                     LgButton {
                         objectName: "lockNow"
-                        kind: "primary"
-                        text: "Lock now"
+                        kind: "secondary"
+                        text: Backend.dirty ? "Apply and lock" : "Lock now"
                         iconName: "lock"
                         leftPadding: 14
-                        tip: "Locks your screen so you can see it for real. Your password unlocks it as usual."
-                        onClicked: Backend.lockScreenNow()
+                        enabled: !Backend.busy
+                        tip: Backend.dirty ? "Applies your changes, then locks your screen so you can see them for real."
+                                           : "Locks your screen so you can see it for real. Your password unlocks it as usual."
+                        onClicked: Backend.dirty ? Backend.applyAndLock() : Backend.lockScreenNow()
                     }
                 }
             }

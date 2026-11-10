@@ -61,6 +61,8 @@ RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
 
 DOCK_EXTENSIONS = ("dash-to-dock@micxgx.gmail.com", "ubuntu-dock@ubuntu.com")
 MENU_EXTENSIONS = ("arcmenu@arcmenu.com", "spawn@djshiye.github.io")
+EXTENSION_NAMES = {"dash-to-dock@micxgx.gmail.com": "Dash to Dock", "ubuntu-dock@ubuntu.com": "Ubuntu Dock",
+                   "arcmenu@arcmenu.com": "ArcMenu", "spawn@djshiye.github.io": "Spawn"}
 FALLBACK_DOCK = ("org.gnome.Nautilus.desktop", "org.gnome.Ptyxis.desktop")
 
 
@@ -265,8 +267,11 @@ class Backend(QObject):
         self._motion_state = {"animations": True, "dtpHover": False}
         self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
         self._has_menu = False      # ArcMenu or Spawn switched on
+        self._dock_name = self._menu_name = ""     # which of them, for the welcome's "Found on this PC"
         # Applied, but the glass (or a Shell part waiting for it) only starts after a restart.
         self._restart_needed = False
+        # "Apply and lock" on the Lock screen page: lock once this Apply finishes well.
+        self._lock_after_apply = False
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -1036,6 +1041,35 @@ class Backend(QObject):
         if not path or not self._detach(path, ["--reboot"]):
             self.failed.emit("Could not open the restart dialog. Restart your PC from the system menu instead.")
 
+    @Slot()
+    def applyAndLock(self) -> None:
+        """Apply the unapplied changes, then lock the screen so they can be seen for real.
+        Nothing to apply: just lock."""
+        if not self.dirty:
+            self.lockScreenNow()
+            return
+        self._lock_after_apply = True
+        self.apply()
+
+    def _lock_if_asked(self, results: list) -> None:
+        """After "Apply and lock": lock, unless something failed or the glass needs a restart
+        first (the lock screen would still show the old look)."""
+        if not self._lock_after_apply:
+            return
+        self._lock_after_apply = False
+        if not any(r.status == "failed" for r in results) and not self._restart_needed:
+            self.lockScreenNow()
+
+    @Property(str, notify=targetsChanged)
+    def foundSummary(self) -> str:
+        """What the desktop here is made of, in one line for the welcome ("" until known)."""
+        if not self._targets_ready:
+            return ""
+        parts = ["Dash to Panel" if self.hasDashToPanel else "GNOME's own top bar"]
+        parts += [n for n in (self._dock_name, self._menu_name) if n]
+        text = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+        return f"Found on this PC: {text}."
+
     @Property(bool, notify=targetsChanged)
     def hasBackup(self) -> bool:
         return self._has_backup
@@ -1093,23 +1127,30 @@ class Backend(QObject):
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             return (out, self._backup_exists(engine), self._restart_state(engine, glass_wanted),
-                    self._terminal_palette(engine), lost, self._motion_env(engine), self._extensions_on(engine))
+                    self._terminal_palette(engine), lost, self._motion_env(engine), self._extension_names(engine))
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
     def _extensions_on(engine: Any) -> tuple[bool, bool]:
         """Whether a dock (Dash to Dock, Ubuntu Dock) and a start menu (ArcMenu, Spawn) are
         installed and switched on."""
+        dock, menu = Backend._extension_names(engine)
+        return bool(dock), bool(menu)
+
+    @staticmethod
+    def _extension_names(engine: Any) -> tuple[str, str]:
+        """The dock and the start menu that are installed and switched on, by name ("" for none)."""
         try:
             env = engine.env
             on = env.gsettings_get("org.gnome.shell", "enabled-extensions") or ""
             if env.gsettings_get("org.gnome.shell", "disable-user-extensions") == "true":
-                return False, False
-            def any_on(uuids: tuple[str, ...]) -> bool:
-                return any(f"'{u}'" in on and env.extension_path(u) is not None for u in uuids)
-            return any_on(DOCK_EXTENSIONS), any_on(MENU_EXTENSIONS)
+                return "", ""
+            def first_on(uuids: tuple[str, ...]) -> str:
+                return next((EXTENSION_NAMES[u] for u in uuids
+                             if f"'{u}'" in on and env.extension_path(u) is not None), "")
+            return first_on(DOCK_EXTENSIONS), first_on(MENU_EXTENSIONS)
         except Exception:
-            return False, False
+            return "", ""
 
     @staticmethod
     def _overwritten(engine: Any) -> list[str]:
@@ -1164,7 +1205,8 @@ class Backend(QObject):
             restart = False
         else:
             (self._targets, self._has_backup, (self._glass_live, restart), self._terminal_pal, self._lost,
-             self._motion_state, (self._has_dock, self._has_menu)) = out
+             self._motion_state, (self._dock_name, self._menu_name)) = out
+            self._has_dock, self._has_menu = bool(self._dock_name), bool(self._menu_name)
         self._targets_ready = True
         self.targetsChanged.emit()
         self._set_restart_needed(restart)
@@ -1273,6 +1315,7 @@ class Backend(QObject):
         try:
             settings_mod.save(s, self._path)
         except OSError as e:
+            self._lock_after_apply = False
             self.failed.emit(f"Could not save settings: {e}")
             return
         self._saved = s
@@ -1298,6 +1341,7 @@ class Backend(QObject):
 
         def done(out):
             if isinstance(out, Exception):
+                self._lock_after_apply = False
                 self.failed.emit(f"Apply stopped: {out}")
                 return
             results, self._has_backup, (self._glass_live, restart) = out
@@ -1308,6 +1352,7 @@ class Backend(QObject):
                 self._set_header_note("pending")
             self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
                                       "message": r.message} for r in results])
+            self._lock_if_asked(results)
             # Apply brings the login screen along when its glass is on: new colours, or the
             # rules of a newer Fedora Glass. It changes a system file, so this asks for the password.
             self._login_state = self._read_login_state()
