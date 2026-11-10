@@ -201,7 +201,7 @@ SettingsPage {
     SpeedCard { width: parent.width }
 
     side: [
-        Item { id: slot; objectName: "glassPreviewSlot"; width: parent.width; height: Math.round(width * 9 / 16) },
+        Item { id: slot; objectName: "glassPreviewSlot"; width: parent.width; height: page.previewH },
         PreviewNote {}
     ]
 }

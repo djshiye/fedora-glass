@@ -132,8 +132,9 @@ def test_the_one_preview_follows_the_page(qml):
                 continue
             slot = _find(win, pid + "PreviewSlot")
             assert slot is not None, pid
-            pane = preview.parentItem()
+            pane = _find(win, "previewPane")
             assert pane.parentItem() == slot, pid
+            assert pane.isAncestorOf(preview), pid
         assert len([1 for _ in _all(win, "preview")]) == 1
     finally:
         win.close()
@@ -222,5 +223,103 @@ def test_every_search_result_lands_on_a_real_control(qml):
             if hit is None:
                 missing.append(f"{page}/{name}")
         assert not missing, f"search names with no control on their page: {missing}"
+    finally:
+        win.close()
+
+
+# ---------------------------------------------------------------- a preview big enough to judge
+
+def _open_page(win, pid, w, h):
+    win.setWidth(w)
+    win.setHeight(h)
+    win.show()
+    _spin(150)
+    win.setProperty("page", pid)
+    _spin(400)
+    return _find(win, "previewPane"), _find(win, "preview")
+
+
+def test_the_preview_takes_half_the_page_and_shows_glass_close_up(qml):
+    """Beside the cards the preview gets about half the page, and close up it draws the
+    desktop at about half real size (it was a fifth), so blur, corners and rims read."""
+    win = _window(qml)
+    try:
+        pane, preview = _open_page(win, "glass", 1316, 856)
+        assert not _find(win, "glassPreviewSlot").parentItem().parentItem().property("stacked")
+        assert pane.width() >= 440 and pane.property("viewH") >= 360
+        assert pane.property("closeUp") is True
+        assert preview.property("s") >= 0.5
+        assert preview.width() > pane.width()          # a crop of the desktop, not all of it
+        # Whole screen: back to fitting the pane, nothing to pan along the long side.
+        pane.setProperty("closeUp", False)
+        _spin(60)
+        assert preview.property("s") < 0.5
+    finally:
+        win.close()
+
+
+def test_a_small_window_puts_the_preview_above_the_cards(qml):
+    win = _window(qml)
+    try:
+        pane, preview = _open_page(win, "glass", 1036, 716)
+        slot = _find(win, "glassPreviewSlot")
+        page = slot.parentItem().parentItem()
+        assert page.property("stacked") is True
+        assert pane.width() >= 560                    # the full page width, not a side column
+        scroller = _find(win, "glassScroller")
+        top = pane.mapToItem(page, 0, 0).y() + pane.height()
+        assert scroller.y() >= top                    # the cards start under it
+        assert scroller.height() >= 200               # and keep room to work in
+        assert preview.property("s") >= 0.3
+    finally:
+        win.close()
+
+
+def test_the_view_follows_the_scene_and_stays_on_the_desktop(qml):
+    win = _window(qml)
+    try:
+        pane, preview = _open_page(win, "glass", 1316, 856)
+        # With Dash to Panel at the bottom the close-up sits on the bottom edge.
+        if not preview.property("topBar"):
+            assert abs(pane.property("camY") - (preview.height() - pane.property("viewH"))) < 1.5
+        # Dragging far past an edge stops at the edge.
+        pane.setProperty("panX", -100000)
+        pane.setProperty("panY", 100000)
+        _spin(30)
+        assert pane.property("camX") == 0
+        assert abs(pane.property("camY") - (preview.height() - pane.property("viewH"))) < 1.5
+        # A new scene re-centres on what it shows; the overview always shows all of it.
+        preview.setProperty("scene", "overview")
+        _spin(60)
+        assert pane.property("panX") == 0
+        assert pane.property("zoomed") is False
+    finally:
+        win.close()
+
+
+def test_clicking_a_part_on_the_zoomed_preview_picks_that_part(qml):
+    """The Advanced page picks the part under the pointer: through the close-up's
+    offset, not as if the preview still started at the pane's corner."""
+    from PySide6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, QPoint, Qt
+    from PySide6.QtTest import QTest
+    win = _window(qml)
+    try:
+        pane, preview = _open_page(win, "advanced", 1316, 856)
+        _spin(500)
+        assert pane.property("outlinedPart") == "panel"
+        term = QMetaObject.invokeMethod(preview, "partItem", Q_RETURN_ARG("QVariant"), Q_ARG("QVariant", "terminal"))
+        k = preview.property("s")
+        # Pan so the terminal's middle sits in the middle of the view, well off the corner.
+        want = term.x() + 100 * k - pane.property("viewW") / 2
+        pane.setProperty("panX", want - (pane.property("lookAt").x() * k - pane.property("viewW") / 2))
+        _spin(900)                                   # past the glide
+        assert pane.property("camX") > 100           # the view is really shifted
+        assert term is not None and term.isVisible()
+        p = term.mapToItem(win.contentItem(), 100 * k, 270 * k)
+        inside = term.mapToItem(pane, 100 * k, 270 * k)
+        assert 0 < inside.x() < pane.width() and 0 < inside.y() < pane.property("viewH")
+        QTest.mouseClick(win, Qt.LeftButton, Qt.NoModifier, QPoint(int(p.x()), int(p.y())))
+        _spin(100)
+        assert pane.property("outlinedPart") == "terminal"
     finally:
         win.close()

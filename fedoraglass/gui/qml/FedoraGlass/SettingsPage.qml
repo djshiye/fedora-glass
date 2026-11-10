@@ -3,6 +3,8 @@ import QtQuick.Controls.Basic as C
 
 // One page of the app: its cards in a scrolling column on the left and, when the page
 // has one, a fixed column on the right (the shared live preview sits in `previewSlot`).
+// The preview gets about half the page, so the glass reads at a real size. In a narrow
+// window there is no room beside the cards: the preview sits above them instead.
 // Search lands here through reveal(name): it opens any fold around the control,
 // scrolls it into view and lights it up for a moment.
 Item {
@@ -11,7 +13,19 @@ Item {
     property bool hasSide: true
     // Pages without a side column (Apps) keep a comfortable reading width.
     property real maxColumn: 880
-    readonly property real sideW: !hasSide ? 0 : width >= 1060 ? 420 : width >= 900 ? 360 : 300
+    // Side by side from this page width; stacked (preview on top) below it.
+    // Home keeps the preview in its main column, so its side stays a narrow card column.
+    property bool previewInSide: true
+    readonly property bool stacked: hasSide && previewInSide && width < 860
+    // Cards keep at least 440 px; the preview takes the rest of half the page, up to 820 px.
+    readonly property real sideW: !hasSide ? 0 : stacked ? width
+        : !previewInSide ? (width >= 1060 ? 420 : width >= 900 ? 360 : 300)
+        : Math.round(Math.min(820, width - gap - Math.max(440, (width - gap) / 2)))
+    // How tall the preview is: a 4:3 pane beside the cards (room left below it for one
+    // line of notes or buttons), a wide strip above them in a narrow window.
+    readonly property real previewH: !hasSide ? 0 : stacked
+        ? Math.round(Math.max(190, Math.min(340, height * 0.46)))
+        : Math.round(Math.max(200, Math.min(sideW * 0.95, height - 96)))
     readonly property real gap: 24
     default property alias content: col.data
     property alias side: sideCol.data
@@ -23,8 +37,9 @@ Item {
         id: flick
         objectName: page.pageId + "Scroller"
         x: page.hasSide ? 0 : Math.max(0, (page.width - width) / 2)
-        width: page.hasSide ? page.width - page.sideW - page.gap + 12 : Math.min(page.width, page.maxColumn + 12)
-        height: page.height
+        y: page.stacked ? sideCol.height + 14 : 0
+        width: page.stacked ? page.width + 12 : page.hasSide ? page.width - page.sideW - page.gap + 12 : Math.min(page.width, page.maxColumn + 12)
+        height: page.height - y
         contentHeight: col.height + 20
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -43,7 +58,7 @@ Item {
     }
     // Soft fades where the column scrolls under the edges.
     Rectangle {
-        x: flick.x; width: flick.width - 12; height: 14
+        x: flick.x; y: flick.y; width: flick.width - 12; height: 14
         visible: flick.contentY > 2
         gradient: Gradient {
             GradientStop { position: 0; color: Theme.alpha(Theme.base, 0.55) }
@@ -56,7 +71,7 @@ Item {
         visible: page.hasSide
         x: page.width - page.sideW
         width: page.sideW
-        spacing: 12
+        spacing: page.stacked ? 8 : 12
     }
 
     // ---- search: reveal one control --------------------------------------------------
