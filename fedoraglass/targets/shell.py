@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field, replace
 
+from .. import distro
 from ..env import Env
 from ..render import glass as rg
 from ..render import shell as rs
@@ -42,7 +43,9 @@ class GnomeShell(Target):
         "Surfaces are translucent; the glass behind them comes from Fedora Glass effects."])
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
+        det = _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
+        how = "" if det.available else distro.hint("user-theme")
+        return Detection(False, f"Install the User Themes extension: {how}") if how else det
 
     def css_path(self, env: Env):
         return env.data / "themes" / THEME_NAME / "gnome-shell/gnome-shell.css"
@@ -73,7 +76,7 @@ class GlassEffects(Target):
     id: str = "glass"
     name: str = "Fedora Glass effects"
     group: str = "Desktop"
-    summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu or Spawn, app windows and the overview: "
+    summary: str = ("Real glass behind the panel or dock, menus, quick settings, app windows and the overview: "
                     "live blur, a refracting rim, rim light and a rainbow edge.")
     notes: list[str] = field(default_factory=lambda: [
         "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."])

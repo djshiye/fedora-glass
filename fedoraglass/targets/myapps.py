@@ -12,6 +12,8 @@ from .base import Action, Context, Detection, Target
 @dataclass
 class MyApp(AppTarget):
     group: str = "My apps"
+    # Only listed where installed: the app never shows under "Not installed here".
+    hide_when_missing: bool = True
     scheme_dependent: bool = False
     cmd: str = ""
     desktop_id: str = ""
