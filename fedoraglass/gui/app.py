@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
                     pv.setProperty("pointerPinned", True)
             if args.scroll:
                 from PySide6.QtCore import QObject
-                side = win.findChild(QObject, {"apps": "appsList", "lock": "lockOptions"}.get(page, page + "Scroller"))
+                side = win.findChild(QObject, {"apps": "appsList"}.get(page, page + "Scroller"))
                 if side is not None:
                     side.setProperty("contentY", args.scroll)
             if args.reveal:

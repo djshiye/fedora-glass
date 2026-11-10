@@ -12,27 +12,42 @@ Card {
 
     Column {
         width: parent.width
-        spacing: 14
-        SectionTitle { text: "Login screen" }
+        spacing: 10
+        Item {
+            width: parent.width
+            height: heads.height
+            Column {
+                id: heads
+                width: parent.width
+                spacing: 2
+                Text { text: "Glass login screen"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: "Needs your password once. Apply keeps it up to date."
+                    color: Theme.textFaint
+                    font.pixelSize: Theme.fsSmall
+                }
+            }
+            HoverHandler { id: headHover }
+            LgToolTip {
+                shown: headHover.hovered
+                below: true
+                text: "The login screen can't see your wallpaper, so it gets a soft glow in your tint colour with glass panes for your name and password. It changes a system file, so your password is needed, also when Apply updates it. GNOME updates put the normal login screen back by themselves."
+            }
+        }
         Text {
             objectName: "loginGlassStatus"
             width: parent.width
             wrapMode: Text.WordWrap
-            color: Theme.text
-            font.pixelSize: Theme.fsBody
+            color: Theme.textDim
+            font.pixelSize: Theme.fsSmall + 1
             text: root.state_ === "on" && Backend.loginGlassStale
                   ? "The login screen still has an older look. Apply brings it up to date; it asks for your password."
                 : root.state_ === "on" ? "Glass is on the login screen, in your tint and accent colours. Apply keeps it up to date."
                 : root.state_ === "undone" ? "A GNOME update put the normal login screen back. Turn the glass on again to bring it back."
                 : root.busy ? "Waiting for your password…"
                 : "The login screen you see after a restart is GNOME's own."
-        }
-        Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            color: Theme.textFaint
-            font.pixelSize: Theme.fsSmall
-            text: "The login screen can't see your wallpaper, so it gets a soft glow in your tint colour with glass panes for your name and password. It changes a system file, so your password is needed, also when Apply updates it. GNOME updates put the normal login screen back by themselves."
         }
         Flow {
             width: parent.width
