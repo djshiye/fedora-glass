@@ -8,6 +8,10 @@ Card {
     id: root
     objectName: "motionCard"
     height: implicitHeight
+    // Inside the Motion page's "Each animation on its own" fold: no card, no title.
+    property bool embedded: false
+    padding: embedded ? 0 : 20
+    color: embedded ? "transparent" : Theme.surface
 
     readonly property var events: [
         { ev: "open",     label: "Open",                 caption: "Windows appearing, from the taskbar or anywhere" },
@@ -251,6 +255,7 @@ Card {
         spacing: 16
 
         SectionTitle {
+            visible: !root.embedded
             text: "Motion"
             resetKeys: ["motion", "hover_glide", "motion_dtp_hover_off"]
             caption: "How windows open, minimize and close, and how the panel answers your pointer."
@@ -532,8 +537,8 @@ Card {
         }
 
         SwitchRow {
-            objectName: "motionGlide"
-            visible: Backend.hasDashToPanel     // it glides along Dash to Panel's taskbar only
+            objectName: root.embedded ? "" : "motionGlide"
+            visible: Backend.hasDashToPanel && !root.embedded     // it glides along Dash to Panel's taskbar only
             label: "Gliding highlight"
             caption: "One highlight slides from icon to icon along the taskbar"
             tip: "Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on."
