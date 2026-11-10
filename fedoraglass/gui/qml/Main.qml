@@ -248,7 +248,7 @@ Window {
         Item {
             id: pages
             anchors.top: header.bottom
-            anchors.bottom: safeBanner.top
+            anchors.bottom: oldCopyBanner.top
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 24
