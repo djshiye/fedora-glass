@@ -206,3 +206,93 @@ def test_footer_says_partly_applied_and_opens_the_results(qml):
     finally:
         b._set_partial([])
         win.close()
+
+
+# ---------------------------------------------------------------- 2. nothing runs over a removal
+
+def test_removing_counts_as_busy_and_blocks_apply_restore_and_plan(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    seen: list = []
+    b.busyChanged.connect(lambda: seen.append(b.property("busy")))
+    b._set_removing(True)
+    try:
+        assert b.property("busy") and b.property("busyKind") == "remove" and seen == [True]
+        b.setProperty("frost", 0.2)
+        b.apply()
+        b.revert()
+        b.requestPlan()
+        assert b._task is None and b._pending_action is None
+        assert not (tmp_path / "cfg/liquid-glass/settings.json").exists()
+    finally:
+        b._set_removing(False)
+    assert not b.property("busy")
+
+
+def test_window_does_not_close_while_the_app_is_being_removed(qml):
+    b = _probe(qml)
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        b._set_removing(True)
+        _spin()
+        assert _find(win, "applyButton").property("enabled") is False
+        win.close()
+        _spin(400)
+        assert win.isVisible()
+        sheet = _find(win, "waitSheet")
+        assert sheet.property("opened") and sheet.property("title") == "Fedora Glass is being removed"
+        assert not _find(win, "closeWhenDone").property("visible")
+        sheet.close()
+    finally:
+        b._set_removing(False)
+        win.close()
+
+
+def test_apply_starts_the_login_screen_step_before_it_reports(qml, fake_env, tmp_path, monkeypatch):
+    from fedoraglass.gui.backend import Backend
+    pkexec = tmp_path / "pkexec"
+    pkexec.write_text("#!/bin/sh\nsleep 0.3\nexit 0\n")
+    pkexec.chmod(0o755)
+    monkeypatch.setattr(Backend, "PKEXEC", pkexec)
+    b = _backend(fake_env, tmp_path)
+    b._login_available = lambda: True
+    b._read_login_state = lambda: "on"
+    b._login_stale = lambda s=None: True
+    states: list = []
+    b.applyFinished.connect(lambda rs: states.append(b.property("loginGlass")))
+    _apply(b)
+    assert states == ["busy"]
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer
+    t = QElapsedTimer()
+    t.start()
+    while b.property("loginGlass") == "busy" and t.elapsed() < 5000:
+        QCoreApplication.processEvents()
+    assert b.property("loginGlass") == "on" and not b.property("loginGlassFailed")
+
+
+def test_apply_and_close_waits_for_the_login_screen_step(qml):
+    b = _probe(qml)
+    b.discardChanges()
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        win.setProperty("closeAfterApply", True)
+        b._login_proc = object()           # the login screen step asks for the password
+        b.loginGlassChanged.emit()
+        b.applyFinished.emit([])
+        _spin(200)
+        assert win.isVisible() and win.property("closeAfterLogin")
+        win.close()                        # pressing close meanwhile asks to wait too
+        _spin(300)
+        assert win.isVisible() and _find(win, "waitSheet").property("what") == "login"
+        _find(win, "waitSheet").close()
+        b._login_proc = None
+        b.loginGlassChanged.emit()
+        _spin(200)
+        assert not win.isVisible()
+    finally:
+        b._login_proc = None
+        win.setProperty("closeAfterLogin", False)
+        win.close()

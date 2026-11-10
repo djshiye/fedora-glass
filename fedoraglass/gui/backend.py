@@ -266,6 +266,7 @@ class Backend(QObject):
         # or unavailable, and a sentence about the last change.
         self._login_proc: QProcess | None = None
         self._login_note = ""
+        self._login_failed = False     # the last login screen step ended in an error (not a cancel)
         self._login_state = self._read_login_state()
         # Removing the app (Restore original, then dnf remove through pkexec).
         self._remove_proc: QProcess | None = None
@@ -1422,13 +1423,15 @@ class Backend(QObject):
         """The asked-for action waiting for the background check to end, as a busy kind."""
         return {"apply": "apply", "revert": "revert", "requestPlan": "plan"}.get(self._pending_action or "", "")
 
+    # Removing the app (Restore original, then the package manager behind pkexec) counts
+    # as busy from start to end: Apply, Restore or See changes would run over it.
     @Property(bool, notify=busyChanged)
     def busy(self) -> bool:
-        return bool(self._busy or self._queued_kind())
+        return bool(self._busy or self._queued_kind() or self._removing)
 
     @Property(str, notify=busyChanged)
     def busyKind(self) -> str:
-        return self._busy or self._queued_kind()
+        return "remove" if self._removing else self._busy or self._queued_kind()
 
     @Property(float, notify=progressChanged)
     def progress(self) -> float:
@@ -1477,6 +1480,8 @@ class Backend(QObject):
 
     @Slot()
     def requestPlan(self) -> None:
+        if self._removing:
+            return
         if self._task is not None:
             self._pending_action = self._pending_action or "requestPlan"
             self.busyChanged.emit()
@@ -1503,6 +1508,9 @@ class Backend(QObject):
 
     @Slot()
     def apply(self) -> None:
+        if self._removing:
+            self._lock_after_apply = False
+            return
         if self._task is not None:
             # Still checking the system in the background: apply as soon as that ends.
             self._pending_action = "apply"
@@ -1586,6 +1594,8 @@ class Backend(QObject):
 
     @Slot()
     def revert(self) -> None:
+        if self._removing:
+            return
         if self._task is not None:
             # Right after an Apply the app re-checks the system: restore once that ends
             # (1.5.3 dropped the click without a word).
@@ -1714,6 +1724,11 @@ class Backend(QObject):
     def loginGlassNote(self) -> str:
         return self._login_note
 
+    @Property(bool, notify=loginGlassChanged)
+    def loginGlassFailed(self) -> bool:
+        """The last login screen step went wrong (a closed password dialog doesn't count)."""
+        return self._login_failed
+
     def _login_stale(self, s: Settings | None = None) -> bool:
         """Glass is on the login screen, but not the look Apply gives now: other colours,
         or the rules of an older Fedora Glass (1.5.7 made the password prompt compact)."""
@@ -1753,6 +1768,7 @@ class Backend(QObject):
         p.errorOccurred.connect(lambda _e: self._login_finished(p, -1, done))
         self._login_proc = p
         self._login_note = ""
+        self._login_failed = False
         self.loginGlassChanged.emit()
         p.start()
 
@@ -1767,6 +1783,7 @@ class Backend(QObject):
         elif code in (126, 127):          # pkexec: the password dialog was closed or refused
             self._login_note = "Not changed: the password wasn't given."
         else:
+            self._login_failed = True
             first = err.splitlines()[-1] if err else "the helper didn't finish"
             self._login_note = first if first.startswith("Nothing was changed") else f"Nothing was changed: {first}"
         self._login_state = self._read_login_state()
@@ -1839,6 +1856,7 @@ class Backend(QObject):
         if on != self._removing:
             self._removing = on
             self.removingChanged.emit()
+            self.busyChanged.emit()
 
     @Slot()
     def removeApp(self) -> None:

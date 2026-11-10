@@ -103,7 +103,28 @@ Window {
     // Closing with unapplied changes asks first: Apply and close, Discard, or Cancel.
     property bool closeAnyway: false
     property bool closeAfterApply: false
+    // "Apply and close" waits for the login screen step Apply started (it asks for the password).
+    property bool closeAfterLogin: false
+    // "Close when done" on the wait sheet: close once Restore or the login screen step ends.
+    property bool closeWhenIdle: false
+    // What still runs that closing would cut off: removing the app, Apply, Restore or the
+    // login screen step (pkexec). "" when nothing does.
+    readonly property string running: Backend.removing ? "remove"
+        : Backend.busyKind === "apply" || Backend.busyKind === "revert" ? Backend.busyKind
+        : Backend.loginGlass === "busy" ? "login" : ""
+    onRunningChanged: {
+        if (running === "" && closeWhenIdle) {
+            closeWhenIdle = false
+            Qt.callLater(win.close)
+        }
+    }
     onClosing: (close) => {
+        if (win.running !== "" && !win.closeAnyway) {
+            close.accepted = false
+            waitSheet.what = win.running
+            waitSheet.open()
+            return
+        }
         if (Backend.dirty && !win.closeAnyway) {
             close.accepted = false
             leaveSheet.open()
@@ -704,8 +725,10 @@ Window {
                         width: 260; height: 32
                         anchors.verticalCenter: parent.verticalCenter
                         Text {
-                            text: Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
+                            text: Backend.busyKind === "remove" ? "Removing Fedora Glass…"
+                                : Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
                                 : Backend.busyKind === "revert" ? "Restoring your original look…"
+                                : Backend.busyKind === "cleanup" ? "Cleaning up the old copy…"
                                 : "Working out the changes…"
                             color: Theme.textDim
                             font.pixelSize: 13
@@ -774,6 +797,12 @@ Window {
                 if (!results.some(r => r.status === "failed") && !Backend.dirty
                         && !resultsSheet.restartNeeded(results) && !Backend.glassBlocked
                         && Backend.headerNote !== "pending") {
+                    // The login screen step asks for the password: closing now would cut it off.
+                    if (Backend.loginGlass === "busy") {
+                        win.closeAfterLogin = true
+                        toast.show("Closing once the login screen has your new look", "info", Theme.accentText)
+                        return
+                    }
                     win.closeAnyway = true
                     win.close()
                     return
@@ -786,7 +815,24 @@ Window {
             if (problems.length === 0) toast.show("Your original look is back", "okCircle", Theme.good)
             else { problemsSheet.problems = problems; problemsSheet.open() }
         }
-        function onFailed(message) { win.closeAfterApply = false; toast.show(message, "alert", Theme.bad) }
+        function onLoginGlassChanged() {
+            if (!win.closeAfterLogin || Backend.loginGlass === "busy")
+                return
+            win.closeAfterLogin = false
+            // A closed password dialog was the user's own choice; an error stays in view.
+            if (Backend.loginGlassFailed) {
+                toast.show(Backend.loginGlassNote, "alert", Theme.bad)
+                return
+            }
+            win.closeAnyway = true
+            win.close()
+        }
+        function onFailed(message) {
+            win.closeAfterApply = false
+            win.closeAfterLogin = false
+            win.closeWhenIdle = false
+            toast.show(message, "alert", Theme.bad)
+        }
         function onNoticed(message) { toast.show(message, "okCircle", Theme.good) }
     }
 
@@ -834,6 +880,41 @@ Window {
                 iconName: "check"
                 enabled: !Backend.busy
                 onClicked: { leaveSheet.close(); win.closeAfterApply = true; Backend.apply() }
+            }
+        ]
+        Item { width: 1; height: 1 }
+    }
+
+    // Closing while something runs that must not be cut off half way.
+    Sheet {
+        id: waitSheet
+        objectName: "waitSheet"
+        property string what: ""
+        readonly property bool removal: what === "remove"
+        title: ({ remove: "Fedora Glass is being removed", apply: "Your look is being applied",
+                  revert: "Your original look is coming back", login: "The login screen is being updated" })[what] || ""
+        subtitle: removal ? "Closing now could stop it half way. Wait until it's done: the window says when."
+                : what === "login" ? "It waits for your password. Closing now would stop it half way."
+                : "Closing now would stop it half way. It only takes a moment."
+        iconName: "info"
+        width: Math.min(520, win.width - 64)
+        buttons: [
+            LgButton {
+                text: waitSheet.removal ? "OK" : "Keep open"
+                kind: waitSheet.removal ? "primary" : "secondary"
+                onClicked: waitSheet.close()
+            },
+            LgButton {
+                objectName: "closeWhenDone"
+                visible: !waitSheet.removal
+                text: "Close when done"
+                kind: "primary"
+                onClicked: {
+                    waitSheet.close()
+                    // After Apply, the same rules as "Apply and close": a problem is shown, not hidden.
+                    if (waitSheet.what === "apply") win.closeAfterApply = true
+                    else win.closeWhenIdle = true
+                }
             }
         ]
         Item { width: 1; height: 1 }
