@@ -501,6 +501,7 @@ Item {
                             captionName: "glassStatus"
                             caption: Backend.glassLive
                                      ? "The preview shows these as you change them. Your desktop changes when you press Apply."
+                                     : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
                                      : "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
                         }
                         LabeledSlider {

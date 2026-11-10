@@ -23,6 +23,7 @@ Sheet {
          : Backend.glassLive ? "Fedora Glass is on" : "Your new look is applied"
     subtitle: results.length === 0 ? "Nothing to theme was found yet, so only your settings were saved."
             : failedCount > 0 ? "Everything else was applied. The details are below."
+            : needsRestart && Backend.glassProblem === "old" ? Backend.glassProblemNote
             : needsRestart ? "GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them."
             : "Open apps pick up the new look when you reopen them."
     iconName: failedCount > 0 ? "alert" : "okCircle"

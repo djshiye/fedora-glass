@@ -101,7 +101,8 @@ Card {
                 kind: "secondary"
                 text: "Check speed"
                 enabled: Backend.glassLive && !root.running
-                tip: Backend.glassLive ? "" : "Apply, then restart your PC once to start the glass."
+                tip: Backend.glassLive ? "" : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
+                                            : "Apply, then restart your PC once to start the glass."
                 onClicked: Backend.checkSpeed()
                 Accessible.name: "Check speed"
             }

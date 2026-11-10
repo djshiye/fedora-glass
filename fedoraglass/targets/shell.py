@@ -140,18 +140,75 @@ class GlassEffects(Target):
 
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
-        if not self.running(ctx.env):
+        st = glass_state(ctx.env)
+        if st.kind == "old":
+            notes.append(UPDATE_WAITS)
+        elif st.kind != "running":
             notes.append("Restart your PC once so GNOME Shell starts the Fedora Glass extension. "
                          "The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly.")
         return notes
 
     @staticmethod
     def running(env: Env) -> bool:
-        """Whether the Shell has loaded our extension (it only finds new ones at login)."""
-        r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
-                     "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", rg.UUID], timeout=5)
-        m = re.search(r"'state': <([\d.]+)>", r.out) if r.code == 0 else None
-        return m is not None and float(m.group(1)) == 1.0   # 1 = enabled and running
+        """Whether the Shell runs this version's glass extension. It only finds new ones at
+        login, and keeps running the code it started with: after an upgrade the older
+        version runs until the next login, and the Shell parts wait for the new one."""
+        return glass_state(env).kind == "running"
+
+
+# Shown while GNOME runs the glass extension of an older Fedora Glass (after an upgrade).
+UPDATE_WAITS = "Restart your PC to finish the update. Until then the glass from the older version keeps running."
+
+
+@dataclass(frozen=True)
+class GlassState:
+    """What GNOME Shell says about the glass extension.
+    kind: "running" (this version runs), "old" (an older version runs: GNOME only loads
+    the new code at the next login) or "not-started" (not running yet)."""
+    kind: str
+    version: str = ""       # the running extension's version-name, when GNOME says
+
+
+def _gvariant_str(out: str, key: str) -> str | None:
+    # GVariant text quotes a string with ' unless it holds one, then with ".
+    m = re.search(rf"""'{re.escape(key)}': <(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")>""", out)
+    return (m.group(1) if m.group(1) is not None else m.group(2)) if m else None
+
+
+def _version_key(v: str) -> tuple[int, ...] | None:
+    parts = v.strip().split(".")
+    return tuple(int(p) for p in parts) if parts and all(p.isdigit() for p in parts) else None
+
+
+def older_than_app(version: str) -> bool:
+    """True when `version` is an older Fedora Glass than this app. False when either
+    can't be read: then nothing changes from before."""
+    from .. import __version__
+    have, want = _version_key(version), _version_key(__version__)
+    return have is not None and want is not None and have < want
+
+
+def glass_state(env: Env) -> GlassState:
+    r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+                 "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", rg.UUID], timeout=5)
+    if r.code != 0:
+        return GlassState("not-started")
+    m = re.search(r"'state': <([\d.]+)>", r.out)
+    state = float(m.group(1)) if m else None
+    if state != 1.0:                            # 1 = enabled and running
+        return GlassState("not-started")
+    version = _gvariant_str(r.out, "version-name") or ""
+    return GlassState("old" if older_than_app(version) else "running", version)
+
+
+def glass_problem(env: Env, wanted: bool = True) -> tuple[str, str, str]:
+    """For the app: what stands between the user and the glass, as (kind, a short note,
+    details to copy), or ("", "", "") when nothing does (or the glass simply waits for
+    the first restart, which the app already says)."""
+    st = glass_state(env)
+    if st.kind == "old":
+        return "old", UPDATE_WAITS, ""
+    return "", "", ""
 
 
 

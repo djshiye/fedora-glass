@@ -241,6 +241,7 @@ class Backend(QObject):
         self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
         self._has_menu = False      # ArcMenu or Spawn switched on
         self._has_dtp = False       # Dash to Panel switched on
+        self._problem = ("", "", "")       # what keeps the glass from running (see glassProblem)
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -1008,7 +1009,7 @@ class Backend(QObject):
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
-                    lost, self._motion_env(engine), self._extensions_on(engine))
+                    lost, self._motion_env(engine), self._extensions_on(engine), self._glass_problem(engine, s))
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -1040,6 +1041,29 @@ class Backend(QObject):
             return "glass" in Backup(engine.env).targets_with_changes() and GlassEffects.running(engine.env)
         except Exception:
             return False
+
+    @staticmethod
+    def _glass_problem(engine: Any, s: Settings) -> tuple[str, str, str]:
+        try:
+            from ..targets.shell import glass_problem
+            return glass_problem(engine.env, wanted=s.target_enabled("glass"))
+        except Exception:
+            return "", "", ""
+
+    @Property(str, notify=targetsChanged)
+    def glassProblem(self) -> str:
+        """Why the glass isn't running this version, when it is more than the first
+        restart: "old" (an update waits for the restart), or ""."""
+        return self._problem[0]
+
+    @Property(str, notify=targetsChanged)
+    def glassProblemNote(self) -> str:
+        return self._problem[1]
+
+    @Property(str, notify=targetsChanged)
+    def glassProblemDetails(self) -> str:
+        """What GNOME reports, for "Copy details" (may be empty)."""
+        return self._problem[2]
 
     @staticmethod
     def _motion_env(engine: Any) -> dict:
@@ -1075,7 +1099,7 @@ class Backend(QObject):
             self.failed.emit(f"Could not load targets: {out}")
         else:
             (self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost,
-             self._motion_state, (self._has_dock, self._has_menu, self._has_dtp)) = out
+             self._motion_state, (self._has_dock, self._has_menu, self._has_dtp), self._problem) = out
         self._targets_ready = True
         self.targetsChanged.emit()
 

@@ -120,6 +120,10 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
     s = settings_mod.load()
     waited = 0.0
     while not eng.glass_running(s):
+        if (why := _glass_waits_for_login(eng)):
+            # No point waiting: it won't change before the next login.
+            print(f"fedora-glass watch: {why}; Shell parts still wait", file=sys.stderr)
+            return False
         if waited >= wait_s:
             print("fedora-glass watch: the glass extension isn't running; Shell parts still wait", file=sys.stderr)
             return False
@@ -127,6 +131,18 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
         waited += step_s
     eng.apply(s, only=read_pending() | {"glass"}, if_applied=True)   # glass too: it hands blur over from Blur my Shell
     return not read_pending()
+
+
+def _glass_waits_for_login(eng) -> str:
+    """Why the glass extension won't start running this version by itself now, or ""."""
+    env = getattr(eng, "env", None)
+    if env is None:
+        return ""
+    from .targets.shell import glass_state
+    st = glass_state(env)
+    if st.kind == "old":
+        return f"GNOME runs the glass of Fedora Glass {st.version} until the next login"
+    return ""
 
 
 def installed_glass_version(eng) -> str | None:
@@ -148,10 +164,13 @@ def installed_glass_version(eng) -> str | None:
 
 def update_after_upgrade(eng) -> bool:
     """After `dnf upgrade` the app is new but the look this user applied (the glass
-    extension in their home folder, the theme files) is still the old version's. At the
-    next login, apply it again with the user's own saved settings, the way pressing Apply
-    would. Nothing happens after Restore original, or when the versions already match.
-    Returns True when it applied."""
+    extension in their home folder, the theme files) is still the old version's. Apply
+    it again with the user's own saved settings, the parts they applied and no others.
+    Nothing happens after Restore original, or when the versions already match.
+    The watcher runs this at login and again a minute after an upgrade, while GNOME still
+    runs the old glass extension (it only loads new code at the next login): then the
+    Shell parts, which need the new glass behind them, wait for that login (see
+    GlassEffects.running and finish_pending). Returns True when it applied."""
     if not eng.look_on():
         return False
     had = installed_glass_version(eng)
@@ -163,7 +182,7 @@ def update_after_upgrade(eng) -> bool:
     if had is None or had == __version__:
         return False
     print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
-    eng.apply(settings_mod.load(), if_applied=True)
+    eng.apply(settings_mod.load(), if_applied=True, applied_only=True)
     return True
 
 

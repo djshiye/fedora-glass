@@ -288,6 +288,48 @@ Window {
             }
         }
 
+        // ------------------------------------- the glass can't run this version yet, and
+        // the reason is more than the first restart (an update that waits for the restart).
+        Rectangle {
+            id: glassBanner
+            objectName: "glassBanner"
+            readonly property bool shown: Backend.glassProblem !== "" && !Backend.safeMode
+            anchors.bottom: safeBanner.top
+            anchors.bottomMargin: shown ? 12 : 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width - 48, 760)
+            height: shown ? 48 : 0
+            visible: height > 0
+            clip: true
+            radius: Theme.rM
+            color: Theme.well
+            Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+            Icon {
+                x: 14
+                anchors.verticalCenter: parent.verticalCenter
+                name: "info"
+                color: Backend.glassProblem === "old" ? Theme.accentText : Theme.warn
+                size: 18
+            }
+            Text {
+                objectName: "glassNote"
+                x: 42
+                width: parent.width - x - glassActions.width - 28
+                anchors.verticalCenter: parent.verticalCenter
+                text: Backend.glassProblemNote
+                color: Theme.textDim
+                font.pixelSize: Theme.fsSmall
+                elide: Text.ElideRight
+            }
+            Row {
+                id: glassActions
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+            }
+        }
+
         // ------------------------------------- safe mode: the glass kept failing and
         // turned itself off. Plain panels until the user turns it back on.
         Rectangle {
