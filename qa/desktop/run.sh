@@ -26,13 +26,16 @@
 #                       overview's dash, Adwaita), no extensions, one screen at 100 %, and the stock
 #                       checks (Apply, the overview's dash and search, Restore original).
 # --with-dock           with --stock-desktop: Dash to Dock on, as many stock users add it.
+# --build-only          build the test desktop image(s) and stop (CI builds them once and shares them).
+# --image-info          print the base image's name and recipe (a hash of everything that goes into
+#                       it), for the CI image cache, and stop.
 # LGQA_BUILD_ARGS / LGQA_RUN_ARGS: extra arguments for docker build / docker run (podman on SELinux
 #                       needs LGQA_RUN_ARGS="--security-opt label=disable" to read the mounted folders).
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/../.." && pwd)
-SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" NAME=${LGQA_NAME:-lgqa-$$}
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" BUILD_ONLY="" IMAGE_INFO="" NAME=${LGQA_NAME:-lgqa-$$}
 while [ $# -gt 0 ]; do
     case $1 in
         --source) SRC=$(cd "$2" && pwd); shift ;;
@@ -47,6 +50,8 @@ while [ $# -gt 0 ]; do
         --stock-desktop) STOCK=1 ;;
         --with-dock) STOCK_EXTS=dash-to-dock@micxgx.gmail.com ;;
         --start-only) KEEP=1 START_ONLY=1 ;;
+        --build-only) BUILD_ONLY=1 ;;
+        --image-info) IMAGE_INFO=1 ;;
         *) echo "unknown option $1" >&2; exit 64 ;;
     esac
     shift
@@ -65,8 +70,16 @@ case $GNOME in
     *) echo "--gnome needs 50 or 51" >&2; exit 64 ;;
 esac
 
-echo "Building the GNOME $GNOME test desktop image (cached after the first time)..."
-docker build -q -t "$IMAGE" "${GNOME_ARGS[@]}" ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
+# The recipe: everything the base image is built from. An image carrying the same recipe label
+# (built here before, or loaded from the CI cache) is used as it is; any change rebuilds it.
+RECIPE=$( { printf '%s\n' "${GNOME_ARGS[@]}"; cd "$SUITE" && cat Dockerfile assemble-extensions.sh make-wallpaper.py; cat extra-ca/*.crt 2>/dev/null || true; } | sha256sum | cut -c1-20)
+if [ -n "$IMAGE_INFO" ]; then echo "image=$IMAGE"; echo "recipe=$RECIPE"; exit 0; fi
+if [ "$(docker image inspect -f '{{ index .Config.Labels "lgqa.recipe" }}' "$IMAGE" 2>/dev/null)" = "$RECIPE" ]; then
+    echo "Using the GNOME $GNOME test desktop image built from this same recipe."
+else
+    echo "Building the GNOME $GNOME test desktop image (cached after the first time)..."
+    docker build -q -t "$IMAGE" --label "lgqa.recipe=$RECIPE" "${GNOME_ARGS[@]}" ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
+fi
 SESSION=session CHECKS=run_checks.py
 if [ -n "$UBUNTU" ]; then
     echo "Adding the stock Ubuntu desktop on top..."
@@ -83,6 +96,8 @@ if [ -n "$STOCK" ]; then
 elif [ -n "$STOCK_EXTS" ]; then
     echo "--with-dock goes with --stock-desktop" >&2; exit 64
 fi
+
+if [ -n "$BUILD_ONLY" ]; then echo "The $IMAGE image is ready."; exit 0; fi
 
 rm -rf "$OUT"; mkdir -p "$OUT"; chmod 0777 "$OUT"
 cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; }

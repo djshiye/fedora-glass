@@ -27,8 +27,9 @@ jobs:
       contents: read
 
   # The Ubuntu and Arch packages (packages.yml), each installed on its own Linux first.
+  # Built side by side with the desktop checks (they don't depend on each other); nothing
+  # is published until both have passed (the rpm job below needs both).
   packages:
-    needs: checks
     uses: ./.github/workflows/packages.yml
     permissions:
       contents: read
