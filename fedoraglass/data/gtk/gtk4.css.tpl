@@ -447,6 +447,10 @@ $path_btn { background: none; box-shadow: none; border-radius: $r_s; }
 $path_btn_hover { background-color: var(--lg-tile); box-shadow: inset 0 1px 0 var(--lg-rim); }
 NautilusViewCell, .nautilus-grid-view > child { border-radius: $r_m; }
 .nautilus-window .view, window.nautilus .view { background-color: var(--view-bg-color); }
+/* Files nests views: an empty folder's "Folder is Empty" page is a view inside the view,
+   and two layers of view fill read as solid black. Only the outer one is filled. */
+.nautilus-window .view .view, window.nautilus .view .view, .nautilus-window .view statuspage,
+window.nautilus .view statuspage, .nautilus-window statuspage.view, window.nautilus statuspage.view { background-color: transparent; }
 .floating-bar, .nautilus-floating-bar { border-radius: 999px; background-color: var(--popover-bg-color); box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 4px 14px 0 var(--lg-shadow); }
 .nautilus-grid-view > child:selected { background-color: var(--lg-selection); box-shadow: inset 0 1px 0 var(--lg-rim); }
 

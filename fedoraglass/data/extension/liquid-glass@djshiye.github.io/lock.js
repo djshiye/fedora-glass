@@ -56,6 +56,18 @@ function cardLook(c) {
         ceiling: CARD_CEILING, solid: 0, rim: 0.6};
 }
 
+/** The one of `actors` (children of `parent`) that is drawn on top of the others. */
+export function topmost(parent, actors) {
+    const kids = parent.get_children();
+    let best = null, at = -1;
+    for (const a of actors) {
+        const i = kids.indexOf(a);
+        if (i > at)
+            [best, at] = [a, i];
+    }
+    return best;
+}
+
 /**
  * The spring's curve: the glass gathers itself (dips a little) and lifts away.
  * Bounce 0 lifts straight off; 1 gives the deepest dip. Returns the two cubic
@@ -200,7 +212,10 @@ export class LockGlass {
             this._card = new GlassPane('full');
             this._card.setLook(cardLook(this.cfg));
             this._card.setSources([this._wall.actor]);
-            dialog.insert_child_above(this._card, this._sheets[this._sheets.length - 1]);
+            // Each sheet went in right above the wallpaper, so the first screen's sheet is
+            // the top one. Above the last sheet the card sat under the first screen's sheet
+            // whenever there were two screens, and could not be seen.
+            dialog.insert_child_above(this._card, topmost(dialog, this._sheets));
             const box = dialog._promptBox;
             for (const s of ['notify::opacity', 'notify::visible', 'notify::allocation', 'notify::scale-x',
                 'notify::translation-y', 'child-added', 'child-removed'])

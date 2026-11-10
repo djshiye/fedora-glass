@@ -477,13 +477,19 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   -barlevel-background-color: ${track};
   -barlevel-active-background-color: ${fg};
   -barlevel-overdrive-color: ${destructive}; }
+/* The picked item is a small pane of lighter glass with a rim, not a flat block: Alt+Tab's
+   row of window pictures makes the box big, and a flat fill that size reads as grey paint.
+   The border is always there (clear when not picked), so picking moves nothing. */
 .switcher-list .item-box {
-  border-radius: ${r_xs}px; }
+  border-radius: ${r_s}px;
+  border: 1px solid transparent; }
 .switcher-list .item-box:hover, .switcher-list .item-box:focus {
   background-color: ${hover}; }
 .switcher-list .item-box:selected, .switcher-list .item-box:highlighted, .switcher-list .item-box:checked {
   color: ${fg};
-  background-color: ${selected};
+  background-color: ${hover};
+  border-color: ${edge};
+  border-top-color: ${rim};
   box-shadow: inset 0 1px 0 0 ${rim}; }
 .switcher-list .separator {
   background: ${divider}; }
