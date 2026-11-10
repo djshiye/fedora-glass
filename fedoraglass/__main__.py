@@ -134,15 +134,17 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
 
 
 def _glass_waits_for_login(eng) -> str:
-    """Why the glass extension won't start running this version by itself now, or ""."""
+    """Why the glass extension won't start running this version by itself now (it only
+    changes at the next login, or with the user's help), or ""."""
     env = getattr(eng, "env", None)
     if env is None:
         return ""
     from .targets.shell import glass_state
     st = glass_state(env)
-    if st.kind == "old":
-        return f"GNOME runs the glass of Fedora Glass {st.version} until the next login"
-    return ""
+    return {"old": f"GNOME runs the glass of Fedora Glass {st.version} until the next login",
+            "off": "extensions are switched off in GNOME",
+            "out-of-date": "GNOME says the glass extension doesn't support this GNOME version",
+            "error": f"the glass extension failed to start ({st.error or 'no details'})"}.get(st.kind, "")
 
 
 def installed_glass_version(eng) -> str | None:

@@ -194,6 +194,7 @@ class Backend(QObject):
     speedChanged = Signal()
     removingChanged = Signal()
     removeFinished = Signal(bool)
+    noticed = Signal(str)       # a short "done" message for a toast
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -1053,8 +1054,14 @@ class Backend(QObject):
     @Property(str, notify=targetsChanged)
     def glassProblem(self) -> str:
         """Why the glass isn't running this version, when it is more than the first
-        restart: "old" (an update waits for the restart), or ""."""
+        restart: "old" (an update waits for the restart), "off" (extensions switched off
+        in GNOME), "out-of-date" (this GNOME isn't supported yet), "error", or ""."""
         return self._problem[0]
+
+    @Property(bool, notify=targetsChanged)
+    def glassBlocked(self) -> bool:
+        """The glass won't start by itself, not even after a restart."""
+        return self._problem[0] in ("off", "out-of-date", "error")
 
     @Property(str, notify=targetsChanged)
     def glassProblemNote(self) -> str:
@@ -1064,6 +1071,26 @@ class Backend(QObject):
     def glassProblemDetails(self) -> str:
         """What GNOME reports, for "Copy details" (may be empty)."""
         return self._problem[2]
+
+    @Slot()
+    def switchExtensionsOn(self) -> None:
+        """GNOME's own Extensions switch, back on (only when the user clicks). The glass
+        and the other extensions start right away; the parts Apply left as they were
+        need Apply again."""
+        r = self._env.gsettings_set("org.gnome.shell", "disable-user-extensions", "false")
+        if not r.ok:
+            self.failed.emit("Could not switch extensions on. Try the Extensions app instead.")
+            return
+        self.noticed.emit("Extensions are on again. Press Apply to finish your look.")
+        self.refreshTargets()
+
+    @Slot()
+    def copyGlassDetails(self) -> None:
+        text = self._problem[2] or self._problem[1]
+        if not text:
+            return
+        QGuiApplication.clipboard().setText(text)
+        self.noticed.emit("Error details copied")
 
     @staticmethod
     def _motion_env(engine: Any) -> dict:

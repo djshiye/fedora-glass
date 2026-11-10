@@ -12,22 +12,26 @@ Sheet {
 
     // A restart is only needed when this Apply switched the glass on, or a Shell part
     // waits for it. Themed apps alone (or the glass already running) need none.
+    // A glass that can't start (extensions off, an unsupported GNOME, an error) isn't
+    // fixed by a restart: the note says what is.
     function restartNeeded(rs) {
-        return !Backend.glassLive && rs.some(r =>
+        return !Backend.glassLive && !Backend.glassBlocked && rs.some(r =>
             (r.id === "glass" && r.status === "applied") || (r.status === "info" && r.message.indexOf("Finishes after you restart") === 0))
     }
     readonly property bool needsRestart: restartNeeded(results)
     title: failedCount > 0 ? "Applied, with " + failedCount + " problem" + (failedCount === 1 ? "" : "s")
          : results.length === 0 ? "Settings saved"
          : needsRestart ? "Applied. Restart your PC to finish"
+         : Backend.glassBlocked ? "Applied, but the glass can't start"
          : Backend.glassLive ? "Fedora Glass is on" : "Your new look is applied"
     subtitle: results.length === 0 ? "Nothing to theme was found yet, so only your settings were saved."
             : failedCount > 0 ? "Everything else was applied. The details are below."
             : needsRestart && Backend.glassProblem === "old" ? Backend.glassProblemNote
+            : Backend.glassBlocked ? Backend.glassProblemNote
             : needsRestart ? "GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them."
             : "Open apps pick up the new look when you reopen them."
-    iconName: failedCount > 0 ? "alert" : "okCircle"
-    iconColor: failedCount > 0 ? Theme.warn : Theme.good
+    iconName: failedCount > 0 || Backend.glassBlocked ? "alert" : "okCircle"
+    iconColor: failedCount > 0 || Backend.glassBlocked ? Theme.warn : Theme.good
     buttons: [ LgButton { text: "Done"; kind: "primary"; onClicked: sheet.close() } ]
 
     function meta(st) {

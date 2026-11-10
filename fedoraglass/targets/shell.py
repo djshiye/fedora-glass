@@ -28,8 +28,10 @@ def _need_extension(env: Env, uuid: str, label: str, package: str) -> Detection:
 
 def _need_extension_on(env: Env, uuid: str, label: str, package: str) -> Detection:
     """For an extension we theme but never switch on ourselves (Dash to Panel, ArcMenu,
-    Spawn): one that is installed but switched off is not part of this desktop."""
-    d = _need_extension(env, uuid, label, package)
+    Spawn): one that is installed but switched off is not part of this desktop. Their
+    look needs the glass behind it, as the Shell theme's does (see _waits_for_glass)."""
+    # Extensions switched off altogether: said as such, not as "switched off" for each one.
+    d = _waits_for_glass(env, _need_extension(env, uuid, label, package))
     if d.available and not env.extension_on(uuid):
         return Detection(False, f"{label} is installed but switched off")
     return d
@@ -51,7 +53,7 @@ class GnomeShell(Target):
         "Surfaces are translucent; the glass behind them comes from Fedora Glass effects."])
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
+        return _waits_for_glass(env, _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme"))
 
     def css_path(self, env: Env):
         return env.data / "themes" / THEME_NAME / "gnome-shell/gnome-shell.css"
@@ -143,6 +145,8 @@ class GlassEffects(Target):
         st = glass_state(ctx.env)
         if st.kind == "old":
             notes.append(UPDATE_WAITS)
+        elif st.blocked:
+            notes.append(GLASS_BLOCKED[st.kind])
         elif st.kind != "running":
             notes.append("Restart your PC once so GNOME Shell starts the Fedora Glass extension. "
                          "The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly.")
@@ -159,14 +163,39 @@ class GlassEffects(Target):
 # Shown while GNOME runs the glass extension of an older Fedora Glass (after an upgrade).
 UPDATE_WAITS = "Restart your PC to finish the update. Until then the glass from the older version keeps running."
 
+# Why the glass can't start, when a restart won't fix it: the app's note for each.
+GLASS_BLOCKED = {
+    "off": "Extensions are switched off in GNOME, so the glass can't start.",
+    "out-of-date": "This version of Fedora Glass doesn't support your GNOME version yet. "
+                   "Update Fedora Glass to get the glass back.",
+    "error": "The glass effects hit an error and stopped. Your desktop works as usual.",
+}
+# The same, for a Shell part that needs the glass behind it (shown in the Apply results).
+GLASS_BLOCKED_PART = {
+    "off": "Extensions are switched off in GNOME, so this part can't show. Switch them on, then Apply again.",
+    "out-of-date": "Left as it is: this version of Fedora Glass doesn't support your GNOME version yet. "
+                   "Update Fedora Glass to fix it.",
+    "error": "Left as it is: the glass effects hit an error, and this part needs them.",
+}
+
 
 @dataclass(frozen=True)
 class GlassState:
-    """What GNOME Shell says about the glass extension.
-    kind: "running" (this version runs), "old" (an older version runs: GNOME only loads
-    the new code at the next login) or "not-started" (not running yet)."""
+    """What GNOME Shell says about the glass extension. kind:
+    "running"      this version runs
+    "old"          an older version is loaded (GNOME only loads new code at the next login)
+    "off"          extensions are switched off in GNOME altogether
+    "out-of-date"  GNOME won't start it: this GNOME isn't in its shell-version list
+    "error"        it failed to start (`error` has GNOME's text)
+    "not-started"  not running yet: new extensions start at the next login"""
     kind: str
-    version: str = ""       # the running extension's version-name, when GNOME says
+    version: str = ""       # the loaded extension's version-name, when GNOME says
+    error: str = ""
+
+    @property
+    def blocked(self) -> bool:
+        """It won't start by itself, not even after a restart."""
+        return self.kind in GLASS_BLOCKED
 
 
 def _gvariant_str(out: str, key: str) -> str | None:
@@ -188,28 +217,64 @@ def older_than_app(version: str) -> bool:
     return have is not None and want is not None and have < want
 
 
+# GNOME's extension states (ExtensionState): 1 running, 3 error, 4 out of date.
+_RUNNING, _ERROR, _OUT_OF_DATE = 1.0, 3.0, 4.0
+
+
 def glass_state(env: Env) -> GlassState:
+    if env.extensions_switched_off():
+        return GlassState("off")
     r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
                  "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", rg.UUID], timeout=5)
     if r.code != 0:
         return GlassState("not-started")
     m = re.search(r"'state': <([\d.]+)>", r.out)
     state = float(m.group(1)) if m else None
-    if state != 1.0:                            # 1 = enabled and running
-        return GlassState("not-started")
     version = _gvariant_str(r.out, "version-name") or ""
-    return GlassState("old" if older_than_app(version) else "running", version)
+    if state in (_RUNNING, _ERROR, _OUT_OF_DATE) and older_than_app(version):
+        # The older version's code, or its list of GNOME versions: the next login
+        # loads this version, which may well start.
+        return GlassState("old", version)
+    if state == _RUNNING:
+        return GlassState("running", version)
+    # GNOME also marks an extension that is switched off as out of date or failed:
+    # only the glass that is wanted (on GNOME's list) counts.
+    if state in (_ERROR, _OUT_OF_DATE) and env.extension_enabled(rg.UUID):
+        if state == _OUT_OF_DATE:
+            return GlassState("out-of-date", version)
+        return GlassState("error", version, _gvariant_str(r.out, "error") or "")
+    return GlassState("not-started", version)
+
+
+def glass_blocked(env: Env) -> str:
+    """Why the glass can't start without the user's help ("off", "out-of-date", "error"), or ""."""
+    if env.extensions_switched_off():
+        return "off"
+    if not env.extension_enabled(rg.UUID):
+        return ""           # not switched on yet: nothing to ask GNOME
+    st = glass_state(env)
+    return st.kind if st.blocked else ""
+
+
+def _waits_for_glass(env: Env, d: Detection) -> Detection:
+    """For a Shell part that needs the glass behind it: with a glass that can't start
+    (see glass_blocked), it is left as it is, said in plain words, instead of waiting
+    for a restart that won't bring the glass."""
+    if d.available and (why := glass_blocked(env)):
+        return Detection(False, GLASS_BLOCKED_PART[why])
+    return d
 
 
 def glass_problem(env: Env, wanted: bool = True) -> tuple[str, str, str]:
     """For the app: what stands between the user and the glass, as (kind, a short note,
     details to copy), or ("", "", "") when nothing does (or the glass simply waits for
-    the first restart, which the app already says)."""
+    the first restart, which the app already says). `wanted`: the glass part is on."""
     st = glass_state(env)
     if st.kind == "old":
         return "old", UPDATE_WAITS, ""
+    if st.blocked and (wanted or st.kind != "off"):
+        return st.kind, GLASS_BLOCKED[st.kind], st.error
     return "", "", ""
-
 
 
 def extension_info(env: Env, uuid: str) -> tuple[float | None, str]:

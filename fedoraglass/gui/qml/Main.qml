@@ -289,7 +289,9 @@ Window {
         }
 
         // ------------------------------------- the glass can't run this version yet, and
-        // the reason is more than the first restart (an update that waits for the restart).
+        // the reason is more than the first restart: an update that waits for the restart,
+        // extensions switched off (one click puts them back), a GNOME this version doesn't
+        // support yet, or an error (its text can be copied for a bug report).
         Rectangle {
             id: glassBanner
             objectName: "glassBanner"
@@ -327,6 +329,29 @@ Window {
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
+                LgButton {
+                    objectName: "extensionsOn"
+                    readonly property bool wanted: Backend.glassProblem === "off"
+                    visible: wanted
+                    kind: "primary"
+                    implicitHeight: 32
+                    leftPadding: 14; rightPadding: 14
+                    text: "Switch on"
+                    iconName: "check"
+                    tip: "Switch GNOME's extensions back on. Then press Apply to finish your look."
+                    onClicked: Backend.switchExtensionsOn()
+                }
+                LgButton {
+                    objectName: "copyGlassDetails"
+                    readonly property bool wanted: Backend.glassProblem === "error" && Backend.glassProblemDetails !== ""
+                    visible: wanted
+                    kind: "secondary"
+                    implicitHeight: 32
+                    leftPadding: 14; rightPadding: 14
+                    text: "Copy details"
+                    tip: Backend.glassProblemDetails
+                    onClicked: Backend.copyGlassDetails()
+                }
             }
         }
 
@@ -555,7 +580,8 @@ Window {
                 // "Apply and close": done quietly, unless something needs a look.
                 // A restart to finish, or Files still on the old header bars, is shown, not hidden.
                 if (!results.some(r => r.status === "failed") && !Backend.dirty
-                        && !resultsSheet.restartNeeded(results) && Backend.headerNote !== "pending") {
+                        && !resultsSheet.restartNeeded(results) && !Backend.glassBlocked
+                        && Backend.headerNote !== "pending") {
                     win.closeAnyway = true
                     win.close()
                     return
@@ -569,6 +595,7 @@ Window {
             else { problemsSheet.problems = problems; problemsSheet.open() }
         }
         function onFailed(message) { win.closeAfterApply = false; toast.show(message, "alert", Theme.bad) }
+        function onNoticed(message) { toast.show(message, "okCircle", Theme.good) }
     }
 
     ChangesSheet { id: changesSheet }
