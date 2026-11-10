@@ -223,6 +223,7 @@ class Backend(QObject):
     removeFinished = Signal(bool)
     noticed = Signal(str)       # a short "done" message for a toast
     restartNeededChanged = Signal()
+    partialChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -236,6 +237,11 @@ class Backend(QObject):
         # First run: no saved settings and the welcome never dismissed. Asked once, at start.
         self._first_run = not self._settings_file().exists() and not self._welcome_marker().exists()
         self._s = replace(self._saved, targets=dict(self._saved.targets))
+        # The last look that applied with no part failing: Undo goes back to it after an
+        # Apply that only partly worked (_saved is then that partly applied look).
+        self._good = self._saved
+        self._partial: list[dict] = []     # the results of an Apply where some parts failed
+        self._applying: Settings | None = None     # the look an Apply in progress writes
         self._ui_override = ui_dark
         self._system_dark = self._env.prefers_dark() if ui_dark is None else ui_dark
         self._system_accent = self._env.system_accent()
@@ -895,7 +901,10 @@ class Backend(QObject):
 
     @Slot()
     def discardChanges(self) -> None:
-        self._s = replace(self._saved, targets=dict(self._saved.targets))
+        """Undo: back to the look applied last. After an Apply where some parts failed (nothing
+        changed since), back to the last look that applied fully, to apply again."""
+        back = self._saved if self.dirty or not self._partial else self._good
+        self._s = replace(back, targets=dict(back.targets), undo_on_remove=self._saved.undo_on_remove)
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
@@ -1501,15 +1510,15 @@ class Backend(QObject):
             return
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
+        # Saved first, so a settings folder that can't be written stops Apply before the
+        # desktop changes. The look counts as applied (_saved) only once Apply ends.
         try:
             settings_mod.save(s, self._path)
         except OSError as e:
             self._lock_after_apply = False
             self.failed.emit(f"Could not save settings: {e}")
             return
-        self._saved = s
-        self.settingsChanged.emit()
-        self.savedChanged.emit()
+        self._applying = s
         glass_wanted = s.target_enabled("glass")
 
         def job(report):
@@ -1529,27 +1538,50 @@ class Backend(QObject):
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
+            # "Remove only" (undoOnRemove) may have been switched while Apply ran: it is saved at once.
+            uor = self._saved.undo_on_remove
+            self._applying = None
             if isinstance(out, Exception):
                 self._lock_after_apply = False
+                # Stopped part way: the changes stay unapplied (dirty, Undo, the close guard),
+                # and settings.json goes back to the look applied last, since the watcher
+                # applies that file again whenever GNOME flips between dark and light.
+                try:
+                    settings_mod.save(self._saved, self._path)
+                except OSError:
+                    pass
                 self.failed.emit(f"Apply stopped: {out}")
                 return
             results, self._has_backup, (self._glass_live, restart) = out
+            self._saved = replace(s, undo_on_remove=uor)
+            rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message} for r in results]
+            # Some parts failed: the rest is applied, and settings.json is that look (the
+            # watcher keeps it), but Undo goes back to the last look that applied fully.
+            if any(r["status"] == "failed" for r in rows):
+                self._partial = rows
+            else:
+                self._partial = []
+                self._good = self._saved
+            self.settingsChanged.emit()
+            self.savedChanged.emit()
+            self.partialChanged.emit()
             self._set_restart_needed(restart)    # before applyFinished: the results sheet reads it
             self.targetsChanged.emit()
             self.refreshTargets()          # the glass may be live now, and notes change
             if header_changed:
                 self._set_header_note("pending")
-            self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
-                                      "message": r.message} for r in results])
-            self._lock_if_asked(results)
             # Apply brings the login screen along when its glass is on: new colours, or the
-            # rules of a newer Fedora Glass. It changes a system file, so this asks for the password.
+            # rules of a newer Fedora Glass. It changes a system file, so this asks for the
+            # password. Started before applyFinished, so "Apply and close" sees it running
+            # and waits for it.
             self._login_state = self._read_login_state()
-            if self._login_stale(s):
-                self._run_login(["apply", *self.login_values(s)],
+            if self._login_stale(self._saved):
+                self._run_login(["apply", *self.login_values(self._saved)],
                                 "The login screen has your new look. You'll see it the next time you restart your PC.")
             else:
                 self.loginGlassChanged.emit()
+            self.applyFinished.emit(rows)
+            self._lock_if_asked(results)
         self._run("apply", job, done)
 
     @Slot()
@@ -1577,12 +1609,29 @@ class Backend(QObject):
             problems, self._has_backup = out
             self._glass_live = False
             self._lost = []
+            self._set_partial([])
             self.targetsChanged.emit()
             self._set_restart_needed(False)
             if header_changed:
                 self._set_header_note("pending")
             self.revertFinished.emit(problems)
         self._run("revert", job, done)
+
+    # ---- an Apply where some parts failed ------------------------------------------
+    def _set_partial(self, rows: list[dict]) -> None:
+        if rows != self._partial:
+            self._partial = rows
+            self.partialChanged.emit()
+
+    @Property(int, notify=partialChanged)
+    def partlyApplied(self) -> int:
+        """How many parts failed in the last Apply (0: it applied fully, or nothing was applied)."""
+        return sum(1 for r in self._partial if r["status"] == "failed")
+
+    @Property("QVariantList", notify=partialChanged)
+    def partialResults(self) -> list[dict]:
+        """That Apply's results, for the results sheet the footer opens."""
+        return list(self._partial)
 
     # ---- header bars: Files keeps the old style sheet until it restarts -------------
     def _set_header_note(self, state: str) -> None:
@@ -1735,12 +1784,17 @@ class Backend(QObject):
         if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
             return
         saved = replace(self._saved, undo_on_remove=on)
+        # While Apply runs, settings.json holds the look it applies: keep that one.
+        on_disk = replace(self._applying, undo_on_remove=on) if self._applying is not None else saved
         try:
-            settings_mod.save(saved, self._path)
+            settings_mod.save(on_disk, self._path)
         except OSError as e:
             self.failed.emit(f"Could not save settings: {e}")
             return
+        if self._applying is not None:
+            self._applying = on_disk
         self._saved = saved
+        self._good = replace(self._good, undo_on_remove=on)
         self._s = replace(self._s, undo_on_remove=on)
         self.settingsChanged.emit()
         self.savedChanged.emit()
@@ -1808,6 +1862,7 @@ class Backend(QObject):
                 return
             problems, self._has_backup = out
             self._lost = []
+            self._set_partial([])
             self.targetsChanged.emit()
             self._set_restart_needed(False)
             if problems:

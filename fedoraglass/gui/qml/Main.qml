@@ -84,8 +84,9 @@ Window {
     Shortcut { sequences: ["Return", "Enter"]; enabled: win.pressable(win.activeFocusItem); onActivated: win.activeFocusItem.click() }
     Shortcut { sequence: "F1"; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
     Shortcut { sequence: "?"; enabled: !win.typing; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
-    // Ctrl+Z is the footer's Undo: back to the look applied last.
-    Shortcut { sequence: "Ctrl+Z"; enabled: Backend.dirty && !Backend.busy && !win.typing; onActivated: Backend.discardChanges() }
+    // Ctrl+Z is the footer's Undo: back to the look applied last (after a partly failed
+    // Apply, the last one that applied fully).
+    Shortcut { sequence: "Ctrl+Z"; enabled: (Backend.dirty || Backend.partlyApplied > 0) && !Backend.busy && !win.typing; onActivated: Backend.discardChanges() }
     Shortcut { sequence: "Ctrl+Return"; enabled: !Backend.busy; onActivated: Backend.apply() }
     // Search: Ctrl+F, Ctrl+K or "/" from anywhere.
     Shortcut { sequences: ["Ctrl+F", "Ctrl+K"]; onActivated: sidebar.focusSearch() }
@@ -632,7 +633,9 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 10
                     // Applied, but the glass only starts after a restart: not "Up to date" yet.
-                    readonly property string phase: Backend.dirty ? "dirty" : Backend.lostNote !== "" ? "lost"
+                    // Some parts failed on the last Apply: said until the next Apply or Undo.
+                    readonly property string phase: Backend.dirty ? "dirty" : Backend.partlyApplied > 0 ? "partial"
+                        : Backend.lostNote !== "" ? "lost"
                         : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
                         : Backend.hasBackup ? "done" : "none"
                     Rectangle {
@@ -651,6 +654,8 @@ Window {
                         text: ({ dirty: Backend.changeCount === 1 ? "1 change not applied yet"
                                         : Backend.changeCount > 1 ? Backend.changeCount + " changes not applied yet"
                                         : "Unapplied changes",
+                                 partial: Backend.partlyApplied === 1 ? "1 part didn't change."
+                                          : Backend.partlyApplied + " parts didn't change.",
                                  lost: "Needs re-apply", login: "Login screen needs Apply",
                                  restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
                         color: Theme.textDim
@@ -669,8 +674,20 @@ Window {
                         onClicked: Backend.restartPC()
                     }
                     LgButton {
+                        objectName: "partialButton"
+                        visible: footerStatus.phase === "partial" && !Backend.busy
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: "flat"
+                        implicitHeight: 30
+                        leftPadding: 10; rightPadding: 12
+                        font.pixelSize: 14
+                        text: "See what happened"
+                        tip: "What applied, and what went wrong with the rest"
+                        onClicked: { resultsSheet.results = Backend.partialResults; resultsSheet.open() }
+                    }
+                    LgButton {
                         objectName: "discardButton"
-                        visible: Backend.dirty && !Backend.busy
+                        visible: (Backend.dirty || footerStatus.phase === "partial") && !Backend.busy
                         anchors.verticalCenter: parent.verticalCenter
                         kind: "flat"
                         implicitHeight: 30
@@ -678,7 +695,8 @@ Window {
                         font.pixelSize: 14
                         text: "Undo"
                         iconName: "undo"
-                        tip: "Go back to the look you applied last (Ctrl+Z)"
+                        tip: footerStatus.phase === "partial" ? "Go back to the last look that applied fully (Ctrl+Z)"
+                                                               : "Go back to the look you applied last (Ctrl+Z)"
                         onClicked: Backend.discardChanges()
                     }
                     Item {
