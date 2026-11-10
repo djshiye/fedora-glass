@@ -29,6 +29,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
 import {Signals} from './common.js';
+import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
 import {freezeSource, thawSource} from './glass.js';
@@ -933,6 +934,8 @@ class PanelAnimations {
         this._dtp = null;
         this._dtpId = 0;
         this._refreshLater = 0;
+        // A menu open (or the panel shown over a full-screen game): hover by pointer position.
+        this._grabHover = new GrabHover(() => this._watched.keys(), item => this._hover(item));
     }
 
     get motion() {
@@ -1030,6 +1033,7 @@ class PanelAnimations {
             });
             this._watched.set(item, w);
         }
+        this._grabHover.start();
         // New taskbar icons come and go with apps: look again when they do.
         if (!this._taskbarIds) {
             this._taskbarIds = new Signals();
@@ -1053,6 +1057,7 @@ class PanelAnimations {
     }
 
     _unwatchHover() {
+        this._grabHover.stop();
         for (const item of [...this._watched.keys()])
             this._unwatch(item);
         this._taskbarIds?.clear();
@@ -1077,7 +1082,7 @@ class PanelAnimations {
         const t = w.target;
         if (!t.get_stage())
             return;
-        const on = item.hover;
+        const on = hovered(item, this._grabHover);
         const goal = on ? C.hoverTarget(m.intensity) : {scale: 1, lift: 0};
         const from = visual(t);
         const {width: tw, height: th} = t;
