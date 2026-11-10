@@ -16,7 +16,9 @@ BuildRequires:  python3-gobject
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
-Requires:       gnome-shell
+# GNOME 50 or newer, as on Ubuntu. The ~ also lets in Fedora's test releases of 50
+# (50~alpha, 50~beta, 50~rc sort before 50.0, and after 50~), and 49.x stays out.
+Requires:       gnome-shell >= 50~
 Requires:       gnome-shell-extension-user-theme
 # For the login screen glass (whichever package has them).
 Requires:       /usr/bin/gresource
@@ -51,7 +53,7 @@ Summary:        Fedora Glass under its old name, Liquid Glass (moves you to fedo
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
-Requires:       gnome-shell
+Requires:       gnome-shell >= 50~
 Requires:       gnome-shell-extension-user-theme
 Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
