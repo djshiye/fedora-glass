@@ -118,6 +118,7 @@ uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = th
 // 0 stays off too. The same goes for values computed from uniforms (bevel comes
 // from refr_h).
 const float OFF = 0.001;
+varying float fg_bl;            // the backdrop's overall brightness (ADAPT_VERTEX)
 const float IOR = 1.5;           // crown glass at 550 nm
 const float F0 = 0.04;           // ((IOR - 1) / (IOR + 1))^2, head-on reflectance
 
@@ -386,7 +387,10 @@ void main() {
     // The edge's direction rounds off over at least the whole bevel, so a wide
     // bevel shows no mitred seam running in from its corners.
     float gr = min(max(r * 1.5, lens_share > 0.5 ? bevel * 1.15 : 0.0), min(hh.x, hh.y));
-    vec2 n = gradRoundRect(cc, hh, gr);
+    // The edge's direction is only used within the bevel and the outer 8 px (the
+    // reflections, caustic, rim line, glint and the surface's mirrored light all
+    // stop there). Further in, slope is 0 and nothing reads n.
+    vec2 n = inside < max(bevel, 8.0) + 4.0 ? gradRoundRect(cc, hh, gr) : vec2(0.0);
     float x = 0.0;
     if (bevel > OFF && inside < bevel) {
         x = 1.0 - inside / bevel;                   // 1 at the edge, 0 on the flat top
@@ -509,13 +513,16 @@ void main() {
         return;
     }
 
+    // The ray refracted at IOR: the main tap and Beer-Lambert below share it.
+    vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
+    vec2 thru = Rt.xy * th / max(-Rt.z, 0.2);
     vec4 col;
     if (th > 0.01) {
         if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5 && lite > 0.5) {
             // Lighter glass: three wavelengths keep the rainbow edge at 3/5 of the reads.
             float B = 0.08 * dispersion;
             vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
-            vec4 s550 = at(px + throughGlass(N, IOR, th));
+            vec4 s550 = at(px + thru);
             vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th));
             col.r = (0.15 * s550.r + s630.r) / 1.15;
             col.g = s550.g;
@@ -526,7 +533,7 @@ void main() {
             float B = 0.08 * dispersion;   // crown glass is ~0.004, dense flint ~0.015: exaggerated, as Apple does
             vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
             vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th));
-            vec4 s550 = at(px + throughGlass(N, IOR, th));
+            vec4 s550 = at(px + thru);
             vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th));
             vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th));
             col.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
@@ -534,7 +541,7 @@ void main() {
             col.b = (s450.b + 0.4 * s500.b) / 1.4;
             col.a = (s450.a + s500.a + s550.a + s600.a + s650.a) / 5.0;
         } else {
-            col = at(px + throughGlass(N, IOR, th));
+            col = at(px + thru);
         }
     } else {
         col = at(px);
@@ -551,7 +558,6 @@ void main() {
     // Beer-Lambert: light crossing the rounded edge slants through more glass than
     // light crossing the flat top, and soda-lime glass takes a little more red
     // and blue than green, so the edge is a shade darker and greener.
-    vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
     // Capped, so the edge only tints and never reads as a dark outline.
     float extra = min(th / max(-Rt.z, 0.2) - th, 40.0);
     col.rgb *= exp(-vec3(0.006, 0.0025, 0.004) * extra);
@@ -563,10 +569,9 @@ void main() {
     // so text stays readable. Dark glass is never lifted: over a dark backdrop
     // that reads milky.
     if (adapt > OFF || lift > OFF) {
-        vec2 q = h * 0.5;
-        float bl = dot((at(size * 0.5 + vec2(-q.x, -q.y)).rgb + at(size * 0.5 + vec2(q.x, -q.y)).rgb
-                      + at(size * 0.5 + vec2(-q.x, q.y)).rgb + at(size * 0.5 + q).rgb) * 0.25,
-                       vec3(0.213, 0.715, 0.072));
+        // How bright the backdrop is overall: the same for every pixel of the pane, so
+        // it is read once per corner of the pane (ADAPT_VERTEX), not once per pixel.
+        float bl = fg_bl;
         float bright = smoothstep(0.45, 0.85, bl) * adapt;
         float shade = bright * (0.10 + 0.12 * (1.0 - smoothstep(0.0, 10.0, inside)));
         col.rgb = col.rgb * (1.0 - shade);
@@ -616,27 +621,32 @@ void main() {
     if (ceil_y > OFF) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         const vec3 Yw = vec3(0.2126, 0.7152, 0.0722);
-        float Yp = dot(pow(max(st, vec3(0.0)), vec3(2.2)), Yw);
         // The outer part of the lens holds no text: there it may stay brighter,
         // so the bent backdrop reads in its own colours.
         float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge);
         float knee = 0.6 * cy;
-        // The area around is only asked about when this pixel is above the knee: the
-        // ceiling takes the darker of the two, so a pixel below it is left as it is
-        // whatever the area holds. Over dark glass that is nearly every pixel, and it
-        // saves four texture reads each.
-        float Yl = Yp;
-        if (Yp > knee) {
-            vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
-            vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
-            vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
-            float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
-            Yl = max(min(Yp, Ya * 1.5), 1e-5);
-        }
-        if (Yl > knee) {
-            float room = cy - knee;
-            float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
-            col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+        // The weights add up to 1, so a pixel whose brightest channel is below the
+        // knee (in display values) is below it in Y too, and is left as it is. Over
+        // dark glass that is nearly every pixel: one pow instead of three, and no Y.
+        if (max(st.r, max(st.g, st.b)) > pow(knee, 1.0 / 2.2)) {
+            float Yp = dot(pow(max(st, vec3(0.0)), vec3(2.2)), Yw);
+            // The area around is only asked about when this pixel is above the knee: the
+            // ceiling takes the darker of the two, so a pixel below it is left as it is
+            // whatever the area holds. Over dark glass that is nearly every pixel, and it
+            // saves four texture reads each.
+            float Yl = Yp;
+            if (Yp > knee) {
+                vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
+                vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
+                vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
+                float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
+                Yl = max(min(Yp, Ya * 1.5), 1e-5);
+            }
+            if (Yl > knee) {
+                float room = cy - knee;
+                float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
+                col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+            }
         }
     }
 
@@ -714,7 +724,42 @@ void main() {
 }
 `;
 
-const GLASS = new Shader(SHADER);
+// The backdrop's overall brightness, for "adapt" and "lift": four reads at fixed
+// points of the blurred backdrop, a quarter of the way in from each corner. They are
+// the same for every pixel, so the vertex stage reads them once per corner of the
+// pane and hands the result to every pixel (it was four texture reads per pixel).
+const ADAPT_VERTEX = {
+    decls: `
+uniform float width;
+uniform float height;
+uniform float pad;
+uniform float tex_w;
+uniform float tex_h;
+uniform float org_x;
+uniform float org_y;
+uniform float shape_w;
+uniform float shape_h;
+uniform float adapt;
+uniform float lift;
+varying float fg_bl;
+vec3 fgAt(vec2 px) {
+    vec2 size = vec2(width, height);
+    return texture2DLod(cogl_sampler0, (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h), 0.0).rgb;
+}
+`,
+    code: `
+    fg_bl = 0.0;
+    if (adapt > 0.001 || lift > 0.001) {
+        vec2 size = vec2(width, height);
+        vec2 q = max(vec2(shape_w, shape_h) * 0.5 - vec2(pad), vec2(1.0)) * 0.5;
+        fg_bl = dot((fgAt(size * 0.5 + vec2(-q.x, -q.y)) + fgAt(size * 0.5 + vec2(q.x, -q.y))
+                   + fgAt(size * 0.5 + vec2(-q.x, q.y)) + fgAt(size * 0.5 + q)) * 0.25,
+                    vec3(0.213, 0.715, 0.072));
+    }
+`,
+};
+
+const GLASS = new Shader(SHADER, ADAPT_VERTEX);
 
 /**
  * Each screen is painted on its own, and only inside what changed on it. A pane
@@ -726,6 +771,51 @@ const GLASS = new Shader(SHADER);
  * screen, 1.5.15). Returns the stage rect of the pane's part on the screen holding
  * most of it when that is not the screen being painted, else null.
  */
+/**
+ * Whether this frame redraws all of the pane: its redraw area holds the whole pane
+ * (a pane that moved or grew, a menu opening, a frame that redraws the whole screen).
+ * Then the pane already got everything behind it, and the full render queued after a
+ * partial one would only draw the same picture again (the blur, copy and lens a
+ * second time). Anything unsure counts as not whole, which renders again as before.
+ */
+function drawnWhole(paintContext, a) {
+    try {
+        if (!a || painting.view === null)
+            return false;
+        const clip = paintContext.get_redraw_clip();
+        const e = a.get_transformed_extents();
+        const r = new Mtk.Rectangle({
+            x: Math.floor(e.get_x()), y: Math.floor(e.get_y()),
+            width: Math.ceil(e.get_x() + e.get_width()) - Math.floor(e.get_x()),
+            height: Math.ceil(e.get_y() + e.get_height()) - Math.floor(e.get_y()),
+        });
+        // No other screen may show any of it (see homeScreen): each screen redraws
+        // only its own part. What lies off every screen is never drawn or seen, so
+        // only the part on the screen being painted has to be in the redraw area.
+        const lay = view => {
+            const q = new Mtk.Rectangle();
+            view.get_layout(q);
+            return q;
+        };
+        const overlaps = (q, o) => q.x < o.x + o.width && o.x < q.x + q.width && q.y < o.y + o.height && o.y < q.y + q.height;
+        for (const view of global.stage.peek_stage_views()) {
+            if (view !== painting.view && overlaps(lay(view), r))
+                return false;
+        }
+        const v = lay(painting.view);
+        const x1 = Math.max(r.x, v.x), y1 = Math.max(r.y, v.y);
+        const x2 = Math.min(r.x + r.width, v.x + v.width), y2 = Math.min(r.y + r.height, v.y + v.height);
+        if (x2 <= x1 || y2 <= y1)
+            return false;
+        if (!clip)
+            return true;
+        const on = new Mtk.Rectangle({x: x1, y: y1, width: x2 - x1, height: y2 - y1});
+        return clip.contains_rectangle(on) === Mtk.RegionOverlap.IN;
+    } catch {
+        return false;
+    }
+}
+
 function homeScreen(a) {
     try {
         return offHome(a);
@@ -816,6 +906,8 @@ function lensPipeline() {
         lensTemplate.set_layer_filters(0, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
         lensTemplate.set_layer_wrap_mode(0, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
         lensTemplate.add_snippet(GLASS.cogl());
+        // The backdrop's overall brightness, once per corner (ADAPT_VERTEX).
+        lensTemplate.add_snippet(GLASS.coglVertex());
     }
     return lensTemplate.copy();
 }
@@ -1278,11 +1370,17 @@ class FedoraGlassEffect extends Clutter.Effect {
         if (flags & dirty) {
             this.renders = (this.renders ?? 0) + 1;    // read by the QA tools
             renderTotal++;    // read by speed.js
+            // This frame redraws all of the pane: it gets everything behind it now, so a
+            // full render asked for before it (the copies moved as the pane was placed)
+            // would only draw the same picture again next frame.
+            const whole = drawnWhole(paintContext, a);
+            if (whole)
+                a?.dropQueuedFull?.();
             if (this._full)
                 this._full = false;
             else if (dragging && moved)
                 fullAfterDrag.add(this);    // it renders again next frame anyway; one full render when the drag ends
-            else
+            else if (!whole)
                 this.get_actor()?.queueFull?.();
         }
         this._draw(node, a, Boolean(flags & dirty));
@@ -1703,6 +1801,16 @@ class FedoraGlassPane extends Clutter.Actor {
                 this.queue_redraw();
             return GLib.SOURCE_REMOVE;
         });
+    }
+
+    /** A whole render is being drawn now (see drawnWhole): drop the one queued before it. */
+    dropQueuedFull() {
+        if (!this._fullLater)
+            return;
+        global.compositor.get_laters().remove(this._fullLater);
+        this._fullLater = 0;
+        this._fullOnly = null;
+        this.dropped = (this.dropped ?? 0) + 1;    // read by the QA tools
     }
 
     /**

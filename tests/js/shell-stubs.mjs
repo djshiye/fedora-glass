@@ -20,7 +20,7 @@ const STUBS = {
             return true;
         },
     };`,
-    'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment'}, Snippet: {new: (hook, decls, post) => ({hook, decls, post, set_replace(c) { this.replace = c; }})}};",
+    'gi/Cogl': "export default {SnippetHook: {FRAGMENT: 'fragment', VERTEX: 'vertex'}, Snippet: {new: (hook, decls, post) => ({hook, decls, post, set_replace(c) { this.replace = c; }})}};",
     'gi/Meta': `export default {LaterType: {BEFORE_REDRAW: 0},
         WindowType: {NORMAL: 0, DIALOG: 1, MODAL_DIALOG: 2, UTILITY: 3, SPLASHSCREEN: 4}};`,
     'gi/Clutter': `export default {EVENT_PROPAGATE: false, ActorAlign: {START: 1},

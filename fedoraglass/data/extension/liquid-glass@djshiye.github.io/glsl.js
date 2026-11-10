@@ -78,13 +78,29 @@ export function uniformNames(source) {
  * that every name the code sets is declared.
  */
 export class Shader {
-    constructor(source) {
+    /**
+     * vertex: optional {decls, code} for work that is the same for every pixel of a
+     * pane (see ADAPT_VERTEX in glass.js). Its code runs after Cogl's own vertex code;
+     * values reach the fragment shader through varyings both declare.
+     */
+    constructor(source, vertex = null) {
         Object.assign(this, snippet(source));
         this.names = new Set(uniformNames(source));
+        this.vertex = vertex;
     }
 
     build(effect) {
+        if (this.vertex)
+            effect.add_glsl_snippet(Cogl.SnippetHook.VERTEX, this.vertex.decls, this.vertex.code, false);
         effect.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, this.decls, this.code, true);
+    }
+
+    /** The vertex snippet, if any, as a Cogl snippet (GNOME 51; see addVertex). */
+    coglVertex() {
+        if (!this.vertex)
+            return null;
+        this._vertexSnippet ??= Cogl.Snippet.new(Cogl.SnippetHook.VERTEX, this.vertex.decls, this.vertex.code);
+        return this._vertexSnippet;
     }
 
     /** The same shader as a Cogl snippet (GNOME 51's Clutter.ShaderEffect). */
