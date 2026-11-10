@@ -149,3 +149,13 @@ def _fedora_by_default(monkeypatch):
     tests/test_distro.py covers Ubuntu and Arch."""
     from fedoraglass import distro
     monkeypatch.setattr(distro, "current", lambda: distro.FEDORA)
+
+
+@pytest.fixture(autouse=True)
+def _watcher_logs_afresh(monkeypatch):
+    """The watcher logs each problem once per process: each test is a fresh watcher. And it
+    watches through faked `gsettings monitor` processes, wherever PyGObject is installed;
+    tests/test_watch.py drives the GSettings signal path with a fake Gio."""
+    from fedoraglass import __main__ as cli
+    cli._said.clear()
+    monkeypatch.setattr(cli, "_gio", lambda: None)

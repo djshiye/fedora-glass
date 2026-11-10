@@ -1,7 +1,8 @@
 """User settings: what the customizer edits and every renderer reads.
 
-Stored as JSON in ~/.config/liquid-glass/settings.json. Unknown keys are
-ignored and missing keys fall back to defaults, so old files keep working.
+Stored as JSON in ~/.config/liquid-glass/settings.json. Missing keys fall back to
+defaults, so old files keep working. Keys a newer version wrote don't change what this
+version does, and are written back on save, so going back a version loses nothing.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import re
 import tempfile
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+from typing import NamedTuple
 
 from .cursors import SIZES as CURSOR_SIZES, STYLE_IDS as CURSOR_STYLE_IDS
 
@@ -261,8 +263,12 @@ class Settings:
                 setattr(s, k, getattr(Settings, k))
         if s.cursor_theme != "keep" and s.cursor_theme not in CURSOR_STYLE_IDS:
             s.cursor_theme = "keep"
-        if s.cursor_size not in CURSOR_SIZES or isinstance(s.cursor_size, bool):
-            s.cursor_size = 0
+        # 24.0 (a hand edit, another tool's JSON) equals 24 but would reach gsettings as
+        # "24.0", which an int key refuses on every Apply.
+        size = s.cursor_size
+        if isinstance(size, float) and size.is_integer():
+            size = int(size)
+        s.cursor_size = size if type(size) is int and size in CURSOR_SIZES else 0
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
@@ -411,14 +417,117 @@ def settings_path() -> Path:
     return config_dir() / "settings.json"
 
 
-def load(path: Path | None = None) -> Settings:
+def _sibling(path: Path, suffix: str) -> Path:
+    return path.with_name(path.name + suffix)
+
+
+class Loaded(NamedTuple):
+    """What load_checked() found. `problem`: why the file could not be used, for the user,
+    or None. `usable`: whether these settings are the user's own (their file, its last good
+    copy, or no file at all); False means only defaults stand in for a file that is damaged,
+    and nothing should be applied by itself from them."""
+    settings: Settings
+    problem: str | None
+    usable: bool
+
+
+def _parse(raw: bytes) -> dict:
+    data = json.loads(raw.decode("utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("not a Fedora Glass settings file")
+    return data
+
+
+def _read(path: Path) -> dict | None:
+    """The file's settings, or None when there is no file. Raises OSError or ValueError
+    when it is there but can't be read or isn't settings."""
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return None
+    return _parse(raw)
+
+
+def load_checked(path: Path | None = None) -> Loaded:
+    """Load the settings and say whether they can be trusted.
+
+    A missing file is the defaults (a first start). A file that is there but damaged (a
+    power cut mid-write, a bad hand edit) is never quietly taken for the defaults: the
+    watcher would then apply them over the user's look. It is moved aside as
+    settings.json.damaged (only the latest is kept) and the last good copy that save()
+    keeps (settings.json.bak) takes its place, when that one reads."""
     path = path or settings_path()
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = _read(path)
+    except (OSError, ValueError) as err:
+        problem: Exception = err
+    else:
+        if raw is None and _sibling(path, ".damaged").exists():
+            # Damaged earlier and nothing saved since: still no file of the user's to go on.
+            return Loaded(Settings(), damage_notice(path), False)
+        return Loaded(_from_dict(raw or {}), None, True)
+    damaged = _sibling(path, ".damaged")
+    if isinstance(problem, ValueError):
+        # Readable but not settings: set it aside, so a later save can't lose it and a
+        # copy is there to look at. A read error (EIO, no permission) moves nothing.
+        try:
+            os.replace(path, damaged)
+            os.utime(damaged)       # when it was found, for damage_notice()
+        except OSError:
+            pass
+    try:
+        good = _read(_sibling(path, ".bak"))
     except (OSError, ValueError):
-        return Settings()
-    if not isinstance(raw, dict):
-        return Settings()
+        good = None
+    if good is not None:
+        s = _from_dict(good)
+        if isinstance(problem, ValueError):
+            try:
+                _write(path, json.dumps(good, indent=2).encode() + b"\n")
+                os.utime(damaged)   # newer than the copy put back: the notice stays until a save
+            except OSError:
+                pass
+        return Loaded(s, f"Your settings file {path} could not be read ({problem}), so the last good "
+                         "copy of it is used." + _kept(damaged), True)
+    return Loaded(Settings(), f"Your settings file {path} could not be read ({problem}), and there is "
+                              "no good copy of it. Fedora Glass shows its defaults and changes nothing by "
+                              "itself until you press Apply." + _kept(damaged), False)
+
+
+def _kept(damaged: Path) -> str:
+    return f" The damaged file is kept as {damaged}." if damaged.exists() else ""
+
+
+def load(path: Path | None = None) -> Settings:
+    return load_checked(path).settings
+
+
+def damage_notice(path: Path | None = None) -> str | None:
+    """For the app: a line to show while the settings were found damaged and nothing has
+    been saved since (the damaged copy is newer than settings.json, or there is no
+    settings.json), else None."""
+    path = path or settings_path()
+    damaged = _sibling(path, ".damaged")
+    try:
+        found = damaged.stat().st_mtime_ns
+    except OSError:
+        return None
+    try:
+        if path.stat().st_mtime_ns > found:
+            return None     # saved again since: the user has their settings back
+        recovered = True    # the last good copy was put back in its place
+    except FileNotFoundError:
+        recovered = False
+    except OSError:
+        return None
+    if recovered:
+        return (f"Your settings file was damaged, so its last good copy was used. The damaged "
+                f"file is kept as {damaged}.")
+    return (f"Your settings file was damaged and there was no good copy, so these are the "
+            f"defaults. The damaged file is kept as {damaged}.")
+
+
+def _from_dict(raw: dict) -> Settings:
     known = {f.name for f in fields(Settings)}
     data = {k: v for k, v in raw.items() if k in known}
     try:
@@ -437,14 +546,63 @@ def load(path: Path | None = None) -> Settings:
     return Settings(**good).normalized()
 
 
-def save(s: Settings, path: Path | None = None) -> Path:
-    path = path or settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # A fresh, exclusively created temp file: a planted symlink can't redirect the write.
-    fd, tmp = tempfile.mkstemp(prefix=".settings.", dir=path.parent)
+# Choices a newer version may have more of. A value this version doesn't know reads as the
+# setting's default (see normalized), and while the user leaves it at that default, save()
+# writes the newer version's value back, so going back to an older version and forward
+# again doesn't lose it.
+CHOICE_KEYS = ("scheme", "glass_quality", "panel_style", "accent", "cursor_theme", "cursor_size", *LOCK_CHOICES)
+
+
+def _keep_newer(out: dict, before: dict) -> dict:
+    """`out` (what this version saves) with what `before` (the file on disk) holds that
+    this version doesn't know: settings added by a newer version, and their new choices."""
+    known = {f.name for f in fields(Settings)}
+    for k, v in before.items():
+        if k not in known:
+            out[k] = v
+    for k in CHOICE_KEYS:
+        if k not in before:
+            continue
+        raw, default = before[k], getattr(Settings, k)
+        try:
+            read_as = getattr(Settings(**{k: raw}).normalized(), k)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if isinstance(raw, (str, int)) and not isinstance(raw, bool) and raw != default and \
+                read_as == default and out.get(k) == default:
+            out[k] = raw
+    for k, names, subkeys in (("parts", PARTS, PART_KEYS), ("motion", MOTION_EVENTS, ("preset", "intensity", "speed"))):
+        old = before.get(k)
+        if not isinstance(old, dict):
+            continue
+        new = out.setdefault(k, {})
+        for name, sub in old.items():
+            if name not in names:
+                new[name] = sub             # a part or an event this version doesn't have
+                continue
+            if not isinstance(sub, dict):
+                continue
+            mine = new.get(name, {})
+            extra = {sk: sv for sk, sv in sub.items() if sk not in subkeys}
+            if k == "motion" and "preset" in sub and "preset" not in mine and \
+                    sub["preset"] not in MOTION_PRESETS[name]:
+                extra["preset"] = sub["preset"]   # a newer animation, still unchosen here
+            if extra:
+                new[name] = {**mine, **extra}
+    return out
+
+
+def _write(path: Path, data: bytes) -> None:
+    """Write via a fresh, exclusively created temp file (a planted symlink can't redirect
+    the write), private, flushed to disk before and after the rename: a power cut must
+    never leave an empty settings file."""
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(json.dumps(asdict(s.normalized()), indent=2) + "\n")
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
         os.replace(tmp, path)
     except BaseException:
         try:
@@ -452,4 +610,29 @@ def save(s: Settings, path: Path | None = None) -> Path:
         except OSError:
             pass
         raise
+    try:
+        dfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return
+    try:
+        os.fsync(dfd)
+    except OSError:
+        pass
+    finally:
+        os.close(dfd)
+
+
+def save(s: Settings, path: Path | None = None) -> Path:
+    path = path or settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        before = path.read_bytes()
+        old = _parse(before)
+    except (OSError, ValueError):
+        before, old = None, {}
+    out = _keep_newer(asdict(s.normalized()), old)
+    if before is not None:
+        # The file as it was, good, kept for the day settings.json itself is found damaged.
+        _write(_sibling(path, ".bak"), before)
+    _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")
     return path

@@ -107,7 +107,7 @@ def test_runs_with_only_the_standard_library():
     src = Path(ls.__file__).read_text()
     assert src.startswith("#!/usr/bin/python3 -IS\n")
     imports = {l.split()[1].split(".")[0] for l in src.splitlines() if l.startswith(("import ", "from "))}
-    assert imports <= {"__future__", "hashlib", "json", "os", "re", "shutil", "subprocess", "sys", "tempfile"}
+    assert imports <= {"__future__", "fcntl", "hashlib", "json", "os", "re", "shutil", "subprocess", "sys", "tempfile"}
 
 
 # ---- apply and undo -------------------------------------------------------------------
@@ -356,3 +356,105 @@ def test_every_rule_only_touches_the_login_screen():
         for sel in selectors.split(","):
             sel = sel.strip()
             assert sel.startswith(".login-dialog") or sel == "#lockDialogGroup", sel
+
+
+# ---- stopped half way, and two at once ------------------------------------------------
+def _stop_at(monkeypatch, name, call=1):
+    """Make the `call`-th call of ls.<name> fail as a power cut or a kill would."""
+    real, calls = getattr(ls, name), []
+
+    def stop(*a, **k):
+        calls.append(1)
+        if len(calls) == call:
+            raise OSError(5, "stopped here")
+        return real(*a, **k)
+    monkeypatch.setattr(ls, name, stop)
+
+
+@needs_tools
+def test_stopped_before_the_file_changes_leaves_it_off(dirs, monkeypatch):
+    shell, state = dirs
+    before = Path(ls.target(shell)).read_bytes()
+    _stop_at(monkeypatch, "_write_into")
+    with pytest.raises(OSError):
+        ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    monkeypatch.undo()
+    assert Path(ls.target(shell)).read_bytes() == before
+    assert ls.status(shell, state) == "off"
+    assert ls.undo(shell, state) == "it was already off" and not os.listdir(state)
+    ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    assert ls.status(shell, state) == "on"
+
+
+@needs_tools
+def test_stopped_after_the_file_changed_is_on_and_undo_works(dirs, monkeypatch):
+    """1.5.22 replaced GNOME's file before it wrote the state file: stopped in between, the
+    glass was in with no record, status said off and undo refused."""
+    shell, state = dirs
+    before = Path(ls.target(shell)).read_bytes()
+    _stop_at(monkeypatch, "_save_state", call=2)       # the confirm after the write
+    with pytest.raises(OSError):
+        ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    monkeypatch.undo()
+    assert ls.MARK_START in gdm_css(shell)
+    assert ls.status(shell, state) == "on"
+    assert ls.refresh(shell, state) == "up to date", "the values of the stopped apply are known"
+    assert ls.undo(shell, state) == "the normal login screen is back"
+    assert Path(ls.target(shell)).read_bytes() == before and not os.listdir(state)
+
+
+@needs_tools
+def test_a_new_look_stopped_half_way_still_undoes_to_gnomes_file(dirs, monkeypatch):
+    shell, state = dirs
+    before = Path(ls.target(shell)).read_bytes()
+    ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    for stop in ("_write_into", "_save_state"):
+        _stop_at(monkeypatch, stop, call=1 if stop == "_write_into" else 2)
+        with pytest.raises(OSError):
+            ls.apply("#e62d42", "#203050", 0.9, shell, state)
+        monkeypatch.undo()
+        assert ls.status(shell, state) == "on"
+        ls.apply("#e62d42", "#203050", 0.9, shell, state)     # and Apply again just works
+        assert gdm_css(shell).count(ls.MARK_START) == 1
+    assert ls.undo(shell, state) == "the normal login screen is back"
+    assert Path(ls.target(shell)).read_bytes() == before
+
+
+@needs_tools
+def test_a_half_finished_record_for_a_file_gnome_replaced_since_is_not_trusted(dirs, tmp_path, monkeypatch):
+    shell, state = dirs
+    _stop_at(monkeypatch, "_write_into")
+    with pytest.raises(OSError):
+        ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    monkeypatch.undo()
+    make_theme(tmp_path / "new.gresource", gdm=GDM + "/* GNOME 50.2 */\n")
+    shutil.copyfile(tmp_path / "new.gresource", ls.target(shell))
+    assert ls.status(shell, state) == "off"
+    assert ls.undo(shell, state) == "it was already off"
+    assert Path(ls.target(shell)).read_bytes() == (tmp_path / "new.gresource").read_bytes()
+
+
+def test_apply_undo_and_refresh_take_turns(tmp_path):
+    import threading
+    state = tmp_path / "state"
+    shell = tmp_path / "shell"
+    shell.mkdir()
+    done = threading.Event()
+
+    def other():
+        ls.undo(str(shell), str(state))
+        done.set()
+    with ls._Locked(str(state)):
+        t = threading.Thread(target=other, daemon=True)
+        t.start()
+        assert not done.wait(0.3), "waits while another one runs"
+    assert done.wait(5)
+    assert not os.listdir(state), "no lock file is left behind"
+
+
+def test_a_linked_state_folder_is_refused(tmp_path):
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    (tmp_path / "state").symlink_to(real)
+    with pytest.raises(OSError):
+        ls.undo(str(tmp_path / "shell"), str(tmp_path / "state"))

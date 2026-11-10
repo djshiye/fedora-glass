@@ -636,7 +636,7 @@ class Backup:
             try:
                 _flatpak_undo(self.env, e)
                 del self.data["flatpak"][tid]
-            except (OSError, configparser.Error) as err:
+            except (OSError, ValueError, configparser.Error) as err:
                 problems.append(f"Flatpak overrides: {err}")
         for key, e in list(self.data["commands"].items()):
             if not mine(e):
@@ -806,14 +806,16 @@ def _flatpak_read(path: Path) -> configparser.RawConfigParser:
     cp = configparser.RawConfigParser(delimiters=("=",), comment_prefixes=("#",), strict=False)
     cp.optionxform = str  # keys are case-sensitive
     if path.is_file():
-        cp.read_string(path.read_text(encoding="utf-8"))
+        # Bytes that aren't UTF-8 (a hand edit in another encoding) are carried through as
+        # they are: Restore must still take our own entries out of the file.
+        cp.read_string(path.read_text(encoding="utf-8", errors="surrogateescape"))
     return cp
 
 
 def _flatpak_write(path: Path, cp: configparser.RawConfigParser) -> None:
     buf = io.StringIO()
     cp.write(buf, space_around_delimiters=False)
-    atomic_write(path, buf.getvalue().encode(), 0o644)
+    atomic_write(path, buf.getvalue().encode("utf-8", "surrogateescape"), 0o644)
 
 
 def _fs_list(cp: configparser.RawConfigParser) -> list[str]:
@@ -957,6 +959,8 @@ class Engine:
             except BackupUnreadable as e:
                 # Changing anything now would record today's look as the "original".
                 return [Result("backup", "Backup", "failed", str(e))]
+            # Only an Apply of every part says the look is this version's (see _apply).
+            full = only is None
             if applied_only:
                 only = have if only is None else only & have
                 if not only:
@@ -964,12 +968,17 @@ class Engine:
             if not if_applied and not self.env.dry_run:
                 with contextlib.suppress(FileNotFoundError):
                     restored_path(self.env).unlink()
-            return self._apply(settings, only)
+            return self._apply(settings, only, full=full)
 
-    def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
-        ctx = self.context(settings, check_glass=True)
-        backup = Backup(self.env)
-        backup.tidy_folders()
+    def _apply(self, settings: Settings, only: set[str] | None, full: bool = False) -> list[Result]:
+        try:
+            ctx = self.context(settings, check_glass=True)
+            backup = Backup(self.env)
+            backup.tidy_folders()
+        except OSError as e:
+            # A full disk, a folder that can't be read: say so like any failed part. Raised,
+            # it would end the watcher, and its user service would start it again and again.
+            return [Result("apply", "Apply", "failed", f"Couldn't start: {e}")]
         results: list[Result] = []
         pending = read_pending()
         waiting = set(pending)
@@ -1019,12 +1028,12 @@ class Engine:
                 results.append(Result(t.id, t.name, "info", " ".join(t.live_notes(ctx)) or t.summary))
             else:
                 results.append(Result(t.id, t.name, "applied"))
-        if waiting != pending and not self.env.dry_run:
-            _write_pending(waiting)
-        self._write_tokens(ctx)
-        if not self.env.dry_run:
-            with contextlib.suppress(OSError):
-                write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+        try:
+            if waiting != pending and not self.env.dry_run:
+                _write_pending(waiting)
+            self._write_tokens(ctx)
+        except OSError as e:
+            results.append(Result("tokens", "Colours for other apps", "failed", str(e)))
         # This Apply switched the glass extension back on (after Restore original, or after
         # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
         # it right away, so the parts that wait for the glass are finished now, not after a
@@ -1034,6 +1043,12 @@ class Engine:
             later = self._apply(settings, set(waiting))
             done = {r.target for r in later}
             results = [r for r in results if r.target not in done] + later
+        if full and not self.env.dry_run and not any(r.status == "failed" for r in results):
+            # The look is this version's only when every part was made again and none failed:
+            # after `--only gtk4`, or a part that failed, the upgrade step must still update
+            # the others (see update_after_upgrade).
+            with contextlib.suppress(OSError):
+                write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
         return results
 
     # Extension states (GNOME's ExtensionState): 1 running, 3 error, 4 out of date.
