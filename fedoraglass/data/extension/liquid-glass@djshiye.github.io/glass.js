@@ -1704,6 +1704,27 @@ export function monitorFor(x, y, w, h) {
     return best;
 }
 
+/**
+ * A copy of what lies behind a pane (the wallpaper, a window). It tells Clutter it
+ * paints only inside its clip, the pane's own spot (see GlassPane._clipClone); a plain
+ * Clutter.Clone reports the size of what it copies, whatever its clip. Clutter redraws
+ * all of that each time a copy moves, and a moving pane moves all of its copies on
+ * every frame: dragging a window repainted the whole wallpaper copy (both screens) and
+ * every window behind, on every frame (1.5.18).
+ */
+const GlassClone = GObject.registerClass({GTypeName: 'FedoraGlassClone'},
+class FedoraGlassClone extends Clutter.Clone {
+    vfunc_get_paint_volume(volume) {
+        if (!this.has_clip)
+            return super.vfunc_get_paint_volume(volume);
+        const [x, y, w, h] = this.get_clip();
+        volume.set_origin(new Graphene.Point3D({x, y, z: 0}));
+        volume.set_width(Math.max(0, w));
+        volume.set_height(Math.max(0, h));
+        return true;
+    }
+});
+
 export const GlassPane = GObject.registerClass(
 class FedoraGlassPane extends Clutter.Actor {
     _init(layer = 'full') {
@@ -1835,7 +1856,7 @@ class FedoraGlassPane extends Clutter.Actor {
             let clone = this._clones.get(src);
             if (!clone) {
                 restack = true;
-                clone = src.meta_window && QUIET_COPIES ? new WindowCopy({source: src}) : new Clutter.Clone({source: src});
+                clone = src.meta_window && QUIET_COPIES ? new WindowCopy({source: src}) : new GlassClone({source: src});
                 // A clone outlives its source, so a source that goes away takes its copy with it.
                 const ids = [src.connect('destroy', () => {
                     if (this._clones.get(src) === clone) {
@@ -2053,10 +2074,27 @@ class FedoraGlassPane extends Clutter.Actor {
             const moved = clone.x !== cx || clone.y !== cy || clone.width !== cw || clone.height !== ch || !clone.visible;
             clone.set_position(cx, cy);
             clone.set_size(cw, ch);
+            this._clipClone(clone, cx, cy, cw, ch);
             clone.show();
             if (moved)
                 this.queueFull();
         }
+    }
+
+    /**
+     * A copy draws, and asks Clutter to redraw, only the part of it inside the pane
+     * (see GlassClone).
+     */
+    _clipClone(clone, cx, cy, cw, ch) {
+        const [pw, ph] = this._size;
+        const x0 = Math.max(0, -cx), y0 = Math.max(0, -cy);
+        const x1 = Math.min(cw, pw - cx), y1 = Math.min(ch, ph - cy);
+        const [w, h] = [Math.max(0, x1 - x0), Math.max(0, y1 - y0)];
+        const key = `${x0},${y0},${w},${h}`;
+        if (clone._clipKey === key && clone.has_clip)
+            return;
+        clone._clipKey = key;
+        clone.set_clip(x0, y0, w, h);
     }
 
     _applyLook() {

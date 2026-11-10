@@ -23,7 +23,7 @@ def test_window_copies_add_no_redraw_area_of_their_own():
     m = re.search(r"class FedoraGlassWindowCopy extends Clutter\.Clone \{(.*?)\n\}\);", g, re.S)
     assert m, "the window copy class is gone"
     assert re.search(r"vfunc_get_paint_volume\(_?volume\) \{\s*return true;", m.group(1))
-    assert "src.meta_window && QUIET_COPIES ? new WindowCopy({source: src}) : new Clutter.Clone({source: src})" in g
+    assert "src.meta_window && QUIET_COPIES ? new WindowCopy({source: src}) : new GlassClone({source: src})" in g
     assert "const QUIET_COPIES = (parseInt(PACKAGE_VERSION) || 0) >= 51;" in g
 
 
