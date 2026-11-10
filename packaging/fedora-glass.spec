@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.20
+Version:        1.5.21
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -214,6 +214,15 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.21-1
+- A simpler app: a sidebar of pages (Home, Colour, Glass, Panel and windows, Motion, Pointer and desktop, Lock and login, Apps, Advanced, About and restore) instead of one long page
+- Search settings (Ctrl+F): finds any setting, opens its page and points it out
+- Home: the looks, how much glass, light or dark, accent and four quick switches in one place
+- Motion: one Motion style (Off, Calm, GNOME, Lively, Playful) and one speed; each animation can still be tuned in its own fold
+- Login screen next to the lock screen; Restore original and Remove on About and restore
+- Part by part: click a part of the preview to give it its own look
+- The app opens about twice as fast and uses about 80 MB less memory
+
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.20-1
 - Mouse pointer styles: 15 to pick from, with a Just for fun group; set on Apply and undone by Restore original
 - Sliders show their default and a Default button, each card has a Reset, and Reset all to defaults has its own card on the More tab
