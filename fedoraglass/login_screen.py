@@ -13,6 +13,10 @@ What it does, as root:
           gnome-shell-light.css (upstream GNOME 49 and later, so Fedora). Every other file
           inside is checked to be byte for byte the same before the copy goes in.
   undo    puts the original back, only if the file is still the one this wrote.
+  refresh run by the package after an update of Fedora Glass: while the glass is on, puts
+          it in again with the three values of the last Apply (kept in the state file), so a
+          newer version's rules reach the login screen without anyone pressing Apply. Off,
+          undone, or turned on by a version that kept no values: nothing changes.
   status  says whether the glass is on (no root needed).
 
 It takes three colours or numbers, never a path or any other text, and only ever writes
@@ -440,12 +444,29 @@ def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, stat
         os.unlink(out)
     # Which look went in, so the app can tell when Apply or an update of the app makes it old.
     s.update(written=written, target=dest, look=hashlib.sha256(block.encode()).hexdigest(),
-             shared=GDM_CSS not in block_targets(original))
+             shared=GDM_CSS not in block_targets(original),
+             values=list(check_values(accent, tint, frost)))   # for refresh after an update
     tmp = os.path.join(state_dir, STATE + ".new")
     with open(tmp, "w") as f:
         json.dump(s, f)
     os.chmod(tmp, 0o644)
     os.replace(tmp, os.path.join(state_dir, STATE))
+
+
+def refresh(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
+    """After an update of Fedora Glass: bring the glass that is on the login screen up to
+    this version's rules, with the values the user last applied. Only ever redoes what is
+    there; never turns the glass on. Returns what happened."""
+    if status(shell_dir, state_dir) != "on":
+        return "off"                              # off, or a GNOME update took it off
+    v = _state(state_dir).get("values")
+    if not (isinstance(v, list) and len(v) == 3 and all(isinstance(x, (str, int, float)) for x in v)):
+        return "no saved values"                  # turned on by an older version: the app's Apply does it
+    accent, tint, frost = check_values(str(v[0]), str(v[1]), float(v[2]))
+    if up_to_date(accent, tint, frost, state_dir):
+        return "up to date"
+    apply(accent, tint, frost, shell_dir, state_dir)
+    return "updated"
 
 
 def undo(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
@@ -485,10 +506,13 @@ def main(argv: list[str]) -> int:
         if cmd == "undo" and len(argv) == 2:
             print(undo())
             return 0
+        if cmd == "refresh" and len(argv) == 2:
+            print(refresh())
+            return 0
     except (LoginScreenError, OSError, subprocess.SubprocessError) as e:
         print(f"Nothing was changed: {e}", file=sys.stderr)
         return 1
-    print("Usage: liquid-glass-login-screen status | apply ACCENT TINT FROST | undo", file=sys.stderr)
+    print("Usage: liquid-glass-login-screen status | apply ACCENT TINT FROST | refresh | undo", file=sys.stderr)
     return 64
 
 

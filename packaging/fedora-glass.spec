@@ -152,6 +152,10 @@ if [ -f "$old" ] && ! [ -L "$old" ] && grep -qxE 'baseurl=https://djshiye.github
    && grep -qx 'includepkgs=liquid-glass' "$old"; then
     mv -f "$old" "$old.rpmsave" || :
 fi
+# Glass on the login screen (only if a user turned it on): bring it up to this version's
+# rules with the colours of their last Apply, so no Apply or password is needed after an
+# update. Each user's own desktop parts follow at their next login (fedora-glass watch).
+%{_libexecdir}/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
 :
 
 %triggerpostun -- liquid-glass < %{fg_evr}

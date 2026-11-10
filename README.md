@@ -60,6 +60,11 @@ repository index is signed with the maintainer's own OpenPGP key
 to accept the key, check that it shows that fingerprint (dnf writes it without spaces:
 `D49A308168257FDBF9D5AE14BD1AC1C6F56A7252`) and answer `y`.
 
+You don't need to press **Apply** after an update. The next time you log in (or restart), Fedora
+Glass puts your look in again with the new version's fixes, using the settings of your last
+Apply. If you used **Restore original**, an update leaves your desktop alone. Glass on the login
+screen is brought up to date by the update itself, without asking for your password.
+
 ## Works with
 
 Fedora Glass is made to work with **Dash to Panel** and **ArcMenu** (or Spawn), and themes them to
