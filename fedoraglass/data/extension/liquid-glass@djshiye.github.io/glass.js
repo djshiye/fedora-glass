@@ -618,27 +618,32 @@ void main() {
     if (ceil_y > OFF) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         const vec3 Yw = vec3(0.2126, 0.7152, 0.0722);
-        float Yp = dot(pow(max(st, vec3(0.0)), vec3(2.2)), Yw);
         // The outer part of the lens holds no text: there it may stay brighter,
         // so the bent backdrop reads in its own colours.
         float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge);
         float knee = 0.6 * cy;
-        // The area around is only asked about when this pixel is above the knee: the
-        // ceiling takes the darker of the two, so a pixel below it is left as it is
-        // whatever the area holds. Over dark glass that is nearly every pixel, and it
-        // saves four texture reads each.
-        float Yl = Yp;
-        if (Yp > knee) {
-            vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
-            vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
-            vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
-            float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
-            Yl = max(min(Yp, Ya * 1.5), 1e-5);
-        }
-        if (Yl > knee) {
-            float room = cy - knee;
-            float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
-            col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+        // The weights add up to 1, so a pixel whose brightest channel is below the
+        // knee (in display values) is below it in Y too, and is left as it is. Over
+        // dark glass that is nearly every pixel: one pow instead of three, and no Y.
+        if (max(st.r, max(st.g, st.b)) > pow(knee, 1.0 / 2.2)) {
+            float Yp = dot(pow(max(st, vec3(0.0)), vec3(2.2)), Yw);
+            // The area around is only asked about when this pixel is above the knee: the
+            // ceiling takes the darker of the two, so a pixel below it is left as it is
+            // whatever the area holds. Over dark glass that is nearly every pixel, and it
+            // saves four texture reads each.
+            float Yl = Yp;
+            if (Yp > knee) {
+                vec4 a1 = at(px + vec2(6.0, 0.0)), a2 = at(px - vec2(6.0, 0.0));
+                vec4 a3 = at(px + vec2(0.0, 6.0)), a4 = at(px - vec2(0.0, 6.0));
+                vec3 ar = (a1.rgb + a2.rgb + a3.rgb + a4.rgb) / max(a1.a + a2.a + a3.a + a4.a, 1e-3);
+                float Ya = dot(pow(max(ar, vec3(0.0)), vec3(2.2)), Yw);
+                Yl = max(min(Yp, Ya * 1.5), 1e-5);
+            }
+            if (Yl > knee) {
+                float room = cy - knee;
+                float Yc = knee + room * (1.0 - exp(-(Yl - knee) / room));
+                col.rgb *= pow(Yc / Yl, 1.0 / 2.2);
+            }
         }
     }
 
