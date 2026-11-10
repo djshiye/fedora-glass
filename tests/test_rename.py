@@ -128,6 +128,15 @@ def test_package_moves_old_installs_over():
     assert "gpgcheck=1\n" in repo and "repo_gpgcheck=1\n" in repo
 
 
+def test_dnf_rechecks_the_repository_every_hour():
+    # dnf treats the update list as stale after an hour (its default is 48 hours), so
+    # `sudo dnf upgrade` and Fedora's background refresh see a new release quickly.
+    root = Path(__file__).resolve().parents[1]
+    for name in ("fedora-glass.repo", "liquid-glass.repo"):
+        repo = (root / "packaging" / name).read_text().splitlines()
+        assert [l for l in repo if l.startswith("metadata_expire=")] == ["metadata_expire=1h"], name
+
+
 def test_repository_is_signed_with_a_key_from_the_package():
     root = Path(__file__).resolve().parents[1]
     repo = (root / "packaging/fedora-glass.repo").read_text()
