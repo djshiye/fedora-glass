@@ -9,7 +9,6 @@ ColorPicker 1.0 ColorPicker.qml
 CursorCard 1.0 CursorCard.qml
 ConicalGradientDot 1.0 ConicalGradientDot.qml
 CurveGlyph 1.0 CurveGlyph.qml
-Expander 1.0 Expander.qml
 FocusRing 1.0 FocusRing.qml
 FrostSlider 1.0 FrostSlider.qml
 GlassSurface 1.0 GlassSurface.qml
@@ -29,7 +28,6 @@ LgSlider 1.0 LgSlider.qml
 LgSwitch 1.0 LgSwitch.qml
 LgToolTip 1.0 LgToolTip.qml
 TipPopup 1.0 TipPopup.qml
-LookPage 1.0 LookPage.qml
 MotionCard 1.0 MotionCard.qml
 SpeedCard 1.0 SpeedCard.qml
 OverrideSlider 1.0 OverrideSlider.qml

@@ -16,20 +16,25 @@ Item {
     Item {
         id: intro
         width: parent.width
-        height: 64
+        height: Math.max(64, introText.implicitHeight + 16)
         Column {
+            id: introText
             anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - checkAgain.width - 20
             spacing: 4
             Text { text: "Apps and surfaces"; color: Theme.text; font.pixelSize: Theme.fsHeading; font.weight: Font.Bold }
             Text {
                 text: Backend.targetsReady
                       ? Backend.activeTargetCount + " will be themed on Apply. Anything not installed is skipped, and Restore original undoes everything."
                       : "Checking what's installed…"
+                width: parent.width
+                wrapMode: Text.WordWrap
                 color: Theme.textDim
                 font.pixelSize: Theme.fsBody
             }
         }
         LgButton {
+            id: checkAgain
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             kind: "secondary"

@@ -18,21 +18,22 @@ Item {
     property string resetTip: "Go back to following How much glass"
     // One row: label on the left, slider in the middle, value and chip on the right.
     property bool inline: false
+    readonly property bool _row: inline && width >= 520      // stacked when narrow
     property real labelWidth: 150
     property real rightWidth: 176      // fixed, so the slider keeps its length either way
     signal changed(real value)
 
     readonly property bool isAuto: value < 0
     width: parent ? parent.width : 300
-    implicitHeight: inline ? 44 : head.height + 6 + slider.height
+    implicitHeight: _row ? 44 : head.height + 6 + slider.height + (inline ? 14 : 0)
 
     Item {
         id: head
         width: parent.width
-        height: root.inline ? root.implicitHeight : Math.max(labels.height, autoChip.height)
+        height: root._row ? root.implicitHeight : Math.max(labels.height, autoChip.height)
         Column {
             id: labels
-            width: root.inline ? root.labelWidth - 12 : parent.width - autoChip.width - valueText.width - 24
+            width: root._row ? root.labelWidth - 12 : parent.width - autoChip.width - valueText.width - 24
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
             Text { text: root.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
@@ -50,7 +51,7 @@ Item {
             anchors.right: autoChip.left
             anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
-            visible: !root.inline || !root.isAuto
+            visible: !root._row || !root.isAuto
             text: root.format(root.isAuto ? root.autoValue : root.value)
             color: root.isAuto ? Theme.textFaint : Theme.textDim
             font.pixelSize: 13
@@ -61,7 +62,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             implicitHeight: 28
-            text: root.inline && !root.isAuto ? "Reset" : root.autoText
+            text: root._row && !root.isAuto ? "Reset" : root.autoText
             selected: root.isAuto
             tip: root.isAuto ? root.autoTip : root.resetTip
             onClicked: root.changed(root.isAuto ? root.autoValue : -1)
@@ -71,9 +72,9 @@ Item {
     LgToolTip { shown: (hover.hovered || slider.visualFocus) && !slider.pressed && !autoChip.hovered; text: root.tip }
     LgSlider {
         id: slider
-        x: root.inline ? root.labelWidth : 0
-        y: root.inline ? (root.implicitHeight - height) / 2 : head.height + 6
-        width: root.inline ? parent.width - root.labelWidth - root.rightWidth : parent.width
+        x: root._row ? root.labelWidth : 0
+        y: root._row ? (root.implicitHeight - height) / 2 : head.height + 6
+        width: root._row ? parent.width - root.labelWidth - root.rightWidth : parent.width
         from: root.from
         to: root.to
         stepSize: root.stepSize

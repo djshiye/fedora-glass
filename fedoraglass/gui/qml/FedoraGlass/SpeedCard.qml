@@ -67,6 +67,7 @@ Card {
         Item {
             width: parent.width
             height: Math.max(headCol.implicitHeight, 40)
+            readonly property bool narrow: width < 460
             Column {
                 id: headCol
                 anchors.left: parent.left
@@ -88,6 +89,7 @@ Card {
                     }
                 }
                 Text {
+                    visible: !parent.parent.narrow
                     width: parent.width
                     wrapMode: Text.WordWrap
                     color: Theme.textFaint

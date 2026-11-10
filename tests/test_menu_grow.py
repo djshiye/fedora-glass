@@ -36,5 +36,5 @@ def test_a_menu_is_its_own_size_again_once_closed():
 
 
 def test_the_app_has_a_switch_for_it():
-    qml = (ROOT / "fedoraglass/gui/qml/FedoraGlass/LookPage.qml").read_text()
+    qml = (ROOT / "fedoraglass/gui/qml/FedoraGlass/MotionPage.qml").read_text()
     assert 'objectName: "menuGrow"' in qml and "Backend.menuGrow = on" in qml

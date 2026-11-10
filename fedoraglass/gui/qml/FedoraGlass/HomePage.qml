@@ -173,7 +173,7 @@ SettingsPage {
                     objectName: "tileWindows"
                     width: tiles.tileW
                     iconName: "window"
-                    title: "Glass windows"
+                    title: "Windows"
                     state_: Backend.blurAppWindows ? "On" : "Off"
                     on: Backend.blurAppWindows
                     tip: "Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass."
