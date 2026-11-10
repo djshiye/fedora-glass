@@ -7,13 +7,13 @@ C.AbstractButton {
     id: control
     property bool on: false
     property string tip: ""
-    signal toggled(bool on)
+    signal switched(bool on)
     implicitHeight: 34
     implicitWidth: row.implicitWidth + 28
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     checkable: false
-    onClicked: toggled(!on)
+    onClicked: switched(!on)
     Accessible.role: Accessible.CheckBox
     Accessible.checkable: true
     Accessible.checked: on
