@@ -134,13 +134,27 @@ def test_frost_changes_the_css():
     assert rs.render_css(tokens(0.5, True)) != rs.render_css(tokens(0.5, False))
 
 
-def install(env, *uuids, refraction=True):
+# Extensions Apply never switches on itself: installed here means installed and switched on,
+# as on a real desktop that uses them (one only installed counts as not there, see Env.extension_on).
+THEIRS = (ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN, ts.JUST_PERFECTION)
+
+
+def install(env, *uuids, refraction=True, on=True):
     for u in uuids:
         d = env.data / "gnome-shell/extensions" / u
         d.mkdir(parents=True, exist_ok=True)
         (d / "metadata.json").write_text("{}")
         if u == ts.BLUR and refraction:
             (d / "effects/refraction").mkdir(parents=True)
+        if on and u in THEIRS:
+            switch_on(env, u)
+
+
+def switch_on(env, *uuids):
+    from fedoraglass.engine import format_strv, parse_strv
+    gs = env.gs.setdefault(("org.gnome.shell", None), {})
+    have = parse_strv(gs.get("enabled-extensions"))
+    gs["enabled-extensions"] = format_strv(have + [u for u in uuids if u not in have])
 
 
 def context(env, frost=0.5, dark=True, **kw):
@@ -389,6 +403,7 @@ def seeded_env(env):
             if isinstance(a, GSet):
                 env.gs.setdefault((a.schema, a.path), {}).setdefault(a.key, "0")
     env.gs[("org.gnome.shell", None)] = {"enabled-extensions": "['x@y']", "disabled-extensions": f"['{ts.USER_THEME}']"}
+    switch_on(env, ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN)
     return env
 
 

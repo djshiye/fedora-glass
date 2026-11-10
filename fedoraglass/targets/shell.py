@@ -26,6 +26,15 @@ def _need_extension(env: Env, uuid: str, label: str, package: str) -> Detection:
     return Detection(True)
 
 
+def _need_extension_on(env: Env, uuid: str, label: str, package: str) -> Detection:
+    """For an extension we theme but never switch on ourselves (Dash to Panel, ArcMenu,
+    Spawn): one that is installed but switched off is not part of this desktop."""
+    d = _need_extension(env, uuid, label, package)
+    if d.available and not env.extension_on(uuid):
+        return Detection(False, f"{label} is installed but switched off")
+    return d
+
+
 def _gset(schema: str, values: dict[str, str]) -> list[Action]:
     return [GSet(schema, k, v) for k, v in values.items()]
 
@@ -99,7 +108,7 @@ class GlassEffects(Target):
         s = ctx.settings
         if s.start_on_desktop is not None:
             return s
-        return replace(s, start_on_desktop=s.start_on_desktop_for(ctx.env.extension_path(DASH_TO_PANEL) is not None))
+        return replace(s, start_on_desktop=s.start_on_desktop_for(ctx.env.extension_on(DASH_TO_PANEL)))
 
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
@@ -124,7 +133,7 @@ class GlassEffects(Target):
         on = s.start_on_desktop or s.overview_off
         acts: list[Action] = []
         for uuid, schema, key, value in self.STARTUP_KEYS:
-            if ctx.env.extension_path(uuid) is None:
+            if not ctx.env.extension_on(uuid):
                 continue
             acts.append(GSet(schema, key, value, keep_user_change=True) if on else GReset(schema, key))
         return acts
@@ -230,7 +239,7 @@ class DashToPanel(Target):
     SCHEMA = "org.gnome.shell.extensions.dash-to-panel"
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, DASH_TO_PANEL, "Dash to Panel", "gnome-shell-extension-dash-to-panel")
+        return _need_extension_on(env, DASH_TO_PANEL, "Dash to Panel", "gnome-shell-extension-dash-to-panel")
 
     def plan(self, ctx: Context) -> list[Action]:
         acts = _gset(self.SCHEMA, rs.dtp_values(ctx.tokens))
@@ -261,7 +270,7 @@ class ArcMenu(Target):
     SCHEMA = "org.gnome.shell.extensions.arcmenu"
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, ARCMENU, "ArcMenu", "gnome-shell-extension-arcmenu")
+        return _need_extension_on(env, ARCMENU, "ArcMenu", "gnome-shell-extension-arcmenu")
 
     def plan(self, ctx: Context) -> list[Action]:
         return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))
@@ -280,7 +289,7 @@ class Spawn(Target):
     SCHEMA = "org.gnome.shell.extensions.spawn"
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, SPAWN, "Spawn", "gnome-shell-extension-spawn")
+        return _need_extension_on(env, SPAWN, "Spawn", "gnome-shell-extension-spawn")
 
     def plan(self, ctx: Context) -> list[Action]:
         return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))

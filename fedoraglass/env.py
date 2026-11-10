@@ -127,6 +127,20 @@ class Env:
         v = self.gsettings_get("org.gnome.shell", "enabled-extensions")
         return v is not None and f"'{uuid}'" in v
 
+    def extensions_switched_off(self) -> bool:
+        """GNOME's "Extensions" switch is off (disable-user-extensions): none of them run."""
+        return (self.gsettings_get("org.gnome.shell", "disable-user-extensions") or "").strip() == "true"
+
+    def extension_on(self, uuid: str) -> bool:
+        """The one rule for "the user has this extension": installed, on GNOME's list of
+        switched-on extensions, not on its switched-off list (that one wins in GNOME too),
+        and extensions not switched off altogether. Settings, not what runs this second:
+        while GNOME Shell restarts an extension is briefly not running, but still on."""
+        if self.extension_path(uuid) is None or not self.extension_enabled(uuid):
+            return False
+        off = self.gsettings_get("org.gnome.shell", "disabled-extensions")
+        return not (off is not None and f"'{uuid}'" in off) and not self.extensions_switched_off()
+
     # ---- gsettings --------------------------------------------------------
     def _schemadir_for(self, schema: str) -> Path | None:
         """Extension schemas often live only inside the extension folder."""

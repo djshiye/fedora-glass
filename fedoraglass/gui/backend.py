@@ -36,6 +36,7 @@ RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
 
 DOCK_EXTENSIONS = ("dash-to-dock@micxgx.gmail.com", "ubuntu-dock@ubuntu.com")
 MENU_EXTENSIONS = ("arcmenu@arcmenu.com", "spawn@djshiye.github.io")
+DASH_TO_PANEL = "dash-to-panel@jderose9.github.com"
 FALLBACK_DOCK = ("org.gnome.Nautilus.desktop", "org.gnome.Ptyxis.desktop")
 
 
@@ -239,6 +240,7 @@ class Backend(QObject):
         self._motion_state = {"animations": True, "dtpHover": False}
         self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
         self._has_menu = False      # ArcMenu or Spawn switched on
+        self._has_dtp = False       # Dash to Panel switched on
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -904,11 +906,12 @@ class Backend(QObject):
 
     @Property(bool, notify=targetsChanged)
     def hasDashToPanel(self) -> bool:
-        """Dash to Panel is installed. Until the targets are known, yes: the panel settings
-        stay put rather than flash away and back."""
+        """Dash to Panel is installed and switched on (one only installed is stock GNOME's
+        top bar). Until the targets are known, yes: the panel settings stay put rather
+        than flash away and back."""
         if not self._targets_ready:
             return True
-        return any(t["id"] == "dash-to-panel" and t["available"] for t in self._targets)
+        return self._has_dtp
 
     @Property(bool, notify=targetsChanged)
     def hasDock(self) -> bool:
@@ -1009,19 +1012,16 @@ class Backend(QObject):
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
-    def _extensions_on(engine: Any) -> tuple[bool, bool]:
-        """Whether a dock (Dash to Dock, Ubuntu Dock) and a start menu (ArcMenu, Spawn) are
-        installed and switched on."""
+    def _extensions_on(engine: Any) -> tuple[bool, bool, bool]:
+        """Whether a dock (Dash to Dock, Ubuntu Dock), a start menu (ArcMenu, Spawn) and
+        Dash to Panel are installed and switched on: the same rule as Apply (Env.extension_on)."""
         try:
             env = engine.env
-            on = env.gsettings_get("org.gnome.shell", "enabled-extensions") or ""
-            if env.gsettings_get("org.gnome.shell", "disable-user-extensions") == "true":
-                return False, False
             def any_on(uuids: tuple[str, ...]) -> bool:
-                return any(f"'{u}'" in on and env.extension_path(u) is not None for u in uuids)
-            return any_on(DOCK_EXTENSIONS), any_on(MENU_EXTENSIONS)
+                return any(env.extension_on(u) for u in uuids)
+            return any_on(DOCK_EXTENSIONS), any_on(MENU_EXTENSIONS), any_on((DASH_TO_PANEL,))
         except Exception:
-            return False, False
+            return False, False, False
 
     @staticmethod
     def _overwritten(engine: Any) -> list[str]:
@@ -1051,7 +1051,7 @@ class Backend(QObject):
             v = env.gsettings_get("org.gnome.desktop.interface", "enable-animations")
             out["animations"] = v != "false"
             from ..targets.shell import DashToPanel
-            if env.extension_path("dash-to-panel@jderose9.github.com") is not None:
+            if env.extension_on(DASH_TO_PANEL):
                 out["dtpHover"] = env.gsettings_get(DashToPanel.SCHEMA, "animate-appicon-hover") == "true"
         except Exception:
             pass
@@ -1075,7 +1075,7 @@ class Backend(QObject):
             self.failed.emit(f"Could not load targets: {out}")
         else:
             (self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost,
-             self._motion_state, (self._has_dock, self._has_menu)) = out
+             self._motion_state, (self._has_dock, self._has_menu, self._has_dtp)) = out
         self._targets_ready = True
         self.targetsChanged.emit()
 

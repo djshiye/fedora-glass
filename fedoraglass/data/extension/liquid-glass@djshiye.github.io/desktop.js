@@ -65,9 +65,23 @@ export function repairDash() {
     return fixed;
 }
 
+// Switched on in the settings and installed. GNOME keeps the name of an extension that
+// was removed on its list, and one that no longer exists never takes this over. GNOME
+// knows every installed extension before it starts the first one, so one that starts
+// after us is found here too.
 function enabledInSettings(uuids) {
     const on = global.settings.get_strv('enabled-extensions');
-    return uuids.some(uuid => on.includes(uuid));
+    const off = global.settings.get_strv('disabled-extensions') ?? [];
+    return uuids.some(uuid => on.includes(uuid) && !off.includes(uuid) &&
+        installed(uuid));
+}
+
+function installed(uuid) {
+    try {
+        return Boolean(Main.extensionManager.lookup(uuid));
+    } catch {
+        return true;    // can't tell: go by the settings, as before
+    }
 }
 
 export class DesktopBehaviour {
