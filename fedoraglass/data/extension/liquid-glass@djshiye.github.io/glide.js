@@ -23,6 +23,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Signals} from './common.js';
+import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {springStep as spring} from './curves.js';
 
@@ -156,6 +157,8 @@ export class HoverGlide {
         this._refreshId = 0;
         this._settings = St.Settings.get();
         this._animId = this._settings.connect('notify::enable-animations', () => this.settle());
+        // A menu open (or the panel shown over a full-screen game): hover by pointer position.
+        this._grabHover = new GrabHover(() => this._watched.keys(), icon => this._hover(icon));
     }
 
     update(look) {
@@ -173,6 +176,7 @@ export class HoverGlide {
     }
 
     _connectSources() {
+        this._grabHover.start();
         this._watchDtp();
         // Dash to Panel, Spawn or ArcMenu turned on or off (or restarted by GNOME) while the
         // glide runs: follow Dash to Panel's new object and look at the panels again.
@@ -271,7 +275,7 @@ export class HoverGlide {
         const tile = w && this._tiles.get(w.panel);
         if (!tile)
             return;
-        if (!icon.hover) {
+        if (!hovered(icon, this._grabHover)) {
             if (tile.icon === icon)
                 this._leaveSoon(tile);
             return;
@@ -299,7 +303,7 @@ export class HoverGlide {
             return;
         tile.leaveId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, LEAVE_GRACE_MS, () => {
             tile.leaveId = 0;
-            if (!tile.icon?.hover)
+            if (!hovered(tile.icon, this._grabHover))
                 this._leave(tile);
             return GLib.SOURCE_REMOVE;
         });
@@ -401,6 +405,7 @@ export class HoverGlide {
 
     _teardown() {
         // Icons first: letting go of a hovered icon schedules a fade, dropped just below.
+        this._grabHover.stop();
         this._signals.clear();
         this._dtpSignals.clear();
         this._dtp = null;

@@ -223,6 +223,7 @@ fi
 - Backups: an Apply that is cut short, a damaged backup list or a lost backup copy no longer costs your original look
 - Signing: a release is signed only when GitHub proves it was built from main; the first install is checked against the key fingerprint
 - Ubuntu: apt update keeps working after Fedora Glass is removed; the watcher stops at removal on Ubuntu and Arch
+- Panel icons keep their hover lift and the taskbar glide while a menu is open, also over full-screen games
 - Glass looks: readable title bars and text on bright wallpapers, a visible lock card on two screens, glass in the screenshot tool, the Disks sidebar and Alt+Tab
 
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.19-1
