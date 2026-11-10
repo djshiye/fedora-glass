@@ -174,12 +174,20 @@ def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
     return None
 
 
-def _effective(s: Settings) -> dict:
+# Saved the moment it is switched (removing the package reads it), so never "not applied yet".
+_SAVED_AT_ONCE = ("undo_on_remove",)
+
+
+def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     """What a Settings really does, so a switch flipped off and on again, or a motion picked and
-    then set back to its default, doesn't count as an unapplied change."""
+    then set back to its default, doesn't count as an unapplied change. "Start on the desktop"
+    not chosen yet (None) is what Apply decides for this desktop."""
     d = asdict(s)
     d["targets"] = sorted(k for k, v in s.targets.items() if not v)
     d["motion"] = {ev: s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
+    d["start_on_desktop"] = s.start_on_desktop_for(has_dash_to_panel)
+    for k in _SAVED_AT_ONCE:
+        d.pop(k, None)
     return d
 
 
@@ -207,7 +215,13 @@ class Backend(QObject):
     previewChanged = Signal()
     uiChanged = Signal()
     targetsChanged = Signal()
+    # Only which parts are switched on: the Apps page keeps its rows (focus, open notes)
+    # when one is flipped, instead of building every row again as targetsChanged does.
+    targetStatesChanged = Signal()
     weatherChanged = Signal()
+    wallpaperChanged = Signal()
+    damageNoteChanged = Signal()
+    wallpaperLumaChanged = Signal()
     busyChanged = Signal()
     progressChanged = Signal()
     savedChanged = Signal()
@@ -223,6 +237,7 @@ class Backend(QObject):
     removeFinished = Signal(bool)
     noticed = Signal(str)       # a short "done" message for a toast
     restartNeededChanged = Signal()
+    partialChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -236,6 +251,13 @@ class Backend(QObject):
         # First run: no saved settings and the welcome never dismissed. Asked once, at start.
         self._first_run = not self._settings_file().exists() and not self._welcome_marker().exists()
         self._s = replace(self._saved, targets=dict(self._saved.targets))
+        # The last look that applied with no part failing: Undo goes back to it after an
+        # Apply that only partly worked (_saved is then that partly applied look).
+        self._good = self._saved
+        # settings.json was damaged and set aside at load: said until the next save.
+        self._damage = self._read_damage()
+        self._partial: list[dict] = []     # the results of an Apply where some parts failed
+        self._applying: Settings | None = None     # the look an Apply in progress writes
         self._ui_override = ui_dark
         self._system_dark = self._env.prefers_dark() if ui_dark is None else ui_dark
         self._system_accent = self._env.system_accent()
@@ -260,11 +282,14 @@ class Backend(QObject):
         # or unavailable, and a sentence about the last change.
         self._login_proc: QProcess | None = None
         self._login_note = ""
+        self._login_failed = False     # the last login screen step ended in an error (not a cancel)
         self._login_state = self._read_login_state()
         # Removing the app (Restore original, then dnf remove through pkexec).
         self._remove_proc: QProcess | None = None
         self._removing = False
-        self._remove_package = self._installed_package()
+        # The package this app came from: asked of the package manager (up to 10 s) on the
+        # first system check, off the UI thread, not before the window shows. None: not known yet.
+        self._remove_package: str | None = None
         self._terminal_pal = ""
         self._motion_state = {"animations": True, "dtpHover": False}
         self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
@@ -298,16 +323,47 @@ class Backend(QObject):
         self._speed_watch = QFileSystemWatcher(self)
         self._speed_watch.fileChanged.connect(self._on_speed_file)
         self._speed_watch.directoryChanged.connect(self._on_speed_file)
-        self._wallpaper = self._find_wallpaper()
-        self._wallpaper_luma: float | None = None
+        # GNOME's two wallpapers (picture-uri for light, picture-uri-dark for dark), as file URLs.
+        self._wallpapers = self._read_wallpapers()
+        self._wall_monitor: QProcess | None = None
+        self._lumas: dict[str, float] = {}       # wallpaper URL -> how bright it is, worked out off the UI thread
+        self._luma_tasks: dict[str, _Task] = {}
         self._power_supply = Path("/sys/class/power_supply")
         self._dock = self._find_dock()
         self._rebuild_tokens()
+        self.targetsChanged.connect(self.targetStatesChanged)
+        # The preview's Light/Dark pill and GNOME's own style pick the wallpaper.
+        self.savedChanged.connect(self._refresh_damage)
+        self.previewChanged.connect(self.wallpaperChanged)
+        self.uiChanged.connect(self.wallpaperChanged)
+        self.wallpaperChanged.connect(self.wallpaperLumaChanged)
         if start:
             self.refreshTargets()
             self._watch_scheme()
+            self._watch_wallpaper()
             self._safe_timer.start()
             self._start_speed_watch()
+
+    # ---- damaged settings ----------------------------------------------------------
+    def _read_damage(self) -> str:
+        # settings.damage_notice is newer than some engines this app runs with.
+        notice = getattr(settings_mod, "damage_notice", lambda path=None: None)
+        try:
+            return notice(self._path) or ""
+        except Exception:  # noqa: BLE001 (a note that can't be read is no note)
+            return ""
+
+    @Slot()
+    def _refresh_damage(self) -> None:
+        note = self._read_damage()
+        if note != self._damage:
+            self._damage = note
+            self.damageNoteChanged.emit()
+
+    @Property(str, notify=damageNoteChanged)
+    def damageNote(self) -> str:
+        """One plain line when settings.json was damaged and set aside, or ""."""
+        return self._damage
 
     # ---- safe mode ---------------------------------------------------------------
     def _read_safe_mode(self) -> dict:
@@ -373,12 +429,58 @@ class Backend(QObject):
             return self._system_dark
         return self._s.scheme == "dark"
 
-    def _find_wallpaper(self) -> str:
-        try:
-            p = self._env.wallpaper()
-        except Exception:
-            p = None
-        return QUrl.fromLocalFile(str(p)).toString() if p else ""
+    @staticmethod
+    def _wallpaper_url(value: str | None) -> str:
+        """A picture-uri value as gsettings prints it, as a file URL ("" for none or no file)."""
+        v = (value or "").strip().strip("'")
+        if not v.startswith("file://"):
+            return ""
+        from urllib.parse import unquote, urlparse
+        p = Path(unquote(urlparse(v).path))
+        return QUrl.fromLocalFile(str(p)).toString() if p.is_file() else ""
+
+    def _read_wallpapers(self) -> dict[str, str]:
+        out = {}
+        for mode, key in (("light", "picture-uri"), ("dark", "picture-uri-dark")):
+            try:
+                out[mode] = self._wallpaper_url(self._env.gsettings_get("org.gnome.desktop.background", key))
+            except Exception:
+                out[mode] = ""
+        return out
+
+    def _wallpaper_for(self, dark: bool) -> str:
+        """GNOME shows picture-uri-dark in dark style; without one, picture-uri."""
+        first, other = ("dark", "light") if dark else ("light", "dark")
+        return self._wallpapers.get(first) or self._wallpapers.get(other) or ""
+
+    def _watch_wallpaper(self) -> None:
+        """Follow a wallpaper change while the app is open."""
+        if not self._env.which("gsettings"):
+            return
+        p = QProcess(self)
+        p.readyReadStandardOutput.connect(self._on_wallpaper_output)
+        p.start("gsettings", ["monitor", "org.gnome.desktop.background"])
+        self._wall_monitor = p
+
+    def _on_wallpaper_output(self) -> None:
+        if self._wall_monitor is not None:
+            self._wallpaper_lines(bytes(self._wall_monitor.readAllStandardOutput()).decode(errors="replace"))
+
+    def _wallpaper_lines(self, text: str) -> None:
+        """`gsettings monitor` lines ("picture-uri-dark: 'file:///…'"): take the new pictures."""
+        keys = {"picture-uri": "light", "picture-uri-dark": "dark"}
+        changed = False
+        for line in text.splitlines():
+            key, sep, value = line.partition(":")
+            mode = keys.get(key.strip())
+            if not sep or mode is None:
+                continue
+            url = self._wallpaper_url(value)
+            if url != self._wallpapers.get(mode):
+                self._wallpapers[mode] = url
+                changed = True
+        if changed:
+            self.wallpaperChanged.emit()
 
     def _find_dock(self) -> list[dict]:
         """The real dock: installed favourites, then the apps the preview shows running."""
@@ -412,13 +514,20 @@ class Backend(QObject):
 
     def _rebuild_tokens(self) -> None:
         s = self._s
-        self._dark_t = palette.build(s, dark=True, system_accent=self._system_accent)
-        self._light_t = palette.build(s, dark=False, system_accent=self._system_accent)
+        dark_t = palette.build(s, dark=True, system_accent=self._system_accent)
+        light_t = palette.build(s, dark=False, system_accent=self._system_accent)
         auto = replace(s, opacity=None, blur=None, terminal_opacity=None)
         a = palette.build(auto, dark=self._preview_dark, system_accent=self._system_accent)
-        self._auto = {"opacity": round(a.chrome.a, 2), "blur": a.blur_radius,
-                      "terminal_opacity": a.terminal_opacity}
-        self._maps = (tokens_map(self._dark_t), tokens_map(self._light_t))
+        auto_values = {"opacity": round(a.chrome.a, 2), "blur": a.blur_radius,
+                       "terminal_opacity": a.terminal_opacity}
+        # Most settings (the lock screen, motion, the pointer...) don't touch the colours:
+        # then nothing that reads the tokens (the whole preview) has to be worked out again.
+        key = (dark_t, light_t, auto_values, self._preview_dark)
+        if key == getattr(self, "_tokens_key", None):
+            return
+        self._tokens_key = key
+        self._dark_t, self._light_t, self._auto = dark_t, light_t, auto_values
+        self._maps = (tokens_map(dark_t), tokens_map(light_t))
         self.tokensChanged.emit()
 
     def _changed(self) -> None:
@@ -474,10 +583,15 @@ class Backend(QObject):
         self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
-        if self._monitor is not None:
-            self._monitor.kill()
-            self._monitor.waitForFinished(500)
-            self._monitor = None
+        for name in ("_monitor", "_wall_monitor"):
+            proc = getattr(self, name)
+            if proc is not None:
+                proc.kill()
+                proc.waitForFinished(500)
+                setattr(self, name, None)
+        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None)]:
+            if t is not None:
+                t.wait(2000)
 
     # ---- settings properties ---------------------------------------------------
     def _p(name: str, typ: type, none: Any = None, notify=settingsChanged):  # noqa: N805
@@ -797,13 +911,15 @@ class Backend(QObject):
 
     @Property(bool, notify=settingsChanged)
     def dirty(self) -> bool:
-        return _effective(self._s) != _effective(self._saved.normalized())
+        dtp = self.hasDashToPanel
+        return _effective(self._s, dtp) != _effective(self._saved.normalized(), dtp)
 
     @Property(int, notify=settingsChanged)
     def changeCount(self) -> int:
         """How many settings differ from the look applied last (the footer says "3 changes
         not applied yet"). A part or a motion counts once per part or animation changed."""
-        now, was = _effective(self._s), _effective(self._saved.normalized())
+        dtp = self.hasDashToPanel
+        now, was = _effective(self._s, dtp), _effective(self._saved.normalized(), dtp)
         n = 0
         for k in now:
             a, b = now[k], was[k]
@@ -825,6 +941,21 @@ class Backend(QObject):
     def presets(self) -> list[str]:
         return list(PRESETS)
 
+    # The preset tiles, the ticks on the frost slider and the name beside it all come from
+    # settings.PRESETS, so they can't disagree (Clear was 0.1 there and 0.25 in the window).
+    @Property("QVariantMap", constant=True)
+    def presetFrost(self) -> dict:
+        return {name: float(v["frost"]) for name, v in PRESETS.items()}
+
+    @Property("QVariantList", constant=True)
+    def frostTicks(self) -> list[dict]:
+        return [{"value": float(v["frost"]), "label": name} for name, v in PRESETS.items()]
+
+    @Slot(float, result=str)
+    def frostName(self, frost: float) -> str:
+        """The preset whose frost is nearest (the one the slider sits closest to)."""
+        return min(PRESETS, key=lambda name: (abs(PRESETS[name]["frost"] - frost), PRESETS[name]["frost"]))
+
     @Property("QVariantList", constant=True)
     def accents(self) -> list[dict]:
         return [{"id": k, "color": v, "label": k.capitalize()} for k, v in GNOME_ACCENTS.items()]
@@ -845,7 +976,7 @@ class Backend(QObject):
 
     @Slot()
     def resetDefaults(self) -> None:
-        s = Settings(targets=dict(self._s.targets))
+        s = Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove)
         if s != self._s:
             was_dark = self._effective_dark()
             self._s = s
@@ -873,13 +1004,14 @@ class Backend(QObject):
     def changedFromDefault(self) -> list[str]:
         """The settings (Settings names) that differ from their defaults; the app's choice
         of apps (targets) isn't a look setting and is never listed."""
-        d, now = _effective(Settings()), _effective(self._s)
-        return [f.name for f in fields(Settings) if f.name != "targets" and now[f.name] != d[f.name]]
+        dtp = self.hasDashToPanel
+        d, now = _effective(Settings(), dtp), _effective(self._s, dtp)
+        return [f.name for f in fields(Settings) if f.name in now and f.name != "targets" and now[f.name] != d[f.name]]
 
     @Slot("QStringList")
     def resetSettings(self, names: list[str]) -> None:
         """Put these settings back to their defaults (Apply then uses them)."""
-        known = {f.name for f in fields(Settings)} - {"targets"}
+        known = {f.name for f in fields(Settings)} - {"targets", *_SAVED_AT_ONCE}
         values = {n: getattr(Settings(), n) for n in names if n in known}
         if not values:
             return
@@ -895,11 +1027,14 @@ class Backend(QObject):
 
     @Slot()
     def discardChanges(self) -> None:
-        self._s = replace(self._saved, targets=dict(self._saved.targets))
+        """Undo: back to the look applied last. After an Apply where some parts failed (nothing
+        changed since), back to the last look that applied fully, to apply again."""
+        back = self._saved if self.dirty or not self._partial else self._good
+        self._s = replace(back, targets=dict(back.targets), undo_on_remove=self._saved.undo_on_remove)
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
-        self.targetsChanged.emit()   # the app switches and the glass edges follow the saved state
+        self.targetStatesChanged.emit()   # the app switches and the glass edges follow the saved state
 
     @Slot(str, result=bool)
     def isColor(self, value: str) -> bool:
@@ -954,35 +1089,87 @@ class Backend(QObject):
     def iconUrl(self, name: str) -> str:
         return f"image://lgicon/{name}" if name and QIcon.hasThemeIcon(name) else ""
 
-    @Property(str, constant=True)
+    @Property(str, notify=wallpaperChanged)
     def wallpaper(self) -> str:
-        return self._wallpaper
+        """The wallpaper the preview shows: the dark one when the preview is dark."""
+        return self._wallpaper_for(self._preview_dark)
 
-    @Property(float, constant=True)
+    @Property(str, notify=wallpaperChanged)
+    def appWallpaper(self) -> str:
+        """The wallpaper behind this window's own glass: the one GNOME shows now."""
+        return self._wallpaper_for(self._system_dark)
+
+    @Property(float, notify=wallpaperLumaChanged)
     def wallpaperLuma(self) -> float:
         """How bright the wallpaper is on average (0..1, linear), for the lock screen preview,
-        which darkens a bright picture the way the lock glass's brightness ceiling does."""
-        if self._wallpaper_luma is None:
-            self._wallpaper_luma = _average_luma(QUrl(self._wallpaper).toLocalFile()) if self._wallpaper else 0.2
-        return self._wallpaper_luma
+        which darkens a bright picture the way the lock glass's brightness ceiling does.
+        Decoded on a worker thread: until it is known, an average dark wallpaper."""
+        url = self.wallpaper
+        if not url:
+            return 0.2
+        if url not in self._lumas and url not in self._luma_tasks:
+            task = _Task(lambda _report: _average_luma(QUrl(url).toLocalFile()), self)
+            # A bound slot of this object, so the result arrives queued on the GUI thread.
+            task.finishedWith.connect(self._luma_done)
+            self._luma_tasks[url] = task
+            task.start()
+        return self._lumas.get(url, 0.2)
+
+    @Slot(object)
+    def _luma_done(self, out: Any) -> None:
+        task = self.sender()
+        url = next((u for u, t in self._luma_tasks.items() if t is task), None)
+        if url is None:
+            return
+        del self._luma_tasks[url]
+        task.wait()
+        task.deleteLater()
+        self._lumas[url] = out if isinstance(out, float) else 0.2
+        if url == self.wallpaper:
+            self.wallpaperLumaChanged.emit()
 
     @Property(bool, constant=True)
     def hasBattery(self) -> bool:
         """Whether this PC has a battery of its own (a laptop), for the lock screen's battery widget."""
         return _has_battery(self._power_supply)
 
+    WEATHER_EVERY = 30.0     # s: the window gaining focus looks again at most this often
+
     @Property(str, notify=weatherChanged)
     def weatherState(self) -> str:
-        """For the lock screen's weather switch: "ready", "no-app" or "no-place"."""
+        """For the lock screen's weather switch: "ready", "no-app" or "no-place". Until the
+        first look (on a worker thread: three gsettings calls) "ready": don't claim it won't work."""
         if getattr(self, "_weather_state", None) is None:
-            self._weather_state = _weather_state(self._env)
+            self._check_weather()
+            return "ready"
         return self._weather_state
 
     @Slot()
     def refreshWeather(self) -> None:
         """Look again (the window just regained focus): GNOME Weather may have been installed
-        or a place chosen meanwhile."""
-        new = _weather_state(self._env)
+        or a place chosen meanwhile. Not more than once every WEATHER_EVERY seconds."""
+        now = time.monotonic()
+        if now - getattr(self, "_weather_at", -1e9) < self.WEATHER_EVERY:
+            return
+        self._weather_at = now
+        self._check_weather()
+
+    def _check_weather(self) -> None:
+        if getattr(self, "_weather_task", None) is not None:
+            return
+        env = self._env
+        task = _Task(lambda _report: _weather_state(env), self)
+        task.finishedWith.connect(self._weather_done)     # bound: arrives on the GUI thread
+        self._weather_task = task
+        task.start()
+
+    @Slot(object)
+    def _weather_done(self, out: Any) -> None:
+        task, self._weather_task = self._weather_task, None
+        if task is not None:
+            task.wait()
+            task.deleteLater()
+        new = out if isinstance(out, str) else "ready"
         if new != getattr(self, "_weather_state", None):
             self._weather_state = new
             self.weatherChanged.emit()
@@ -1079,7 +1266,7 @@ class Backend(QObject):
             return True
         return self._has_menu
 
-    @Property(int, notify=targetsChanged)
+    @Property(int, notify=targetStatesChanged)
     def activeTargetCount(self) -> int:
         return sum(1 for t in self._targets if t["available"] and self._s.target_enabled(t["id"]))
 
@@ -1198,9 +1385,9 @@ class Backend(QObject):
         self._s = replace(self._s, targets=targets)
         self._rebuild_tokens()   # the glass target decides which edges the theme draws
         self.settingsChanged.emit()
-        self.targetsChanged.emit()
+        self.targetStatesChanged.emit()
 
-    @Property("QVariantMap", notify=targetsChanged)
+    @Property("QVariantMap", notify=targetStatesChanged)
     def targetStates(self) -> dict:
         """Target id -> on, for the preview (a missing id is on)."""
         return {k: bool(v) for k, v in self._s.targets.items()}
@@ -1233,9 +1420,16 @@ class Backend(QObject):
                             "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
+            package = self._remove_package
+            if package is None:
+                try:
+                    package = self._installed_package()
+                except Exception:
+                    package = ""
             return (out, self._backup_exists(engine), self._restart_state(engine, glass_wanted),
                     self._terminal_palette(engine), lost, self._motion_env(engine), self._extension_names(engine),
-                    self._extensions_on(engine)[2], self._glass_problem(engine, s), self._find_leftovers(engine))
+                    self._extensions_on(engine)[2], self._glass_problem(engine, s), self._find_leftovers(engine),
+                    package)
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -1337,18 +1531,31 @@ class Backend(QObject):
     def cleanUpOldCopy(self) -> None:
         """Take away only that copy's launcher, menu entry and user service (only on this
         click), then start the package's own watcher."""
-        if not self._leftovers:
+        if not self._leftovers or self._removing:
+            return
+        if self._task is not None:
+            # The system check is still running: clean up as soon as it ends.
+            self._pending_action = "cleanUpOldCopy"
+            self.busyChanged.emit()
             return
         from .. import leftovers
-        try:
-            problems = leftovers.clean_up(self._engine_obj().env)
-        except Exception as e:
-            problems = [str(e)]
-        if problems:
-            self.failed.emit(f"Could not clean up the old copy: {problems[0]}")
-        else:
-            self.noticed.emit("Old copy cleaned up. Fedora Glass now runs from the package only.")
-        self.refreshTargets()
+
+        # systemctl can take up to 30 s per call: on a worker thread, never the UI's.
+        def job(report):
+            try:
+                return leftovers.clean_up(self._engine_obj().env)
+            except Exception as e:
+                return [str(e)]
+
+        def done(problems):
+            if isinstance(problems, Exception):
+                problems = [str(problems)]
+            if problems:
+                self.failed.emit(f"Could not clean up the old copy: {problems[0]}")
+            else:
+                self.noticed.emit("Old copy cleaned up. Fedora Glass now runs from the package only.")
+            self.refreshTargets()
+        self._run("cleanup", job, done)
 
     @Slot()
     def copyGlassDetails(self) -> None:
@@ -1387,6 +1594,7 @@ class Backend(QObject):
             return ""
 
     def _targets_done(self, out: Any) -> None:
+        dtp_before = self.hasDashToPanel
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
@@ -1394,10 +1602,14 @@ class Backend(QObject):
         else:
             (self._targets, self._has_backup, (self._glass_live, restart), self._terminal_pal, self._lost,
              self._motion_state, (self._dock_name, self._menu_name), self._has_dtp, self._problem,
-             self._leftovers) = out
+             self._leftovers, package) = out
+            if self._remove_package is None:
+                self._remove_package = package
             self._has_dock, self._has_menu = bool(self._dock_name), bool(self._menu_name)
         self._targets_ready = True
         self.targetsChanged.emit()
+        if self.hasDashToPanel != dtp_before:
+            self.settingsChanged.emit()     # "start on the desktop" follows Dash to Panel until chosen
         self._set_restart_needed(restart)
 
     @staticmethod
@@ -1411,15 +1623,18 @@ class Backend(QObject):
     # ---- long-running work --------------------------------------------------------
     def _queued_kind(self) -> str:
         """The asked-for action waiting for the background check to end, as a busy kind."""
-        return {"apply": "apply", "revert": "revert", "requestPlan": "plan"}.get(self._pending_action or "", "")
+        return {"apply": "apply", "revert": "revert", "requestPlan": "plan",
+                "cleanUpOldCopy": "cleanup"}.get(self._pending_action or "", "")
 
+    # Removing the app (Restore original, then the package manager behind pkexec) counts
+    # as busy from start to end: Apply, Restore or See changes would run over it.
     @Property(bool, notify=busyChanged)
     def busy(self) -> bool:
-        return bool(self._busy or self._queued_kind())
+        return bool(self._busy or self._queued_kind() or self._removing)
 
     @Property(str, notify=busyChanged)
     def busyKind(self) -> str:
-        return self._busy or self._queued_kind()
+        return "remove" if self._removing else self._busy or self._queued_kind()
 
     @Property(float, notify=progressChanged)
     def progress(self) -> float:
@@ -1468,6 +1683,8 @@ class Backend(QObject):
 
     @Slot()
     def requestPlan(self) -> None:
+        if self._removing:
+            return
         if self._task is not None:
             self._pending_action = self._pending_action or "requestPlan"
             self.busyChanged.emit()
@@ -1494,6 +1711,9 @@ class Backend(QObject):
 
     @Slot()
     def apply(self) -> None:
+        if self._removing:
+            self._lock_after_apply = False
+            return
         if self._task is not None:
             # Still checking the system in the background: apply as soon as that ends.
             self._pending_action = "apply"
@@ -1501,15 +1721,15 @@ class Backend(QObject):
             return
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
+        # Saved first, so a settings folder that can't be written stops Apply before the
+        # desktop changes. The look counts as applied (_saved) only once Apply ends.
         try:
             settings_mod.save(s, self._path)
         except OSError as e:
             self._lock_after_apply = False
             self.failed.emit(f"Could not save settings: {e}")
             return
-        self._saved = s
-        self.settingsChanged.emit()
-        self.savedChanged.emit()
+        self._applying = s
         glass_wanted = s.target_enabled("glass")
 
         def job(report):
@@ -1529,31 +1749,57 @@ class Backend(QObject):
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
+            # "Remove only" (undoOnRemove) may have been switched while Apply ran: it is saved at once.
+            uor = self._saved.undo_on_remove
+            self._applying = None
             if isinstance(out, Exception):
                 self._lock_after_apply = False
+                # Stopped part way: the changes stay unapplied (dirty, Undo, the close guard),
+                # and settings.json goes back to the look applied last, since the watcher
+                # applies that file again whenever GNOME flips between dark and light.
+                try:
+                    settings_mod.save(self._saved, self._path)
+                except OSError:
+                    pass
+                self._refresh_damage()
                 self.failed.emit(f"Apply stopped: {out}")
                 return
             results, self._has_backup, (self._glass_live, restart) = out
+            self._saved = replace(s, undo_on_remove=uor)
+            rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message} for r in results]
+            # Some parts failed: the rest is applied, and settings.json is that look (the
+            # watcher keeps it), but Undo goes back to the last look that applied fully.
+            if any(r["status"] == "failed" for r in rows):
+                self._partial = rows
+            else:
+                self._partial = []
+                self._good = self._saved
+            self.settingsChanged.emit()
+            self.savedChanged.emit()
+            self.partialChanged.emit()
             self._set_restart_needed(restart)    # before applyFinished: the results sheet reads it
             self.targetsChanged.emit()
             self.refreshTargets()          # the glass may be live now, and notes change
             if header_changed:
                 self._set_header_note("pending")
-            self.applyFinished.emit([{"id": r.target, "name": r.name, "status": r.status,
-                                      "message": r.message} for r in results])
-            self._lock_if_asked(results)
             # Apply brings the login screen along when its glass is on: new colours, or the
-            # rules of a newer Fedora Glass. It changes a system file, so this asks for the password.
+            # rules of a newer Fedora Glass. It changes a system file, so this asks for the
+            # password. Started before applyFinished, so "Apply and close" sees it running
+            # and waits for it.
             self._login_state = self._read_login_state()
-            if self._login_stale(s):
-                self._run_login(["apply", *self.login_values(s)],
+            if self._login_stale(self._saved):
+                self._run_login(["apply", *self.login_values(self._saved)],
                                 "The login screen has your new look. You'll see it the next time you restart your PC.")
             else:
                 self.loginGlassChanged.emit()
+            self.applyFinished.emit(rows)
+            self._lock_if_asked(results)
         self._run("apply", job, done)
 
     @Slot()
     def revert(self) -> None:
+        if self._removing:
+            return
         if self._task is not None:
             # Right after an Apply the app re-checks the system: restore once that ends
             # (1.5.3 dropped the click without a word).
@@ -1577,12 +1823,29 @@ class Backend(QObject):
             problems, self._has_backup = out
             self._glass_live = False
             self._lost = []
+            self._set_partial([])
             self.targetsChanged.emit()
             self._set_restart_needed(False)
             if header_changed:
                 self._set_header_note("pending")
             self.revertFinished.emit(problems)
         self._run("revert", job, done)
+
+    # ---- an Apply where some parts failed ------------------------------------------
+    def _set_partial(self, rows: list[dict]) -> None:
+        if rows != self._partial:
+            self._partial = rows
+            self.partialChanged.emit()
+
+    @Property(int, notify=partialChanged)
+    def partlyApplied(self) -> int:
+        """How many parts failed in the last Apply (0: it applied fully, or nothing was applied)."""
+        return sum(1 for r in self._partial if r["status"] == "failed")
+
+    @Property("QVariantList", notify=partialChanged)
+    def partialResults(self) -> list[dict]:
+        """That Apply's results, for the results sheet the footer opens."""
+        return list(self._partial)
 
     # ---- header bars: Files keeps the old style sheet until it restarts -------------
     def _set_header_note(self, state: str) -> None:
@@ -1665,6 +1928,11 @@ class Backend(QObject):
     def loginGlassNote(self) -> str:
         return self._login_note
 
+    @Property(bool, notify=loginGlassChanged)
+    def loginGlassFailed(self) -> bool:
+        """The last login screen step went wrong (a closed password dialog doesn't count)."""
+        return self._login_failed
+
     def _login_stale(self, s: Settings | None = None) -> bool:
         """Glass is on the login screen, but not the look Apply gives now: other colours,
         or the rules of an older Fedora Glass (1.5.7 made the password prompt compact)."""
@@ -1686,9 +1954,21 @@ class Backend(QObject):
         dark = self._dark_t if s == self._s.normalized() else palette.build(s, dark=True, system_accent=self._system_accent)
         return [dark.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
 
+    @Property(bool, notify=settingsChanged)
+    def loginGlassBehind(self) -> bool:
+        """Unapplied changes would change the login screen's colours or frost: its button
+        uses the look applied last, so the card says so."""
+        try:
+            return self.login_values(self._s) != self.login_values(self._saved)
+        except Exception:  # noqa: BLE001 (a colour that can't be read: say nothing)
+            return False
+
     @Slot()
     def turnOnLoginGlass(self) -> None:
-        self._run_login(["apply", *self.login_values()], "Glass is on the login screen. You'll see it the next time you restart your PC.")
+        # The applied look, as Apply keeps it: the desktop doesn't have unapplied slider
+        # values either, and loginGlassStale compares with this one.
+        self._run_login(["apply", *self.login_values(self._saved)],
+                        "Glass is on the login screen. You'll see it the next time you restart your PC.")
 
     @Slot()
     def turnOffLoginGlass(self) -> None:
@@ -1704,6 +1984,7 @@ class Backend(QObject):
         p.errorOccurred.connect(lambda _e: self._login_finished(p, -1, done))
         self._login_proc = p
         self._login_note = ""
+        self._login_failed = False
         self.loginGlassChanged.emit()
         p.start()
 
@@ -1718,6 +1999,7 @@ class Backend(QObject):
         elif code in (126, 127):          # pkexec: the password dialog was closed or refused
             self._login_note = "Not changed: the password wasn't given."
         else:
+            self._login_failed = True
             first = err.splitlines()[-1] if err else "the helper didn't finish"
             self._login_note = first if first.startswith("Nothing was changed") else f"Nothing was changed: {first}"
         self._login_state = self._read_login_state()
@@ -1735,12 +2017,17 @@ class Backend(QObject):
         if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
             return
         saved = replace(self._saved, undo_on_remove=on)
+        # While Apply runs, settings.json holds the look it applies: keep that one.
+        on_disk = replace(self._applying, undo_on_remove=on) if self._applying is not None else saved
         try:
-            settings_mod.save(saved, self._path)
+            settings_mod.save(on_disk, self._path)
         except OSError as e:
             self.failed.emit(f"Could not save settings: {e}")
             return
+        if self._applying is not None:
+            self._applying = on_disk
         self._saved = saved
+        self._good = replace(self._good, undo_on_remove=on)
         self._s = replace(self._s, undo_on_remove=on)
         self.settingsChanged.emit()
         self.savedChanged.emit()
@@ -1773,7 +2060,7 @@ class Backend(QObject):
         """The terminal command that removes the app here (shown in a tip)."""
         return distro.current().remove_command()
 
-    @Property(bool, constant=True)
+    @Property(bool, notify=targetsChanged)
     def canRemoveApp(self) -> bool:
         return bool(self._remove_package)
 
@@ -1785,6 +2072,7 @@ class Backend(QObject):
         if on != self._removing:
             self._removing = on
             self.removingChanged.emit()
+            self.busyChanged.emit()
 
     @Slot()
     def removeApp(self) -> None:
@@ -1808,6 +2096,7 @@ class Backend(QObject):
                 return
             problems, self._has_backup = out
             self._lost = []
+            self._set_partial([])
             self.targetsChanged.emit()
             self._set_restart_needed(False)
             if problems:

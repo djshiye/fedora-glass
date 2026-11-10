@@ -30,8 +30,9 @@ def backend(app, home):
 
 
 def test_discard_emits_targets_changed(backend):
+    # The switches follow the saved state through targetStatesChanged (rows are kept).
     seen = []
-    backend.targetsChanged.connect(lambda: seen.append(1))
+    backend.targetStatesChanged.connect(lambda: seen.append(1))
     backend.setTargetEnabled("alpha", False)
     seen.clear()
     backend.discardChanges()
@@ -69,10 +70,20 @@ def test_queued_apply_shows_busy(backend):
 
 def test_refresh_weather_updates(backend, monkeypatch):
     from fedoraglass.gui import backend as bmod
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer
     states = iter(["no-app", "ready"])
     monkeypatch.setattr(bmod, "_weather_state", lambda env: next(states))
-    assert backend.property("weatherState") == "no-app"
     seen = []
-    backend.weatherChanged.connect(lambda: seen.append(1))
+    backend.weatherChanged.connect(lambda: seen.append(backend.property("weatherState")))
+
+    def settle():      # the look runs on a worker thread
+        t = QElapsedTimer()
+        t.start()
+        while getattr(backend, "_weather_task", None) is not None and t.elapsed() < 5000:
+            QCoreApplication.processEvents()
+    assert backend.property("weatherState") == "ready"     # until known: don't claim it won't work
+    settle()
+    assert backend.property("weatherState") == "no-app"
     backend.refreshWeather()
-    assert backend.property("weatherState") == "ready" and seen
+    settle()
+    assert backend.property("weatherState") == "ready" and seen == ["no-app", "ready"]

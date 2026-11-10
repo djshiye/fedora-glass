@@ -297,13 +297,13 @@ def fit_size(avail, margin: int) -> tuple[int, int]:
     """The window's first size: 1280x820, or less so it fits the screen.
 
     On Wayland Qt can't see GNOME's top bar or Dash to Panel, so room is left for
-    them. Never below the window's minimum (1000x680).
+    them. Never below the window's minimum (1000x600, which fits 1280x720).
     """
     w, h = 1280, 820
     if avail is not None and avail.width() > 0 and avail.height() > 0:
         w = min(w, avail.width() - 2 * margin - 48)
         h = min(h, avail.height() - 2 * margin - 112)
-    return max(1000, w), max(680, h)
+    return max(1000, w), max(600, h)
 
 
 def _demo_results(backend) -> list[dict]:

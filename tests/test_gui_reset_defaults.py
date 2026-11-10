@@ -72,7 +72,8 @@ def test_every_setting_can_be_put_back(make_backend):
     """resetSettings takes every look setting back, one at a time."""
     b = make_backend()
     for f in fields(Settings):
-        if f.name == "targets":
+        # Not look settings: the apps that get the look, and the remove switch (saved at once).
+        if f.name in ("targets", "undo_on_remove"):
             continue
         b.resetDefaults()
         changed = {"parts": {"panel": {"radius": 0}}, "motion": {"open": {"preset": "off"}}}.get(f.name)

@@ -8,7 +8,9 @@ Item {
     property var item: ({})
     property bool first: false
     readonly property bool available: item.available === true
-    readonly property bool on: item.enabled === true
+    // From Backend.targetStates (a missing id is on), not the row's item: flipping a
+    // switch then changes only this, and no row is built again.
+    readonly property bool on: Backend.targetStates[item.id] !== false
     readonly property var notes: item.notes || []
     property bool notesOpen: false
 

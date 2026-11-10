@@ -64,7 +64,9 @@ Window {
     width: 1280 + 2 * margin
     height: 820 + 2 * margin
     minimumWidth: 1000 + 2 * margin
-    minimumHeight: 680 + 2 * margin
+    // 600 fits a 1280x720 screen (1080p at 150 %) under GNOME's top bar with the
+    // shadow margin, footer and Apply in view; the pages scroll.
+    minimumHeight: 600 + 2 * margin
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
     title: "Fedora Glass"
@@ -84,8 +86,9 @@ Window {
     Shortcut { sequences: ["Return", "Enter"]; enabled: win.pressable(win.activeFocusItem); onActivated: win.activeFocusItem.click() }
     Shortcut { sequence: "F1"; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
     Shortcut { sequence: "?"; enabled: !win.typing; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
-    // Ctrl+Z is the footer's Undo: back to the look applied last.
-    Shortcut { sequence: "Ctrl+Z"; enabled: Backend.dirty && !Backend.busy && !win.typing; onActivated: Backend.discardChanges() }
+    // Ctrl+Z is the footer's Undo: back to the look applied last (after a partly failed
+    // Apply, the last one that applied fully).
+    Shortcut { sequence: "Ctrl+Z"; enabled: (Backend.dirty || Backend.partlyApplied > 0) && !Backend.busy && !win.typing; onActivated: Backend.discardChanges() }
     Shortcut { sequence: "Ctrl+Return"; enabled: !Backend.busy; onActivated: Backend.apply() }
     // Search: Ctrl+F, Ctrl+K or "/" from anywhere.
     Shortcut { sequences: ["Ctrl+F", "Ctrl+K"]; onActivated: sidebar.focusSearch() }
@@ -102,7 +105,28 @@ Window {
     // Closing with unapplied changes asks first: Apply and close, Discard, or Cancel.
     property bool closeAnyway: false
     property bool closeAfterApply: false
+    // "Apply and close" waits for the login screen step Apply started (it asks for the password).
+    property bool closeAfterLogin: false
+    // "Close when done" on the wait sheet: close once Restore or the login screen step ends.
+    property bool closeWhenIdle: false
+    // What still runs that closing would cut off: removing the app, Apply, Restore or the
+    // login screen step (pkexec). "" when nothing does.
+    readonly property string running: Backend.removing ? "remove"
+        : Backend.busyKind === "apply" || Backend.busyKind === "revert" ? Backend.busyKind
+        : Backend.loginGlass === "busy" ? "login" : ""
+    onRunningChanged: {
+        if (running === "" && closeWhenIdle) {
+            closeWhenIdle = false
+            Qt.callLater(win.close)
+        }
+    }
     onClosing: (close) => {
+        if (win.running !== "" && !win.closeAnyway) {
+            close.accepted = false
+            waitSheet.what = win.running
+            waitSheet.open()
+            return
+        }
         if (Backend.dirty && !win.closeAnyway) {
             close.accepted = false
             leaveSheet.open()
@@ -180,7 +204,7 @@ Window {
             Image {
                 id: wallImg
                 anchors.fill: parent
-                source: Backend.wallpaper
+                source: Backend.appWallpaper
                 sourceSize.width: 640
                 fillMode: Image.PreserveAspectCrop
                 visible: false
@@ -232,6 +256,8 @@ Window {
         Sidebar {
             id: sidebar
             objectName: "sidebar"
+            // Above the pages: search results float out over them (they were drawn under the preview).
+            z: 1
             width: 232
             height: parent.height
             pages: win.pageList
@@ -573,7 +599,7 @@ Window {
                 id: lostBanner
                 objectName: "lostBanner"
                 readonly property bool shown: Backend.lostNote !== "" && !Backend.busy
-                anchors.bottom: footer.top
+                anchors.bottom: damageBanner.top
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
@@ -616,6 +642,41 @@ Window {
                 }
             }
 
+            // ------------------------------------- settings.json was damaged and set aside: the
+            // app loaded the last good copy (or the defaults). Said until the next save.
+            Rectangle {
+                id: damageBanner
+                objectName: "damageBanner"
+                readonly property bool shown: Backend.damageNote !== ""
+                anchors.bottom: footer.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "info"
+                    color: Theme.warn
+                    size: 18
+                }
+                Text {
+                    objectName: "damageNote"
+                    x: 42
+                    width: parent.width - x - 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Backend.damageNote
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
+                }
+            }
+
             // ------------------------------------------------------ footer
             Item {
                 id: footer
@@ -632,7 +693,9 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 10
                     // Applied, but the glass only starts after a restart: not "Up to date" yet.
-                    readonly property string phase: Backend.dirty ? "dirty" : Backend.lostNote !== "" ? "lost"
+                    // Some parts failed on the last Apply: said until the next Apply or Undo.
+                    readonly property string phase: Backend.dirty ? "dirty" : Backend.partlyApplied > 0 ? "partial"
+                        : Backend.lostNote !== "" ? "lost"
                         : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
                         : Backend.hasBackup ? "done" : "none"
                     Rectangle {
@@ -651,6 +714,8 @@ Window {
                         text: ({ dirty: Backend.changeCount === 1 ? "1 change not applied yet"
                                         : Backend.changeCount > 1 ? Backend.changeCount + " changes not applied yet"
                                         : "Unapplied changes",
+                                 partial: Backend.partlyApplied === 1 ? "1 part didn't change."
+                                          : Backend.partlyApplied + " parts didn't change.",
                                  lost: "Needs re-apply", login: "Login screen needs Apply",
                                  restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
                         color: Theme.textDim
@@ -669,8 +734,20 @@ Window {
                         onClicked: Backend.restartPC()
                     }
                     LgButton {
+                        objectName: "partialButton"
+                        visible: footerStatus.phase === "partial" && !Backend.busy
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: "flat"
+                        implicitHeight: 30
+                        leftPadding: 10; rightPadding: 12
+                        font.pixelSize: 14
+                        text: "See what happened"
+                        tip: "What applied, and what went wrong with the rest"
+                        onClicked: { resultsSheet.results = Backend.partialResults; resultsSheet.open() }
+                    }
+                    LgButton {
                         objectName: "discardButton"
-                        visible: Backend.dirty && !Backend.busy
+                        visible: (Backend.dirty || footerStatus.phase === "partial") && !Backend.busy
                         anchors.verticalCenter: parent.verticalCenter
                         kind: "flat"
                         implicitHeight: 30
@@ -678,7 +755,8 @@ Window {
                         font.pixelSize: 14
                         text: "Undo"
                         iconName: "undo"
-                        tip: "Go back to the look you applied last (Ctrl+Z)"
+                        tip: footerStatus.phase === "partial" ? "Go back to the last look that applied fully (Ctrl+Z)"
+                                                               : "Go back to the look you applied last (Ctrl+Z)"
                         onClicked: Backend.discardChanges()
                     }
                     Item {
@@ -686,8 +764,10 @@ Window {
                         width: 260; height: 32
                         anchors.verticalCenter: parent.verticalCenter
                         Text {
-                            text: Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
+                            text: Backend.busyKind === "remove" ? "Removing Fedora Glass…"
+                                : Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
                                 : Backend.busyKind === "revert" ? "Restoring your original look…"
+                                : Backend.busyKind === "cleanup" ? "Cleaning up the old copy…"
                                 : "Working out the changes…"
                             color: Theme.textDim
                             font.pixelSize: 13
@@ -756,6 +836,12 @@ Window {
                 if (!results.some(r => r.status === "failed") && !Backend.dirty
                         && !resultsSheet.restartNeeded(results) && !Backend.glassBlocked
                         && Backend.headerNote !== "pending") {
+                    // The login screen step asks for the password: closing now would cut it off.
+                    if (Backend.loginGlass === "busy") {
+                        win.closeAfterLogin = true
+                        toast.show("Closing once the login screen has your new look", "info", Theme.accentText)
+                        return
+                    }
                     win.closeAnyway = true
                     win.close()
                     return
@@ -768,7 +854,24 @@ Window {
             if (problems.length === 0) toast.show("Your original look is back", "okCircle", Theme.good)
             else { problemsSheet.problems = problems; problemsSheet.open() }
         }
-        function onFailed(message) { win.closeAfterApply = false; toast.show(message, "alert", Theme.bad) }
+        function onLoginGlassChanged() {
+            if (!win.closeAfterLogin || Backend.loginGlass === "busy")
+                return
+            win.closeAfterLogin = false
+            // A closed password dialog was the user's own choice; an error stays in view.
+            if (Backend.loginGlassFailed) {
+                toast.show(Backend.loginGlassNote, "alert", Theme.bad)
+                return
+            }
+            win.closeAnyway = true
+            win.close()
+        }
+        function onFailed(message) {
+            win.closeAfterApply = false
+            win.closeAfterLogin = false
+            win.closeWhenIdle = false
+            toast.show(message, "alert", Theme.bad)
+        }
         function onNoticed(message) { toast.show(message, "okCircle", Theme.good) }
     }
 
@@ -816,6 +919,41 @@ Window {
                 iconName: "check"
                 enabled: !Backend.busy
                 onClicked: { leaveSheet.close(); win.closeAfterApply = true; Backend.apply() }
+            }
+        ]
+        Item { width: 1; height: 1 }
+    }
+
+    // Closing while something runs that must not be cut off half way.
+    Sheet {
+        id: waitSheet
+        objectName: "waitSheet"
+        property string what: ""
+        readonly property bool removal: what === "remove"
+        title: ({ remove: "Fedora Glass is being removed", apply: "Your look is being applied",
+                  revert: "Your original look is coming back", login: "The login screen is being updated" })[what] || ""
+        subtitle: removal ? "Closing now could stop it half way. Fedora Glass tells you when it's done."
+                : what === "login" ? "It waits for your password. Closing now would stop it half way."
+                : "Closing now would stop it half way. It only takes a moment."
+        iconName: "info"
+        width: Math.min(520, win.width - 64)
+        buttons: [
+            LgButton {
+                text: waitSheet.removal ? "OK" : "Keep open"
+                kind: waitSheet.removal ? "primary" : "secondary"
+                onClicked: waitSheet.close()
+            },
+            LgButton {
+                objectName: "closeWhenDone"
+                visible: !waitSheet.removal
+                text: "Close when done"
+                kind: "primary"
+                onClicked: {
+                    waitSheet.close()
+                    // After Apply, the same rules as "Apply and close": a problem is shown, not hidden.
+                    if (waitSheet.what === "apply") win.closeAfterApply = true
+                    else win.closeWhenIdle = true
+                }
             }
         ]
         Item { width: 1; height: 1 }

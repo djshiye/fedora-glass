@@ -23,6 +23,9 @@ C.AbstractButton {
     hoverEnabled: true
     focusPolicy: !rovingGroup || activeFocus || (rovingStop && !_groupFocused) ? Qt.StrongFocus : Qt.ClickFocus
     Accessible.name: tip
+    Accessible.role: Accessible.RadioButton
+    Accessible.checkable: true
+    Accessible.checked: selected
     Keys.onPressed: (e) => { if (Roving.handleKey(control, e)) e.accepted = true }
     HoverHandler { cursorShape: Qt.PointingHandCursor }
     LgToolTip { shown: control.hovered || control.visualFocus; text: control.tip }

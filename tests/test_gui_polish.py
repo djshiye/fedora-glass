@@ -227,7 +227,8 @@ class _Rect:
     ((2560, 1440), (1280, 820)),        # big screen: the full size
     ((2048, 1152), (1280, 820)),        # 1440p at 125%
     ((1536, 864), (1280, 716)),         # 1080p at 125%: fits under the top bar and the panel
-    ((1366, 768), (1280, 680)),         # small laptop: never below the minimum
+    ((1366, 768), (1280, 620)),         # small laptop
+    ((1280, 720), (1196, 600)),         # 1080p at 150 %: never below the minimum, which fits
     (None, (1280, 820)),
 ])
 def test_first_window_size_fits_the_screen(screen, want):
@@ -236,7 +237,8 @@ def test_first_window_size_fits_the_screen(screen, want):
     w, h = fit_size(avail, 18)
     assert (w, h) == want
     if screen is not None:
-        assert w >= 1000 and h >= 680
+        assert w >= 1000 and h >= 600
+        assert h + 2 * 18 <= max(screen[1] - 32, 636)     # under GNOME's top bar
 
 
 def test_apply_and_close_applies_then_closes(qml):

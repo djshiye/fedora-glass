@@ -48,6 +48,12 @@ FocusScope {
     implicitWidth: 240
     activeFocusOnTab: true
 
+    // For screen readers: a group of radio buttons (the segments), named where it is used;
+    // the chosen one is said with the group, as the arrow keys change it.
+    function _segName(m) { return m ? (m.label || m.tip || "") : "" }
+    Accessible.role: Accessible.Grouping
+    Accessible.description: currentIndex >= 0 ? _segName(model[currentIndex]) + ", selected" : ""
+
     Keys.onLeftPressed: { _byMouse = false; if (currentIndex > 0) activated(model[currentIndex - 1].value) }
     Keys.onRightPressed: { _byMouse = false; if (currentIndex < count - 1) activated(model[currentIndex + 1].value) }
 
@@ -95,6 +101,11 @@ FocusScope {
                 readonly property bool selected: index === root.currentIndex
                 width: root.segWidths[index] || 0
                 height: parent.height
+                Accessible.role: Accessible.RadioButton
+                Accessible.name: root._segName(modelData)
+                Accessible.checkable: true
+                Accessible.checked: selected
+                Accessible.onPressAction: root.activated(modelData.value)
 
                 LgToolTip { shown: hover.hovered || (root.activeFocus && !root._byMouse && seg.selected); text: seg.modelData.tip || "" }
 
