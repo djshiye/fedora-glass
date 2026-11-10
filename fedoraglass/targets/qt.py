@@ -34,6 +34,8 @@ class QtKvantum(Target):
             id="qt", name="Qt apps (Kvantum)", group="Apps",
             summary="Glass buttons, entries, tabs, lists, menus and scrollbars in Qt Widgets apps, "
                     "drawn by a Kvantum theme built from your settings.",
+            plain="Adds a Kvantum theme in your colours and tells Qt apps to use it. "
+                  "Apps started after your next restart pick it up.",
             notes=[
                 "Native Qt apps pick the style up after you restart your PC "
                 "(QT_STYLE_OVERRIDE is set in ~/.config/environment.d).",

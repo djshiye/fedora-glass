@@ -1201,10 +1201,11 @@ class Backend(QObject):
         def job(report):
             engine = self._engine_obj()
             names = {t.id: t.name for t in engine.targets}
+            plain = {t.id: getattr(t, "plain", "") or "" for t in engine.targets}
             home = str(engine.env.home)
             report(0.1, "Planning")
             plan = engine.plan(s)
-            return [{"id": tid, "name": names.get(tid, tid),
+            return [{"id": tid, "name": names.get(tid, tid), "plain": plain.get(tid, ""),
                      "actions": [{"kind": type(a).__name__, "text": _tilde(a.describe(), home)} for a in actions]}
                     for tid, actions in plan.items()]
 

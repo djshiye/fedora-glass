@@ -135,6 +135,9 @@ class Target:
     # True for Shell parts (Shell theme, Dash to Panel, ArcMenu, Spawn) whose look only works
     # with the glass behind it. They wait until the glass extension runs.
     waits_for_glass: bool = False
+    # One plain sentence on what Apply changes for this part, shown above its raw lines in
+    # "Show changes". Empty: nothing is shown.
+    plain: str = ""
 
     def detect(self, env: "Env") -> Detection:
         return Detection(True)

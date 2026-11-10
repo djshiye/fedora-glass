@@ -5,6 +5,7 @@ import FedoraGlass.Core
 // "Show changes": every action Apply would take, per target, before it runs.
 Sheet {
     id: sheet
+    objectName: "changesSheet"
     property var plan: []
     readonly property int total: {
         let n = 0
@@ -80,6 +81,17 @@ Sheet {
                                 font.pixelSize: 12
                             }
                         }
+                    }
+                    // What these lines do, in one plain sentence, above the raw lines.
+                    Text {
+                        objectName: "plain_" + grp.modelData.id
+                        visible: grp.open && text.length > 0
+                        x: 24
+                        width: parent.width - x
+                        text: grp.modelData.plain || ""
+                        color: Theme.textDim
+                        font.pixelSize: Theme.fsSmall
+                        wrapMode: Text.WordWrap
                     }
                     Rectangle {
                         visible: grp.open
