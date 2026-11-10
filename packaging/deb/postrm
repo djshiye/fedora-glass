@@ -40,7 +40,8 @@ if [ "$1" = purge ]; then
     # Purge takes all of it, as it did when these were conffiles: also a source you changed
     # or turned off, and its pin.
     rm -f /etc/apt/sources.list.d/fedora-glass.sources /etc/apt/sources.list.d/fedora-glass.sources.disabled \
-          /etc/apt/preferences.d/fedora-glass.pref /var/lib/fedora-glass/apt-entry-removed
+          /etc/apt/preferences.d/fedora-glass.pref /var/lib/fedora-glass/apt-entry-removed \
+          /var/lib/fedora-glass/watch-was-on
     rmdir /var/lib/fedora-glass 2>/dev/null || :
 fi
 exit 0

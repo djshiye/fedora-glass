@@ -3,6 +3,12 @@ set -e
 if [ "$1" = remove ]; then
     # Off for new sessions, and stopped in running ones too (as the rpm does), so a
     # logged-in person's watcher doesn't run on until they log out.
+    # Remember that it was on: `apt remove` then `apt install` passes the old version to
+    # postinst, which can't tell that from an upgrade, and would leave the watcher off.
+    # One you had turned off yourself is not remembered, so it stays off.
+    if systemctl --global is-enabled --quiet liquid-glass-watch.service >/dev/null 2>&1; then
+        mkdir -p /var/lib/fedora-glass && : > /var/lib/fedora-glass/watch-was-on || :
+    fi
     systemctl --global disable liquid-glass-watch.service >/dev/null 2>&1 || :
     /usr/libexec/fedora-glass-stop-watchers || :
     # Removing the app (not an upgrade) puts each person's original look back, unless they
