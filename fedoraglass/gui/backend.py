@@ -1750,9 +1750,21 @@ class Backend(QObject):
         dark = self._dark_t if s == self._s.normalized() else palette.build(s, dark=True, system_accent=self._system_accent)
         return [dark.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
 
+    @Property(bool, notify=settingsChanged)
+    def loginGlassBehind(self) -> bool:
+        """Unapplied changes would change the login screen's colours or frost: its button
+        uses the look applied last, so the card says so."""
+        try:
+            return self.login_values(self._s) != self.login_values(self._saved)
+        except Exception:  # noqa: BLE001 (a colour that can't be read: say nothing)
+            return False
+
     @Slot()
     def turnOnLoginGlass(self) -> None:
-        self._run_login(["apply", *self.login_values()], "Glass is on the login screen. You'll see it the next time you restart your PC.")
+        # The applied look, as Apply keeps it: the desktop doesn't have unapplied slider
+        # values either, and loginGlassStale compares with this one.
+        self._run_login(["apply", *self.login_values(self._saved)],
+                        "Glass is on the login screen. You'll see it the next time you restart your PC.")
 
     @Slot()
     def turnOffLoginGlass(self) -> None:

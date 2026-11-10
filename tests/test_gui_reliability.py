@@ -296,3 +296,21 @@ def test_apply_and_close_waits_for_the_login_screen_step(qml):
         b._login_proc = None
         win.setProperty("closeAfterLogin", False)
         win.close()
+
+
+# ---------------------------------------------------------------- 3. the login screen gets the applied look
+
+def test_login_glass_button_uses_the_applied_look_not_the_sliders(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.3)
+    _apply(b)
+    assert not b.property("loginGlassBehind")
+    b.setProperty("frost", 0.95)
+    assert b.property("loginGlassBehind")
+    b.setProperty("glassQuality", "lightest")       # not on the login screen: no note for it
+    ran: list = []
+    b._run_login = lambda args, done: ran.append(args)
+    b.turnOnLoginGlass()
+    assert ran and ran[0][0] == "apply" and ran[0][-1] == "0.300"
+    b.setProperty("frost", 0.3)
+    assert not b.property("loginGlassBehind")
