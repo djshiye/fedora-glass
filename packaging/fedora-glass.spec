@@ -11,6 +11,7 @@ BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
 # For the tests in %%check.
+BuildRequires:  python3
 BuildRequires:  python3-pytest
 BuildRequires:  python3-gobject
 Requires:       python3
@@ -88,10 +89,7 @@ install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datad
 
 # The mouse pointer styles (built by packaging/cursors/build.py): checked against their
 # checksums, then unpacked where every app and the login screen can find them.
-(cd data/cursors && sha256sum --quiet --strict -c SHA256SUMS)
-for t in data/cursors/*.tar.xz; do
-    tar -xJf "$t" -C %{buildroot}%{_datadir}/icons --no-same-owner --no-same-permissions
-done
+python3 -I packaging/cursors/unpack.py . %{buildroot}%{_datadir}/icons
 
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec
 # after your password. Standard library only, run with python3 -I -S.

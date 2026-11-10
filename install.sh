@@ -82,12 +82,7 @@ gtk-update-icon-cache -q "$data/icons/hicolor" 2>/dev/null || true
 update-desktop-database -q "$data/applications" 2>/dev/null || true
 
 # The mouse pointer styles, checked against their checksums (see packaging/cursors/build.py).
-(cd "$here/data/cursors" && sha256sum --quiet --strict -c SHA256SUMS)
-for t in "$here"/data/cursors/*.tar.xz; do
-    n=$(basename "$t" .tar.xz)
-    rm -rf "$data/icons/$n"
-    tar -xJf "$t" -C "$data/icons" --no-same-owner
-done
+python3 -I "$here/packaging/cursors/unpack.py" "$here" "$data/icons"
 
 # ---- follow dark/light switches ---------------------------------------------------
 # A tiny user service re-applies the parts that can't switch by themselves

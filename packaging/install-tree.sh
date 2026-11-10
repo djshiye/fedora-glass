@@ -32,11 +32,7 @@ install -Dm644 "$src/data/icons/io.github.djshiye.LiquidGlass.svg" "$dest/usr/sh
 
 # The mouse pointer styles (built by packaging/cursors/build.py): checked against their
 # checksums, then unpacked where every app and the login screen can find them.
-(cd "$src/data/cursors" && sha256sum --quiet --strict -c SHA256SUMS)
-install -d "$dest/usr/share/icons"
-for t in "$src"/data/cursors/*.tar.xz; do
-    tar -xJf "$t" -C "$dest/usr/share/icons" --no-same-owner --no-same-permissions
-done
+python3 -I "$src/packaging/cursors/unpack.py" "$src" "$dest/usr/share/icons"
 
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec.
 install -Dm755 "$src/fedoraglass/login_screen.py" "$dest/usr/libexec/liquid-glass-login-screen"

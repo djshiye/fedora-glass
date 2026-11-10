@@ -204,3 +204,23 @@ def test_picking_a_tile_changes_only_the_setting_until_apply(qml):
         b.discardChanges()
         win.setProperty("closeAnyway", True)
         win.close()
+
+
+def test_packages_unpack_only_archives_that_match_their_checksums(tmp_path):
+    import shutil
+    import subprocess
+    import sys
+    script = REPO / "packaging/cursors/unpack.py"
+    ok = subprocess.run([sys.executable, "-I", str(script), str(REPO), str(tmp_path / "icons")],
+                        capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stderr
+    assert {p.name for p in (tmp_path / "icons").iterdir()} == set(cursors.STYLE_IDS)
+    assert (tmp_path / "icons/fedora-glass-light/cursors/default").is_symlink()
+    # A changed archive is refused before anything is unpacked from it.
+    src = tmp_path / "src"
+    shutil.copytree(TARS, src / "data/cursors")
+    bad = src / "data/cursors/fedora-glass-dark.tar.xz"
+    bad.write_bytes(bad.read_bytes()[:-1] + b"\0")
+    r = subprocess.run([sys.executable, "-I", str(script), str(src), str(tmp_path / "icons2")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0 and "checksum" in r.stderr
