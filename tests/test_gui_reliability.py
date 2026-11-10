@@ -688,3 +688,33 @@ def test_segmented_and_dropdowns_tell_screen_readers_what_they_are(qml):
             assert bool(a.state().checked) == bool(s.property("selected"))
     finally:
         win.close()
+
+
+# ---------------------------------------------------------------- 12. the preview clock keeps time
+
+def test_preview_clock_ticks_each_minute_only_while_the_window_shows(qml):
+    from PySide6.QtCore import QDateTime, QObject
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(300)
+        preview = _find(win, "preview")
+        tick = next(c for c in preview.findChildren(QObject) if c.objectName() == "previewClockTick")
+        assert tick.property("running") and tick.property("repeat")
+        old = QDateTime.fromString("2024-01-02T03:04:59.500", "yyyy-MM-ddTHH:mm:ss.zzz")
+        preview.setProperty("now", old)
+        _spin()
+        assert "3:04" in preview.property("clock")
+        assert tick.property("interval") <= 600          # due at the turn of the minute
+        tick.triggered.emit()
+        _spin()
+        assert "3:04" not in preview.property("clock")
+        win.hide()
+        _spin()
+        assert not tick.property("running")
+        preview.setProperty("now", old)
+        win.show()
+        _spin(200)
+        assert tick.property("running") and "3:04" not in preview.property("clock")
+    finally:
+        win.close()

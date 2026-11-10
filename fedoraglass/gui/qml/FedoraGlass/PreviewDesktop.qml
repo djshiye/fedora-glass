@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import QtQuick.Window
 import FedoraGlass.Core
 
 // A faithful miniature of the desktop: the real wallpaper, Nautilus and Ptyxis
@@ -77,7 +78,21 @@ Item {
     readonly property color fgDim: t.fg_dim || "white"
     readonly property color fgFaint: t.fg_faint || "white"
     readonly property color folderBlue: dark ? "#62a0ea" : "#438de6"
-    readonly property string clock: Qt.formatDate(new Date(), "MMM d") + "  " + Qt.formatTime(new Date(), "h:mm AP")
+    readonly property string clock: Qt.formatDate(now, "MMM d") + "  " + Qt.formatTime(now, "h:mm AP")
+    // The panel clock and the calendar keep time: a tick on each new minute, only while
+    // the preview is on screen (no timer runs for a hidden or minimized window).
+    property date now: new Date()
+    readonly property bool _onScreen: visible && Window.window !== null && Window.window.visible
+                                      && Window.window.visibility !== Window.Minimized
+    Timer {
+        id: minuteTick
+        objectName: "previewClockTick"
+        running: root._onScreen
+        repeat: true
+        interval: 60000 - (root.now.getSeconds() * 1000 + root.now.getMilliseconds()) + 50
+        onRunningChanged: if (running) root.now = new Date()
+        onTriggered: root.now = new Date()
+    }
 
     function withAlpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
@@ -1083,7 +1098,7 @@ Item {
         readonly property real split: root.u(400)
         readonly property color fgC: root.shellThemed ? root.fg : root.adw.fg
         readonly property color card: root.shellThemed ? (root.t.card || "transparent") : root.withAlpha(root.adw.fg, 0.08)
-        readonly property var today: new Date()
+        readonly property var today: root.now
 
         Column {    // notifications
             x: cal.pad; y: cal.pad
