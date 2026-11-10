@@ -913,6 +913,12 @@ class Backend(QObject):
             return "user"
 
     @Property(str, constant=True)
+    def version(self) -> str:
+        """The app's version, for the About sheet."""
+        from .. import __version__
+        return __version__
+
+    @Property(str, constant=True)
     def hostName(self) -> str:
         import socket
         return socket.gethostname().split(".")[0] or "fedora"
