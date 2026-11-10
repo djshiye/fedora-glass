@@ -253,13 +253,19 @@ Item {
                 }
 
                 Flow {
+                    id: presetRow
+                    objectName: "presetRow"
                     width: parent.width
                     spacing: 8
                     Repeater {
                         model: Backend.presets
                         delegate: Chip {
                             required property string modelData
+                            required property int index
                             text: modelData
+                            rovingGroup: presetRow
+                            // One Tab stop: the active preset, or the first when the look is your own.
+                            rovingStop: selected || (index === 0 && Backend.presets.indexOf(Backend.activePreset) < 0)
                             selected: Backend.activePreset === modelData
                             tip: page.presetTips[modelData] || ""
                             onClicked: Backend.applyPreset(modelData)
@@ -283,6 +289,56 @@ Item {
         value: page.currentSection
         onActivated: (v) => page.jumpTo(v, true)
         Accessible.name: "Section"
+        // Tab goes into the section the bar shows, not back to the top of Colour.
+        Keys.onTabPressed: (e) => {
+            const it = page.firstControlIn(page.currentSection)
+            if (!it) {
+                e.accepted = false
+                return
+            }
+            page._entering = true
+            it.forceActiveFocus(Qt.TabFocusReason)
+            page._entering = false
+            page._sectionEntry = page.Window.activeFocusItem
+            page._lastFocus = page._sectionEntry
+            // Scrolled part of the way (by the wheel, say): show the section from its top.
+            const y = it.mapToItem(side, 0, 0).y
+            if (y < 0 || y + it.height > side.height)
+                page.jumpTo(page.currentSection, true)
+        }
+    }
+
+    // The first control Tab reaches inside a section.
+    function firstControlIn(id) {
+        const sec = sectionItem(id)
+        if (!sec || !sec.visible)
+            return null
+        const it = sec.nextItemInFocusChain(true)
+        for (let p = it; p; p = p.parent)
+            if (p === sec)
+                return it
+        return null
+    }
+    // Main.qml hands every focus change here first. True when the page moved focus on
+    // itself (Shift+Tab from a section's first control goes back to the section bar),
+    // or the column must not scroll (the bar has just shown that section).
+    property Item _sectionEntry: null
+    property Item _lastFocus: null
+    property bool _entering: false
+    function followFocus(it) {
+        if (_entering)
+            return true
+        const prev = _lastFocus
+        _lastFocus = it
+        const entry = _sectionEntry
+        if (!entry || it === entry)
+            return false
+        _sectionEntry = null
+        if (prev === entry && it && it.focusReason === Qt.BacktabFocusReason) {
+            sectionBar.forceActiveFocus(Qt.BacktabFocusReason)
+            return true
+        }
+        return false
     }
 
     Flickable {
@@ -363,10 +419,16 @@ Item {
                                 width: parent.width
                                 spacing: 4
                                 readonly property real d: Math.min(30, Math.floor((width - 10 * spacing) / 11))
+                                // One Tab stop: the chosen colour (the system one when none matches).
+                                readonly property bool known: Backend.accent === "system" || Backend.accent.startsWith("#")
+                                                              || Backend.accents.some(a => a.id === Backend.accent)
                                 Swatch {
+                                    objectName: "accentSystem"
                                     size: swatches.d
                                     swatch: Backend.accents.find(a => a.id === Backend.systemAccent)?.color ?? "#3584e4"
                                     split: true
+                                    rovingGroup: swatches
+                                    rovingStop: selected || !swatches.known
                                     selected: Backend.accent === "system"
                                     tip: "System accent (follows GNOME Settings)"
                                     onClicked: Backend.accent = "system"
@@ -375,7 +437,9 @@ Item {
                                     model: Backend.accents
                                     delegate: Swatch {
                                         required property var modelData
+                                        objectName: "accent_" + modelData.id
                                         size: swatches.d
+                                        rovingGroup: swatches
                                         swatch: modelData.color
                                         selected: Backend.accent === modelData.id
                                         tip: modelData.label
@@ -384,7 +448,9 @@ Item {
                                 }
                                 Swatch {
                                     id: customAccent
+                                    objectName: "accentCustom"
                                     size: swatches.d
+                                    rovingGroup: swatches
                                     readonly property bool isCustom: Backend.accent.startsWith("#")
                                     swatch: isCustom ? Backend.accent : "#888888"
                                     rainbow: !isCustom
@@ -766,6 +832,8 @@ Item {
                             width: parent.width
                             spacing: 10
                             Flow {
+                                id: partRow
+                                objectName: "partRow"
                                 width: parent.width
                                 spacing: 8
                                 Repeater {
@@ -773,6 +841,9 @@ Item {
                                     delegate: Chip {
                                         required property var modelData
                                         text: modelData.label
+                                        // Tabs: one Tab stop, and the arrow keys pick the part.
+                                        rovingGroup: partRow
+                                        rovingSelects: true
                                         selected: partsCard.part === modelData.id
                                         tip: modelData.tip
                                         Rectangle {      // a dot marks parts that have their own look
