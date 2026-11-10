@@ -17,6 +17,10 @@ C.AbstractButton {
     implicitHeight: 34
     implicitWidth: label.implicitWidth + 32
     hoverEnabled: true
+    // Named by its text; the tip and whether it is the chosen one are said with it.
+    Accessible.description: tip
+    Accessible.checkable: true
+    Accessible.checked: selected
     focusPolicy: !rovingGroup || activeFocus || (rovingStop && !_groupFocused) ? Qt.StrongFocus : Qt.ClickFocus
     Keys.onPressed: (e) => { if (Roving.handleKey(control, e)) e.accepted = true }
 

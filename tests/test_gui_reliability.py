@@ -645,3 +645,46 @@ def test_settings_that_do_not_touch_the_colours_leave_the_tokens_alone(qml, fake
     assert len(seen) == 1
     b.setProperty("previewDark", not b.property("previewDark"))     # other tokens show now
     assert len(seen) == 2
+
+
+# ---------------------------------------------------------------- 11. screen readers
+
+def test_segmented_and_dropdowns_tell_screen_readers_what_they_are(qml):
+    from PySide6.QtGui import QAccessible
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        for page in ("home", "colour", "windows", "pointer", "lock", "glass", "motion"):
+            win.setProperty("page", page)
+            _spin(150)
+        segs = [it for it in _items(win.contentItem()) if it.metaObject().indexOfProperty("segWidths") >= 0]
+        drops = [it for it in _items(win.contentItem()) if it.metaObject().indexOfProperty("glyphs") >= 0]
+        assert len(segs) >= 8 and len(drops) >= 1
+        unnamed = []
+        for seg in segs:
+            a = QAccessible.queryAccessibleInterface(seg)
+            assert a.role() == QAccessible.Grouping
+            if not a.text(QAccessible.Name):
+                unnamed.append(seg.objectName() or str(_js(seg.property("model"))))
+            if seg.property("currentIndex") >= 0:
+                assert a.text(QAccessible.Description).endswith(", selected")
+            radios = [QAccessible.queryAccessibleInterface(c) for c in _items(seg)
+                      if c is not seg and QAccessible.queryAccessibleInterface(c) is not None
+                      and QAccessible.queryAccessibleInterface(c).role() == QAccessible.RadioButton]
+            assert len(radios) == len(_js(seg.property("model")))
+            assert sum(1 for r in radios if r.state().checked) == (1 if seg.property("currentIndex") >= 0 else 0)
+            assert all(r.text(QAccessible.Name) for r in radios)
+        assert not unnamed, unnamed
+        for d in drops:
+            a = QAccessible.queryAccessibleInterface(d)
+            assert a.role() == QAccessible.ComboBox and a.text(QAccessible.Name)
+            assert a.text(QAccessible.Description) == _js(d.property("model"))[d.property("currentIndex")]["label"]
+        swatches = [it for it in _items(win.contentItem()) if it.metaObject().indexOfProperty("rainbow") >= 0]
+        assert swatches
+        for s in swatches:
+            a = QAccessible.queryAccessibleInterface(s)
+            assert a.role() == QAccessible.RadioButton and a.text(QAccessible.Name)
+            assert bool(a.state().checked) == bool(s.property("selected"))
+    finally:
+        win.close()

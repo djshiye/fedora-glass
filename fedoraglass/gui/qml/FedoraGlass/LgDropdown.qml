@@ -23,6 +23,10 @@ FocusScope {
     implicitWidth: 170
     implicitHeight: 36
     activeFocusOnTab: true
+    // For screen readers: a combo box, named where it is used, saying the current choice.
+    Accessible.role: Accessible.ComboBox
+    Accessible.description: currentIndex >= 0 ? model[currentIndex].label : ""
+    Accessible.onPressAction: open()
     onActiveFocusChanged: if (!activeFocus) _byMouse = false
 
     function open() { popup.cur = Math.max(0, currentIndex); popup.open() }
@@ -172,6 +176,10 @@ FocusScope {
                     readonly property bool lit: index === popup.cur
                     width: list.width
                     height: popup.itemH
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: modelData.label
+                    Accessible.selected: selected
+                    Accessible.onPressAction: { root.activated(modelData.value); popup.close() }
 
                     Rectangle {
                         anchors.fill: parent
