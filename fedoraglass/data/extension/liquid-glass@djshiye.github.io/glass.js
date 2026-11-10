@@ -386,9 +386,13 @@ void main() {
     // the light, so it reads as lifted rather than outlined.
     float s = 0.0;
     if (shadow > OFF && pad > 1.0 && sd > -0.5) {
-        float spread = min(8.0, pad * 0.3);
-        float ds = sdRoundRect(cc + L * min(5.0, pad * 0.2), hh, r);
-        s = shadow * 0.55 * softEdge(ds, spread);
+        // Over a bright backdrop (a white wallpaper) a dark shadow reads as a heavy
+        // smudge around the pane: there it is lighter and tighter, as a shadow on
+        // a white table is a thin soft line, not a dark halo.
+        float onBright = smoothstep(0.5, 0.9, fg_bl);
+        float spread = min(8.0, pad * 0.3) * (1.0 - 0.4 * onBright);
+        float ds = sdRoundRect(cc + L * min(5.0, pad * 0.2) * (1.0 - 0.5 * onBright), hh, r);
+        s = shadow * 0.55 * (1.0 - 0.5 * onBright) * softEdge(ds, spread);
     }
     if (sd > 0.5) {
         cogl_color_out = vec4(0.0, 0.0, 0.0, s) * cogl_color_in.a;
@@ -656,7 +660,17 @@ void main() {
         const vec3 Yw = vec3(0.2126, 0.7152, 0.0722);
         // The outer part of the lens holds no text: there it may stay brighter,
         // so the bent backdrop reads in its own colours.
-        float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge);
+        // Only colour gets this: over white or grey the lighter outer lens was a
+        // soft grey band all round the pane, a smudged frame on a white wallpaper.
+        float hue = max(st.r, max(st.g, st.b)) - min(st.r, min(st.g, st.b));
+        float cy = ceil_y * (1.0 + 1.6 * clearEdge * clearEdge * smoothstep(0.06, 0.3, hue));
+        // Over white everything bright met the same ceiling, so the pane was one
+        // flat grey slab. The ceiling now falls off a little away from the light
+        // (to 70 % on the far side, never above it), so even over white the pane
+        // keeps the soft light-to-shade of the glass.
+        vec2 sq2 = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
+        if (rim > OFF)      // panes with a lit edge; the lock screen's sheet stays even
+            cy *= mix(0.7, 1.0, smoothstep(-0.9, 0.9, dot(sq2, L)));
         float knee = 0.6 * cy;
         // The weights add up to 1, so a pixel whose brightest channel is below the
         // knee (in display values) is below it in Y too, and is left as it is. Over
