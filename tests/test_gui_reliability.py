@@ -410,3 +410,28 @@ def test_search_says_when_more_match_than_it_shows(qml):
     finally:
         field.setProperty("text", "")
         win.close()
+
+
+# ---------------------------------------------------------------- 6. fits a 1280x720 screen
+
+def test_window_fits_1280x720_with_apply_in_view(qml):
+    """1080p at 150 % leaves about 688 px under GNOME's top bar."""
+    from fedoraglass.gui.app import fit_size
+    win = _window(qml)
+    try:
+        margin = win.property("margin")
+        assert win.minimumHeight() <= 688
+        _, h = fit_size(type("R", (), {"width": lambda s: 1280, "height": lambda s: 720})(), margin)
+        assert h + 2 * margin <= 688
+        win.setWidth(1280)
+        win.setHeight(688)
+        win.show()
+        _spin(300)
+        for page in ("home", "glass", "lock", "apps", "about"):
+            win.setProperty("page", page)
+            _spin(200)
+            apply = _find(win, "applyButton")
+            pos = apply.mapToScene(apply.boundingRect().bottomRight())
+            assert apply.isVisible() and pos.y() <= win.height() - margin, page
+    finally:
+        win.close()

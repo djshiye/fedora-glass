@@ -64,7 +64,9 @@ Window {
     width: 1280 + 2 * margin
     height: 820 + 2 * margin
     minimumWidth: 1000 + 2 * margin
-    minimumHeight: 680 + 2 * margin
+    // 600 fits a 1280x720 screen (1080p at 150 %) under GNOME's top bar with the
+    // shadow margin, footer and Apply in view; the pages scroll.
+    minimumHeight: 600 + 2 * margin
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
     title: "Fedora Glass"
