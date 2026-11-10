@@ -20,10 +20,14 @@ The pointer styles in the app's Mouse pointer picker are installed to
 [`packaging/cursors/build.py`](packaging/cursors/build.py) builds from the pinned upstream
 commits below. Each archive's SHA-256 is in `data/cursors/SHA256SUMS` and is checked before a
 package is built. Each keeps its upstream licence, named under it below: the GNU General
-Public License version 3 or later ([LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)), version 2
+Public License version 3 ([LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)), version 2
 ([LICENSES/GPL-2.0.txt](LICENSES/GPL-2.0.txt)), or Creative Commons Attribution-ShareAlike 4.0
-([LICENSES/CC-BY-SA-4.0.txt](LICENSES/CC-BY-SA-4.0.txt)). The source is each upstream
-repository at the commit named here, plus the build script.
+([LICENSES/CC-BY-SA-4.0.txt](LICENSES/CC-BY-SA-4.0.txt)). The licence of each was read from the
+`LICENSE` file of the upstream repository at the commit named here. Those for the GNU licences
+are the plain texts of version 3 (Bibata, Banana, WhiteSur) and version 2 (Catppuccin, Oreo),
+with no "or later" notice in the files read (the `LICENSE`, the README and the authors file), so
+they are taken as those versions only. The source is each upstream repository at the commit
+named here, plus the build script.
 
 ### Bibata Cursor
 
@@ -38,7 +42,7 @@ Bibata Sharp Ice and Bibata Sharp Classic (`fedora-glass-bibata-original`,
 Bibata Original Ice's and Classic's own colours. Amber (`fedora-glass-amber`) uses Bibata Modern Amber's orange
 with a dark rim in place of its white one, so the pointer still stands out on white pages.
 
-Copyright Abdulkaiz Khatri. GPL-3.0-or-later.
+Copyright Abdulkaiz Khatri. GPL-3.0-only.
 
 ### Banana Cursor
 
@@ -47,7 +51,7 @@ Banana (`fedora-glass-banana`) is rendered from the SVGs of
 `6d1f8ba67e1547bf1bf5ab6acb43eb3abb5bca9f`, with its hotspots and cursor names, in its own
 colours.
 
-Copyright Abdulkaiz Khatri. GPL-3.0-or-later.
+Copyright Abdulkaiz Khatri. GPL-3.0-only.
 
 ### Phinger Cursors
 
@@ -72,7 +76,7 @@ and Mocha Sky themes, with the hotspot each SVG marks and its cursor names. Catp
 are based on [Volantes cursors](https://github.com/varlesh/volantes-cursors) by Alexey
 Varfolomeev, coloured with the Catppuccin palette by elkrien and others (see its `AUTHORS`).
 
-GPL-2.0.
+GPL-2.0-only.
 
 ### Oreo Cursors
 
@@ -82,7 +86,7 @@ the base SVGs of [Oreo Cursors](https://github.com/varlesh/oreo-cursors) at comm
 `spark_pink` and `teal` themes, with the hotspots from its `src/config` files and its cursor
 names. Colours by Sourav Goswami.
 
-Copyright Alexey Varfolomeev. GPL-2.0.
+Copyright Alexey Varfolomeev. GPL-2.0-only.
 
 ### WhiteSur cursors
 
@@ -92,4 +96,4 @@ WhiteSur (`fedora-glass-whitesur`) is the prebuilt theme from
 `index.theme` (the name, and Adwaita for any shape it lacks). WhiteSur cursors are based on
 [capitaine-cursors](https://github.com/keeferrourke/capitaine-cursors) by Keefer Rourke.
 
-Copyright Vince Liuice. GPL-3.0-or-later.
+Copyright Vince Liuice. GPL-3.0-only.
