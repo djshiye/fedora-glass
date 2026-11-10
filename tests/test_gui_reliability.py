@@ -314,3 +314,35 @@ def test_login_glass_button_uses_the_applied_look_not_the_sliders(qml, fake_env,
     assert ran and ran[0][0] == "apply" and ran[0][-1] == "0.300"
     b.setProperty("frost", 0.3)
     assert not b.property("loginGlassBehind")
+
+
+# ---------------------------------------------------------------- 4. one source for the presets
+
+def test_preset_tile_tick_and_name_agree_with_the_settings(qml, fake_env, tmp_path):
+    from fedoraglass.settings import PRESETS
+    b = _backend(fake_env, tmp_path)
+    ticks = [t["value"] for t in b.property("frostTicks")]
+    assert ticks == pytest.approx([v["frost"] for v in PRESETS.values()])
+    for name in PRESETS:
+        b.applyPreset(name)
+        assert b.property("activePreset") == name
+        assert b.frostName(b.property("frost")) == name, name
+        assert b.property("presetFrost")[name] == pytest.approx(PRESETS[name]["frost"])
+    assert b.frostName(0.1) == "Clear" and b.frostName(0.02) == "Liquid"
+
+
+def test_home_and_glass_pages_take_the_presets_from_the_backend(qml):
+    from fedoraglass.settings import PRESETS
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        win.setProperty("page", "glass")
+        _spin(200)
+        home = _find(win, "homePage")
+        assert home.property("presetFrost")["Clear"] == pytest.approx(PRESETS["Clear"]["frost"])
+        for slider in ("homeFrost", "glassFrost"):
+            ticks = [t["value"] for t in _find(win, slider).property("ticks")]
+            assert ticks == pytest.approx([v["frost"] for v in PRESETS.values()]), slider
+    finally:
+        win.close()

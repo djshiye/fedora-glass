@@ -14,7 +14,7 @@ SettingsPage {
     previewInSide: false
     property alias frostHeld: frost.held
 
-    readonly property var presetFrost: ({ Liquid: 0.0, Clear: 0.25, Balanced: 0.45, Frosted: 0.8, Solid: 1.0 })
+    readonly property var presetFrost: Backend.presetFrost
     readonly property var presetTips: ({
         "Liquid": "Clearest glass, brightest rim",
         "Clear": "Clear glass with a little haze",
@@ -22,13 +22,8 @@ SettingsPage {
         "Frosted": "Milky, heavily blurred glass",
         "Solid": "Almost opaque, for maximum readability"
     })
-    function frostName(f) {
-        if (f < 0.12) return "Liquid"
-        if (f < 0.35) return "Clear"
-        if (f < 0.62) return "Balanced"
-        if (f < 0.9) return "Frosted"
-        return "Solid"
-    }
+    // Named after the preset the slider sits nearest to (settings.PRESETS, through Backend).
+    function frostName(f) { return Backend.frostName(f) }
 
     // ---- left: the preview and the presets ------------------------------------------
     Item {
@@ -125,7 +120,7 @@ SettingsPage {
                     objectName: "homeFrost"
                     width: parent.width
                     value: Backend.frost
-                    ticks: [{ value: 0.0 }, { value: 0.25 }, { value: 0.45 }, { value: 0.8 }, { value: 1.0 }]
+                    ticks: Backend.frostTicks
                     onMoved: (v) => Backend.frost = v
                 }
             }

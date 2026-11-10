@@ -8,13 +8,8 @@ SettingsPage {
     pageId: "glass"
     previewSlot: slot
 
-    function frostName(f) {
-        if (f < 0.12) return "Liquid"
-        if (f < 0.35) return "Clear"
-        if (f < 0.62) return "Balanced"
-        if (f < 0.9) return "Frosted"
-        return "Solid"
-    }
+    // Named after the preset the slider sits nearest to (settings.PRESETS, through Backend).
+    function frostName(f) { return Backend.frostName(f) }
     function peek() { if (Theme.preview) Theme.preview.peekEdge("") }
 
     Card {
@@ -54,7 +49,7 @@ SettingsPage {
                 objectName: "glassFrost"
                 width: parent.width
                 value: Backend.frost
-                ticks: [{ value: 0.0 }, { value: 0.25 }, { value: 0.45 }, { value: 0.8 }, { value: 1.0 }]
+                ticks: Backend.frostTicks
                 onMoved: (v) => Backend.frost = v
             }
             Fold {

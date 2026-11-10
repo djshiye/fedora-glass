@@ -832,6 +832,21 @@ class Backend(QObject):
     def presets(self) -> list[str]:
         return list(PRESETS)
 
+    # The preset tiles, the ticks on the frost slider and the name beside it all come from
+    # settings.PRESETS, so they can't disagree (Clear was 0.1 there and 0.25 in the window).
+    @Property("QVariantMap", constant=True)
+    def presetFrost(self) -> dict:
+        return {name: float(v["frost"]) for name, v in PRESETS.items()}
+
+    @Property("QVariantList", constant=True)
+    def frostTicks(self) -> list[dict]:
+        return [{"value": float(v["frost"]), "label": name} for name, v in PRESETS.items()]
+
+    @Slot(float, result=str)
+    def frostName(self, frost: float) -> str:
+        """The preset whose frost is nearest (the one the slider sits closest to)."""
+        return min(PRESETS, key=lambda name: (abs(PRESETS[name]["frost"] - frost), PRESETS[name]["frost"]))
+
     @Property("QVariantList", constant=True)
     def accents(self) -> list[dict]:
         return [{"id": k, "color": v, "label": k.capitalize()} for k, v in GNOME_ACCENTS.items()]
