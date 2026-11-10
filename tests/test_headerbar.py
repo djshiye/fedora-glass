@@ -129,3 +129,20 @@ def test_ptyxis_palette_carries_titlebar(fake_env):
 def test_terminal_colors_are_opt_in(tmp_path):
     assert Settings().terminal_colors is False
     assert Settings(terminal_colors=1).normalized().terminal_colors is True
+
+
+def test_clear_dark_header_keeps_white_text_readable():
+    # A very clear dark header bar used to show a bright wallpaper almost as it is
+    # (3.8:1 on orange). Its fill never drops below what keeps 5:1 under the window ceiling.
+    s = Settings(header_opacity=0.1)
+    dark, light = both(s)
+    floor = headerbar.readable_alpha(dark)
+    assert 0.2 < floor < dark.window.a
+    assert headerbar.header_color(s, dark).a == floor
+    # the user's own choice wins when it is already more solid
+    assert headerbar.header_color(Settings(header_opacity=0.4), dark).a == 0.4
+    # light glass has no ceiling, so its header is left as chosen
+    assert headerbar.header_color(s, light).a == 0.1
+    # and Ptyxis's bar lands on the same header alpha
+    c = headerbar.ptyxis_titlebar(s, dark, 0.2)
+    assert 1 - (1 - c.a) * (1 - 0.2) == pytest.approx(floor, abs=1e-3)
