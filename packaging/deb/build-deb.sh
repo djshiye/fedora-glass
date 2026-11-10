@@ -13,7 +13,7 @@ sh packaging/install-tree.sh "$src" "$root"
 install -d "$root/usr/share/doc/fedora-glass"
 mv "$root/usr/share/licenses/fedora-glass/"* "$root/usr/share/doc/fedora-glass/"
 rm -r "$root/usr/share/licenses"
-{ echo "Fedora Glass is MIT licensed, with Apache-2.0 parts; see LICENSE, Apache-2.0.txt and THIRD-PARTY-NOTICES.md here."; } > "$root/usr/share/doc/fedora-glass/copyright"
+{ echo "Fedora Glass is MIT licensed, with Apache-2.0 parts and GPL-3.0-or-later pointer styles; see LICENSE, Apache-2.0.txt, GPL-3.0.txt and THIRD-PARTY-NOTICES.md here."; } > "$root/usr/share/doc/fedora-glass/copyright"
 # The repository it updates from, its key and the pin that lets only fedora-glass through.
 install -Dm644 packaging/deb/fedora-glass.sources "$root/etc/apt/sources.list.d/fedora-glass.sources"
 install -Dm644 packaging/deb/fedora-glass.pref "$root/etc/apt/preferences.d/fedora-glass.pref"

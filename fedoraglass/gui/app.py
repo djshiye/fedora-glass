@@ -129,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     from .backend import Backend
+    from .cursor_picker import CursorImages, CursorPicker
     from .icons import IconProvider
 
     QGuiApplication.setApplicationName("Fedora Glass")
@@ -156,8 +157,11 @@ def main(argv: list[str] | None = None) -> int:
         backend.frost = args.frost
 
     qmlRegisterSingletonInstance(Backend, "FedoraGlass.Core", 1, 0, "Backend", backend)
+    cursor_picker = CursorPicker(backend._env, parent=app)
+    qmlRegisterSingletonInstance(CursorPicker, "FedoraGlass.Core", 1, 0, "Cursors", cursor_picker)
     engine = QQmlApplicationEngine()
     engine.addImageProvider("lgicon", IconProvider())
+    engine.addImageProvider("lgcursor", CursorImages(backend._env))
     engine.addImportPath(str(QML_DIR))
     engine.rootContext().setContextProperty(
         "appIconUrl", QUrl.fromLocalFile(str(icon_path)) if icon_path else QUrl())

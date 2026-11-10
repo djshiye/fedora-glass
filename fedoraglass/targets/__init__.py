@@ -7,7 +7,7 @@ import importlib
 from .base import Target
 
 # Each module exposes TARGETS: list[Target].
-_MODULES = ("shell", "gtk", "terminal", "qt", "apps", "myapps")
+_MODULES = ("shell", "gtk", "cursor", "terminal", "qt", "apps", "myapps")
 
 
 def all_targets() -> list[Target]:

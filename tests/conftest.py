@@ -130,7 +130,11 @@ def qml(tmp_path_factory):
                 settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
     mp.undo()        # a session fixture: don't leave its home for the tests after it
     qmlRegisterSingletonInstance(Backend, "FedoraGlass.Core", 1, 0, "Backend", b)
+    from fedoraglass.gui.cursor_picker import CursorImages, CursorPicker
+    picker = CursorPicker(env)
+    qmlRegisterSingletonInstance(CursorPicker, "FedoraGlass.Core", 1, 0, "Cursors", picker)
     engine = QQmlEngine()
+    engine.addImageProvider("lgcursor", CursorImages(env))
     engine.addImportPath(str(gui_app.QML_DIR))
     engine.rootContext().setContextProperty("appIconUrl", QUrl())
     yield engine

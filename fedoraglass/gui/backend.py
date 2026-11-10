@@ -503,6 +503,8 @@ class Backend(QObject):
     lockMessage = _p("lock_message", str)
     lockWidgetStyle = _p("lock_widget_style", str)
     lockHideNotifications = _p("lock_hide_notifications", bool)
+    cursorTheme = _p("cursor_theme", str)
+    cursorSize = _p("cursor_size", int)
     def _get_start_on_desktop(self) -> bool:
         # Not chosen yet: as Apply will decide it for this desktop (Settings.start_on_desktop_for).
         return self._s.start_on_desktop_for(self.hasDashToPanel)

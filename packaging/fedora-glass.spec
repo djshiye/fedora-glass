@@ -4,7 +4,7 @@ Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
 Summary:        Glass theme for Fedora GNOME, with a customizer
-License:        MIT AND Apache-2.0
+License:        MIT AND Apache-2.0 AND GPL-3.0-or-later
 URL:            https://github.com/djshiye/fedora-glass
 Source0:        %{url}/archive/v%{version}/fedora-glass-%{version}.tar.gz
 BuildArch:      noarch
@@ -86,6 +86,13 @@ install -Dm644 data/io.github.djshiye.LiquidGlass.desktop %{buildroot}%{_datadir
 sed -i 's|^Exec=.*|Exec=fedora-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
 
+# The mouse pointer styles (built by packaging/cursors/build.py): checked against their
+# checksums, then unpacked where every app and the login screen can find them.
+(cd data/cursors && sha256sum --quiet --strict -c SHA256SUMS)
+for t in data/cursors/*.tar.xz; do
+    tar -xJf "$t" -C %{buildroot}%{_datadir}/icons --no-same-owner --no-same-permissions
+done
+
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec
 # after your password. Standard library only, run with python3 -I -S.
 install -Dm755 fedoraglass/login_screen.py %{buildroot}%{_libexecdir}/liquid-glass-login-screen
@@ -166,13 +173,14 @@ fi
 # and that must not take the login screen glass off.
 
 %files
-%license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
+%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
 %{_bindir}/fedora-glass
 %{_bindir}/liquid-glass
 %{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
@@ -182,13 +190,14 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %files -n liquid-glass
-%license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
+%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
 %{_bindir}/fedora-glass
 %{_bindir}/liquid-glass
 %{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen

@@ -1298,10 +1298,27 @@ Item {
         }
     }
 
-    // The pointer of the pointer-light demo.
+    // The pointer of the pointer-light demo: the style picked on the Look page, if any.
+    readonly property string cursorStyle: Backend.cursorTheme
+    onCursorStyleChanged: if (!hover.hovered) demoPointer.restart()
+    // Over the preview, the app's own pointer takes the picked style before Apply.
+    HoverHandler {
+        onHoveredChanged: Cursors.tryOn(hovered && root.cursorStyle !== "keep" ? root.cursorStyle : "")
+    }
+    Image {
+        objectName: "previewCursor"
+        z: 20
+        visible: demoPointer.running && root.cursorStyle !== "keep"
+        x: root.demoX - width * 0.2; y: root.demoY - height * 0.07
+        width: root.u(36); height: width
+        sourceSize: Qt.size(64, 64)
+        source: root.cursorStyle !== "keep" ? "image://lgcursor/" + root.cursorStyle + "/left_ptr" : ""
+        smooth: true
+        mipmap: true
+    }
     Icon {
         z: 20
-        visible: demoPointer.running
+        visible: demoPointer.running && root.cursorStyle === "keep"
         x: root.demoX - root.u(6); y: root.demoY - root.u(3)
         name: "pointer"
         filled: true
