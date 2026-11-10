@@ -202,6 +202,20 @@ def clock_mask(ctx: Ctx, shape) -> np.ndarray:
     return lgqa.rect_mask(shape, [ctx.px(b) for b in actor_boxes(ctx, "DateMenuButton|clock-display")], grow=6)
 
 
+# The panel clock's width moves everything left of it, menus included: "Nov 10" is wider
+# than "Nov 9", and "16:05" than "1:05". The reference pictures were taken at "Nov 9 16:xx",
+# so the looks check pins every panel clock to that text (and keeps it there if GNOME ticks
+# it on), then lets the clocks go again.
+PIN_CLOCKS_JS = """(() => { const St = imports.gi.St; const pins = globalThis._lgqaClockPins = globalThis._lgqaClockPins ?? [];
+ const fix = t => t.replace(/\\p{L}+/u, 'Nov').replace(/\\d+(?=\\D+\\d+:\\d+)/, '9').replace(/\\d+:\\d+/, '16:00');
+ const walk = a => { const l = a._clockDisplay; if (l instanceof St.Label && !pins.some(p => p[0] === l)) {
+   const t = fix(l.text); l.text = t; pins.push([l, l.connect('notify::text', () => { if (l.text !== t) l.text = t; })]); }
+   for (const c of a.get_children()) walk(c); };
+ walk(global.stage); return pins.length; })()"""
+UNPIN_CLOCKS_JS = """(() => { const pins = globalThis._lgqaClockPins ?? []; for (const [l, id] of pins) { try { l.disconnect(id); } catch (e) {} }
+ globalThis._lgqaClockPins = []; return pins.length; })()"""
+
+
 def panel_mask(ctx: Ctx, shape) -> np.ndarray:
     """The panels' task bars change as apps open and close (the panel glass is checked in "looks")."""
     boxes = ctx.sh.json("return (global.dashToPanel?.panels ?? []).map(p => { const a = p.panelBox ?? p;"
@@ -305,6 +319,7 @@ def check_looks(ctx: Ctx) -> Check:
     sh = ctx.sh
     sh.close_all()
     lgqa.kill_apps()
+    sh.eval(PIN_CLOCKS_JS)
     settle(2)
 
     now = lgqa.load(sh.shot("looks-desktop"))
@@ -379,6 +394,7 @@ def check_looks(ctx: Ctx) -> Check:
           + ("" if ratio >= LIMITS["looks"]["min_glass_vs_wallpaper"] else " The glass is too dark, like 1.3.0's black glass."))
     sh.close_all()
     lgqa.kill_apps()
+    sh.eval(UNPIN_CLOCKS_JS)
     return c
 
 
