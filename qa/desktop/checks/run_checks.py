@@ -896,7 +896,9 @@ def check_speed(ctx: Ctx) -> Check:
         if state == "on":
             clock = lgqa.launch(["ptyxis", "--new-window", "-x", "bash /opt/lgqa/suite/checks/term-clock.sh"], log="ptyxis-clock")
             ck = sh.wait_window(r"^LGQA clock$")
-            sh.put(ck["id"], 60, 60, 900, 560)    # Files overlaps its far corner
+            # Below the terminal, its top-right corner under Files' glass, its clock (top
+            # left) under no glass at all, whatever order the three windows end up in.
+            sh.put(ck["id"], 60, 520, 700, 320)
             sh.focus(files["id"])
             settle(3)
             far = timed(ctx, 8)
