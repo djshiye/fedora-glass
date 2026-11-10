@@ -4,5 +4,43 @@ if [ "$1" = configure ] && [ -z "${2:-}" ]; then
     # First install: turn the dark/light watcher on for everyone's sessions.
     systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
 fi
+
+if [ "$1" = configure ]; then
+    # The apt source that `apt upgrade` updates from, and the pin that lets only
+    # fedora-glass through. They are not conffiles (see preinst), so the rules are ours:
+    #  - a file with the same entries as ours (comments aside, such as the one made by
+    #    hand from the README before the first install) is kept up to date with ours;
+    #  - a file you changed (or turned off with "Enabled: no") is left as you made it;
+    #  - a missing file is only put back at the first install or where we took it away
+    #    ourselves (an earlier `apt remove`, or the move off conffiles): a file you deleted
+    #    stays deleted.
+    removed_mark=/var/lib/fedora-glass/apt-entry-removed
+    entries() { sed -e 's/[[:space:]]*$//' -e '/^#/d' -e '/^$/d' "$1"; }
+    for pair in sources.list.d/fedora-glass.sources preferences.d/fedora-glass.pref; do
+        f="/etc/apt/$pair"
+        new="/usr/share/fedora-glass/apt/${pair#*/}"
+        moved=
+        # Coming from a version where it was a conffile: preinst set it aside.
+        [ -e "$f.dpkg-remove" ] && moved=1
+        # One you had changed goes back where it was (dpkg would leave it as .dpkg-bak,
+        # which apt ignores, and that would quietly undo your change).
+        if [ -e "$f.dpkg-backup" ] && ! [ -e "$f" ]; then
+            mv -f "$f.dpkg-backup" "$f"
+        fi
+        dpkg-maintscript-helper rm_conffile "$f" 1.5.20~ fedora-glass -- "$@"
+        if [ -L "$f" ] || { [ -e "$f" ] && ! [ -f "$f" ]; }; then
+            :                                   # something unusual there: not ours to touch
+        elif [ -f "$f" ]; then
+            if [ "$(entries "$f")" = "$(entries "$new")" ] && ! cmp -s "$f" "$new"; then
+                install -m644 "$new" "$f"
+            fi
+        elif [ -z "${2:-}" ] || [ -n "$moved" ] || [ -e "$removed_mark" ]; then
+            install -Dm644 "$new" "$f"
+        fi
+    done
+    rm -f "$removed_mark"
+    rmdir /var/lib/fedora-glass 2>/dev/null || :
+fi
+
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || :
 exit 0

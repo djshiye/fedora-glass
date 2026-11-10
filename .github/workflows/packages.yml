@@ -35,6 +35,29 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ./out/fedora-glass_*_all.deb >/dev/null
           fedora-glass --version
           DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq fedora-glass >/dev/null
+      # `apt remove` takes the key away, so it must take the apt source with it, or every
+      # later `apt update` fails (NO_PUBKEY). Checked from a fresh install and from an
+      # upgrade off 1.5.19, the last version that had the source as a conffile.
+      - name: apt update works after removal
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          check_removed() {
+            test ! -e /etc/apt/sources.list.d/fedora-glass.sources && test ! -e /etc/apt/preferences.d/fedora-glass.pref
+            apt-get update 2>&1 | tee /tmp/update.log
+            test "${PIPESTATUS[0]}" -eq 0
+            ! grep -E 'NO_PUBKEY|fedora-glass' /tmp/update.log
+          }
+          check_removed
+          git fetch -q --depth 1 origin tag v1.5.19
+          mkdir /tmp/old && git archive v1.5.19 | tar -x -C /tmp/old
+          (cd /tmp/old && sh packaging/deb/build-deb.sh 1.5.19 /tmp/old-out)
+          apt-get install -y -qq /tmp/old-out/fedora-glass_1.5.19-1_all.deb >/dev/null
+          dpkg -i out/fedora-glass_*_all.deb
+          test -f /etc/apt/sources.list.d/fedora-glass.sources && test -z "$(dpkg-query -W -f='${Conffiles}' fedora-glass)"
+          apt-get remove -y -qq fedora-glass >/dev/null
+          check_removed
+        shell: bash
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: deb

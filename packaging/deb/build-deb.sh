@@ -15,15 +15,21 @@ mv "$root/usr/share/licenses/fedora-glass/"* "$root/usr/share/doc/fedora-glass/"
 rm -r "$root/usr/share/licenses"
 { echo "Fedora Glass is MIT licensed, with Apache-2.0 parts; see LICENSE, Apache-2.0.txt and THIRD-PARTY-NOTICES.md here."; } > "$root/usr/share/doc/fedora-glass/copyright"
 # The repository it updates from, its key and the pin that lets only fedora-glass through.
-install -Dm644 packaging/deb/fedora-glass.sources "$root/etc/apt/sources.list.d/fedora-glass.sources"
-install -Dm644 packaging/deb/fedora-glass.pref "$root/etc/apt/preferences.d/fedora-glass.pref"
+# The source and the pin are not conffiles: postinst puts them in /etc/apt from here and
+# postrm takes them out again, so `apt remove` never leaves a source whose key is gone.
+install -Dm644 packaging/deb/fedora-glass.sources "$root/usr/share/fedora-glass/apt/fedora-glass.sources"
+install -Dm644 packaging/deb/fedora-glass.pref "$root/usr/share/fedora-glass/apt/fedora-glass.pref"
 install -Dm644 packaging/RPM-GPG-KEY-fedora-glass "$root/usr/share/keyrings/fedora-glass.asc"
 
 install -d "$root/DEBIAN"
 size="$(du -sk --exclude=DEBIAN "$root" | cut -f1)"
 sed -e "s/@VERSION@/$ver-1/" -e "s/@SIZE@/$size/" packaging/deb/control.in > "$root/DEBIAN/control"
-install -m755 packaging/deb/postinst packaging/deb/prerm "$root/DEBIAN/"
-printf '%s\n' /etc/apt/sources.list.d/fedora-glass.sources /etc/apt/preferences.d/fedora-glass.pref > "$root/DEBIAN/conffiles"
+install -m755 packaging/deb/preinst packaging/deb/postinst packaging/deb/prerm "$root/DEBIAN/"
+# postrm knows our source and pin by their entries (comments aside), as postinst does.
+entries_sum() { sed -e 's/[[:space:]]*$//' -e '/^#/d' -e '/^$/d' "$1" | sha256sum | cut -d' ' -f1; }
+sed -e "s/@SOURCES_SUM@/$(entries_sum packaging/deb/fedora-glass.sources)/" \
+    -e "s/@PREF_SUM@/$(entries_sum packaging/deb/fedora-glass.pref)/" packaging/deb/postrm > "$root/DEBIAN/postrm"
+chmod 755 "$root/DEBIAN/postrm"
 (cd "$root" && find . -path ./DEBIAN -prune -o -type f -printf '%P\n' | LC_ALL=C sort | xargs -d '\n' md5sum) > "$root/DEBIAN/md5sums"
 mkdir -p "$out"
 # xz for both members, so the signing script can read the control file with Python alone.
