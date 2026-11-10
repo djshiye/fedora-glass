@@ -5,7 +5,7 @@
   fedora-glass plan            show what Apply would change, change nothing
   fedora-glass status          list targets and whether they're available
   fedora-glass revert [TARGET] restore the original look (everything, or one target)
-  fedora-glass watch           re-apply when GNOME switches dark/light or High Contrast (run by a user service)
+  fedora-glass watch           re-apply when GNOME switches dark/light, High Contrast or its accent colour (run by a user service)
   fedora-glass on-remove       restore the original look before the package manager takes the app away (run by dnf, apt or pacman)
 """
 
@@ -204,11 +204,28 @@ UPGRADED = "upgraded"
 UPGRADE_POLL_S = 60.0
 
 
+ACCENT_KEY = ("org.gnome.desktop.interface", "accent-color")
+
+
+def _has_accent_key() -> bool:
+    """GNOME 47 and later have an accent colour. On an older one `gsettings monitor` for it
+    would end at once, and take the watcher with it."""
+    from .env import Env
+    try:
+        return ACCENT_KEY[1] in Env().gsettings_keys(ACCENT_KEY[0])
+    except Exception:
+        return False
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
-    """Follow GNOME's dark/light switch and its High Contrast switch. A dark/light
-    switch only needs the parts that can't switch by themselves (Shell theme,
-    GTK 3, terminal, Qt); High Contrast changes every part (glass goes opaque)."""
+    """Follow GNOME's dark/light switch, its High Contrast switch and its accent colour.
+    A dark/light switch only needs the parts that can't switch by themselves (Shell theme,
+    GTK 3, terminal, Qt); High Contrast changes every part (glass goes opaque). The accent
+    colour is written into every part, so a new one changes them all, when the look the
+    user applied says "follow the system" (Apply turned that on, so this is no surprise)."""
     keys = (("org.gnome.desktop.interface", "color-scheme"), ("org.gnome.desktop.a11y.interface", "high-contrast"))
+    if _has_accent_key():
+        keys += (ACCENT_KEY,)
     procs: list[subprocess.Popen] = []
 
     def stop_all() -> None:
@@ -259,10 +276,12 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 print("fedora-glass watch: a gsettings monitor stopped", file=sys.stderr)
                 return 1
             s = settings_mod.load()
+            scheme = 0 in got and s.scheme == "auto"
             contrast = 1 in got
+            accent = 2 in got and getattr(s, "accent", "") == "system"
             # After Restore original, stay out of the way.
-            if eng.look_on() and (contrast or s.scheme == "auto"):
-                eng.apply(s, only=None if contrast else only, if_applied=True, applied_only=True)
+            if eng.look_on() and (scheme or contrast or accent):
+                eng.apply(s, only=None if contrast or accent else only, if_applied=True, applied_only=True)
     finally:
         stop_all()
 
@@ -294,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("revert", help="restore the original look")
     r.add_argument("target", nargs="?")
     r.set_defaults(func=cmd_revert)
-    sub.add_parser("watch", help="follow dark/light and High Contrast switches").set_defaults(func=cmd_watch)
+    sub.add_parser("watch", help="follow dark/light, High Contrast and accent colour switches").set_defaults(func=cmd_watch)
     sub.add_parser("on-remove", help="restore the original look before the app is removed (run by dnf, apt or pacman)").set_defaults(func=cmd_on_remove)
     g = sub.add_parser("gui", help="open the customizer")
     g.add_argument("qt_args", nargs=argparse.REMAINDER)
