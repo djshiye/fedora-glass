@@ -2,9 +2,15 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
-// Every target the engine knows, grouped, with an honest state and a switch.
+// What this PC has first, grouped, each with an honest state and a switch. Parts for
+// apps and extensions that aren't installed fold away into one quiet card at the end.
 Item {
     id: page
+
+    // Survives "Check again": the card is not rebuilt when the lists refresh.
+    property bool missingOpen: false
+    readonly property var installed: Backend.installedTargets
+    readonly property var missing: Backend.missingTargets
 
     Item {
         id: intro
@@ -42,13 +48,6 @@ Item {
         Spinner { size: 28; color: Theme.textDim; anchors.horizontalCenter: parent.horizontalCenter }
         Text { text: "Looking at your system…"; color: Theme.textDim; font.pixelSize: Theme.fsBody }
     }
-    Column {
-        anchors.centerIn: parent
-        spacing: 8
-        visible: Backend.targetsReady && Backend.targets.length === 0
-        Icon { name: "apps"; size: 32; color: Theme.textFaint; anchors.horizontalCenter: parent.horizontalCenter }
-        Text { text: "No themable apps were found"; color: Theme.textDim; font.pixelSize: Theme.fsBody; anchors.horizontalCenter: parent.horizontalCenter }
-    }
 
     Flickable {
         id: list
@@ -66,13 +65,29 @@ Item {
         opacity: Backend.targetsReady ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.normal } }
         C.ScrollBar.vertical: LgScrollBar {}
+        NumberAnimation { id: reveal; target: list; property: "contentY"; duration: Theme.slow; easing.type: Easing.OutCubic }
 
         Column {
             id: groups
             width: list.width - 12
             spacing: 20
+
+            // first run with nothing to theme
+            Item {
+                objectName: "appsEmpty"
+                visible: Backend.targetsReady && page.installed.length === 0
+                width: parent.width
+                height: visible ? Math.max(160, list.height - (fold.visible ? fold.height + 40 : 0)) : 0
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Icon { name: "apps"; size: 32; color: Theme.textFaint; anchors.horizontalCenter: parent.horizontalCenter }
+                    Text { text: "No themable apps were found"; color: Theme.textDim; font.pixelSize: Theme.fsBody; anchors.horizontalCenter: parent.horizontalCenter }
+                }
+            }
+
             Repeater {
-                model: Backend.targets
+                model: page.installed
                 delegate: Column {
                     id: group
                     required property var modelData
@@ -99,8 +114,138 @@ Item {
                     }
                 }
             }
+
+            // Everything this PC doesn't have, folded into one calm card.
+            Card {
+                id: fold
+                objectName: "notInstalledCard"
+                visible: page.missing.length > 0
+                width: parent.width
+                height: head.height + rows.height
+                padding: 0
+                color: Theme.alpha(Theme.surface, Theme.surface.a * 0.6)   // quieter than the cards above
+                clip: true
+
+                C.AbstractButton {
+                    id: head
+                    objectName: "notInstalled"
+                    width: parent.width
+                    height: 60
+                    hoverEnabled: true
+                    focusPolicy: Qt.StrongFocus
+                    onClicked: page.toggleMissing()
+                    Keys.onReturnPressed: page.toggleMissing()
+                    Keys.onEnterPressed: page.toggleMissing()
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Not installed here, " + page.missing.length + (page.missingOpen ? ", shown" : ", hidden")
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    background: Rectangle {
+                        radius: Theme.rM
+                        color: head.hovered ? Theme.hover : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.fast } }
+                        FocusRing { target: head; radius: Theme.rM + 2; gap: 0 }
+                    }
+                    contentItem: Item {
+                        Icon {
+                            id: chev
+                            x: 18
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "chevronRight"
+                            size: 18
+                            color: Theme.textDim
+                            rotation: page.missingOpen ? 90 : 0
+                            Behavior on rotation { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                        }
+                        Column {
+                            anchors.left: chev.right
+                            anchors.leftMargin: 12
+                            anchors.right: parent.right
+                            anchors.rightMargin: 20
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 2
+                            Text {
+                                objectName: "notInstalledTitle"
+                                text: "Not installed here (" + page.missing.length + ")"
+                                color: Theme.textDim
+                                font.pixelSize: Theme.fsBody
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideRight
+                                text: "Skipped on Apply. Install one, then choose Check again."
+                                color: Theme.textFaint
+                                font.pixelSize: Theme.fsSmall + 1
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    id: rows
+                    objectName: "notInstalledRows"
+                    y: head.height
+                    width: parent.width
+                    height: page.missingOpen ? implicitHeight + 8 : 0
+                    opacity: page.missingOpen ? 1 : 0
+                    visible: height > 0.5
+                    Behavior on height { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: Theme.normal } }
+                    Repeater {
+                        model: page.missing
+                        delegate: Item {
+                            id: mrow
+                            required property var modelData
+                            width: rows.width
+                            height: Math.max(nameText.height, why.height) + 22
+                            Rectangle { x: 20; width: parent.width - 40; height: 1; color: Theme.divider }
+                            Text {
+                                id: nameText
+                                x: 48; y: 11
+                                width: Math.min(220, parent.width * 0.34)
+                                text: mrow.modelData.name || mrow.modelData.id
+                                color: Theme.text
+                                opacity: 0.85
+                                elide: Text.ElideRight
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                            }
+                            TextEdit {      // an install command stays selectable, to copy
+                                id: why
+                                x: nameText.x + nameText.width + 16
+                                y: 11
+                                width: parent.width - x - 20
+                                text: mrow.modelData.install || mrow.modelData.reason || ""
+                                readOnly: true
+                                selectByMouse: (mrow.modelData.install || "").length > 0
+                                activeFocusOnPress: false
+                                wrapMode: TextEdit.Wrap
+                                color: Theme.textDim
+                                selectionColor: Theme.alpha(Theme.accent, 0.4)
+                                selectedTextColor: Theme.text
+                                font.pixelSize: 13
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+
+    function toggleMissing() {
+        missingOpen = !missingOpen
+        if (!missingOpen)
+            return
+        // Bring the opened list up into view rather than leaving it below the fold.
+        const top = fold.y - 28
+        const end = fold.y + head.height + rows.implicitHeight + 8 + 16 - list.height
+        const want = Math.max(list.contentY, Math.min(top, end))
+        if (want > list.contentY) {
+            reveal.to = want
+            reveal.restart()
+        }
+    }
+
     // Soft edges where the list scrolls under, so it's clear there is more.
     Rectangle {
         x: list.x; width: groups.width
