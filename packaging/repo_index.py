@@ -2,7 +2,7 @@
 
 fedora-glass-sign carries a copy of this file (between its REPO_INDEX markers) and runs it
 with python3 -I on Dino's PC, so signing needs nothing beyond gpg and Python. Keep the two
-the same: tests/test_repo_index.py checks that they are.
+the same: tests/test_distro.py checks that they are.
 
   repo_index.py deb-info FILE.deb        prints "name version"
   repo_index.py pkg-info FILE.pkg.tar.xz prints "name version"

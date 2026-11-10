@@ -72,7 +72,9 @@ Item {
         if (f < 0.12) return "Liquid"
         if (f < 0.35) return "Clear"
         if (f < 0.62) return "Balanced"
-        return "Frosted"
+        // Halfway between the Frosted (0.8) and Solid (1.0) presets, like the steps below.
+        if (f < 0.9) return "Frosted"
+        return "Solid"
     }
 
     // ================================================================ left: preview + glass
@@ -251,13 +253,19 @@ Item {
                 }
 
                 Flow {
+                    id: presetRow
+                    objectName: "presetRow"
                     width: parent.width
                     spacing: 8
                     Repeater {
                         model: Backend.presets
                         delegate: Chip {
                             required property string modelData
+                            required property int index
                             text: modelData
+                            rovingGroup: presetRow
+                            // One Tab stop: the active preset, or the first when the look is your own.
+                            rovingStop: selected || (index === 0 && Backend.presets.indexOf(Backend.activePreset) < 0)
                             selected: Backend.activePreset === modelData
                             tip: page.presetTips[modelData] || ""
                             onClicked: Backend.applyPreset(modelData)
@@ -281,6 +289,56 @@ Item {
         value: page.currentSection
         onActivated: (v) => page.jumpTo(v, true)
         Accessible.name: "Section"
+        // Tab goes into the section the bar shows, not back to the top of Colour.
+        Keys.onTabPressed: (e) => {
+            const it = page.firstControlIn(page.currentSection)
+            if (!it) {
+                e.accepted = false
+                return
+            }
+            page._entering = true
+            it.forceActiveFocus(Qt.TabFocusReason)
+            page._entering = false
+            page._sectionEntry = page.Window.activeFocusItem
+            page._lastFocus = page._sectionEntry
+            // Scrolled part of the way (by the wheel, say): show the section from its top.
+            const y = it.mapToItem(side, 0, 0).y
+            if (y < 0 || y + it.height > side.height)
+                page.jumpTo(page.currentSection, true)
+        }
+    }
+
+    // The first control Tab reaches inside a section.
+    function firstControlIn(id) {
+        const sec = sectionItem(id)
+        if (!sec || !sec.visible)
+            return null
+        const it = sec.nextItemInFocusChain(true)
+        for (let p = it; p; p = p.parent)
+            if (p === sec)
+                return it
+        return null
+    }
+    // Main.qml hands every focus change here first. True when the page moved focus on
+    // itself (Shift+Tab from a section's first control goes back to the section bar),
+    // or the column must not scroll (the bar has just shown that section).
+    property Item _sectionEntry: null
+    property Item _lastFocus: null
+    property bool _entering: false
+    function followFocus(it) {
+        if (_entering)
+            return true
+        const prev = _lastFocus
+        _lastFocus = it
+        const entry = _sectionEntry
+        if (!entry || it === entry)
+            return false
+        _sectionEntry = null
+        if (prev === entry && it && it.focusReason === Qt.BacktabFocusReason) {
+            sectionBar.forceActiveFocus(Qt.BacktabFocusReason)
+            return true
+        }
+        return false
     }
 
     Flickable {
@@ -337,7 +395,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 16
-                        SectionTitle { text: "Style and accent" }
+                        SectionTitle { text: "Style and accent"; resetKeys: ["scheme", "accent"] }
                         Column {
                             width: parent.width
                             spacing: 8
@@ -361,10 +419,16 @@ Item {
                                 width: parent.width
                                 spacing: 4
                                 readonly property real d: Math.min(30, Math.floor((width - 10 * spacing) / 11))
+                                // One Tab stop: the chosen colour (the system one when none matches).
+                                readonly property bool known: Backend.accent === "system" || Backend.accent.startsWith("#")
+                                                              || Backend.accents.some(a => a.id === Backend.accent)
                                 Swatch {
+                                    objectName: "accentSystem"
                                     size: swatches.d
                                     swatch: Backend.accents.find(a => a.id === Backend.systemAccent)?.color ?? "#3584e4"
                                     split: true
+                                    rovingGroup: swatches
+                                    rovingStop: selected || !swatches.known
                                     selected: Backend.accent === "system"
                                     tip: "System accent (follows GNOME Settings)"
                                     onClicked: Backend.accent = "system"
@@ -373,7 +437,9 @@ Item {
                                     model: Backend.accents
                                     delegate: Swatch {
                                         required property var modelData
+                                        objectName: "accent_" + modelData.id
                                         size: swatches.d
+                                        rovingGroup: swatches
                                         swatch: modelData.color
                                         selected: Backend.accent === modelData.id
                                         tip: modelData.label
@@ -382,7 +448,9 @@ Item {
                                 }
                                 Swatch {
                                     id: customAccent
+                                    objectName: "accentCustom"
                                     size: swatches.d
+                                    rovingGroup: swatches
                                     readonly property bool isCustom: Backend.accent.startsWith("#")
                                     swatch: isCustom ? Backend.accent : "#888888"
                                     rainbow: !isCustom
@@ -409,7 +477,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 16
-                        SectionTitle { text: "Tint and corners" }
+                        SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius"] }
                         Item {
                             width: parent.width
                             height: 36
@@ -469,6 +537,7 @@ Item {
                         LabeledSlider {
                             label: "Tint strength"
                             value: Backend.tintStrength
+                            defaultValue: Backend.defaults.tint_strength
                             onMoved: (v) => Backend.tintStrength = v
                             tip: "How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane."
                         }
@@ -476,6 +545,7 @@ Item {
                             label: "Corner roundness"
                             from: 0; to: 32; stepSize: 1
                             value: Backend.radius
+                            defaultValue: Backend.defaults.radius
                             format: (v) => Math.round(v) + " px"
                             onMoved: (v) => Backend.radius = v
                             tip: "How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners."
@@ -498,38 +568,45 @@ Item {
                         spacing: 16
                         SectionTitle {
                             text: "Glass effects"
+                            resetKeys: ["refraction", "dispersion", "vibrancy", "bleed", "pointer_light"]
                             captionName: "glassStatus"
                             caption: Backend.glassLive
                                      ? "The preview shows these as you change them. Your desktop changes when you press Apply."
+                                     : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
                                      : "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
                         }
                         LabeledSlider {
                             label: "Bend"
                             value: Backend.refraction
+                            defaultValue: Backend.defaults.refraction
                             onMoved: (v) => { Backend.refraction = v; preview.peekEdge("") }
                             tip: "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
                         }
                         LabeledSlider {
                             label: "Rainbow edge"
                             value: Backend.dispersion
+                            defaultValue: Backend.defaults.dispersion
                             onMoved: (v) => { Backend.dispersion = v; preview.peekEdge("") }
                             tip: "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
                         }
                         LabeledSlider {
                             label: "Colour through glass"
                             value: Backend.vibrancy
+                            defaultValue: Backend.defaults.vibrancy
                             onMoved: (v) => Backend.vibrancy = v
                             tip: "How vivid the wallpaper and windows look through the glass. Left keeps their colours as they are; right makes them richer."
                         }
                         LabeledSlider {
                             label: "Colour bleed"
                             value: Backend.bleed
+                            defaultValue: Backend.defaults.bleed
                             onMoved: (v) => Backend.bleed = v
                             tip: "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
                         }
                         LabeledSlider {
                             label: "Light follows pointer"
                             value: Backend.pointerLight
+                            defaultValue: Backend.defaults.pointer_light
                             onMoved: (v) => Backend.pointerLight = v
                             tip: "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
                         }
@@ -544,6 +621,7 @@ Item {
                         spacing: 8
                         SectionTitle {
                             text: "Where the glass shows"
+                            resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows"]
                             caption: "Real glass costs some graphics power. Turn it off where you don't need it."
                         }
                         Column {
@@ -558,7 +636,8 @@ Item {
                             }
                             SwitchRow {
                                 label: "Menus"
-                                caption: "Quick settings, calendar, the start menu and app menus"
+                                caption: Backend.hasStartMenu ? "Quick settings, calendar, the start menu and app menus"
+                                                              : "Quick settings, calendar and app menus"
                                 tip: "Draws real glass behind menus and pop-ups. Off leaves plain tinted panes."
                                 checked: Backend.glassMenus
                                 onToggled: (on) => { Backend.glassMenus = on; preview.showPopup() }
@@ -607,7 +686,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 16
-                        SectionTitle { text: "Panel" }
+                        SectionTitle { text: "Panel"; resetKeys: ["panel_style", "panel_margin"] }
                         Column {
                             width: parent.width
                             spacing: 8
@@ -626,6 +705,7 @@ Item {
                             enabled: Backend.panelStyle === "floating"
                             from: 0; to: 32; stepSize: 1
                             value: Backend.panelMargin
+                            defaultValue: Backend.defaults.panel_margin
                             format: (v) => Math.round(v) + " px"
                             onMoved: (v) => Backend.panelMargin = v
                             tip: "The gap between the floating panel and the screen edge. Left sits it against the edge; right floats it further away."
@@ -648,7 +728,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 8
-                        SectionTitle { text: "Glass in motion" }
+                        SectionTitle { text: "Glass in motion"; resetKeys: ["liquid_motion", "menu_grow"] }
                         SwitchRow {
                             label: "Liquid motion"
                             caption: "Glass gives a little when pressed and settles as menus open"
@@ -659,7 +739,8 @@ Item {
                         SwitchRow {
                             objectName: "menuGrow"
                             label: "Menus grow from their button"
-                            caption: "The start menu, quick settings and the calendar flow out of what you clicked"
+                            caption: Backend.hasStartMenu ? "The start menu, quick settings and the calendar flow out of what you clicked"
+                                                          : "Quick settings and the calendar flow out of what you clicked"
                             tip: "A menu opens as if it pours out of the button you clicked, and flows back into it when it closes. Off, menus open in place. It stays off when Reduce animation is on in Settings."
                             enabled: Backend.liquidMotion
                             checked: Backend.menuGrow
@@ -683,7 +764,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 4
-                        SectionTitle { text: "Desktop" }
+                        SectionTitle { text: "Desktop"; resetKeys: ["start_on_desktop", "overview_off"] }
                         SwitchRow {
                             objectName: "startOnDesktop"
                             label: "Start on the desktop"
@@ -699,12 +780,17 @@ Item {
                             objectName: "overviewOff"
                             label: "Turn off the overview"
                             caption: "No overview from the Super key, hot corner or swipe, and no workspace view"
-                            tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn, Dash to Panel or a dock. Without ArcMenu or Spawn, the app grid still opens. Switch this off, or turn off Fedora Glass, and it all comes back at once."
+                            tip: "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. "
+                                 + (Backend.hasStartMenu ? "Open apps from ArcMenu, Spawn, Dash to Panel or a dock. "
+                                                         : "Without ArcMenu or Spawn the app grid still opens, so you can open apps from it, Dash to Panel or a dock. ")
+                                 + "Switch this off, or turn off Fedora Glass, and it all comes back at once."
                             checked: Backend.overviewOff
                             onToggled: (on) => { Backend.overviewOff = on; preview.scene = "overview" }
                         }
                     }
                 }
+
+                CursorCard { width: parent.width }
             }
 
             Column {
@@ -753,12 +839,16 @@ Item {
                         spacing: 16
                         SectionTitle {
                             text: "Part by part"
+                            resetKeys: ["parts"]
+                            resetTip: "Every part follows the global look again"
                             caption: "Give one part of the desktop its own look. Anything you leave on Global follows the rest of the Look page."
                         }
                         Column {
                             width: parent.width
                             spacing: 10
                             Flow {
+                                id: partRow
+                                objectName: "partRow"
                                 width: parent.width
                                 spacing: 8
                                 Repeater {
@@ -766,6 +856,9 @@ Item {
                                     delegate: Chip {
                                         required property var modelData
                                         text: modelData.label
+                                        // Tabs: one Tab stop, and the arrow keys pick the part.
+                                        rovingGroup: partRow
+                                        rovingSelects: true
                                         selected: partsCard.part === modelData.id
                                         tip: modelData.tip
                                         Rectangle {      // a dot marks parts that have their own look
@@ -830,7 +923,7 @@ Item {
                                     implicitHeight: 28
                                     text: "Global"
                                     selected: partsCard.own.tint === undefined
-                                    tip: selected ? "Follows the tint colour in the Glass card" : "Go back to the global tint colour"
+                                    tip: selected ? "Follows the tint colour in the Tint and corners card" : "Go back to the global tint colour"
                                     onClicked: partsCard.own.tint === undefined ? Backend.setPart(partsCard.part, "tint", Backend.tint)
                                                                                 : Backend.clearPart(partsCard.part, "tint")
                                 }
@@ -885,7 +978,7 @@ Item {
                         OverrideSlider {
                             label: "Tint strength"
                             autoText: "Global"
-                            autoTip: "Follows the tint strength in the Glass card"
+                            autoTip: "Follows the tint strength in the Tint and corners card"
                             resetTip: "Go back to the global tint strength"
                             tip: "How much of the tint colour is mixed into this part. Left is clear, colourless glass; right is strongly coloured."
                             value: partsCard.val("tint_strength")
@@ -896,7 +989,7 @@ Item {
                             visible: partsCard.hasRadius
                             label: "Corner roundness"
                             autoText: "Global"
-                            autoTip: "Follows the corner roundness in the Glass card"
+                            autoTip: "Follows the corner roundness in the Tint and corners card"
                             resetTip: "Go back to the global corner roundness"
                             tip: "How round this part's corners are. Left is sharp, square corners; right is soft, pill-like corners."
                             from: 0; to: 32; stepSize: 1
@@ -917,7 +1010,7 @@ Item {
                         }
                         OverrideSlider {
                             visible: partsCard.hasLens
-                            label: "Glass strength"
+                            label: "Bend"
                             autoText: "Global"
                             autoTip: "Follows Bend in the Glass effects card"
                             resetTip: "Go back to the global Bend"
@@ -999,14 +1092,45 @@ Item {
                                 onToggled: (on) => Backend.reduceTransparency = on
                             }
                             LgButton {
+                                objectName: "fineReset"
+                                readonly property var keys: ["opacity", "blur", "terminal_opacity", "reduce_transparency"]
+                                visible: Backend.changedFromDefault.some((k) => keys.indexOf(k) >= 0)
                                 kind: "flat"
-                                text: "Reset all to defaults"
-                                iconName: "refresh"
+                                implicitHeight: 32
+                                text: "Reset fine-tune"
+                                iconName: "undo"
                                 leftPadding: 12
-                                tip: "Back to the default look (Apply to use it)"
-                                onClicked: Backend.resetDefaults()
+                                tip: "Let the Glass slider decide these again (Apply to use it)"
+                                onClicked: Backend.resetSettings(keys)
                             }
                             Item { width: 1; height: 4 }
+                        }
+                    }
+                }
+
+                Card {
+                    objectName: "startOverCard"
+                    width: parent.width
+                    height: implicitHeight
+                    Column {
+                        width: parent.width
+                        spacing: 12
+                        SectionTitle {
+                            text: "Start over"
+                            caption: Backend.changedFromDefault.length > 0
+                                     ? "Puts every setting on every page back to how Fedora Glass comes. Your desktop changes when you press Apply, and Undo changes takes it back until then."
+                                     : "Every setting is at its default."
+                        }
+                        LgButton {
+                            objectName: "resetAll"
+                            kind: "secondary"
+                            implicitHeight: 36
+                            leftPadding: 16; rightPadding: 16
+                            text: "Reset all to defaults"
+                            iconName: "refresh"
+                            enabled: Backend.changedFromDefault.length > 0
+                            tip: "Back to the default look on every page (Apply to use it)"
+                            onClicked: Backend.resetDefaults()
                         }
                     }
                 }

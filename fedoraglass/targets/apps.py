@@ -70,6 +70,7 @@ DISCORD_FLATPAK = "com.discordapp.Discord"
 @dataclass
 class Discord(AppTarget):
     id: str = "discord"
+    plain: str = "Adds a Fedora Glass theme to Vencord and turns it on, so Discord gets the glass colours."
     name: str = "Discord"
     summary: str = "Glass theme for Discord, installed as a Vencord theme."
     scheme_dependent: bool = False
@@ -120,6 +121,7 @@ class Discord(AppTarget):
 @dataclass
 class VSCode(AppTarget):
     id: str = "vscode"
+    plain: str = "Installs Fedora Glass Dark and Light colour themes in VS Code and selects the one that fits."
     name: str = "VS Code"
     summary: str = "Fedora Glass Dark and Light colour themes, installed as a local extension."
     notes: list[str] = field(default_factory=lambda: [
@@ -170,6 +172,7 @@ class VSCode(AppTarget):
 @dataclass
 class Obsidian(AppTarget):
     id: str = "obsidian"
+    plain: str = "Adds the Fedora Glass theme to each of your vaults and selects it."
     name: str = "Obsidian"
     summary: str = "Fedora Glass theme installed into every vault and selected."
     scheme_dependent: bool = False
@@ -216,6 +219,7 @@ class Obsidian(AppTarget):
 @dataclass
 class QBittorrent(AppTarget):
     id: str = "qbittorrent"
+    plain: str = "Adds a Fedora Glass theme for qBittorrent and selects it in its settings."
     name: str = "qBittorrent"
     summary: str = "Folder-based custom UI theme (colours and a rounded style sheet)."
     # The style sheet can't switch by itself, so the colours follow the same scheme and
@@ -259,6 +263,7 @@ PRISM_FLATPAK = "org.prismlauncher.PrismLauncher"
 @dataclass
 class Prism(AppTarget):
     id: str = "prism"
+    plain: str = "Adds a Fedora Glass theme for Prism Launcher and selects it."
     name: str = "Prism Launcher"
     summary: str = "Custom Prism theme (palette and style sheet), selected as the application theme."
     notes: list[str] = field(default_factory=lambda: [
@@ -294,6 +299,7 @@ class Prism(AppTarget):
 @dataclass
 class Browsers(AppTarget):
     id: str = "browsers"
+    plain: str = "Writes a theme in your colours for Brave and Helium. You load it once yourself; the note says how."
     name: str = "Brave and Helium"
     summary: str = "Chromium theme extension with the glass colours (loaded once by hand)."
 
@@ -354,24 +360,30 @@ TARGETS: list[Target] = [
     Discord(), VSCode(), Obsidian(), QBittorrent(), Prism(), Browsers(),
     Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",),
           summary="No theme file; a ready-made sidebar theme string is shown to paste.",
+          plain="Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead.",
           scheme_dependent=True),
     NotesOnly(id="steam", name="Steam", group="Apps", cmds=("steam",), dirs=(".local/share/Steam",),
               summary="Not themed: Steam draws its own UI.", scheme_dependent=False,
+              plain="Changes nothing: Steam draws its own look.",
               notes=["Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone."]),
     NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",),
               summary="Not themed; follows the system dark mode.", scheme_dependent=False,
+              plain="Changes nothing: Zoom follows your light or dark setting by itself.",
               notes=["In Zoom: Settings > General > Theme > Use system setting."]),
     NotesOnly(id="claude-desktop", name="Claude Desktop", group="Apps",
               cmds=("claude-desktop",), dirs=(".config/Claude",), desktop=("com.anthropic.Claude",),
               summary="Not themed; follows the system dark mode.", scheme_dependent=False,
+              plain="Changes nothing: Claude follows your light or dark setting by itself.",
               notes=["In Claude: Settings > Appearance > Match system."]),
     NotesOnly(id="libreoffice", name="LibreOffice", group="Apps", cmds=("libreoffice", "soffice"),
               dirs=(".config/libreoffice",),
               summary="Follows the GTK 3 theme automatically.", scheme_dependent=False,
+              plain="Changes nothing here: LibreOffice picks up the GTK 3 look by itself.",
               notes=["LibreOffice's GTK 3 backend picks up the adw-gtk3 glass theme. If it looks flat, "
                      "set Tools > Options > LibreOffice > View > Icon/Application colours to Automatic."]),
     NotesOnly(id="firefox", name="Firefox", group="Apps", cmds=("firefox",), dirs=(".config/mozilla", ".mozilla"),
               summary="Not themed; follows the GTK theme for its window frame.", scheme_dependent=False,
+              plain="Changes nothing: Fedora Glass leaves your Firefox profiles alone.",
               notes=["Use Firefox's built-in System theme (Add-ons > Themes) so the toolbar matches. "
                      "Fedora Glass does not edit Firefox profiles."]),
 ]

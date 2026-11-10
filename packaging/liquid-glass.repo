@@ -4,10 +4,13 @@ baseurl=https://djshiye.github.io/fedora-glass/rpms/
 enabled=1
 # Only the liquid-glass package is ever taken from here, whatever else appears.
 includepkgs=liquid-glass
-# Published by this project's GitHub Actions from each tagged release, after
-# checking the RPM against the release's SHA256SUMS. Served over HTTPS from
-# GitHub Pages. Old Liquid Glass installs only: the fedora-glass.repo it brings
-# checks the signatures from then on.
-gpgcheck=0
+# Old Liquid Glass installs only: this is the file their setup instructions downloaded
+# from the website. PCs that already have it keep their own copy (no package owns it);
+# the liquid-glass bridge package moves them to fedora-glass, whose fedora-glass.repo
+# then takes over and this file is set aside. A copy fetched now checks signatures like
+# fedora-glass.repo: the key must already be at the path below (see the README).
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 metadata_expire=1h
 skip_if_unavailable=True

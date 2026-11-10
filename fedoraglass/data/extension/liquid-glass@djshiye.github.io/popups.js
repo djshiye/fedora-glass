@@ -172,6 +172,12 @@ export class Popups {
             this._signals.on(dialogs, 'child-added', (_g, d) => this._soon(d, () => this._dialog(d)));
             dialogs.get_children().forEach(d => this._dialog(d));
         }
+        // The screenshot tool's panel (Selection, Screen, Window, the shutter). It lives in
+        // its own group above the rest of the Shell and is made once, so it is looked at
+        // here; its glass is built the first time the tool opens.
+        const shotPanel = Main.screenshotUI?._panel;
+        if (shotPanel?.get_parent?.())
+            this._follow(shotPanel, shotPanel.get_parent(), 'quicksettings');
         // Banners come and go inside the message tray.
         const tray = Main.messageTray, bin = tray?._bannerBin;
         if (bin) {

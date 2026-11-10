@@ -1,6 +1,7 @@
 # Builds the Ubuntu (.deb) and Arch (.pkg.tar.xz) packages and installs each on its own Linux,
 # so their dependencies are known to resolve there. The Release workflow calls this and attaches
-# both to the release; a pull request with the "packages" label runs it too.
+# both to the release; a pull request with the "packages" label runs it too, and then also
+# builds and installs the Fedora .rpm (the Release workflow builds its own).
 name: Ubuntu and Arch packages
 
 on:
@@ -34,11 +35,70 @@ jobs:
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ./out/fedora-glass_*_all.deb >/dev/null
           fedora-glass --version
+          bash qa/package-smoke.sh    # Apply, Restore and the window, as installed
           DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq fedora-glass >/dev/null
+      # `apt remove` takes the key away, so it must take the apt source with it, or every
+      # later `apt update` fails (NO_PUBKEY). Checked from a fresh install and from an
+      # upgrade off 1.5.19, the last version that had the source as a conffile.
+      - name: apt update works after removal
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          check_removed() {
+            test ! -e /etc/apt/sources.list.d/fedora-glass.sources && test ! -e /etc/apt/preferences.d/fedora-glass.pref
+            apt-get update 2>&1 | tee /tmp/update.log
+            test "${PIPESTATUS[0]}" -eq 0
+            ! grep -E 'NO_PUBKEY|fedora-glass' /tmp/update.log
+          }
+          check_removed
+          git fetch -q --depth 1 origin tag v1.5.19
+          mkdir /tmp/old && git archive v1.5.19 | tar -x -C /tmp/old
+          (cd /tmp/old && sh packaging/deb/build-deb.sh 1.5.19 /tmp/old-out)
+          apt-get install -y -qq /tmp/old-out/fedora-glass_1.5.19-1_all.deb >/dev/null
+          dpkg -i out/fedora-glass_*_all.deb
+          test -f /etc/apt/sources.list.d/fedora-glass.sources && test -z "$(dpkg-query -W -f='${Conffiles}' fedora-glass)"
+          apt-get remove -y -qq fedora-glass >/dev/null
+          check_removed
+        shell: bash
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: deb
           path: out/*.deb
+          if-no-files-found: error
+          retention-days: 1
+
+  # The Fedora package, on pull requests only (the Release workflow builds its own): built with
+  # rpmbuild, its tests run, then installed and removed on Fedora 44.
+  rpm:
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'packages')
+    runs-on: ubuntu-latest
+    container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
+    permissions:
+      contents: read
+    steps:
+      - name: Tools
+        run: dnf install -y -q --setopt=install_weak_deps=False rpm-build systemd-rpm-macros git python3-pytest python3-gobject >/dev/null
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Build
+        run: |
+          git config --global --add safe.directory "$PWD"
+          ver="$(awk '/^Version:/ { print $2; exit }' packaging/fedora-glass.spec)"
+          mkdir -p ~/rpmbuild/SOURCES out
+          git archive --format=tar.gz --prefix="fedora-glass-$ver/" -o ~/rpmbuild/SOURCES/fedora-glass-$ver.tar.gz HEAD
+          rpmbuild -bb packaging/fedora-glass.spec
+          cp ~/rpmbuild/RPMS/noarch/*.noarch.rpm out/
+      - name: Installs on Fedora
+        run: |
+          dnf install -y -q out/fedora-glass-[0-9]*.noarch.rpm >/dev/null
+          fedora-glass --version
+          test -f /usr/share/icons/fedora-glass-light/cursors/left_ptr
+          test -L /usr/share/icons/fedora-glass-light/cursors/default
+          dnf remove -y -q fedora-glass >/dev/null
+          test ! -e /usr/share/icons/fedora-glass-light
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rpm
+          path: out/*.rpm
           if-no-files-found: error
           retention-days: 1
 
@@ -64,6 +124,7 @@ jobs:
         run: |
           pacman -U --noconfirm out/fedora-glass-*-any.pkg.tar.xz >/dev/null
           fedora-glass --version
+          bash qa/package-smoke.sh    # Apply, Restore and the window, as installed
           pacman -R --noconfirm fedora-glass >/dev/null
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:

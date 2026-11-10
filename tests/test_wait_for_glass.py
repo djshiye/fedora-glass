@@ -28,7 +28,8 @@ def desktop(env):
     for part in ts.GlassEffects.BLUR_OVERLAP:
         env.gs[(f"{ts.GlassEffects.BLUR_SCHEMA}.{part}", None)] = {"blur": "true"}
     env.gs[("org.gnome.shell.extensions.user-theme", None)] = {"name": "''"}
-    env.gs[("org.gnome.shell", None)] = {"enabled-extensions": "@as []", "disabled-extensions": "@as []"}
+    env.gs[("org.gnome.shell", None)] = {"enabled-extensions": f"['{ts.DASH_TO_PANEL}', '{ts.ARCMENU}', '{ts.SPAWN}']",
+                                         "disabled-extensions": "@as []"}
     return Engine(env, ts.TARGETS)
 
 
@@ -227,8 +228,10 @@ def test_reads_the_error_as_gnome_prints_it(fake_env):
 
 
 def _enabled(env):
+    """Our own extensions on GNOME's list (Dash to Panel, ArcMenu and Spawn were on before)."""
     from fedoraglass.engine import parse_strv
-    return parse_strv(env.gs[("org.gnome.shell", None)]["enabled-extensions"])
+    theirs = {ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN}
+    return [u for u in parse_strv(env.gs[("org.gnome.shell", None)]["enabled-extensions"]) if u not in theirs]
 
 
 def test_turning_one_shell_part_off_keeps_the_other_parts_extension(fake_env):

@@ -14,6 +14,7 @@ Card {
         spacing: 16
         SectionTitle {
             text: "Window header bars"
+            resetKeys: ["header_height", "header_opacity", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars"]
             caption: "The bar along the top of Files, Terminal, Settings and other GNOME apps. Apps opened after Apply show the change."
         }
         // After Apply: open apps keep the old bars, and Files keeps running in the background.
@@ -68,6 +69,7 @@ Card {
             label: "Height"
             from: 36; to: 64; stepSize: 1
             value: Backend.headerHeight
+            defaultValue: Backend.defaults.header_height
             format: (v) => Math.round(v) === root.gnomeHeight ? Math.round(v) + " px · GNOME default" : Math.round(v) + " px"
             onMoved: (v) => Backend.headerHeight = v
             tip: "Sets how tall the bar at the top of app windows is. 47 px is GNOME's normal size."

@@ -20,14 +20,21 @@ RUN set -e; if ls /usr/local/share/ca-certificates/extra/*.crt >/dev/null 2>&1; 
     apt-get update -qq; \
     apt-get install -y -qq --no-install-recommends ca-certificates >/dev/null; update-ca-certificates >/dev/null
 
-RUN apt-get install -y -qq --no-install-recommends \
+# The package mirror drops a download now and then (seen three times in one day on the
+# GNOME 51 base). Each download is retried, and a failed install gets a fresh package list
+# and two more tries. apt's own messages are printed when a try fails, so the cause shows.
+RUN set -e; n=1; \
+    until apt-get install -y -qq --no-install-recommends -o Acquire::Retries=3 \
       gnome-shell gnome-shell-extensions gnome-shell-extension-prefs mutter xwayland dbus dbus-x11 gjs gnome-menus \
       gsettings-desktop-schemas libglib2.0-bin libglib2.0-dev-bin dconf-cli \
       nautilus ptyxis gedit adwaita-icon-theme fonts-cantarell fonts-dejavu-core \
       python3 python3-gi python3-numpy python3-pil git curl unzip libxml2-utils procps xz-utils libarchive-tools \
       libnss3 libatk-bridge2.0-0t64 libgtk-3-0t64 libgbm1 libasound2t64 libcups2t64 libxss1 libxtst6 libsecret-1-0 \
-      libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libnotify4 >/dev/null \
-    && rm -rf /var/lib/apt/lists/*
+      libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libnotify4 >/tmp/apt.log 2>&1; do \
+      echo "Package install try $n failed:"; tail -n 30 /tmp/apt.log; \
+      [ "$n" -lt 3 ] || exit 1; n=$((n+1)); sleep 20; apt-get update -qq || true; \
+    done; \
+    rm -rf /var/lib/apt/lists/* /tmp/apt.log
 
 # ---- Pinned third-party pieces ------------------------------------------------------------
 ARG DTP=db578c4f0061686609ed0bd1422967dfee2554d6        # Dash to Panel v74

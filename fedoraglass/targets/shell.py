@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field, replace
 
+from .. import distro
 from ..env import Env
 from ..render import glass as rg
 from ..render import shell as rs
@@ -26,6 +27,17 @@ def _need_extension(env: Env, uuid: str, label: str, package: str) -> Detection:
     return Detection(True)
 
 
+def _need_extension_on(env: Env, uuid: str, label: str, package: str) -> Detection:
+    """For an extension we theme but never switch on ourselves (Dash to Panel, ArcMenu,
+    Spawn): one that is installed but switched off is not part of this desktop. Their
+    look needs the glass behind it, as the Shell theme's does (see _waits_for_glass)."""
+    # Extensions switched off altogether: said as such, not as "switched off" for each one.
+    d = _waits_for_glass(env, _need_extension(env, uuid, label, package))
+    if d.available and not env.extension_on(uuid):
+        return Detection(False, f"{label} is installed but switched off")
+    return d
+
+
 def _gset(schema: str, values: dict[str, str]) -> list[Action]:
     return [GSet(schema, k, v) for k, v in values.items()]
 
@@ -34,6 +46,7 @@ def _gset(schema: str, values: dict[str, str]) -> list[Action]:
 class GnomeShell(Target):
     id: str = "shell"
     name: str = "GNOME Shell"
+    plain: str = "Turns on the User Themes extension and selects the Fedora Glass theme for menus and pop-ups."
     waits_for_glass: bool = True
     group: str = "Desktop"
     summary: str = "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
@@ -42,7 +55,9 @@ class GnomeShell(Target):
         "Surfaces are translucent; the glass behind them comes from Fedora Glass effects."])
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
+        det = _need_extension(env, USER_THEME, "User Themes", "gnome-shell-extension-user-theme")
+        how = "" if det.available else distro.hint("user-theme")
+        return Detection(False, f"Install the User Themes extension: {how}") if how else _waits_for_glass(env, det)
 
     def css_path(self, env: Env):
         return env.data / "themes" / THEME_NAME / "gnome-shell/gnome-shell.css"
@@ -72,8 +87,10 @@ class GnomeShell(Target):
 class GlassEffects(Target):
     id: str = "glass"
     name: str = "Fedora Glass effects"
+    plain: str = ("Installs the Fedora Glass extension for GNOME and turns it on. "
+                  "It draws the live glass behind your panel, menus and overview.")
     group: str = "Desktop"
-    summary: str = ("Real glass behind the panel, menus, quick settings, ArcMenu or Spawn, app windows and the overview: "
+    summary: str = ("Real glass behind the panel or dock, menus, quick settings, app windows and the overview: "
                     "live blur, a refracting rim, rim light and a rainbow edge.")
     notes: list[str] = field(default_factory=lambda: [
         "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."])
@@ -99,7 +116,7 @@ class GlassEffects(Target):
         s = ctx.settings
         if s.start_on_desktop is not None:
             return s
-        return replace(s, start_on_desktop=s.start_on_desktop_for(ctx.env.extension_path(DASH_TO_PANEL) is not None))
+        return replace(s, start_on_desktop=s.start_on_desktop_for(ctx.env.extension_on(DASH_TO_PANEL)))
 
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
@@ -124,26 +141,146 @@ class GlassEffects(Target):
         on = s.start_on_desktop or s.overview_off
         acts: list[Action] = []
         for uuid, schema, key, value in self.STARTUP_KEYS:
-            if ctx.env.extension_path(uuid) is None:
+            if not ctx.env.extension_on(uuid):
                 continue
             acts.append(GSet(schema, key, value, keep_user_change=True) if on else GReset(schema, key))
         return acts
 
     def live_notes(self, ctx: Context) -> list[str]:
         notes = list(self.notes)
-        if not self.running(ctx.env):
+        st = glass_state(ctx.env)
+        if st.kind == "old":
+            notes.append(UPDATE_WAITS)
+        elif st.blocked:
+            notes.append(GLASS_BLOCKED[st.kind])
+        elif st.kind != "running":
             notes.append("Restart your PC once so GNOME Shell starts the Fedora Glass extension. "
                          "The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly.")
         return notes
 
     @staticmethod
     def running(env: Env) -> bool:
-        """Whether the Shell has loaded our extension (it only finds new ones at login)."""
-        r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
-                     "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", rg.UUID], timeout=5)
-        m = re.search(r"'state': <([\d.]+)>", r.out) if r.code == 0 else None
-        return m is not None and float(m.group(1)) == 1.0   # 1 = enabled and running
+        """Whether the Shell runs this version's glass extension. It only finds new ones at
+        login, and keeps running the code it started with: after an upgrade the older
+        version runs until the next login, and the Shell parts wait for the new one."""
+        return glass_state(env).kind == "running"
 
+
+# Shown while GNOME runs the glass extension of an older Fedora Glass (after an upgrade).
+UPDATE_WAITS = "Restart your PC to finish the update. Until then the glass from the older version keeps running."
+
+# Why the glass can't start, when a restart won't fix it: the app's note for each.
+GLASS_BLOCKED = {
+    "off": "Extensions are switched off in GNOME, so the glass can't start.",
+    "out-of-date": "This version of Fedora Glass doesn't support your GNOME version yet. "
+                   "Update Fedora Glass to get the glass back.",
+    "error": "The glass effects hit an error and stopped. Your desktop works as usual.",
+}
+# The same, for a Shell part that needs the glass behind it (shown in the Apply results).
+GLASS_BLOCKED_PART = {
+    "off": "Extensions are switched off in GNOME, so this part can't show. Switch them on, then Apply again.",
+    "out-of-date": "Left as it is: this version of Fedora Glass doesn't support your GNOME version yet. "
+                   "Update Fedora Glass to fix it.",
+    "error": "Left as it is: the glass effects hit an error, and this part needs them.",
+}
+
+
+@dataclass(frozen=True)
+class GlassState:
+    """What GNOME Shell says about the glass extension. kind:
+    "running"      this version runs
+    "old"          an older version is loaded (GNOME only loads new code at the next login)
+    "off"          extensions are switched off in GNOME altogether
+    "out-of-date"  GNOME won't start it: this GNOME isn't in its shell-version list
+    "error"        it failed to start (`error` has GNOME's text)
+    "not-started"  not running yet: new extensions start at the next login"""
+    kind: str
+    version: str = ""       # the loaded extension's version-name, when GNOME says
+    error: str = ""
+
+    @property
+    def blocked(self) -> bool:
+        """It won't start by itself, not even after a restart."""
+        return self.kind in GLASS_BLOCKED
+
+
+def _gvariant_str(out: str, key: str) -> str | None:
+    # GVariant text quotes a string with ' unless it holds one, then with ".
+    m = re.search(rf"""'{re.escape(key)}': <(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")>""", out)
+    return (m.group(1) if m.group(1) is not None else m.group(2)) if m else None
+
+
+def _version_key(v: str) -> tuple[int, ...] | None:
+    parts = v.strip().split(".")
+    return tuple(int(p) for p in parts) if parts and all(p.isdigit() for p in parts) else None
+
+
+def older_than_app(version: str) -> bool:
+    """True when `version` is an older Fedora Glass than this app. False when either
+    can't be read: then nothing changes from before."""
+    from .. import __version__
+    have, want = _version_key(version), _version_key(__version__)
+    return have is not None and want is not None and have < want
+
+
+# GNOME's extension states (ExtensionState): 1 running, 3 error, 4 out of date.
+_RUNNING, _ERROR, _OUT_OF_DATE = 1.0, 3.0, 4.0
+
+
+def glass_state(env: Env) -> GlassState:
+    if env.extensions_switched_off():
+        return GlassState("off")
+    r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+                 "--method", "org.gnome.Shell.Extensions.GetExtensionInfo", rg.UUID], timeout=5)
+    if r.code != 0:
+        return GlassState("not-started")
+    m = re.search(r"'state': <([\d.]+)>", r.out)
+    state = float(m.group(1)) if m else None
+    version = _gvariant_str(r.out, "version-name") or ""
+    if state in (_RUNNING, _ERROR, _OUT_OF_DATE) and older_than_app(version):
+        # The older version's code, or its list of GNOME versions: the next login
+        # loads this version, which may well start.
+        return GlassState("old", version)
+    if state == _RUNNING:
+        return GlassState("running", version)
+    # GNOME also marks an extension that is switched off as out of date or failed:
+    # only the glass that is wanted (on GNOME's list) counts.
+    if state in (_ERROR, _OUT_OF_DATE) and env.extension_enabled(rg.UUID):
+        if state == _OUT_OF_DATE:
+            return GlassState("out-of-date", version)
+        return GlassState("error", version, _gvariant_str(r.out, "error") or "")
+    return GlassState("not-started", version)
+
+
+def glass_blocked(env: Env) -> str:
+    """Why the glass can't start without the user's help ("off", "out-of-date", "error"), or ""."""
+    if env.extensions_switched_off():
+        return "off"
+    if not env.extension_enabled(rg.UUID):
+        return ""           # not switched on yet: nothing to ask GNOME
+    st = glass_state(env)
+    return st.kind if st.blocked else ""
+
+
+def _waits_for_glass(env: Env, d: Detection) -> Detection:
+    """For a Shell part that needs the glass behind it: with a glass that can't start
+    (see glass_blocked), it is left as it is, said in plain words, instead of waiting
+    for a restart that won't bring the glass."""
+    if d.available and (why := glass_blocked(env)):
+        return Detection(False, GLASS_BLOCKED_PART[why])
+    return d
+
+
+def glass_problem(env: Env, wanted: bool = True) -> tuple[str, str, str]:
+    """For the app: what stands between the user and the glass, as (kind, a short note,
+    details to copy), or ("", "", "") when nothing does (or the glass simply waits for
+    the first restart, which the app already says). `wanted`: the glass part is on."""
+    st = glass_state(env)
+    if st.kind == "old":
+        return "old", UPDATE_WAITS, ""
+    if st.blocked and (wanted or st.kind != "off"):
+        return st.kind, GLASS_BLOCKED[st.kind], st.error
+    return "", "", ""
 
 
 def extension_info(env: Env, uuid: str) -> tuple[float | None, str]:
@@ -223,6 +360,7 @@ def unpark_arcmenu(env: Env) -> None:
 class DashToPanel(Target):
     id: str = "dash-to-panel"
     name: str = "Dash to Panel"
+    plain: str = "Sets Dash to Panel's colours, border and hover effect so your panel looks like glass."
     waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
@@ -230,7 +368,7 @@ class DashToPanel(Target):
     SCHEMA = "org.gnome.shell.extensions.dash-to-panel"
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, DASH_TO_PANEL, "Dash to Panel", "gnome-shell-extension-dash-to-panel")
+        return _need_extension_on(env, DASH_TO_PANEL, "Dash to Panel", "gnome-shell-extension-dash-to-panel")
 
     def plan(self, ctx: Context) -> list[Action]:
         acts = _gset(self.SCHEMA, rs.dtp_values(ctx.tokens))
@@ -254,6 +392,7 @@ class DashToPanel(Target):
 class ArcMenu(Target):
     id: str = "arcmenu"
     name: str = "ArcMenu"
+    plain: str = "Sets ArcMenu's colours and corners so the menu and its button look like glass."
     waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass menu and menu button; colours, radius, search pill and hover washes."
@@ -261,7 +400,7 @@ class ArcMenu(Target):
     SCHEMA = "org.gnome.shell.extensions.arcmenu"
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, ARCMENU, "ArcMenu", "gnome-shell-extension-arcmenu")
+        return _need_extension_on(env, ARCMENU, "ArcMenu", "gnome-shell-extension-arcmenu")
 
     def plan(self, ctx: Context) -> list[Action]:
         return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))
@@ -273,6 +412,7 @@ class Spawn(Target):
     has none of ArcMenu's restart bug, so nothing parks it (see park_arcmenu)."""
     id: str = "spawn"
     name: str = "Spawn"
+    plain: str = "Sets Spawn's colours and corners so the menu and its button look like glass."
     waits_for_glass: bool = True
     group: str = "Panel"
     summary: str = "Glass menu and menu button; colours, radius, search pill and hover washes."
@@ -280,7 +420,7 @@ class Spawn(Target):
     SCHEMA = "org.gnome.shell.extensions.spawn"
 
     def detect(self, env: Env) -> Detection:
-        return _need_extension(env, SPAWN, "Spawn", "gnome-shell-extension-spawn")
+        return _need_extension_on(env, SPAWN, "Spawn", "gnome-shell-extension-spawn")
 
     def plan(self, ctx: Context) -> list[Action]:
         return _gset(self.SCHEMA, rs.arcmenu_values(ctx.tokens))

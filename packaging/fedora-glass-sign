@@ -24,7 +24,7 @@ die()  { printf '\033[1;31mStopped:\033[0m %s\n' "$*" >&2; exit 1; }
 need() { for t in "$@"; do command -v "$t" >/dev/null || die "$t is missing. Run: sudo dnf install rpm-sign createrepo_c gh"; done; }
 
 # Builds the apt and pacman indexes (a copy of packaging/repo_index.py, kept the same by
-# tests/test_repo_index.py). Standard library Python only, run with -I.
+# tests/test_distro.py). Standard library Python only, run with -I.
 repo_index() { python3 -I -c "$REPO_INDEX_PY" "$@"; }
 # REPO_INDEX start
 REPO_INDEX_PY=$(cat <<'REPO_INDEX_EOF'
@@ -32,7 +32,7 @@ REPO_INDEX_PY=$(cat <<'REPO_INDEX_EOF'
 
 fedora-glass-sign carries a copy of this file (between its REPO_INDEX markers) and runs it
 with python3 -I on Dino's PC, so signing needs nothing beyond gpg and Python. Keep the two
-the same: tests/test_repo_index.py checks that they are.
+the same: tests/test_distro.py checks that they are.
 
   repo_index.py deb-info FILE.deb        prints "name version"
   repo_index.py pkg-info FILE.pkg.tar.xz prints "name version"
@@ -314,16 +314,135 @@ cmd_backup() {
     echo "To restore it on a new PC:  gpg -d '$out' | gpg --import   then  fedora-glass-sign setup"
 }
 
+# Exit code 3 means: the release failed a provenance check, so nothing was signed.
+refuse() { printf '\033[1;31mNOT signed:\033[0m %s\n' "$*" >&2; exit 3; }
+
+# The commit a release tag points at (through an annotated tag, if it is one).
+tag_commit() {
+    local obj type sha _
+    obj="$(gh api "repos/$REPO/git/ref/tags/$1" --jq '.object.type + " " + .object.sha' 2>/dev/null)" || return 1
+    for _ in 1 2 3; do
+        read -r type sha <<<"$obj"
+        [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
+        if [ "$type" = commit ]; then echo "$sha"; return 0; fi
+        [ "$type" = tag ] || return 1
+        obj="$(gh api "repos/$REPO/git/tags/$sha" --jq '.object.type + " " + .object.sha' 2>/dev/null)" || return 1
+    done
+    return 1
+}
+
+# Before anything is signed: the tag must point at a commit that is on main. Sets $sha.
+check_on_main() {
+    sha="$(tag_commit "$1")" || refuse "could not find the commit of tag $1 on GitHub."
+    local st
+    st="$(gh api "repos/$REPO/compare/main...$sha" --jq .status 2>/dev/null)" || refuse "could not check that $1 is on main."
+    case "$st" in
+        behind|identical) ;;   # the commit is main, or an older commit of main
+        *) refuse "$1 ($sha) is not on main (GitHub says: ${st:-nothing})." ;;
+    esac
+}
+
+# The file has a build provenance attestation (Sigstore) saying that this repository's
+# Release workflow built it from commit $sha, on GitHub's own runners: run for the tag
+# itself (a pushed tag) or on main (a release started from the Actions tab). The
+# certificate identity is matched exactly, not as a prefix.
+attested() {
+    local ref
+    for ref in "refs/tags/$2" refs/heads/main; do
+        gh attestation verify "$1" --repo "$REPO" \
+            --cert-identity "https://github.com/$REPO/.github/workflows/release.yml@$ref" \
+            --source-ref "$ref" --source-digest "$sha" --deny-self-hosted-runners >/dev/null 2>&1 && return 0
+    done
+    return 1
+}
+
+# Lists the paths in a repository bundle, refusing links, devices and odd names
+# (the same rules as dnf-repo.yml).
+bundle_ok() {
+    tar -tvzf "$1" > "$work/bundle.lst" 2>/dev/null || return 1
+    awk '{ print substr($1, 1, 1) }' "$work/bundle.lst" > "$work/bundle.types"
+    ! grep -qv '^[-d]$' "$work/bundle.types" || return 1
+    tar -tzf "$1" > "$work/bundle.names" || return 1
+    ! grep -Evx 'rpms/?|rpms/repodata/?|rpms/[A-Za-z0-9._+~^-]+\.rpm|rpms/repodata/[A-Za-z0-9._-]+|apt/?|apt/[A-Za-z0-9._+~-]+|arch/?|arch/[A-Za-z0-9._+~-]+' "$work/bundle.names" >/dev/null || return 1
+    ! grep -Eq '(^|/)\.\.?(/|$)' "$work/bundle.names"
+}
+
+# The older releases in the window (so `dnf downgrade` can roll back) are not signed
+# again. Their packages come from the newest earlier signed repository (the
+# dnf-repo.tar.gz on an older release, which is what the site published), and each one
+# is kept only if your key's signature on it (or, for Ubuntu, on the index that lists
+# its hash) verifies and its name and version belong to one of those releases.
+carry_over() {
+    local from="" t p n pn pv h want a kept=0
+    [ -n "$older" ] || return 0
+    for t in $older; do
+        rm -rf "$work/old"; mkdir -p "$work/old"
+        if gh release download "$t" --repo "$REPO" -D "$work/old" -p dnf-repo.tar.gz 2>/dev/null; then from="$t"; break; fi
+    done
+    if [ -z "$from" ]; then say "No earlier signed repository on GitHub: publishing only $tag."; return 0; fi
+    bundle_ok "$work/old/dnf-repo.tar.gz" || die "the signed repository of $from has unexpected files in it."
+    mkdir -p "$work/old/x"
+    tar -xzf "$work/old/dnf-repo.tar.gz" -C "$work/old/x" --no-same-owner --no-same-permissions
+    for p in "$work"/old/x/rpms/*.rpm; do
+        [ -f "$p" ] || continue
+        rpmkeys --root "$work/root" --define '_pkgverify_level all' --checksig "$p" >/dev/null 2>&1 \
+            || { say "Not kept (not signed by your key): $(basename "$p")"; continue; }
+        read -r pn pv < <(rpm -qp --nosignature --qf '%{name} v%{version}\n' "$p") || continue
+        case "$pn" in fedora-glass|liquid-glass) ;; *) continue ;; esac
+        case " $older " in *" $pv "*) ;; *) continue ;; esac
+        n="$(rpm -qp --nosignature --qf '%{name}-%{version}-%{release}' "$p").noarch.rpm"
+        [ -e "$work/site/rpms/$n" ] || { cp "$p" "$work/site/rpms/$n"; kept=$((kept + 1)); }
+    done
+    # Ubuntu: a .deb carries no signature of its own; its hash is in the signed index.
+    a="$work/old/x/apt"
+    if [ -f "$a/Release" ] && [ -f "$a/Release.gpg" ] && [ -f "$a/Packages" ] \
+       && gpgv --keyring "$work/main.gpg" "$a/Release.gpg" "$a/Release" 2>/dev/null \
+       && grep -Eqx " $(sha256sum < "$a/Packages" | cut -d' ' -f1) [0-9]+ Packages" "$a/Release"; then
+        for p in "$a"/*.deb; do
+            [ -f "$p" ] || continue
+            want="$(awk -v f="./$(basename "$p")" '
+                /^Filename: / { fn = $2 } /^SHA256: / { h = $2 }
+                /^$/ { if (fn == f) print h; fn = h = "" }
+                END { if (fn == f) print h }' "$a/Packages")"
+            h="$(sha256sum < "$p" | cut -d' ' -f1)"
+            [ -n "$want" ] && [ "$h" = "$want" ] || { say "Not kept (not in the signed apt index): $(basename "$p")"; continue; }
+            read -r pn pv < <(repo_index deb-info "$p") || continue
+            [ "$pn" = fedora-glass ] || continue
+            case " $older " in *" v${pv%-*} "*) ;; *) continue ;; esac
+            n="fedora-glass_${pv}_all.deb"
+            [ -e "$work/site/apt/$n" ] || { cp "$p" "$work/site/apt/$n"; kept=$((kept + 1)); }
+        done
+    fi
+    # Arch: each package has its own signature.
+    for p in "$work"/old/x/arch/*.pkg.tar.xz; do
+        [ -f "$p" ] || continue
+        if ! { [ -f "$p.sig" ] && gpgv --keyring "$work/main.gpg" "$p.sig" "$p" 2>/dev/null; }; then
+            say "Not kept (not signed by your key): $(basename "$p")"; continue
+        fi
+        read -r pn pv < <(repo_index pkg-info "$p") || continue
+        [ "$pn" = fedora-glass ] || continue
+        case " $older " in *" v${pv%-*} "*) ;; *) continue ;; esac
+        n="fedora-glass-${pv}-any.pkg.tar.xz"
+        [ -e "$work/site/arch/$n" ] || { cp "$p" "$work/site/arch/$n"; cp "$p.sig" "$work/site/arch/$n.sig"; kept=$((kept + 1)); }
+    done
+    say "Kept $kept already signed packages of the releases before $tag (from the signed repository of $from)."
+}
+
 cmd_publish() {
-    need gpg rpmsign rpm createrepo_c gh sha256sum tar python3
+    need gpg gpgv rpmsign rpm rpmkeys createrepo_c gh sha256sum tar python3
     saved_key
     gh auth status >/dev/null 2>&1 || die "gh is not signed in. Run: gh auth login"
+    gh attestation verify --help >/dev/null 2>&1 || die "this gh is too old to check build provenance. Run: sudo dnf upgrade gh"
     newwork
 
     # The public key on main must be this key, or dnf would refuse what we sign.
     gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/packaging/$KEYFILE?ref=main" > "$work/main.key" 2>/dev/null \
         || die "main has no packaging/$KEYFILE yet. Send Claude your public key ($CONF/$KEYFILE) first."
-    key_fprs "$work/main.key" | grep -qx "$fpr" || die "the public key on main is not your key $fpr."
+    key_fprs "$work/main.key" > "$work/main.fprs"
+    grep -qx "$fpr" "$work/main.fprs" || die "the public key on main is not your key $fpr."
+    gpg --batch --dearmor < "$work/main.key" > "$work/main.gpg"
+    mkdir -p "$work/root"
+    rpmkeys --root "$work/root" --import "$work/main.key"
 
     tag="${1:-$(gh release view --repo "$REPO" --json tagName -q .tagName)}"
     case "$tag" in v[0-9]*) ;; *) die "not a release tag: $tag" ;; esac
@@ -331,40 +450,50 @@ cmd_publish() {
     tags="$(gh release list --repo "$REPO" --exclude-drafts --exclude-pre-releases --limit 100 --json tagName -q '.[].tagName' \
             | grep -E '^v[0-9]' | sort -rV | awk -v t="$tag" 'f || $0 == t { f = 1; print }' | head -3)"
     [ "$(echo "$tags" | head -1)" = "$tag" ] || die "there is no release $tag."
+    older="$(echo "$tags" | tail -n +2 | tr '\n' ' ')"
+
+    # Nothing of this release is signed unless its tag is on main and every package was
+    # built by the Release workflow from that commit (a checksum file on the same
+    # release proves nothing about who uploaded it).
+    check_on_main "$tag"
 
     mkdir -p "$work/site/rpms" "$work/site/apt" "$work/site/arch"
-    for t in $tags; do
-        d="$work/dl/$t"; mkdir -p "$d"
-        gh release download "$t" --repo "$REPO" -D "$d" -p SHA256SUMS 2>/dev/null || { [ "$t" = "$tag" ] && die "$t has no SHA256SUMS."; continue; }
-        for n in fedora-glass.noarch.rpm liquid-glass.noarch.rpm fedora-glass.deb fedora-glass.pkg.tar.xz; do
-            grep -q " $n\$" "$d/SHA256SUMS" || continue
-            gh release download "$t" --repo "$REPO" -D "$d" -p "$n" || die "could not download $n from $t."
-            (cd "$d" && grep " $n\$" SHA256SUMS | sha256sum --quiet -c -) || die "$t $n does not match its SHA256SUMS."
-            f="$d/$n"
-            case "$n" in
-                *.rpm)
-                    want="${n%%.noarch.rpm}"
-                    [ "$(rpm -qp --nosignature --qf '%{name} v%{version}' "$f")" = "$want $t" ] || die "$t $n is not $want $t."
-                    cp "$f" "$work/site/rpms/$(rpm -qp --nosignature --qf '%{name}-%{version}-%{release}' "$f").noarch.rpm" ;;
-                *.deb)
-                    read -r pn pv < <(repo_index deb-info "$f") || die "$t $n can't be read."
-                    [ "$pn" = fedora-glass ] && [ "${pv%-*}" = "${t#v}" ] || die "$t $n is not fedora-glass $t."
-                    cp "$f" "$work/site/apt/fedora-glass_${pv}_all.deb" ;;
-                *.pkg.tar.xz)
-                    read -r pn pv < <(repo_index pkg-info "$f") || die "$t $n can't be read."
-                    [ "$pn" = fedora-glass ] && [ "${pv%-*}" = "${t#v}" ] || die "$t $n is not fedora-glass $t."
-                    cp "$f" "$work/site/arch/fedora-glass-${pv}-any.pkg.tar.xz" ;;
-            esac
-        done
+    d="$work/dl/$tag"; mkdir -p "$d"
+    gh release download "$tag" --repo "$REPO" -D "$d" -p SHA256SUMS 2>/dev/null || die "$tag has no SHA256SUMS."
+    for n in fedora-glass.noarch.rpm liquid-glass.noarch.rpm fedora-glass.deb fedora-glass.pkg.tar.xz; do
+        grep -q " $n\$" "$d/SHA256SUMS" || continue
+        gh release download "$tag" --repo "$REPO" -D "$d" -p "$n" || die "could not download $n from $tag."
+        (cd "$d" && grep " $n\$" SHA256SUMS | sha256sum --quiet -c -) || die "$tag $n does not match its SHA256SUMS."
+        f="$d/$n"
+        attested "$f" "$tag" || refuse "$tag $n has no build provenance from the Release workflow for commit $sha (gh attestation verify failed)."
+        case "$n" in
+            *.rpm)
+                want="${n%%.noarch.rpm}"
+                [ "$(rpm -qp --nosignature --qf '%{name} v%{version}' "$f")" = "$want $tag" ] || die "$tag $n is not $want $tag."
+                cp "$f" "$work/site/rpms/$(rpm -qp --nosignature --qf '%{name}-%{version}-%{release}' "$f").noarch.rpm" ;;
+            *.deb)
+                read -r pn pv < <(repo_index deb-info "$f") || die "$tag $n can't be read."
+                [ "$pn" = fedora-glass ] && [ "${pv%-*}" = "${tag#v}" ] || die "$tag $n is not fedora-glass $tag."
+                cp "$f" "$work/site/apt/fedora-glass_${pv}_all.deb" ;;
+            *.pkg.tar.xz)
+                read -r pn pv < <(repo_index pkg-info "$f") || die "$tag $n can't be read."
+                [ "$pn" = fedora-glass ] && [ "${pv%-*}" = "${tag#v}" ] || die "$tag $n is not fedora-glass $tag."
+                cp "$f" "$work/site/arch/fedora-glass-${pv}-any.pkg.tar.xz" ;;
+        esac
     done
     ls "$work"/site/rpms/fedora-glass-"${tag#v}"-*.noarch.rpm >/dev/null 2>&1 || die "$tag has no fedora-glass RPM."
-    gpg --batch --dearmor < "$work/main.key" > "$work/main.gpg"
 
+    # Only this release's packages are signed now; the older ones are already signed.
     say "Signing $(ls "$work/site/rpms" | wc -l) packages for $tag (gpg may ask for your passphrase)..."
     rpmsign --define "_openpgp_sign_id $fpr" --define "_gpg_name $fpr" --addsign "$work"/site/rpms/*.rpm >/dev/null
-    # Check them the way dnf will: with only your public key trusted.
-    mkdir -p "$work/root"
-    rpmkeys --root "$work/root" --import "$work/main.key"
+    for p in "$work"/site/arch/*.pkg.tar.xz; do
+        [ -f "$p" ] || continue
+        gpg --batch=no --quiet --yes -u "$fpr" --digest-algo SHA512 --detach-sign -o "$p.sig" "$p"
+        gpgv --keyring "$work/main.gpg" "$p.sig" "$p" 2>/dev/null || die "$(basename "$p") did not verify after signing."
+    done
+    carry_over
+
+    # Check every package the way dnf will: with only your public key trusted.
     for p in "$work"/site/rpms/*.rpm; do
         rpmkeys --root "$work/root" --define '_pkgverify_level all' --checksig "$p" >/dev/null || die "$(basename "$p") did not verify after signing."
     done
@@ -386,8 +515,7 @@ cmd_publish() {
     # Arch: pacman checks each package's own signature and the signed database.
     if ls "$work"/site/arch/*.pkg.tar.xz >/dev/null 2>&1; then
         for p in "$work"/site/arch/*.pkg.tar.xz; do
-            gpg --batch=no --quiet --yes -u "$fpr" --digest-algo SHA512 --detach-sign -o "$p.sig" "$p"
-            gpgv --keyring "$work/main.gpg" "$p.sig" "$p" 2>/dev/null || die "$(basename "$p") did not verify after signing."
+            gpgv --keyring "$work/main.gpg" "$p.sig" "$p" 2>/dev/null || die "$(basename "$p") is not signed by your key."
         done
         SOURCE_DATE_EPOCH="$(date +%s)" repo_index arch "$work/site/arch" fedora-glass
         for db in fedora-glass.db fedora-glass.db.tar.gz; do
@@ -403,6 +531,9 @@ cmd_publish() {
     say "Uploading the signed repository to release $tag..."
     gh release upload "$tag" "$work/dnf-repo.tar.gz" --repo "$REPO" --clobber
     gh workflow run dnf-repo.yml --repo "$REPO" --ref main -f tag="$tag"
+    # For `auto`: when this publish started, and that it has not been retried yet.
+    : > "$CONF/publishing-$tag"
+    rm -f "$CONF/publish-tries-$tag" "$CONF/publish-gave-up-$tag"
     say "Done. GitHub is publishing it now (about 2 minutes): https://github.com/$REPO/actions/workflows/dnf-repo.yml"
     echo "Then: sudo dnf upgrade --refresh  (Ubuntu: sudo apt update && sudo apt upgrade, Arch: sudo pacman -Syu)"
 }
@@ -412,30 +543,75 @@ notify() {
     notify-send -a "Fedora Glass" -i io.github.djshiye.LiquidGlass "$1" "${2:-}" 2>/dev/null || :
 }
 
+# How many times `auto` starts the publish workflow again when the site stays behind.
+PUBLISH_TRIES=3
+
+# The release has its signed repository: is the site serving it? Says "published" once
+# it is, and if it is not, starts the publish workflow again (it sometimes times out),
+# at most PUBLISH_TRIES times, at least 20 minutes apart.
+site_check() {
+    local tag="$1" v="${1#v}" served runs n marker="$CONF/publishing-$1" tries="$CONF/publish-tries-$1" gaveup="$CONF/publish-gave-up-$1"
+    served="$(curl -fsS --max-time 30 "$SITE/version.txt?t=$(date +%s)" 2>/dev/null)" || return 0   # offline: later
+    served="${served%%[[:space:]]*}"
+    [[ "$served" =~ ^[0-9A-Za-z.:~^_+-]+$ ]] || return 0
+    if [ "${served%-*}" = "$v" ]; then
+        if [ -f "$marker" ]; then
+            rm -f "$marker" "$tries" "$gaveup"
+            notify "Fedora Glass $v is published" "sudo dnf upgrade (apt upgrade, pacman -Syu) picks it up now."
+        fi
+        return 0
+    fi
+    # The site serves something newer than this release: nothing to do.
+    [ "$(printf '%s\n%s\n' "${served%-*}" "$v" | sort -V | tail -1)" = "$v" ] || return 0
+    # A publish run is still going (or waiting): let it finish.
+    runs="$(gh run list --repo "$REPO" --workflow dnf-repo.yml --limit 5 --json status -q '.[].status' 2>/dev/null)" || return 0
+    if [ -n "$runs" ] && grep -qvx completed <<<"$runs"; then return 0; fi
+    # Pages and its cache take a few minutes after a run.
+    if [ -f "$marker" ] && [ $(( $(date +%s) - $(stat -c %Y "$marker") )) -lt 1200 ]; then return 0; fi
+    n="$(cat "$tries" 2>/dev/null || :)"
+    [[ "$n" =~ ^[0-9]+$ ]] || n=0
+    if [ "$n" -ge "$PUBLISH_TRIES" ]; then
+        [ -f "$gaveup" ] && return 0
+        : > "$gaveup"
+        notify "Fedora Glass $v is signed but NOT published" "Publishing failed $((n + 1)) times, so it is not tried again. See https://github.com/$REPO/actions/workflows/dnf-repo.yml"
+        return 1
+    fi
+    gh workflow run dnf-repo.yml --repo "$REPO" --ref main -f tag="$tag" >/dev/null 2>&1 || return 0
+    echo $((n + 1)) > "$tries"
+    : > "$marker"
+    notify "Fedora Glass $v is signed, publishing again" "The website did not get it last time (try $((n + 1)) of $PUBLISH_TRIES)."
+}
+
 # Run by the systemd user timer: if the newest release has no signed repository yet,
-# sign and publish it. Quiet when there is nothing to do or GitHub can't be reached.
+# sign and publish it; if it has one but the site is behind, publish it again.
+# Quiet when there is nothing to do or GitHub can't be reached.
 cmd_auto() {
-    need gpg rpmsign rpm createrepo_c gh sha256sum tar flock python3
+    need gpg gpgv rpmsign rpm rpmkeys createrepo_c gh sha256sum tar flock python3 curl
     saved_key
     exec 9>"$CONF/auto.lock"
     flock -n 9 || exit 0
     tag="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null)" || exit 0
     case "$tag" in v[0-9]*) ;; *) exit 0 ;; esac
     assets="$(gh release view "$tag" --repo "$REPO" --json assets -q '.assets[].name' 2>/dev/null)" || exit 0
-    printf '%s\n' "$assets" | grep -qx dnf-repo.tar.gz && exit 0
+    if grep -qx dnf-repo.tar.gz <<<"$assets"; then site_check "$tag"; exit; fi
     # Only once the release has its checksums (the Release workflow adds them with the RPMs).
-    printf '%s\n' "$assets" | grep -qx SHA256SUMS || exit 0
+    grep -qx SHA256SUMS <<<"$assets" || exit 0
     # After a failure (or a cancelled passphrase prompt) wait an hour before the next try.
     failed="$CONF/auto-failed-$tag"
     if [ -f "$failed" ] && [ $(( $(date +%s) - $(stat -c %Y "$failed") )) -lt 3600 ]; then exit 0; fi
     if "$(readlink -f "$0")" "$tag" > "$CONF/auto.log" 2>&1; then
         rm -f "$failed"
-        notify "Fedora Glass ${tag#v} is signed and published" "sudo dnf upgrade will pick it up in a few minutes."
+        notify "Fedora Glass ${tag#v} is signed, publishing it now" "You get another notification once it is published."
     else
+        rc=$?
         touch "$failed"
         why="$(grep -v '^$' "$CONF/auto.log" | tail -1 | sed 's/\x1b\[[0-9;]*m//g')"
         [ -n "$why" ] || why="see $CONF/auto.log"
-        notify "Fedora Glass ${tag#v} could not be signed yet" "${why%.}. Trying again in an hour."
+        if [ "$rc" -eq 3 ]; then
+            notify "Fedora Glass ${tag#v} was NOT signed" "${why#NOT signed: }"
+        else
+            notify "Fedora Glass ${tag#v} could not be signed yet" "${why%.}. Trying again in an hour."
+        fi
         exit 1
     fi
 }

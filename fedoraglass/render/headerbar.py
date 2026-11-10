@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from ..palette import Tokens
 from ..settings import Settings
+from .glass import WINDOW_CEILING
 
 GNOME_HEIGHT = 47       # libadwaita's own header bar height
 _BUTTON = 34            # libadwaita header bar button height
@@ -40,11 +41,43 @@ _COLLAPSE = 3           # padding libadwaita puts above and below bars in a .col
 COMMENT = "/* ---- header bars: height and glass (Fedora Glass settings) ---- */\n"
 
 
+# White title text on a header bar keeps at least this contrast: WCAG AA (4.5:1)
+# with a little room, since the lens edge at the top lets a touch more through.
+TEXT_CONTRAST = 5.0
+
+
+def readable_alpha(t: Tokens) -> float:
+    """The least header fill that keeps white title text readable on dark glass.
+
+    The window glass under a dark window may get as bright as WINDOW_CEILING (a
+    white or orange wallpaper). The window body's own fill darkens that further,
+    but a clearer header bar shows more of it: at 10 % a bright wallpaper came
+    through as a mustard bar (3.5:1) over a calm smoked body. So the header fill
+    never goes below the share that brings the brightest glass down to 5:1.
+    GTK and Mutter blend in display values (gamma 2.2), so the sum is done there.
+    Light glass and windows without glass have no ceiling: 0."""
+    if not t.dark or not t.blur_app_windows or t.blur_radius <= 0:
+        return 0.0
+    g = 1 / 2.2
+    glass = WINDOW_CEILING ** g
+    target = (1.05 / TEXT_CONTRAST - 0.05) ** g
+    c = t.window
+    fill = (0.2126 * c.r ** 2.2 + 0.7152 * c.g ** 2.2 + 0.0722 * c.b ** 2.2) ** g
+    if glass <= target or glass <= fill:
+        return 0.0
+    return round(min(1.0, (glass - target) / (glass - fill)), 3)
+
+
+def header_alpha(s: Settings, t: Tokens) -> float:
+    """How solid the header bar is: the user's choice, but never less readable than readable_alpha."""
+    return max(s.header_opacity, readable_alpha(t))
+
+
 def header_color(s: Settings, t: Tokens):
     """The header bar colour for one scheme, or None to keep the window glass."""
     if s.header_opacity is None or s.reduce_transparency:
         return None
-    return t.window.with_alpha(s.header_opacity)
+    return t.window.with_alpha(header_alpha(s, t))
 
 
 def active(s: Settings) -> bool:
@@ -130,7 +163,7 @@ def ptyxis_titlebar(s: Settings, t: Tokens, window_opacity: float):
     opacity, so the bar adds just enough to land on the header's alpha (or the
     window glass alpha when the user hasn't set one)."""
     s = s.normalized()
-    target = t.window.a if s.header_opacity is None or s.reduce_transparency else s.header_opacity
+    target = t.window.a if s.header_opacity is None or s.reduce_transparency else header_alpha(s, t)
     if window_opacity >= 1.0:
         alpha = 0.0
     else:

@@ -10,7 +10,7 @@ NEEDLE = "qmlRegisterSingleton" + "Instance("     # split, so this file doesn't 
 def test_only_the_shared_fixture_registers_the_qml_singleton():
     """A second singleton registration in one test run breaks Qt's type registry and
     brings back order-dependent QML failures. QML tests take the session `qml` fixture
-    in conftest.py instead."""
+    in conftest.py instead. It registers each singleton once: Backend and Cursors."""
     here = Path(__file__).resolve().parent
     counts = {p.name: p.read_text(encoding="utf-8").count(NEEDLE) for p in here.glob("*.py")}
-    assert {k: v for k, v in counts.items() if v} == {"conftest.py": 1}
+    assert {k: v for k, v in counts.items() if v} == {"conftest.py": 2}

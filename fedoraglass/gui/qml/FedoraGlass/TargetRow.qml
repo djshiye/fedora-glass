@@ -80,7 +80,7 @@ Item {
                 text: row.item.detail || ""
                 readOnly: true
                 selectByMouse: true
-                color: Theme.warn
+                color: Theme.textDim     // not installed is not a problem: no warning colour
                 selectionColor: Theme.alpha(Theme.accent, 0.4)
                 font.pixelSize: 13
                 wrapMode: TextEdit.Wrap

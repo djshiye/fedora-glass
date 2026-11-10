@@ -54,6 +54,25 @@ GLASS_SURFACES = (".popup-menu-content", ".quick-settings", ".notification-banne
                   ".spawn-menu-popup .popup-menu-content", ".spawn-context-menu .popup-menu-content")
 
 
+def test_clear_light_glass_has_a_brightness_floor(fake_env):
+    """Light glass carries dark text: over a vivid or dark wallpaper it lightens itself
+    up to a floor that keeps 5:1 under the theme's veil (the panel clock was 3.3:1)."""
+    s = Settings(frost=0.0)
+    t = context(fake_env, dark=False).tokens
+    cfg = rg.config(s, t)
+    for name in ("panel", "calendar", "quicksettings", "arcmenu"):
+        look = cfg["parts"][name]["look"]
+        floor, (vr, vg, vb, a) = look["floor"], look["veil"]
+        assert 0 < floor < 0.9
+        # the glass at its floor, under the veil (display values), against the text colour
+        v = a * (0.2126 * vr ** 2.2 + 0.7152 * vg ** 2.2 + 0.0722 * vb ** 2.2) ** (1 / 2.2) + (1 - a) * floor ** (1 / 2.2)
+        assert (v ** 2.2 + 0.05) / (t.fg.luminance() + 0.05) >= 4.9
+    assert cfg["menus"]["look"]["floor"] == cfg["parts"]["quicksettings"]["look"]["floor"]
+    # dark glass gets a ceiling instead, and no floor
+    dark = rg.config(s, context(fake_env, dark=True).tokens)
+    assert all("floor" not in dark["parts"][n]["look"] for n in ("panel", "calendar"))
+
+
 @pytest.mark.parametrize("dark", [True, False])
 def test_glass_surfaces_keep_their_css_shadow_tight(dark):
     """St cuts a wide box-shadow blur off sharply (a hard line on a smooth wallpaper,
@@ -134,13 +153,27 @@ def test_frost_changes_the_css():
     assert rs.render_css(tokens(0.5, True)) != rs.render_css(tokens(0.5, False))
 
 
-def install(env, *uuids, refraction=True):
+# Extensions Apply never switches on itself: installed here means installed and switched on,
+# as on a real desktop that uses them (one only installed counts as not there, see Env.extension_on).
+THEIRS = (ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN, ts.JUST_PERFECTION)
+
+
+def install(env, *uuids, refraction=True, on=True):
     for u in uuids:
         d = env.data / "gnome-shell/extensions" / u
         d.mkdir(parents=True, exist_ok=True)
         (d / "metadata.json").write_text("{}")
         if u == ts.BLUR and refraction:
             (d / "effects/refraction").mkdir(parents=True)
+        if on and u in THEIRS:
+            switch_on(env, u)
+
+
+def switch_on(env, *uuids):
+    from fedoraglass.engine import format_strv, parse_strv
+    gs = env.gs.setdefault(("org.gnome.shell", None), {})
+    have = parse_strv(gs.get("enabled-extensions"))
+    gs["enabled-extensions"] = format_strv(have + [u for u in uuids if u not in have])
 
 
 def context(env, frost=0.5, dark=True, **kw):
@@ -389,6 +422,7 @@ def seeded_env(env):
             if isinstance(a, GSet):
                 env.gs.setdefault((a.schema, a.path), {}).setdefault(a.key, "0")
     env.gs[("org.gnome.shell", None)] = {"enabled-extensions": "['x@y']", "disabled-extensions": f"['{ts.USER_THEME}']"}
+    switch_on(env, ts.DASH_TO_PANEL, ts.ARCMENU, ts.SPAWN)
     return env
 
 

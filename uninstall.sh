@@ -38,6 +38,7 @@ systemctl --user daemon-reload 2>/dev/null || true
 
 rmdir "$data/gnome-shell/extensions/liquid-glass@djshiye.github.io" 2>/dev/null || true
 rm -rf "$data/liquid-glass" "$data/themes/FedoraGlass" "$data/themes/LiquidGlass" "$state/liquid-glass"
+rm -rf "$data"/icons/fedora-glass-*     # the pointer styles; every one starts with this name
 rm -f "$bin/fedora-glass" "$bin/liquid-glass" \
       "$data/applications/io.github.djshiye.LiquidGlass.desktop" \
       "$data/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg"

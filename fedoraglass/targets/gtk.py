@@ -23,6 +23,8 @@ class Gtk4(Target):
             id="gtk4", name="GTK 4 and libadwaita apps", group="Desktop",
             summary="Glass windows, header bars, sidebars, menus and controls in every "
                     "GTK 4 app. Follows the system light/dark switch live.",
+            plain="Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, "
+                  "read when they open.",
         )
 
     def plan(self, ctx: Context) -> list[Action]:
@@ -115,6 +117,8 @@ class Gtk3(Target):
             id="gtk3", name="GTK 3 apps", group="Desktop",
             summary="Glass for older GTK 3 apps, on top of your GTK 3 theme. "
                     "GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme.",
+            plain="Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, "
+                  "unless adw-gtk3 is installed: then its light or dark version is picked.",
         )
 
     def detect(self, env: Env) -> Detection:
@@ -148,6 +152,8 @@ class Flatpak(Target):
         super().__init__(
             id="flatpak", name="Flatpak apps", group="Desktop",
             summary="Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files.",
+            plain="Lets Flatpak apps read the Fedora Glass style files, so they get the same look. "
+                  "They can read them, not change them.",
             notes=["GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: "
                    "flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"],
         )
@@ -157,9 +163,17 @@ class Flatpak(Target):
             return Detection(False, "Flatpak is not installed")
         return Detection(True)
 
+    # The GTK 3 files Flatpak apps read: the style sheet Apply writes (it only points at
+    # GTK's built-in pictures, nothing in the folder) and GTK's own settings file. Not the
+    # whole folder: it also holds the file manager's bookmarks. Apply writes gtk.css as a
+    # real file, never a link, so there is no link target to share as well.
+    GTK3_FILES = ("xdg-config/gtk-3.0/gtk.css:ro", "xdg-config/gtk-3.0/settings.ini:ro")
+    # Up to 1.5.19 the whole folder was shared; an Apply takes that grant back.
+    OLD_GRANTS = ("xdg-config/gtk-3.0:ro",)
+
     def plan(self, ctx: Context) -> list[Action]:
         # Read-only access to the Fedora Glass GTK style files for every Flatpak app.
-        return [FlatpakOverride(filesystems=("xdg-config/gtk-4.0:ro", "xdg-config/gtk-3.0:ro"))]
+        return [FlatpakOverride(filesystems=("xdg-config/gtk-4.0:ro", *self.GTK3_FILES), drop=self.OLD_GRANTS)]
 
 
 TARGETS: list[Target] = [Gtk4(), Gtk3(), Flatpak()]

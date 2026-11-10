@@ -1,29 +1,34 @@
 Name:           fedora-glass
-Version:        1.5.19
+Version:        1.5.20
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
 Summary:        Glass theme for Fedora GNOME, with a customizer
-License:        MIT AND Apache-2.0
+License:        MIT AND Apache-2.0 AND GPL-3.0-or-later AND GPL-2.0-only AND CC-BY-SA-4.0
 URL:            https://github.com/djshiye/fedora-glass
 Source0:        %{url}/archive/v%{version}/fedora-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
 # For the tests in %%check.
+BuildRequires:  python3
 BuildRequires:  python3-pytest
 BuildRequires:  python3-gobject
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
-Requires:       gnome-shell
+# GNOME 50 or newer, as on Ubuntu. The ~ also lets in Fedora's test releases of 50
+# (50~alpha, 50~beta, 50~rc sort before 50.0, and after 50~), and 49.x stays out.
+Requires:       gnome-shell >= 50~
 Requires:       gnome-shell-extension-user-theme
 # For the login screen glass (whichever package has them).
 Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
-# runuser: dnf remove puts each person's original look back as that person (undo-for-users).
+# runuser: dnf remove puts each person's original look back as that person (undo-for-users),
+# with setsid keeping that apart from root's terminal.
 Requires:       util-linux-core
+Requires:       /usr/bin/setsid
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
@@ -49,12 +54,13 @@ Summary:        Fedora Glass under its old name, Liquid Glass (moves you to fedo
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
-Requires:       gnome-shell
+Requires:       gnome-shell >= 50~
 Requires:       gnome-shell-extension-user-theme
 Requires:       /usr/bin/gresource
 Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
 Requires:       util-linux-core
+Requires:       /usr/bin/setsid
 
 %description -n liquid-glass
 Liquid Glass is now called Fedora Glass. This is the same app under the old
@@ -85,6 +91,10 @@ ln -s fedora-glass %{buildroot}%{_bindir}/liquid-glass
 install -Dm644 data/io.github.djshiye.LiquidGlass.desktop %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 sed -i 's|^Exec=.*|Exec=fedora-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+
+# The mouse pointer styles (built by packaging/cursors/build.py): checked against their
+# checksums, then unpacked where every app and the login screen can find them.
+python3 -I packaging/cursors/unpack.py . %{buildroot}%{_datadir}/icons
 
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec
 # after your password. Standard library only, run with python3 -I -S.
@@ -147,6 +157,10 @@ if [ -f "$old" ] && ! [ -L "$old" ] && grep -qxE 'baseurl=https://djshiye.github
    && grep -qx 'includepkgs=liquid-glass' "$old"; then
     mv -f "$old" "$old.rpmsave" || :
 fi
+# Glass on the login screen (only if a user turned it on): bring it up to this version's
+# rules with the colours of their last Apply, so no Apply or password is needed after an
+# update. Each user's own desktop parts follow at their next login (fedora-glass watch).
+%{_libexecdir}/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
 :
 
 %triggerpostun -- liquid-glass < %{fg_evr}
@@ -166,13 +180,14 @@ fi
 # and that must not take the login screen glass off.
 
 %files
-%license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
+%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt LICENSES/GPL-2.0.txt LICENSES/CC-BY-SA-4.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
 %{_bindir}/fedora-glass
 %{_bindir}/liquid-glass
 %{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
@@ -182,13 +197,14 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %files -n liquid-glass
-%license LICENSE LICENSES/Apache-2.0.txt THIRD-PARTY-NOTICES.md
+%license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt LICENSES/GPL-2.0.txt LICENSES/CC-BY-SA-4.0.txt THIRD-PARTY-NOTICES.md
 %doc README.md
 %{_bindir}/fedora-glass
 %{_bindir}/liquid-glass
 %{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
@@ -198,6 +214,19 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.20-1
+- Mouse pointer styles: 15 to pick from, with a Just for fun group; set on Apply and undone by Restore original
+- Sliders show their default and a Default button, each card has a Reset, and Reset all to defaults has its own card on the More tab
+- Clearer app: a Restart button when a restart finishes the job, plain-word notes on what each part changes, and a welcome that says what was found on this PC
+- Updates bring your look up to date by themselves at the next login, the login screen included
+- The app says why the glass can't start (extensions switched off, GNOME version not supported yet, an error) instead of asking for a restart that can't help
+- Dash to Panel, ArcMenu and Spawn count only when they are switched on; "System" accent follows the system accent colour
+- Backups: an Apply that is cut short, a damaged backup list or a lost backup copy no longer costs your original look
+- Signing: a release is signed only when GitHub proves it was built from main; the first install is checked against the key fingerprint
+- Ubuntu: apt update keeps working after Fedora Glass is removed; the watcher stops at removal on Ubuntu and Arch
+- Panel icons keep their hover lift and the taskbar glide while a menu is open, also over full-screen games
+- Glass looks: readable title bars and text on bright wallpapers, a visible lock card on two screens, glass in the screenshot tool, the Disks sidebar and Alt+Tab
+
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.19-1
 - Glass memory: pictures kept at the screen's real size, about 60 % less memory per window at 125 % scaling
 - Glass shader: 13-28 % cheaper per pane with the same look, and no second full redraw when one frame already drew it all

@@ -25,6 +25,7 @@ class FakeEnv(Env):
         self.commands: list[list[str]] = []
         self.glass_loaded = True    # whether the fake GNOME Shell runs our glass extension
         self.ext_info: dict[str, tuple[str, str]] = {}   # uuid -> (state, error) the fake Shell reports
+        self.ext_version: dict[str, str] = {}           # uuid -> the version-name the fake Shell has loaded
         self.naps: list[float] = []
 
     def sleep(self, seconds):
@@ -85,11 +86,13 @@ class FakeEnv(Env):
             if f"org.gnome.Shell.Extensions.{method}" in argv and argv[-1] in self.ext_info:
                 self.ext_info[argv[-1]] = (state, "")
         if "org.gnome.Shell.Extensions.GetExtensionInfo" in argv:
+            v = self.ext_version.get(argv[-1])
+            version = f", 'version-name': <'{v}'>" if v is not None else ""
             if argv[-1] in self.ext_info:
                 state, error = self.ext_info[argv[-1]]
-                return RunResult(0, f"({{'uuid': <'{argv[-1]}'>, 'state': <{state}>, 'error': <'{error}'>}},)", "")
+                return RunResult(0, f"({{'uuid': <'{argv[-1]}'>, 'state': <{state}>, 'error': <'{error}'>{version}}},)", "")
             state = "1.0" if self.glass_loaded else "6.0"
-            return RunResult(0, f"({{'uuid': <'{argv[-1]}'>, 'state': <{state}>}},)", "")
+            return RunResult(0, f"({{'uuid': <'{argv[-1]}'>, 'state': <{state}>{version}}},)", "")
         return RunResult(0, "", "")
 
 
@@ -130,7 +133,11 @@ def qml(tmp_path_factory):
                 settings_path=home / "config/liquid-glass/settings.json", ui_dark=True, start=False)
     mp.undo()        # a session fixture: don't leave its home for the tests after it
     qmlRegisterSingletonInstance(Backend, "FedoraGlass.Core", 1, 0, "Backend", b)
+    from fedoraglass.gui.cursor_picker import CursorImages, CursorPicker
+    picker = CursorPicker(env)
+    qmlRegisterSingletonInstance(CursorPicker, "FedoraGlass.Core", 1, 0, "Cursors", picker)
     engine = QQmlEngine()
+    engine.addImageProvider("lgcursor", CursorImages(env))
     engine.addImportPath(str(gui_app.QML_DIR))
     engine.rootContext().setContextProperty("appIconUrl", QUrl())
     yield engine

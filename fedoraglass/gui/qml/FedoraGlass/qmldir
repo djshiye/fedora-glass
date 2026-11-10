@@ -1,10 +1,12 @@
 module FedoraGlass
+AboutSheet 1.0 AboutSheet.qml
 AppIcon 1.0 AppIcon.qml
 AppsPage 1.0 AppsPage.qml
 Card 1.0 Card.qml
 ChangesSheet 1.0 ChangesSheet.qml
 Chip 1.0 Chip.qml
 ColorPicker 1.0 ColorPicker.qml
+CursorCard 1.0 CursorCard.qml
 ConicalGradientDot 1.0 ConicalGradientDot.qml
 CurveGlyph 1.0 CurveGlyph.qml
 Expander 1.0 Expander.qml
@@ -17,6 +19,7 @@ LockPage 1.0 LockPage.qml
 LockPreview 1.0 LockPreview.qml
 LoginScreenCard 1.0 LoginScreenCard.qml
 RemoveCard 1.0 RemoveCard.qml
+ResetButton 1.0 ResetButton.qml
 Icon 1.0 Icon.qml
 LabeledSlider 1.0 LabeledSlider.qml
 LgButton 1.0 LgButton.qml

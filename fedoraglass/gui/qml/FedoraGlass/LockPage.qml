@@ -143,7 +143,7 @@ Item {
                         objectName: "lockStatus"
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: "Only your wallpaper shows through the glass, never your windows. Changes show the next time you lock."
+                        text: "Only your wallpaper shows through the glass, never your windows. Changes show after Apply, the next time you lock."
                         color: Theme.textDim
                         font.pixelSize: 13
                     }
@@ -163,14 +163,18 @@ Item {
                         tip: "Shows the unlock animation on the preview, with the time and bounce you picked"
                         onClicked: { preview.mode = "rest"; unlockAnim.restart() }
                     }
+                    // Secondary, so Apply stays the one main action. With unapplied changes it
+                    // applies them first: locking alone would show the old look.
                     LgButton {
                         objectName: "lockNow"
-                        kind: "primary"
-                        text: "Lock now"
+                        kind: "secondary"
+                        text: Backend.dirty ? "Apply and lock" : "Lock now"
                         iconName: "lock"
                         leftPadding: 14
-                        tip: "Locks your screen so you can see it for real. Your password unlocks it as usual."
-                        onClicked: Backend.lockScreenNow()
+                        enabled: !Backend.busy
+                        tip: Backend.dirty ? "Applies your changes, then locks your screen so you can see them for real."
+                                           : "Locks your screen so you can see it for real. Your password unlocks it as usual."
+                        onClicked: Backend.dirty ? Backend.applyAndLock() : Backend.lockScreenNow()
                     }
                 }
             }
@@ -203,7 +207,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: 16
-                    SectionTitle { text: "Glass" }
+                    SectionTitle { text: "Glass"; resetKeys: ["lock_glass", "lock_blur", "lock_dim", "lock_tint", "lock_card"] }
                     SwitchRow {
                         objectName: "lockGlass"
                         label: "Glass lock screen"
@@ -219,6 +223,7 @@ Item {
                         label: "Frost"
                         from: 10; to: 100; stepSize: 1
                         value: Backend.lockBlur
+                        defaultValue: Backend.defaults.lock_blur
                         format: (v) => Math.round(v) + " px"
                         onMoved: (v) => Backend.lockBlur = Math.round(v)
                         tip: "How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture."
@@ -229,6 +234,7 @@ Item {
                         label: "Darken"
                         from: 0; to: 0.65
                         value: Backend.lockDim
+                        defaultValue: Backend.defaults.lock_dim
                         onMoved: (v) => Backend.lockDim = v
                         tip: "How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable."
                     }
@@ -237,6 +243,7 @@ Item {
                         enabled: preview.glass
                         label: "Tint"
                         value: Backend.lockTint
+                        defaultValue: Backend.defaults.lock_tint
                         onMoved: (v) => Backend.lockTint = v
                         tip: "How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours."
                     }
@@ -259,7 +266,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: 16
-                    SectionTitle { text: "Clock" }
+                    SectionTitle { text: "Clock"; resetKeys: ["lock_clock", "lock_clock_position", "lock_greeting"] }
                     Choice {
                         objectName: "lockClock"
                         enabled: preview.glass
@@ -298,7 +305,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: 16
-                    SectionTitle { text: "Widgets" }
+                    SectionTitle { text: "Widgets"; resetKeys: ["lock_widget_battery", "lock_widget_weather", "lock_weather_place", "lock_message", "lock_widget_style"] }
                     Note {
                         text: "Under the clock, for anyone to see. Only the battery is on to start with; switch on only what you're happy to show."
                     }
@@ -406,7 +413,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: 16
-                    SectionTitle { text: "Privacy" }
+                    SectionTitle { text: "Privacy"; resetKeys: ["lock_hide_notifications"] }
                     SwitchRow {
                         objectName: "lockHideNotifications"
                         label: "Hide notifications and music"
@@ -425,7 +432,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: 16
-                    SectionTitle { text: "Unlock" }
+                    SectionTitle { text: "Unlock"; resetKeys: ["lock_slide", "lock_slide_ms", "lock_bounce"] }
                     Choice {
                         objectName: "lockSlide"
                         enabled: preview.glass
@@ -442,6 +449,7 @@ Item {
                         label: "Slide time"
                         from: 250; to: 1200; stepSize: 10
                         value: Backend.lockSlideMs
+                        defaultValue: Backend.defaults.lock_slide_ms
                         format: (v) => (v / 1000).toFixed(2) + " s"
                         onMoved: (v) => Backend.lockSlideMs = Math.round(v)
                         tip: "How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant."
@@ -451,6 +459,7 @@ Item {
                         enabled: preview.glass && Backend.lockSlide === "spring"
                         label: "Bounce"
                         value: Backend.lockBounce
+                        defaultValue: Backend.defaults.lock_bounce
                         onMoved: (v) => Backend.lockBounce = v
                         tip: "How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first."
                     }

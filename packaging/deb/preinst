@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+# Up to 1.5.19 the apt source and pin were conffiles, which `apt remove` keeps while it
+# deletes the key they name: every later `apt update` then failed until a purge. They are
+# now made by postinst and removed by postrm. This moves the old conffiles out of dpkg's
+# hands (postinst finishes it). 1.5.20~ is the first version without them.
+for f in /etc/apt/sources.list.d/fedora-glass.sources /etc/apt/preferences.d/fedora-glass.pref; do
+    dpkg-maintscript-helper rm_conffile "$f" 1.5.20~ fedora-glass -- "$@"
+done
+exit 0

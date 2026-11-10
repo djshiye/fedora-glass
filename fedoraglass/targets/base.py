@@ -93,9 +93,13 @@ class FlatpakOverride:
     Revert removes exactly what was added."""
     filesystems: tuple[str, ...] = ()
     env: tuple[tuple[str, str], ...] = ()
+    # Grants an older version added that this one no longer wants (a wider folder, say):
+    # taken away again, but only if Fedora Glass added them (the backup says so).
+    drop: tuple[str, ...] = ()
 
     def describe(self) -> str:
         bits = [f"filesystem {f}" for f in self.filesystems] + [f"env {k}={v}" for k, v in self.env]
+        bits += [f"no longer {f}" for f in self.drop]
         return f"flatpak override for all apps: {', '.join(bits)}"
 
 
@@ -135,6 +139,9 @@ class Target:
     # True for Shell parts (Shell theme, Dash to Panel, ArcMenu, Spawn) whose look only works
     # with the glass behind it. They wait until the glass extension runs.
     waits_for_glass: bool = False
+    # One plain sentence on what Apply changes for this part, shown above its raw lines in
+    # "Show changes". Empty: nothing is shown.
+    plain: str = ""
 
     def detect(self, env: "Env") -> Detection:
         return Detection(True)

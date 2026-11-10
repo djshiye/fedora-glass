@@ -1,0 +1,46 @@
+#!/bin/sh
+set -e
+for f in /etc/apt/sources.list.d/fedora-glass.sources /etc/apt/preferences.d/fedora-glass.pref; do
+    dpkg-maintscript-helper rm_conffile "$f" 1.5.20~ fedora-glass -- "$@"
+done
+
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+    # The key the apt source names (/usr/share/keyrings/fedora-glass.asc) is gone now, and
+    # an apt source whose key is missing makes every `apt update` fail. So the source goes
+    # too, on remove as well as on purge (postinst made it; see there).
+    src=/etc/apt/sources.list.d/fedora-glass.sources
+    pref=/etc/apt/preferences.d/fedora-glass.pref
+    removed_mark=/var/lib/fedora-glass/apt-entry-removed
+    # Our files' entries, comments aside (filled in by build-deb.sh).
+    our_src=@SOURCES_SUM@
+    our_pref=@PREF_SUM@
+    sum() { sed -e 's/[[:space:]]*$//' -e '/^#/d' -e '/^$/d' "$1" | sha256sum | cut -d' ' -f1; }
+    if [ -f "$src" ] && ! [ -L "$src" ]; then
+        if [ "$(sum "$src")" = "$our_src" ]; then
+            rm -f "$src"
+            mkdir -p "${removed_mark%/*}" && : > "$removed_mark"
+        elif grep -Eq '^Signed-By:[[:space:]]*/usr/share/keyrings/fedora-glass\.asc[[:space:]]*$' "$src" \
+             && ! grep -Eiq '^Enabled:[[:space:]]*no[[:space:]]*$' "$src"; then
+            # Changed by you but still on the key that just went: kept, turned off (apt
+            # skips .disabled files), so apt keeps working.
+            mv -f "$src" "$src.disabled"
+            echo "Fedora Glass: your changed $src was turned off (kept as $src.disabled): the key it uses was removed with the package."
+            mkdir -p "${removed_mark%/*}" && : > "$removed_mark"
+        fi
+    fi
+    # The pin goes with the source; it stays while any source of yours remains there, so
+    # that repository can still give you nothing but fedora-glass.
+    if ! [ -e "$src" ] && ! [ -L "$src" ] && [ -f "$pref" ] && ! [ -L "$pref" ] \
+       && [ "$(sum "$pref")" = "$our_pref" ]; then
+        rm -f "$pref"
+    fi
+fi
+
+if [ "$1" = purge ]; then
+    # Purge takes all of it, as it did when these were conffiles: also a source you changed
+    # or turned off, and its pin.
+    rm -f /etc/apt/sources.list.d/fedora-glass.sources /etc/apt/sources.list.d/fedora-glass.sources.disabled \
+          /etc/apt/preferences.d/fedora-glass.pref /var/lib/fedora-glass/apt-entry-removed
+    rmdir /var/lib/fedora-glass 2>/dev/null || :
+fi
+exit 0

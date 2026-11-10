@@ -252,6 +252,7 @@ Card {
 
         SectionTitle {
             text: "Motion"
+            resetKeys: ["motion", "hover_glide", "motion_dtp_hover_off"]
             caption: "How windows open, minimize and close, and how the panel answers your pointer."
         }
 
@@ -475,6 +476,7 @@ Card {
                                     enabled: row.adjustable
                                     from: 0; to: 1; stepSize: 0.01
                                     value: row.cfg.intensity
+                                    defaultValue: Backend.motionDefaults[row.ev].intensity
                                     onMoved: (v) => { Backend.setMotion(row.ev, "intensity", v); root._pendingEv = row.ev; settle.restart() }
                                     tip: "How lively it is: how far it overshoots or bounces before settling. Left settles calmly; right is bouncier."
                                 }
@@ -491,6 +493,7 @@ Card {
                                         enabled: row.adjustable
                                         from: -1; to: 1; stepSize: 0.01
                                         value: Math.log(Math.max(0.5, Math.min(2, row.cfg.speed))) / Math.LN2
+                                        defaultValue: Math.log(Backend.motionDefaults[row.ev].speed) / Math.LN2
                                         format: (p) => Math.pow(2, p).toFixed(1) + "×"
                                         onMoved: (p) => {
                                             // snap to exactly 1.0x near the centre, store the real speed

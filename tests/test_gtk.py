@@ -265,7 +265,9 @@ def test_flatpak_target(fake_env):
     assert t.detect(fake_env).available
     (ov,) = t.plan(ctx_for(fake_env))
     assert isinstance(ov, FlatpakOverride)
-    assert ov.filesystems == ("xdg-config/gtk-4.0:ro", "xdg-config/gtk-3.0:ro")
+    assert ov.filesystems == ("xdg-config/gtk-4.0:ro", "xdg-config/gtk-3.0/gtk.css:ro",
+                              "xdg-config/gtk-3.0/settings.ini:ro")
+    assert ov.drop == ("xdg-config/gtk-3.0:ro",)
     assert any("flatpak install flathub org.gtk.Gtk3theme.adw-gtk3" in n for n in t.notes)
 
 

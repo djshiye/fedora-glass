@@ -4,9 +4,9 @@
 # uploads them to the release as dnf-repo.tar.gz and starts this workflow. This
 # workflow only checks every signature against packaging/RPM-GPG-KEY-fedora-glass on
 # main and publishes; it has no key and can't sign anything. Users add it
-# once with:
-#   sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
-# (the package carries fedora-glass.repo). Older Liquid Glass installs added
+# once with the README's install commands, which check the key's fingerprint and
+# install fedora-glass from this repository (the package carries fedora-glass.repo
+# and the key). The site serves RPM-GPG-KEY-fedora-glass for that. Older Liquid Glass installs added
 # liquid-glass.repo by hand, which only lets through the liquid-glass package:
 # from 1.5.0 each release also has a liquid-glass package that moves them over.
 #

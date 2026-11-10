@@ -45,7 +45,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--section", choices=("colour", "glass", "windows", "motion", "desktop", "more"),
                       help="scroll the Look page options to this section")
     shot.add_argument("--scroll", type=float, default=0, help="scroll the options column down this far, in px")
-    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave", "welcome"), help="open a sheet")
+    shot.add_argument("--sheet", choices=("changes", "results", "restore", "leave", "welcome", "about"), help="open a sheet")
     shot.add_argument("--dropdown", metavar="NAME", help="open the dropdown with this objectName")
     shot.add_argument("--tip", metavar="NAME", help="show the tooltip of the control with this objectName")
     shot.add_argument("--preview-scene", choices=("desktop", "quicksettings", "calendar", "overview"),
@@ -129,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     from .backend import Backend
+    from .cursor_picker import CursorImages, CursorPicker
     from .icons import IconProvider
 
     QGuiApplication.setApplicationName("Fedora Glass")
@@ -156,8 +157,11 @@ def main(argv: list[str] | None = None) -> int:
         backend.frost = args.frost
 
     qmlRegisterSingletonInstance(Backend, "FedoraGlass.Core", 1, 0, "Backend", backend)
+    cursor_picker = CursorPicker(backend._env, parent=app)
+    qmlRegisterSingletonInstance(CursorPicker, "FedoraGlass.Core", 1, 0, "Cursors", cursor_picker)
     engine = QQmlApplicationEngine()
     engine.addImageProvider("lgicon", IconProvider())
+    engine.addImageProvider("lgcursor", CursorImages(backend._env))
     engine.addImportPath(str(QML_DIR))
     engine.rootContext().setContextProperty(
         "appIconUrl", QUrl.fromLocalFile(str(icon_path)) if icon_path else QUrl())
@@ -241,6 +245,9 @@ def main(argv: list[str] | None = None) -> int:
                 win.setProperty("startSheet", "welcome")
             elif args.sheet == "leave":
                 win.close()     # with unapplied changes (--change) this asks first
+            elif args.sheet == "about":
+                from PySide6.QtCore import QMetaObject, QObject
+                QMetaObject.invokeMethod(win.findChild(QObject, "aboutSheet"), "open")
             if args.dropdown or args.tip:
                 from PySide6.QtCore import QMetaObject, QObject
 

@@ -21,7 +21,7 @@ const overview = {
 const sessionMode = {hasOverview: true};
 const extensionManager = {lookup: () => ({state: 1})};
 globalThis.fake = {ui: {}, overview, sessionMode, extensionManager};
-globalThis.global = {settings: {get_strv: () => ['dash-to-panel@jderose9.github.com', 'arcmenu@arcmenu.com']}};
+globalThis.global = {settings: {get_strv: k => k === 'enabled-extensions' ? ['dash-to-panel@jderose9.github.com', 'arcmenu@arcmenu.com'] : []}};
 
 const Main = await import('resource:///org/gnome/shell/ui/main.js');
 const lm = Main.layoutManager;

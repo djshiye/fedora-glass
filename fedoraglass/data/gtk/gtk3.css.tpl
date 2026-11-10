@@ -58,6 +58,11 @@ placessidebar row:selected, stacksidebar row:selected, .sidebar row:selected {
 /* ---- views, lists -------------------------------------------------------------------- */
 .view, iconview, textview text, treeview.view, list, .content-view { background-color: @view_bg_color; color: @view_fg_color; }
 list row, .content-view .view { background-color: transparent; }
+/* libhandy apps (Disks) put a tree view in the side pane of a leaflet: it is their
+   sidebar, so it gets the same glass as Files' sidebar instead of the solid view fill. */
+leaflet > box:first-child > scrolledwindow > treeview.view,
+leaflet > box:first-child > scrolledwindow > viewport { background-color: @sidebar_bg_color; color: @sidebar_fg_color; }
+leaflet > box:first-child > scrolledwindow > treeview.view:selected { background-color: @lg_glass_hi; color: @sidebar_fg_color; }
 /* Text editors (gedit): the line-number gutter shows the same glass as the text beside it.
    The editor's colour scheme paints it otherwise (teal in Solarized, white in Tango) while
    the text area takes the glass, which split the window into two colours. */

@@ -65,6 +65,7 @@ Card {
         spacing: 16
         SectionTitle {
             text: "Speed"
+            resetKeys: ["glass_quality"]
             caption: "Fedora Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
         }
         Column {
@@ -101,7 +102,8 @@ Card {
                 kind: "secondary"
                 text: "Check speed"
                 enabled: Backend.glassLive && !root.running
-                tip: Backend.glassLive ? "" : "Apply, then restart your PC once to start the glass."
+                tip: Backend.glassLive ? "" : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
+                                            : "Apply, then restart your PC once to start the glass."
                 onClicked: Backend.checkSpeed()
                 Accessible.name: "Check speed"
             }

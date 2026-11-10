@@ -29,7 +29,7 @@ class Distro:
 
     def remove_command(self, package: str = "fedora-glass") -> str:
         return {"fedora": f"sudo dnf remove {package}",
-                "debian": f"sudo apt remove {package}",
+                "debian": f"sudo apt purge {package}",
                 "arch": f"sudo pacman -R {package}"}.get(self.family, f"remove the {package} package")
 
     @property
@@ -42,8 +42,10 @@ FEDORA = Distro(
     ("rpm", "-qf", "--qf", "%{NAME}"),
     {"pyside6": "python3-pyside6", "kvantum": "kvantum", "adw-gtk3": "adw-gtk3-theme",
      "user-theme": "gnome-shell-extension-user-theme", "gnome-shell": "gnome-shell"})
+# purge, not remove: the package's repository entry (/etc/apt/sources.list.d) is a
+# config file, and `remove` leaves config files behind, so apt kept asking that repository.
 DEBIAN = Distro(
-    "debian", "sudo apt install", "/usr/bin/apt-get", ("remove", "-y"),
+    "debian", "sudo apt install", "/usr/bin/apt-get", ("purge", "-y"),
     ("dpkg-query", "-S"),
     # Ubuntu splits PySide6 per Qt module and QML per module.
     {"pyside6": "python3-pyside6.qtquick python3-pyside6.qtquickcontrols2 qml6-module-qtquick-controls "

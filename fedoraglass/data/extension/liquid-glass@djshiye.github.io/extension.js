@@ -108,7 +108,14 @@ export default class FedoraGlassExtension extends Extension {
                 this._leavingWidgets?.destroy();
                 this._leavingWidgets = null;
             }
-            this._desktop = new DesktopBehaviour(cfg);
+            // Start on the desktop and overview off: like each part here, a failure
+            // must not take the glass and the rest down with it.
+            try {
+                this._desktop = new DesktopBehaviour(cfg);
+            } catch (e) {
+                console.error(`Fedora Glass: no desktop behaviour (start on the desktop, overview off): ${e}`);
+                this._desktop = null;
+            }
             // How much the glass draws (the glass quality setting, or auto when frames drop).
             try {
                 this._speed = new Speed(cfg, guarded('speed change',
