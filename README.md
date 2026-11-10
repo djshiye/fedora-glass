@@ -17,23 +17,32 @@ new versions.
 **Fedora**
 
 ```sh
-sudo dnf install https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.noarch.rpm
+k=$(mktemp) && curl -fsSLo "$k" https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &&
+{ [ "$(gpg --show-keys --with-colons "$k" | awk -F: '$1 == "pub" { getline; print $10 }')" = D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 ] || { echo "Stopped: not the Fedora Glass key."; false; }; } &&
+sudo install -Dm644 "$k" /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass && sudo rpm --import "$k" &&
+printf '[fedora-glass-setup]\nname=Fedora Glass\nbaseurl=https://djshiye.github.io/fedora-glass/rpms/\nincludepkgs=fedora-glass\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass\nmetadata_expire=1h\n' | sudo tee /etc/yum.repos.d/fedora-glass-setup.repo >/dev/null &&
+sudo dnf install fedora-glass
+sudo rm -f /etc/yum.repos.d/fedora-glass-setup.repo
 ```
 
 **Ubuntu**
 
 ```sh
-wget -O /tmp/fedora-glass.deb https://github.com/djshiye/fedora-glass/releases/latest/download/fedora-glass.deb
-sudo apt install /tmp/fedora-glass.deb
+k=$(mktemp) && wget -qO "$k" https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &&
+{ [ "$(gpg --show-keys --with-colons "$k" | awk -F: '$1 == "pub" { getline; print $10 }')" = D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 ] || { echo "Stopped: not the Fedora Glass key."; false; }; } &&
+sudo install -Dm644 "$k" /usr/share/keyrings/fedora-glass.asc &&
+printf 'Types: deb\nURIs: https://djshiye.github.io/fedora-glass/apt/\nSuites: ./\nSigned-By: /usr/share/keyrings/fedora-glass.asc\n' | sudo tee /etc/apt/sources.list.d/fedora-glass-setup.sources >/dev/null &&
+sudo apt update && sudo apt install fedora-glass
+sudo rm -f /etc/apt/sources.list.d/fedora-glass-setup.sources
 ```
 
 **Arch Linux**
 
 ```sh
-curl -fsSLo /tmp/fedora-glass.key https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass
-sudo pacman-key --add /tmp/fedora-glass.key
-sudo pacman-key --lsign-key D49A308168257FDBF9D5AE14BD1AC1C6F56A7252
-printf '\n[fedora-glass]\nSigLevel = Required DatabaseRequired\nServer = https://djshiye.github.io/fedora-glass/arch\n' | sudo tee -a /etc/pacman.conf
+curl -fsSLo /tmp/fedora-glass.key https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &&
+sudo pacman-key --add /tmp/fedora-glass.key &&
+sudo pacman-key --lsign-key D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 &&
+{ grep -q '^\[fedora-glass\]' /etc/pacman.conf || printf '\n[fedora-glass]\nSigLevel = Required DatabaseRequired\nServer = https://djshiye.github.io/fedora-glass/arch\n' | sudo tee -a /etc/pacman.conf >/dev/null; } &&
 sudo pacman -Syu fedora-glass
 ```
 
@@ -46,9 +55,10 @@ Then:
 **Updates** come with the rest of your system: `sudo dnf upgrade` on Fedora, `sudo apt update && sudo apt upgrade`
 on Ubuntu, `sudo pacman -Syu` on Arch. They are served from GitHub Pages, and every package and
 repository index is signed with the maintainer's own OpenPGP key
-([how the signing works](docs/SIGNING.md)). The Fedora and Ubuntu packages bring the key with them; on
-Arch the `--lsign-key` line above trusts only the key with that fingerprint, so a swapped key file
-is refused. Fedora asks you to accept the key once, on the first update.
+([how the signing works](docs/SIGNING.md)). The blocks above trust only the key with the fingerprint
+`D49A 3081 6825 7FDB F9D5 AE14 BD1A C1C6 F56A 7252`, so a swapped key file is refused. If dnf asks you
+to accept the key, check that it shows that fingerprint (dnf writes it without spaces:
+`D49A308168257FDBF9D5AE14BD1AC1C6F56A7252`) and answer `y`.
 
 ## Works with
 
