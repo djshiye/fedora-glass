@@ -11,6 +11,7 @@ SettingsPage {
     objectName: "homePage"
     pageId: "home"
     previewSlot: slot
+    previewInSide: false
     property alias frostHeld: frost.held
 
     readonly property var presetFrost: ({ Liquid: 0.0, Clear: 0.25, Balanced: 0.45, Frosted: 0.8, Solid: 1.0 })
@@ -34,12 +35,12 @@ SettingsPage {
         width: parent.width
         // As big as the room under the title allows, keeping the Look card in view.
         readonly property real maxH: Math.max(220, page.height - lookCard.implicitHeight - 14 - 6)
-        height: Math.min(width * 9 / 16, maxH)
+        height: Math.round(Math.min(width * 0.75, maxH))
         Item {
             id: slot
             objectName: "homePreviewSlot"
             height: parent.height
-            width: Math.min(parent.width, height * 16 / 9)
+            width: parent.width
             anchors.horizontalCenter: parent.horizontalCenter
         }
     }

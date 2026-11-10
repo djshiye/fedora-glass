@@ -375,8 +375,10 @@ SettingsPage {
     side: [
         Item {
             id: previewBox
-            width: parent.width
-            height: width * 9 / 16
+            // A whole lock screen, as big as the page allows: the buttons and the line
+            // under it still fit beside the cards, or above them in a narrow window.
+            width: Math.min(parent.width, Math.round((page.stacked ? page.previewH - 48 : page.height - 150) * 16 / 9))
+            height: Math.round(width * 9 / 16)
 
             RectangularShadow {
                 anchors.fill: parent

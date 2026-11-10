@@ -50,7 +50,7 @@ SettingsPage {
     HeaderBarCard { width: parent.width }
 
     side: [
-        Item { id: slot; objectName: "windowsPreviewSlot"; width: parent.width; height: Math.round(width * 9 / 16) },
+        Item { id: slot; objectName: "windowsPreviewSlot"; width: parent.width; height: page.previewH },
         PreviewNote {}
     ]
 }

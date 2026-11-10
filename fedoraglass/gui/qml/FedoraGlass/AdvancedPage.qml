@@ -18,7 +18,12 @@ SettingsPage {
     readonly property bool current: visible && Window.window && Window.window.page === "advanced"
     onCurrentChanged: outline()
     function outline() { if (Theme.preview) previewPaneOf().outlinedPart = current ? partsCard.part : "" }
-    function previewPaneOf() { return Theme.preview.parent }
+    function previewPaneOf() {      // the pane around the preview (it sits in a viewport)
+        let p = Theme.preview.parent
+        while (p && p.outlinedPart === undefined)
+            p = p.parent
+        return p
+    }
     Connections {
         target: Theme.preview ? page.previewPaneOf() : null
         function onPartPicked(name) { if (page.current && partsCard.partList.some((p) => p.id === name)) partsCard.part = name }
@@ -395,7 +400,7 @@ SettingsPage {
     }
 
     side: [
-        Item { id: slot; objectName: "advancedPreviewSlot"; width: parent.width; height: Math.round(width * 9 / 16) },
+        Item { id: slot; objectName: "advancedPreviewSlot"; width: parent.width; height: page.previewH },
         PreviewNote { text: "Click a part of the preview to give it its own look." }
     ]
 }

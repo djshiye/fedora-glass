@@ -126,7 +126,7 @@ SettingsPage {
     }
 
     side: [
-        Item { id: slot; objectName: "colourPreviewSlot"; width: parent.width; height: Math.round(width * 9 / 16) },
+        Item { id: slot; objectName: "colourPreviewSlot"; width: parent.width; height: page.previewH },
         PreviewNote {}
     ]
 }

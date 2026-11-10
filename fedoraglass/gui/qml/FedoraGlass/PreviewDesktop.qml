@@ -31,6 +31,8 @@ Item {
     Behavior on menuProgress { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
 
     readonly property real s: width / 1920
+    // The part of this virtual screen the pane shows when it is zoomed in (preview px).
+    property rect view: Qt.rect(0, 0, width, height)
     function u(n) { return n * root.s }
 
     // ---- glass recipe, from the tokens ---------------------------------------------
@@ -307,7 +309,9 @@ Item {
                     anchors.fill: parent
                     source: root.wallpaper
                     fillMode: Image.PreserveAspectCrop
-                    sourceSize.width: 2560
+                    // Decoded no bigger than the preview needs (the edge close-up loads
+                    // its own sharp copy): a 2560 px picture is 15 MB in memory.
+                    sourceSize.width: root.width > 1200 ? 2560 : 1280
                     asynchronous: true
                     smooth: true
                     visible: status === Image.Ready
@@ -1367,9 +1371,10 @@ Item {
         // Where on the wallpaper the close-up looks (preview px): a stretch below the windows.
         readonly property real cx: root.width * 0.40
         readonly property real cy: root.height * 0.84
-        width: Math.round(root.width * 0.34); height: Math.round(width * 0.58)
-        x: root.width - width - root.u(40)
-        y: root.u(150)
+        // Sized and placed on the part of the preview in view (see `view`).
+        width: Math.round(Math.min(root.view.width * 0.62, root.width * 0.34)); height: Math.round(width * 0.58)
+        x: root.view.x + root.view.width - width - Math.max(12, root.u(40))
+        y: root.view.y + Math.max(52, root.u(150))
         radius: root.u(26)
         color: "black"
         clip: true
