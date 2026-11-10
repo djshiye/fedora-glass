@@ -146,10 +146,10 @@ class Env:
         for d in self.extension_dirs():
             if not d.is_dir():
                 continue
-            for sd in d.glob("*/schemas"):
+            for sd in sorted(d.glob("*/schemas")):    # same answer on every filesystem
                 if not (sd / "gschemas.compiled").exists():
                     continue
-                for xml in sd.glob("*.gschema.xml"):
+                for xml in sorted(sd.glob("*.gschema.xml")):
                     index.setdefault(xml.name.removesuffix(".gschema.xml"), sd)
                     # Child schemas (e.g. blur-my-shell.popup) live in the parent's file.
                     try:
