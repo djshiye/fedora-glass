@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.21
+Version:        1.5.22
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -214,6 +214,13 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.22-1
+- A preview big enough to judge the glass: about half the page beside the settings, and Home's preview fills the room above the looks
+- Close up by default: the desktop at about half its real size, looking at the start menu, Quick Settings or the calendar; drag to look around, or switch to the whole screen
+- The preview's switches sit in a bar under it, so nothing covers the glass
+- In a small window the preview sits above the settings; the lock screen preview grows too
+- Uses a little less memory than 1.5.21
+
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.21-1
 - A simpler app: a sidebar of pages (Home, Colour, Glass, Panel and windows, Motion, Pointer and desktop, Lock and login, Apps, Advanced, About and restore) instead of one long page
 - Search settings (Ctrl+F): finds any setting, opens its page and points it out
