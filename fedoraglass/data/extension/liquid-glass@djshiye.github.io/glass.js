@@ -261,6 +261,38 @@ float squircleSlope(float x) {
     return x3 / max(pow(k, 0.75), 0.03);
 }
 
+// How far a ray through the rounded edge moves sideways, per px of glass, x of
+// the way down the bevel (0 on the flat top, 1 at the edge), along the edge's normal.
+float bendAt(float x, float squircle) {
+    float s = squircle > 0.5 ? squircleSlope(x) * 1.6 : x / max(sqrt(max(1.0 - x * x, 0.0)), 0.06);
+    vec3 R = refract(vec3(0.0, 0.0, -1.0), normalize(vec3(s, 0.0, 1.0)), 1.0 / IOR);
+    return -R.x / max(-R.z, 0.2);
+}
+
+// The share of the bend to keep at x so the backdrop never folds over.
+// Across the bevel each pixel shows the backdrop a bend further in. Near the
+// edge the bend grows faster than the pixels step outwards, so going out the
+// shown spot turned back inwards: a straight line behind a menu became a
+// hairpin loop and the panel's top edge hooked every line (1.5.17). Here the
+// bend follows the lens until it would grow faster than 0.85 px per px, and
+// from there grows at that rate: the edge still squeezes the backdrop in, in
+// order. The bend is convex in x, so that point is found by halving.
+float unfold(float x, float th, float bevel, float squircle) {
+    float K = 0.85 * bevel / max(th, 1e-3);
+    float lo = 0.0, hi = 1.0;
+    for (int i = 0; i < 9; i++) {
+        float m = 0.5 * (lo + hi);
+        if (bendAt(m + 0.004, squircle) - bendAt(m - 0.004, squircle) > K * 0.008)
+            hi = m;
+        else
+            lo = m;
+    }
+    if (x <= lo)
+        return 1.0;
+    float g = bendAt(x, squircle);
+    return min(1.0, (bendAt(lo, squircle) + K * (x - lo)) / max(g, 1e-5));
+}
+
 // A Gaussian-blurred edge: 1 well inside, 0.5 on the edge, 0 well outside, for
 // a signed distance d and a blur sigma. erf by Winitzki's approximation.
 float softEdge(float d, float sigma) {
@@ -515,15 +547,16 @@ void main() {
 
     // The ray refracted at IOR: the main tap and Beer-Lambert below share it.
     vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
-    vec2 thru = Rt.xy * th / max(-Rt.z, 0.2);
+    float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bevel, lens_share) : 1.0;
+    vec2 thru = Rt.xy * th / max(-Rt.z, 0.2) * keep;
     vec4 col;
     if (th > 0.01) {
         if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5 && lite > 0.5) {
             // Lighter glass: three wavelengths keep the rainbow edge at 3/5 of the reads.
             float B = 0.08 * dispersion;
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
             vec4 s550 = at(px + thru);
-            vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th));
+            vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th) * keep);
             col.r = (0.15 * s550.r + s630.r) / 1.15;
             col.g = s550.g;
             col.b = (s450.b + 0.15 * s550.b) / 1.15;
@@ -531,11 +564,11 @@ void main() {
         } else if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5) {
             // Five wavelengths, each refracted by its own index, then mixed back to RGB.
             float B = 0.08 * dispersion;   // crown glass is ~0.004, dense flint ~0.015: exaggerated, as Apple does
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th));
-            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th));
+            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
+            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th) * keep);
             vec4 s550 = at(px + thru);
-            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th));
-            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th));
+            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th) * keep);
+            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th) * keep);
             col.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
             col.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
             col.b = (s450.b + 0.4 * s500.b) / 1.4;
