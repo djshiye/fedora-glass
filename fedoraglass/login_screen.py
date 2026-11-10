@@ -19,6 +19,12 @@ What it does, as root:
           undone, or turned on by a version that kept no values: nothing changes.
   status  says whether the glass is on (no root needed).
 
+apply records what it is about to write in the state file before it changes GNOME's file,
+and confirms it after, so a stop half way (power cut, killed) never leaves glass in with no
+record of it: status, undo and the next apply settle such a record by the file's hash. Each
+of apply, undo and refresh holds a lock on the state folder, so the app's Apply and the
+package's refresh never run into each other.
+
 It takes three colours or numbers, never a path or any other text, and only ever writes
 the file GNOME Shell reads for the login screen, its backup and a small state file. A
 gnome-shell update replaces the file and so turns the glass off again by itself; the app
@@ -28,6 +34,7 @@ Runs with python3 -I -S (no environment, no user or site packages): standard lib
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -379,6 +386,73 @@ def _state(state_dir: str) -> dict:
         return {}
 
 
+def _fsync_dir(folder: str) -> None:
+    fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _save_state(state_dir: str, s: dict) -> None:
+    """Write the state file, flushed to disk before and after the rename: it is what tells
+    undo that the file in place is ours."""
+    tmp = os.path.join(state_dir, STATE + ".new")
+    with open(tmp, "w") as f:
+        json.dump(s, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, os.path.join(state_dir, STATE))
+    _fsync_dir(state_dir)
+
+
+def _settled(s: dict, now: str | None) -> dict:
+    """The state with an apply that was stopped half way (see apply) settled by the hash of
+    the file in place now: the new glass went in, the earlier one is still there, or nothing
+    of ours went in. Any other file is GNOME's (an update came in between) and is left to
+    status, which says "undone"."""
+    if "pending" not in s:
+        return s
+    p = s["pending"]
+    s = {k: v for k, v in s.items() if k != "pending"}
+    if isinstance(p, dict) and isinstance(p.get("written"), str) and now == p["written"]:
+        # The write went through; only the confirm was lost.
+        s.update({k: p[k] for k in ("written", "target", "look", "shared", "values") if k in p})
+    return s
+
+
+class _Locked:
+    """Holds an exclusive lock on the state folder itself (no lock file to leave behind or to
+    race over), so one apply, undo or refresh runs at a time. The folder is root's own and is
+    never followed through a link."""
+
+    def __init__(self, state_dir: str):
+        self.state_dir = state_dir
+        self.fd = -1
+
+    def __enter__(self) -> "_Locked":
+        os.makedirs(self.state_dir, mode=0o755, exist_ok=True)
+        self.fd = os.open(self.state_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        fcntl.flock(self.fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc) -> None:
+        os.close(self.fd)                         # closing it lets the lock go
+
+
+def _current(shell_dir: str, state_dir: str) -> dict:
+    """The state file, with a half-finished apply settled (see _settled)."""
+    s = _state(state_dir)
+    if "pending" not in s:
+        return s
+    try:
+        now = sha256(target(shell_dir))
+    except (OSError, LoginScreenError):
+        now = None
+    return _settled(s, now)
+
+
 def block_targets(path: str) -> list[str]:
     return sheets(list_files(path))
 
@@ -389,11 +463,11 @@ def look_id(accent: str, tint: str, frost: float, shared: bool) -> str:
     return hashlib.sha256(css(accent, tint, frost, shared=shared).encode()).hexdigest()
 
 
-def up_to_date(accent: str, tint: str, frost: float, state_dir: str = STATE_DIR) -> bool:
+def up_to_date(accent: str, tint: str, frost: float, state_dir: str = STATE_DIR, shell_dir: str = SHELL_DIR) -> bool:
     """Whether the glass on the login screen is the one these colours give with this version
     of Fedora Glass. Glass put on by an older version (no record of its look) is out of date.
-    Reads only the state file, so no root is needed."""
-    s = _state(state_dir)
+    Reads only the state file (and the hash of GNOME's file), so no root is needed."""
+    s = _current(shell_dir, state_dir)
     look = s.get("look")
     if not isinstance(look, str):
         return False
@@ -405,7 +479,7 @@ def up_to_date(accent: str, tint: str, frost: float, state_dir: str = STATE_DIR)
 
 def status(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
     """"on", "off" or "undone" (a GNOME update replaced the file since it was turned on)."""
-    s = _state(state_dir)
+    s = _current(shell_dir, state_dir)
     if not s.get("written"):
         return "off"
     try:
@@ -416,12 +490,18 @@ def status(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
 
 def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> None:
     check_values(accent, tint, frost)
+    with _Locked(state_dir):
+        _apply(accent, tint, frost, shell_dir, state_dir)
+
+
+def _apply(accent: str, tint: str, frost: float, shell_dir: str, state_dir: str) -> None:
+    check_values(accent, tint, frost)
     dest = target(shell_dir)
     _check_file(dest)
     os.makedirs(state_dir, mode=0o755, exist_ok=True)
     backup = os.path.join(state_dir, BACKUP)
-    s = _state(state_dir)
     now = sha256(dest)
+    s = _settled(_state(state_dir), now)
     if s.get("written") == now and os.path.isfile(backup) and sha256(backup) == s.get("original"):
         original = backup                         # already on: start again from the original
     else:
@@ -432,48 +512,66 @@ def apply(accent: str, tint: str, frost: float, shell_dir: str = SHELL_DIR, stat
                                    "run: " + reinstall_hint())
         shutil.copyfile(dest, backup + ".new")    # the file as GNOME installed it
         os.chmod(backup + ".new", 0o644)
+        with open(backup + ".new", "rb") as f:
+            os.fsync(f.fileno())                  # on disk before the state file vouches for it
         os.replace(backup + ".new", backup)
-        original, s = backup, {"original": sha256(backup)}
+        _fsync_dir(state_dir)
+        original = backup
+        s = {"original": sha256(backup)}
+        if s["original"] != now:
+            raise LoginScreenError("the login screen file changed while it was being saved; try again")
     fd, out = tempfile.mkstemp(prefix="liquid-glass-login-", suffix=".gresource")
     os.close(fd)
     try:
         block = build(original, out, accent, tint, frost)
-        written = sha256(out)
+        # Which look goes in, so the app can tell when Apply or an update of the app makes it old.
+        new = {"written": sha256(out), "target": dest, "look": hashlib.sha256(block.encode()).hexdigest(),
+               "shared": GDM_CSS not in block_targets(original),
+               "values": list(check_values(accent, tint, frost))}   # for refresh after an update
+        # Record first, change second: stopped between the two, the next status, undo or
+        # apply finds the new file by its hash (see _settled), and the original is on record.
+        _save_state(state_dir, {**s, "pending": new})
         _write_into(out, dest)
     finally:
         os.unlink(out)
-    # Which look went in, so the app can tell when Apply or an update of the app makes it old.
-    s.update(written=written, target=dest, look=hashlib.sha256(block.encode()).hexdigest(),
-             shared=GDM_CSS not in block_targets(original),
-             values=list(check_values(accent, tint, frost)))   # for refresh after an update
-    tmp = os.path.join(state_dir, STATE + ".new")
-    with open(tmp, "w") as f:
-        json.dump(s, f)
-    os.chmod(tmp, 0o644)
-    os.replace(tmp, os.path.join(state_dir, STATE))
+    s.update(new)
+    _save_state(state_dir, s)
 
 
 def refresh(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
     """After an update of Fedora Glass: bring the glass that is on the login screen up to
     this version's rules, with the values the user last applied. Only ever redoes what is
     there; never turns the glass on. Returns what happened."""
+    with _Locked(state_dir):
+        return _refresh(shell_dir, state_dir)
+
+
+def _refresh(shell_dir: str, state_dir: str) -> str:
     if status(shell_dir, state_dir) != "on":
         return "off"                              # off, or a GNOME update took it off
-    v = _state(state_dir).get("values")
+    v = _current(shell_dir, state_dir).get("values")
     if not (isinstance(v, list) and len(v) == 3 and all(isinstance(x, (str, int, float)) for x in v)):
         return "no saved values"                  # turned on by an older version: the app's Apply does it
     accent, tint, frost = check_values(str(v[0]), str(v[1]), float(v[2]))
-    if up_to_date(accent, tint, frost, state_dir):
+    if up_to_date(accent, tint, frost, state_dir, shell_dir):
         return "up to date"
-    apply(accent, tint, frost, shell_dir, state_dir)
+    _apply(accent, tint, frost, shell_dir, state_dir)
     return "updated"
 
 
 def undo(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
     """Put the original back. Returns what happened, for the app to show."""
-    s = _state(state_dir)
+    with _Locked(state_dir):
+        return _undo(shell_dir, state_dir)
+
+
+def _undo(shell_dir: str, state_dir: str) -> str:
+    s = _current(shell_dir, state_dir)
     backup = os.path.join(state_dir, BACKUP)
     if not s.get("written"):
+        if s:
+            # An apply stopped before GNOME's file changed: only its records are left.
+            _forget(state_dir)
         return "it was already off"
     dest = target(shell_dir)
     done = "a GNOME update had already put the normal login screen back"
@@ -482,12 +580,16 @@ def undo(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
             raise LoginScreenError("the saved original is missing or changed; run: " + reinstall_hint())
         _write_into(backup, dest)
         done = "the normal login screen is back"
+    _forget(state_dir)
+    return done
+
+
+def _forget(state_dir: str) -> None:
     for name in (STATE, BACKUP):
         try:
             os.unlink(os.path.join(state_dir, name))
         except FileNotFoundError:
             pass
-    return done
 
 
 def main(argv: list[str]) -> int:
