@@ -29,7 +29,7 @@ def test_glass_manager_starts_and_stops_the_hold():
 def test_held_panes_skip_rerendering_and_catch_up_once():
     src = (EXT / "glass.js").read_text()
     # A held pane with a picture of its size paints it again without the dirty flag.
-    assert "flags & ~dirty" in src and "this._picture === size" in src
+    assert "this._draw(node, a, false);" in src and "this._picture === size" in src
     # Our own window animations hold too, and the hold always ends.
     assert "holdPanes(actor);" in src and "releasePanes(actor);" in src
     assert "new GlassHold(" in src and "HOLD_LIMIT_MS" in (EXT / "holdstate.js").read_text()
