@@ -803,6 +803,45 @@ class Backend(QObject):
                 self.previewChanged.emit()
             self._changed()
 
+    # ---- defaults, one setting or one card at a time ------------------------------------
+    # Every slider shows where its default is and every card can go back to its defaults,
+    # so no change is a one-way street. Names are the Settings field names (snake_case).
+    @Property("QVariantMap", constant=True)
+    def defaults(self) -> dict:
+        """Each setting's default by its Settings name; an "automatic" one (None) is -1, as
+        the QML sliders mean it."""
+        out = {}
+        for f in fields(Settings):
+            v = getattr(Settings(), f.name)
+            if f.name in ("parts", "targets", "motion"):
+                continue
+            out[f.name] = -1 if v is None else v
+        return out
+
+    @Property("QStringList", notify=settingsChanged)
+    def changedFromDefault(self) -> list[str]:
+        """The settings (Settings names) that differ from their defaults; the app's choice
+        of apps (targets) isn't a look setting and is never listed."""
+        d, now = _effective(Settings()), _effective(self._s)
+        return [f.name for f in fields(Settings) if f.name != "targets" and now[f.name] != d[f.name]]
+
+    @Slot("QStringList")
+    def resetSettings(self, names: list[str]) -> None:
+        """Put these settings back to their defaults (Apply then uses them)."""
+        known = {f.name for f in fields(Settings)} - {"targets"}
+        values = {n: getattr(Settings(), n) for n in names if n in known}
+        if not values:
+            return
+        s = replace(self._s, **values).normalized()
+        if s == self._s:
+            return
+        was_dark = self._effective_dark()
+        self._s = s
+        if self._effective_dark() != was_dark:
+            self._preview_dark = self._effective_dark()
+            self.previewChanged.emit()
+        self._changed()
+
     @Slot()
     def discardChanges(self) -> None:
         self._s = replace(self._saved, targets=dict(self._saved.targets))
