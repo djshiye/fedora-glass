@@ -40,8 +40,10 @@ sudo pacman -Syu fedora-glass
 Then:
 
 1. Open **Fedora Glass** from the app grid.
-2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**.
-3. Restart your PC once, so GNOME loads the glass.
+2. Pick a look with the **Liquid ↔ Frosted** slider and press **Apply**. Your apps change straight
+   away.
+3. Restart your PC once. The glass on the panel and menus appears after the restart, and the app
+   offers a **Restart** button so you don't have to look for it.
 
 **Updates** come with the rest of your system: `sudo dnf upgrade` on Fedora, `sudo apt update && sudo apt upgrade`
 on Ubuntu, `sudo pacman -Syu` on Arch. They are served from GitHub Pages, and every package and
@@ -52,9 +54,15 @@ is refused. Fedora asks you to accept the key once, on the first update.
 
 ## Works with
 
-Fedora Glass is made to work with **Dash to Panel** and **ArcMenu** (or Spawn), and themes them to
-match. It draws its own glass, so if you use **Blur my Shell** you can simply remove it. While it is
-still installed, Fedora Glass switches off the parts that would blur the same things twice.
+Fedora Glass works on **GNOME as it comes**: the top bar, the overview and its dash, Quick Settings,
+the calendar and your apps all get glass, with no extensions to install first.
+
+If you use **Dash to Panel**, **Dash to Dock** or **Ubuntu Dock**, **ArcMenu** or **Spawn**, it
+themes those to match as well. The app looks at what you have and only shows the options that apply
+to your desktop.
+
+It draws its own glass, so if you use **Blur my Shell** you can simply remove it. While it is still
+installed, Fedora Glass switches off the parts that would blur the same things twice.
 
 It also themes GTK 3, GTK 4 and libadwaita apps (Files included), Flatpak apps, Ptyxis and GNOME
 Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the login screen. The app's
@@ -68,6 +76,21 @@ Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the log
 - **Remove Fedora Glass…** (at the bottom of the Look page), or `sudo dnf remove fedora-glass`
   (Ubuntu: `sudo apt remove fedora-glass`, Arch: `sudo pacman -R fedora-glass`), restores your
   original look and then removes the app.
+- On Arch, the install also added a repository and a key. To take those out too, delete the
+  `[fedora-glass]` block (three lines) from `/etc/pacman.conf`, then run
+  `sudo pacman-key --delete D49A308168257FDBF9D5AE14BD1AC1C6F56A7252`.
+
+## If the glass doesn't show
+
+- **Restart your PC once.** GNOME only starts the glass when your PC starts. Until then your apps are
+  themed but the panel and menus are not, and the app says **Restart to finish**.
+- **Open the Apps page.** It lists every part and whether it is switched on. **Check again** looks
+  for apps and extensions you installed after the last Apply.
+- **Look for a banner at the bottom of the app.** If the glass kept failing it pauses itself, and
+  **Turn glass back on** starts it again. If another theme replaced the look, **Re-apply** brings it
+  back.
+- Still stuck? **Restore original** puts everything back, and an
+  [issue](https://github.com/djshiye/fedora-glass/issues) with your Linux and GNOME version helps.
 
 ## How the glass works
 
