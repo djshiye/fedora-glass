@@ -204,7 +204,7 @@ Window {
             Image {
                 id: wallImg
                 anchors.fill: parent
-                source: Backend.wallpaper
+                source: Backend.appWallpaper
                 sourceSize.width: 640
                 fillMode: Image.PreserveAspectCrop
                 visible: false

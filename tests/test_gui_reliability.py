@@ -473,3 +473,42 @@ def test_flipping_one_app_keeps_every_row_and_its_open_notes(qml):
         b._targets, b._targets_ready = saved
         b.targetsChanged.emit()
         win.close()
+
+
+# ---------------------------------------------------------------- 8. the preview follows the wallpaper
+
+def test_preview_wallpaper_follows_light_dark_and_a_new_wallpaper(qml, fake_env, tmp_path):
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer, QUrl
+    from PySide6.QtGui import QColor, QImage
+    pics = {}
+    for name, colour in (("day", "#f0f0f0"), ("night", "#101018"), ("new", "#808080")):
+        img = QImage(32, 18, QImage.Format_RGB32)
+        img.fill(QColor(colour))
+        pics[name] = tmp_path / f"{name}.png"
+        img.save(str(pics[name]))
+    bg = fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})
+    bg["picture-uri"] = f"'file://{pics['day']}'"
+    bg["picture-uri-dark"] = f"'file://{pics['night']}'"
+    b = _backend(fake_env, tmp_path)
+    url = lambda p: QUrl.fromLocalFile(str(p)).toString()   # noqa: E731
+    seen: list = []
+    b.wallpaperChanged.connect(lambda: seen.append(b.property("wallpaper")))
+    assert b.property("previewDark") is True
+    assert b.property("wallpaper") == url(pics["night"]) == b.property("appWallpaper")
+    b.setProperty("previewDark", False)              # the preview's Light/Dark pill
+    assert b.property("wallpaper") == url(pics["day"])
+    assert b.property("appWallpaper") == url(pics["night"])     # the window follows GNOME, not the pill
+    b._wallpaper_lines(f"picture-uri: 'file://{pics['new']}'\n")
+    assert b.property("wallpaper") == url(pics["new"]) and seen[-1] == url(pics["new"])
+    # Its brightness is decoded on a worker thread, then announced.
+    first = b.property("wallpaperLuma")
+    t = QElapsedTimer()
+    t.start()
+    while url(pics["new"]) not in b._lumas and t.elapsed() < 5000:
+        QCoreApplication.processEvents()
+    assert first == 0.2 and 0.1 < b.property("wallpaperLuma") < 0.4
+    b.setProperty("previewDark", True)
+    assert b.property("wallpaper") == url(pics["night"])
+    # Without a dark picture GNOME shows the light one in dark style too.
+    b._wallpaper_lines("picture-uri-dark: ''\n")
+    assert b.property("wallpaper") == url(pics["new"])

@@ -211,6 +211,8 @@ class Backend(QObject):
     # when one is flipped, instead of building every row again as targetsChanged does.
     targetStatesChanged = Signal()
     weatherChanged = Signal()
+    wallpaperChanged = Signal()
+    wallpaperLumaChanged = Signal()
     busyChanged = Signal()
     progressChanged = Signal()
     savedChanged = Signal()
@@ -308,15 +310,23 @@ class Backend(QObject):
         self._speed_watch = QFileSystemWatcher(self)
         self._speed_watch.fileChanged.connect(self._on_speed_file)
         self._speed_watch.directoryChanged.connect(self._on_speed_file)
-        self._wallpaper = self._find_wallpaper()
-        self._wallpaper_luma: float | None = None
+        # GNOME's two wallpapers (picture-uri for light, picture-uri-dark for dark), as file URLs.
+        self._wallpapers = self._read_wallpapers()
+        self._wall_monitor: QProcess | None = None
+        self._lumas: dict[str, float] = {}       # wallpaper URL -> how bright it is, worked out off the UI thread
+        self._luma_tasks: dict[str, _Task] = {}
         self._power_supply = Path("/sys/class/power_supply")
         self._dock = self._find_dock()
         self._rebuild_tokens()
         self.targetsChanged.connect(self.targetStatesChanged)
+        # The preview's Light/Dark pill and GNOME's own style pick the wallpaper.
+        self.previewChanged.connect(self.wallpaperChanged)
+        self.uiChanged.connect(self.wallpaperChanged)
+        self.wallpaperChanged.connect(self.wallpaperLumaChanged)
         if start:
             self.refreshTargets()
             self._watch_scheme()
+            self._watch_wallpaper()
             self._safe_timer.start()
             self._start_speed_watch()
 
@@ -384,12 +394,58 @@ class Backend(QObject):
             return self._system_dark
         return self._s.scheme == "dark"
 
-    def _find_wallpaper(self) -> str:
-        try:
-            p = self._env.wallpaper()
-        except Exception:
-            p = None
-        return QUrl.fromLocalFile(str(p)).toString() if p else ""
+    @staticmethod
+    def _wallpaper_url(value: str | None) -> str:
+        """A picture-uri value as gsettings prints it, as a file URL ("" for none or no file)."""
+        v = (value or "").strip().strip("'")
+        if not v.startswith("file://"):
+            return ""
+        from urllib.parse import unquote, urlparse
+        p = Path(unquote(urlparse(v).path))
+        return QUrl.fromLocalFile(str(p)).toString() if p.is_file() else ""
+
+    def _read_wallpapers(self) -> dict[str, str]:
+        out = {}
+        for mode, key in (("light", "picture-uri"), ("dark", "picture-uri-dark")):
+            try:
+                out[mode] = self._wallpaper_url(self._env.gsettings_get("org.gnome.desktop.background", key))
+            except Exception:
+                out[mode] = ""
+        return out
+
+    def _wallpaper_for(self, dark: bool) -> str:
+        """GNOME shows picture-uri-dark in dark style; without one, picture-uri."""
+        first, other = ("dark", "light") if dark else ("light", "dark")
+        return self._wallpapers.get(first) or self._wallpapers.get(other) or ""
+
+    def _watch_wallpaper(self) -> None:
+        """Follow a wallpaper change while the app is open."""
+        if not self._env.which("gsettings"):
+            return
+        p = QProcess(self)
+        p.readyReadStandardOutput.connect(self._on_wallpaper_output)
+        p.start("gsettings", ["monitor", "org.gnome.desktop.background"])
+        self._wall_monitor = p
+
+    def _on_wallpaper_output(self) -> None:
+        if self._wall_monitor is not None:
+            self._wallpaper_lines(bytes(self._wall_monitor.readAllStandardOutput()).decode(errors="replace"))
+
+    def _wallpaper_lines(self, text: str) -> None:
+        """`gsettings monitor` lines ("picture-uri-dark: 'file:///…'"): take the new pictures."""
+        keys = {"picture-uri": "light", "picture-uri-dark": "dark"}
+        changed = False
+        for line in text.splitlines():
+            key, sep, value = line.partition(":")
+            mode = keys.get(key.strip())
+            if not sep or mode is None:
+                continue
+            url = self._wallpaper_url(value)
+            if url != self._wallpapers.get(mode):
+                self._wallpapers[mode] = url
+                changed = True
+        if changed:
+            self.wallpaperChanged.emit()
 
     def _find_dock(self) -> list[dict]:
         """The real dock: installed favourites, then the apps the preview shows running."""
@@ -485,10 +541,14 @@ class Backend(QObject):
         self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
-        if self._monitor is not None:
-            self._monitor.kill()
-            self._monitor.waitForFinished(500)
-            self._monitor = None
+        for name in ("_monitor", "_wall_monitor"):
+            proc = getattr(self, name)
+            if proc is not None:
+                proc.kill()
+                proc.waitForFinished(500)
+                setattr(self, name, None)
+        for t in list(self._luma_tasks.values()):
+            t.wait(2000)
 
     # ---- settings properties ---------------------------------------------------
     def _p(name: str, typ: type, none: Any = None, notify=settingsChanged):  # noqa: N805
@@ -983,17 +1043,44 @@ class Backend(QObject):
     def iconUrl(self, name: str) -> str:
         return f"image://lgicon/{name}" if name and QIcon.hasThemeIcon(name) else ""
 
-    @Property(str, constant=True)
+    @Property(str, notify=wallpaperChanged)
     def wallpaper(self) -> str:
-        return self._wallpaper
+        """The wallpaper the preview shows: the dark one when the preview is dark."""
+        return self._wallpaper_for(self._preview_dark)
 
-    @Property(float, constant=True)
+    @Property(str, notify=wallpaperChanged)
+    def appWallpaper(self) -> str:
+        """The wallpaper behind this window's own glass: the one GNOME shows now."""
+        return self._wallpaper_for(self._system_dark)
+
+    @Property(float, notify=wallpaperLumaChanged)
     def wallpaperLuma(self) -> float:
         """How bright the wallpaper is on average (0..1, linear), for the lock screen preview,
-        which darkens a bright picture the way the lock glass's brightness ceiling does."""
-        if self._wallpaper_luma is None:
-            self._wallpaper_luma = _average_luma(QUrl(self._wallpaper).toLocalFile()) if self._wallpaper else 0.2
-        return self._wallpaper_luma
+        which darkens a bright picture the way the lock glass's brightness ceiling does.
+        Decoded on a worker thread: until it is known, an average dark wallpaper."""
+        url = self.wallpaper
+        if not url:
+            return 0.2
+        if url not in self._lumas and url not in self._luma_tasks:
+            task = _Task(lambda _report: _average_luma(QUrl(url).toLocalFile()), self)
+            # A bound slot of this object, so the result arrives queued on the GUI thread.
+            task.finishedWith.connect(self._luma_done)
+            self._luma_tasks[url] = task
+            task.start()
+        return self._lumas.get(url, 0.2)
+
+    @Slot(object)
+    def _luma_done(self, out: Any) -> None:
+        task = self.sender()
+        url = next((u for u, t in self._luma_tasks.items() if t is task), None)
+        if url is None:
+            return
+        del self._luma_tasks[url]
+        task.wait()
+        task.deleteLater()
+        self._lumas[url] = out if isinstance(out, float) else 0.2
+        if url == self.wallpaper:
+            self.wallpaperLumaChanged.emit()
 
     @Property(bool, constant=True)
     def hasBattery(self) -> bool:
