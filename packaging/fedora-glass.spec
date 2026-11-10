@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.19
+Version:        1.5.20
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -214,6 +214,17 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.20-1
+- Mouse pointer styles: pick a pointer that matches the glass, set on Apply and undone by Restore original
+- Clearer app: a Restart button when a restart finishes the job, plain-word notes on what each part changes, and a welcome that says what was found on this PC
+- Updates bring your look up to date by themselves at the next login, the login screen included
+- The app says why the glass can't start (extensions switched off, GNOME version not supported yet, an error) instead of asking for a restart that can't help
+- Dash to Panel, ArcMenu and Spawn count only when they are switched on; "System" accent follows the system accent colour
+- Backups: an Apply that is cut short, a damaged backup list or a lost backup copy no longer costs your original look
+- Signing: a release is signed only when GitHub proves it was built from main; the first install is checked against the key fingerprint
+- Ubuntu: apt update keeps working after Fedora Glass is removed; the watcher stops at removal on Ubuntu and Arch
+- Glass looks: readable title bars and text on bright wallpapers, a visible lock card on two screens, glass in the screenshot tool, the Disks sidebar and Alt+Tab
+
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.19-1
 - Glass memory: pictures kept at the screen's real size, about 60 % less memory per window at 125 % scaling
 - Glass shader: 13-28 % cheaper per pane with the same look, and no second full redraw when one frame already drew it all
