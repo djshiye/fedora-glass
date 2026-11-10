@@ -68,6 +68,8 @@ export class Safety {
         this._file = Gio.File.new_for_path(GLib.build_filenamev([this._dir, 'safe-mode.json']));
         this._configDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_config_dir(), 'liquid-glass']));
         const last = readJson(this._file, 16 * 1024) ?? {};
+        this._written = Object.keys(last).length ? JSON.stringify(last) : '';   // what the file holds (see _write)
+        this._writeId = 0;
         this.tripped = last.tripped === true;
         this.reason = typeof last.reason === 'string' ? last.reason : '';
         this._at = Number.isFinite(last.at) ? last.at : 0;
@@ -99,7 +101,19 @@ export class Safety {
         this._running = false;
         this._stable = false;
         this._stableId = 0;
-        this._write();
+        // Safe mode on: said at once. Otherwise written on the next main-loop turn: the
+        // glass usually starts in this same turn (glassStarted), and one write then says
+        // both. Until the glass starts, a stop of the Shell is no crash of the glass, so
+        // nothing is lost if it stops first.
+        if (this.tripped) {
+            this._write();
+        } else {
+            this._writeId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._writeId = 0;
+                this._write();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
         current = this;
         try {
             this._monitor = this._configDir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
@@ -216,14 +230,27 @@ export class Safety {
         });
     }
 
+    /**
+     * Written at once and waited for on the disk (fsync): the state must be there after a
+     * crash, a frozen PC that is switched off included, or a crash loop would go unseen.
+     * It is written only as the glass starts, stops, has run a minute, or trips, never
+     * for a frame; and not again when nothing in it changed (a lock, then turning off).
+     */
     _write() {
+        if (this._writeId)
+            GLib.source_remove(this._writeId);
+        this._writeId = 0;
         const state = {version: 1, tripped: this.tripped, reason: this.reason, at: this._at,
             where: this._where, restarts: this._restarts, running: this._running, stable: this._stable,
             resetId: this._resetId};
+        const text = JSON.stringify(state);
+        if (text === this._written)
+            return;
         try {
             GLib.mkdir_with_parents(this._dir, 0o700);
-            GLib.file_set_contents_full(this._file.get_path(), new TextEncoder().encode(JSON.stringify(state)),
+            GLib.file_set_contents_full(this._file.get_path(), new TextEncoder().encode(text),
                 GLib.FileSetContentsFlags.CONSISTENT, 0o600);
+            this._written = text;
         } catch (e) {
             console.warn(`Fedora Glass: could not write the safe mode state: ${e}`);
         }
