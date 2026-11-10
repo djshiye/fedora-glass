@@ -1,0 +1,47 @@
+name: Bug report
+description: Something does not look or work right
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. For a **security** problem please do not open an issue: use
+        [Report a vulnerability](https://github.com/djshiye/fedora-glass/security/advisories/new).
+  - type: input
+    id: linux
+    attributes:
+      label: Linux
+      description: Which Linux and version? `cat /etc/os-release` shows it.
+      placeholder: Fedora Workstation 44, Ubuntu 26.04, Arch
+    validations:
+      required: true
+  - type: input
+    id: gnome
+    attributes:
+      label: GNOME version
+      description: "`gnome-shell --version`, or Settings > System > About."
+      placeholder: GNOME Shell 50.1
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Fedora Glass version
+      description: "`fedora-glass --version`, or About in the app."
+      placeholder: 1.5.22
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag a screenshot or screen recording here. It helps a lot for how the glass looks.
+    validations:
+      required: false
