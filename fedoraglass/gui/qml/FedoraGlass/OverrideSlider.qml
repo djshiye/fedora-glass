@@ -16,19 +16,23 @@ Item {
     property string autoText: "Auto"    // the chip's label ("Global" for per-part values)
     property string autoTip: "Follows the Liquid to Frosted slider"
     property string resetTip: "Go back to following the Liquid to Frosted slider"
+    // One row: label on the left, slider in the middle, value and chip on the right.
+    property bool inline: false
+    property real labelWidth: 150
+    property real rightWidth: 176      // fixed, so the slider keeps its length either way
     signal changed(real value)
 
     readonly property bool isAuto: value < 0
     width: parent ? parent.width : 300
-    implicitHeight: head.height + 6 + slider.height
+    implicitHeight: inline ? 44 : head.height + 6 + slider.height
 
     Item {
         id: head
         width: parent.width
-        height: Math.max(labels.height, autoChip.height)
+        height: root.inline ? root.implicitHeight : Math.max(labels.height, autoChip.height)
         Column {
             id: labels
-            width: parent.width - autoChip.width - valueText.width - 24
+            width: root.inline ? root.labelWidth - 12 : parent.width - autoChip.width - valueText.width - 24
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
             Text { text: root.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
@@ -46,6 +50,7 @@ Item {
             anchors.right: autoChip.left
             anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
+            visible: !root.inline || !root.isAuto
             text: root.format(root.isAuto ? root.autoValue : root.value)
             color: root.isAuto ? Theme.textFaint : Theme.textDim
             font.pixelSize: 13
@@ -56,7 +61,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             implicitHeight: 28
-            text: root.autoText
+            text: root.inline && !root.isAuto ? "Reset" : root.autoText
             selected: root.isAuto
             tip: root.isAuto ? root.autoTip : root.resetTip
             onClicked: root.changed(root.isAuto ? root.autoValue : -1)
@@ -66,8 +71,9 @@ Item {
     LgToolTip { shown: (hover.hovered || slider.visualFocus) && !slider.pressed && !autoChip.hovered; text: root.tip }
     LgSlider {
         id: slider
-        y: head.height + 6
-        width: parent.width
+        x: root.inline ? root.labelWidth : 0
+        y: root.inline ? (root.implicitHeight - height) / 2 : head.height + 6
+        width: root.inline ? parent.width - root.labelWidth - root.rightWidth : parent.width
         from: root.from
         to: root.to
         stepSize: root.stepSize

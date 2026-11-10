@@ -12,6 +12,16 @@ Item {
     property bool showControls: true
     // A part outlined on the preview (the Advanced page's Part by part).
     property string outlinedPart: ""
+    // While a part is outlined, clicking the preview picks the part under the pointer.
+    signal partPicked(string name)
+    onOutlinedPartChanged: outline.later()
+    onWidthChanged: outline.later()
+    onHeightChanged: outline.later()
+    Connections {
+        target: preview
+        function onSceneChanged() { outline.later() }
+        function onShowMenuChanged() { outline.later() }
+    }
 
     RectangularShadow {
         anchors.fill: parent
@@ -109,6 +119,54 @@ Item {
             value: Backend.previewDark
             onActivated: (v) => Backend.previewDark = v
             Accessible.name: "Preview style"
+        }
+    }
+
+    // ---- Part by part: the part being edited, outlined; click another to pick it
+    MouseArea {
+        objectName: "partPicker"
+        anchors.fill: parent
+        enabled: pane.outlinedPart !== ""
+        visible: enabled
+        cursorShape: Qt.PointingHandCursor
+        onClicked: (m) => {
+            const name = preview.partAt(m.x, m.y)
+            if (name)
+                pane.partPicked(name)
+        }
+    }
+    Rectangle {
+        id: outline
+        objectName: "partOutline"
+        // Measured once things settle (menus pop open), not on every frame.
+        function later() { measure.restart() }
+        function place() {
+            const it = pane.outlinedPart ? preview.partItem(pane.outlinedPart) : null
+            shown = !!it && it.visible && it.width > 0
+            if (!shown)
+                return
+            const r = it.mapToItem(pane, 0, 0, it.width, it.height)
+            const x0 = Math.max(2, r.x - 3), y0 = Math.max(2, r.y - 3)
+            x = x0; y = y0
+            width = Math.min(pane.width - 2, r.x + r.width + 3) - x0
+            height = Math.min(pane.height - 2, r.y + r.height + 3) - y0
+        }
+        property bool shown: false
+        Timer { id: measure; interval: 450; onTriggered: outline.place() }
+        visible: shown && pane.outlinedPart !== ""
+        radius: Math.min(Theme.rS + 2, height / 2)
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.accent
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.normal } }
+        Rectangle {     // a soft halo, so the line reads on any wallpaper
+            anchors.fill: parent
+            anchors.margins: -3
+            radius: parent.radius + 3
+            color: "transparent"
+            border.width: 3
+            border.color: Theme.alpha(Theme.accent, 0.3)
         }
     }
 }

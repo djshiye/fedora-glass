@@ -1333,6 +1333,26 @@ Item {
     // here at its real size, drawn with the same numbers the desktop uses.
     property bool closeUp: false
     property string closeUpPart: "panel"
+    // The item each part is drawn as, for the Advanced page's outline, and the part
+    // under a point of the preview (topmost first), for picking a part by clicking it.
+    function partItem(name) {
+        const bar = panel.visible ? panel : deskDock
+        return ({ panel: bar, arcmenu: menu, quicksettings: qs, calendar: cal,
+                  overview: dash, windows: files, terminal: term })[name] || null
+    }
+    function partAt(x, y) {
+        const order = scene === "overview" ? ["overview", "panel"]
+                    : ["quicksettings", "calendar", "arcmenu", "panel", "terminal", "windows"]
+        for (const name of order) {
+            const it = partItem(name)
+            if (!it || !it.visible || it.opacity < 0.2 || it.width <= 0)
+                continue
+            const p = it.mapFromItem(root, x, y)
+            if (p.x >= 0 && p.y >= 0 && p.x <= it.width && p.y <= it.height)
+                return name
+        }
+        return ""
+    }
     function peekEdge(name) {
         closeUpPart = name && name !== "windows" && name !== "terminal" ? name : "panel"
         closeUp = true

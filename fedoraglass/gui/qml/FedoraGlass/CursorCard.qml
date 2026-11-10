@@ -7,6 +7,7 @@ import FedoraGlass.Core
 // tile); Apply sets it for the desktop, and Restore original brings the user's own back.
 Card {
     id: root
+    objectName: "cursorCard"
     height: implicitHeight
     // Every choice: the user's own pointer first, then the styles that come with the app.
     readonly property var choices: [{ id: "keep", name: "Keep mine", blurb: Cursors.ownName, credit: "", fun: false, installed: true }]
@@ -158,21 +159,24 @@ Card {
             }
         }
 
-        SectionTitle {
-            group: true
-            topPadding: 4
-            text: "Just for fun"
-            caption: "Playful looks, same clear shapes: the tip, text beam and busy sign work as usual."
-        }
-
-        Grid {
-            objectName: "cursorGridFun"
-            width: parent.width
-            columns: root.columns
-            spacing: 10
-            Repeater {
-                model: root.choices.filter((c) => c.fun)
-                delegate: Tile {}
+        Fold {
+            id: funFold
+            objectName: "cursorFun"
+            card: false
+            divider: true
+            title: "Just for fun"
+            summary: "Playful looks, same clear shapes"
+            // Open when one of them is the pick, so the choice is never hidden.
+            Component.onCompleted: expanded = root.choices.some((c) => c.fun && c.id === Backend.cursorTheme)
+            Grid {
+                objectName: "cursorGridFun"
+                width: parent.width
+                columns: root.columns
+                spacing: 10
+                Repeater {
+                    model: root.choices.filter((c) => c.fun)
+                    delegate: Tile {}
+                }
             }
         }
 
