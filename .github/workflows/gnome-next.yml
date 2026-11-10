@@ -1,0 +1,49 @@
+# Early warning for the next GNOME. Once a week it asks Fedora Rawhide which gnome-shell it
+# ships, and fails with "GNOME NN is coming: add it to Fedora Glass and test" when that is
+# newer than the highest version in the extension's metadata.json (GNOME 52 is due around
+# March 2027). It runs the quick tests on Rawhide's Python, GJS and Node too, which
+# shows early what a new Fedora breaks. Read-only: it builds and publishes nothing.
+name: Next GNOME
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"     # Mondays, 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gnome-next
+  cancel-in-progress: true
+
+jobs:
+  rawhide:
+    name: Fedora Rawhide
+    if: github.repository == 'djshiye/fedora-glass'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Only the base to run in: the gnome-shell version is read from Rawhide's live package
+    # list, not from this image. Pinned like the others; bump it now and then.
+    container: fedora:rawhide@sha256:78bb31de333664aa76c4bf54306791cd294c0bd4fbcfc4346e2286261de544c4
+    steps:
+      - name: Tools
+        run: dnf install -y -q --setopt=install_weak_deps=False git python3 python3-pytest python3-gobject gjs nodejs >/dev/null
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Which GNOME is coming
+        run: |
+          shell="$(dnf repoquery -q --latest-limit=1 --queryformat '%{version}\n' gnome-shell | sort -V | tail -n 1)"
+          sh packaging/check-gnome-next.sh fedoraglass/data/extension/liquid-glass@djshiye.github.io/metadata.json "$shell"
+
+      # Both run even when the version check failed, so one red run says everything.
+      - name: Python tests
+        if: ${{ !cancelled() }}
+        run: python3 -m pytest -q -p no:cacheprovider tests
+
+      - name: JavaScript tests
+        if: ${{ !cancelled() }}
+        run: node --import ./tests/js/register.mjs --test tests/js/*.test.mjs

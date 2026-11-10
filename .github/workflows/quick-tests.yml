@@ -1,0 +1,65 @@
+# The fast tests, on every pull request and every push to main that touches code, tests or
+# packaging: the Python tests (pytest) and the Shell extension's JavaScript tests. About two
+# minutes, and nothing is built or published. The desktop checks (release-checks.yml) and the
+# package builds (packages.yml) stay behind their labels and the release. The weekly
+# GNOME check (gnome-next.yml) runs the same tests on Fedora Rawhide.
+name: Quick tests
+
+on:
+  pull_request:
+    paths:
+      - "fedoraglass/**"
+      - "tests/**"
+      - "packaging/**"
+      - "data/**"
+      - "qa/package-smoke.sh"
+      - "install.sh"
+      - "uninstall.sh"
+      - "README.md"
+      - "docs/SIGNING.md"
+      - ".github/**"
+  push:
+    branches: [main]
+    paths:
+      - "fedoraglass/**"
+      - "tests/**"
+      - "packaging/**"
+      - "data/**"
+      - "qa/package-smoke.sh"
+      - "install.sh"
+      - "uninstall.sh"
+      - "README.md"
+      - "docs/SIGNING.md"
+      - ".github/**"
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request replaces the run before it.
+concurrency:
+  group: quick-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Python and JavaScript tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Tools
+        # python3-gi is what the engine talks to GNOME with; gjs runs the two tests that
+        # are plain GNOME JavaScript. The GUI tests need PySide6 and skip without it.
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-gi gir1.2-glib-2.0 python3-pytest gjs >/dev/null
+          node --version
+
+      - name: Python tests
+        run: /usr/bin/python3 -m pytest -q -p no:cacheprovider tests
+
+      - name: JavaScript tests
+        run: node --import ./tests/js/register.mjs --test tests/js/*.test.mjs
