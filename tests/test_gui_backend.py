@@ -35,6 +35,10 @@ class FakeEnv(Env):
             return RunResult(0, {"color-scheme": "'prefer-dark'", "accent-color": "'blue'"}.get(key, ""), "")
         return RunResult(1, "", "not available in tests")
 
+    def sleep(self, seconds):
+        """No real waiting: with no Shell to ask, Restore would otherwise sit out its
+        full 15 s wait for an answer, longer than the tests wait for it."""
+
     def which(self, name):
         return None
 
