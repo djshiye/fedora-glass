@@ -288,7 +288,7 @@ def test_wording():
     text = LOOK.read_text()
     assert "Glass strength" not in text, "the part slider is Bend, as in Glass effects"
     assert "in the Glass card" not in text, "tint and corners live in the Tint and corners card"
-    assert 'return "Solid"' in text
+    assert "Backend.frostName" in text      # named from settings.PRESETS (Solid at the top)
 
 
 def test_frost_badge_says_solid_at_the_top(qml, win):

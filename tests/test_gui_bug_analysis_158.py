@@ -30,8 +30,9 @@ def backend(app, home):
 
 
 def test_discard_emits_targets_changed(backend):
+    # The switches follow the saved state through targetStatesChanged (rows are kept).
     seen = []
-    backend.targetsChanged.connect(lambda: seen.append(1))
+    backend.targetStatesChanged.connect(lambda: seen.append(1))
     backend.setTargetEnabled("alpha", False)
     seen.clear()
     backend.discardChanges()
