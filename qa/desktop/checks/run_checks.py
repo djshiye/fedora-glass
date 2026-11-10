@@ -874,6 +874,19 @@ def check_speed(ctx: Ctx) -> Check:
         settle(3)
         quiet(ctx)
         idle = timed(ctx, 10)
+        # A clock ticking once a second in the terminal's top-left corner, far from
+        # Files' glass and the panels: no glass may re-render for it.
+        far = None
+        if state == "on":
+            clock = lgqa.launch(["ptyxis", "--new-window", "-x", "bash /opt/lgqa/suite/checks/term-clock.sh"], log="ptyxis-clock")
+            ck = sh.wait_window(r"^LGQA clock$")
+            sh.put(ck["id"], 60, 60, 900, 560)    # Files overlaps its far corner
+            sh.focus(files["id"])
+            settle(3)
+            far = timed(ctx, 8)
+            sh.win_js(ck["id"], "w.delete(global.get_current_time()); return 1;")
+            clock.terminate()
+            settle(1)
         # The pointer just above the second screen's panel, where it lights the rim.
         H = float(sh.eval("global.display.get_monitor_geometry(1).y + global.display.get_monitor_geometry(1).height"))
         pointer = pointer_near_panel(ctx, W + 700, H - 260) if state == "on" else None
@@ -896,7 +909,7 @@ def check_speed(ctx: Ctx) -> Check:
         sh.wait_for("return !globalThis._lgqaMoving;", 90, 0.2)
         wall = time.monotonic() - t0
         frames = json.loads(sh.eval(STOP_JS))
-        results[state] = {"idle": idle, "busy": stream, "pointer": pointer,
+        results[state] = {"idle": idle, "busy": stream, "pointer": pointer, "far": far,
                           "move": {"fps": len(frames) / wall, "cpu": (lgqa.shell_cpu_seconds() - cpu0) / wall * 100}}
     set_glass(ctx, True)
     (OUT / "speed.json").write_text(json.dumps(results, indent=2))
@@ -915,6 +928,16 @@ def check_speed(ctx: Ctx) -> Check:
     c.add(idle_glass <= lim["max_idle_glass_redraws"],
           f"While nothing moves, the busiest piece of glass redraws {idle_glass:.1f} times a second "
           f"(limit {lim['max_idle_glass_redraws']}).")
+
+    far = max((p["rate"] for p in on["far"]["panes"]), default=0)
+    if int(GNOME) >= 51:
+        c.add(far <= lim["max_far_change_glass_redraws"],
+              f"While a clock ticks in a terminal, far from any glass, the busiest piece of glass redraws "
+              f"{far:.1f} times a second (limit {lim['max_far_change_glass_redraws']}; 1.5.17 redrew the glass over "
+              f"that terminal with every tick).")
+    else:    # GNOME 50 redraws a whole pane for any change in a window it copies
+        c.info(f"While a clock ticks in a terminal, far from any glass, the busiest piece of glass redraws "
+               f"{far:.1f} times a second (GNOME 50 always redraws it; for information).")
 
     pr = on["pointer"]["rate"]
     c.add(pr <= lim["max_pointer_glass_redraws"],

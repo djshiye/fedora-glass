@@ -34,6 +34,8 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
+import {PACKAGE_VERSION} from 'resource:///org/gnome/shell/misc/config.js';
+
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
@@ -773,6 +775,24 @@ function followPainting(on) {
     }
 }
 
+// The copy of a window behind a pane. A change anywhere in a window used to
+// re-render every pane that copies it: Clutter passes each redraw of a window on
+// to its copies whole, so a clock ticking at the top of a terminal re-rendered the
+// glass of a window over its far corner, and the panel's, once a second (on 1.5.17
+// a ticking terminal clock cost 41 % of a core here, 3 % without glass). This copy
+// reports no area of its own: the redraw still reaches the pane, but adds nothing to
+// what the frame redraws, so the pane renders only when the window changed where the
+// pane is (Clutter paints a pane only inside the frame's redraw area). The pane then
+// renders in full the frame after (see vfunc_paint), so its wallpaper stays whole.
+// GNOME 51 and later only: GNOME 50 still redraws the whole pane (see setSources).
+const QUIET_COPIES = (parseInt(PACKAGE_VERSION) || 0) >= 51;
+const WindowCopy = GObject.registerClass(
+class FedoraGlassWindowCopy extends Clutter.Clone {
+    vfunc_get_paint_volume(_volume) {
+        return true;    // valid and empty
+    }
+});
+
 const GlassEffect = GObject.registerClass(
 withShader(class FedoraGlassEffect extends ShaderBase {
     _init() {
@@ -780,6 +800,42 @@ withShader(class FedoraGlassEffect extends ShaderBase {
         this._frame = '';
         this._renderedAt = 0;
         this._catchUp = 0;
+    }
+
+    /** µs until this pane may re-render for a change behind it (<= 0: now). */
+    _rerenderWait() {
+        const t = GLib.get_monotonic_time();
+        // Behind a source that never stops (a video, a chat streaming for minutes),
+        // catch up at half the rate once it has kept going for a while: the blur
+        // hides the difference, and the glass does half the work for as long as it runs.
+        const busy = this._busySince && t - this._busySince > BUSY_AFTER_US;
+        const every = Math.max(dragging ? DRAG_RERENDER_US : RERENDER_US, busy ? BUSY_RERENDER_US : 0);
+        return this._renderedAt + every - t;
+    }
+
+    /** Keep the picture for now, and render it in full `wait` µs from now. */
+    _catchUpIn(wait) {
+        this._stale = true;
+        if (this._catchUp)
+            return;
+        this._catchUp = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.ceil(wait / 1000), () => {
+            this._catchUp = 0;
+            if (this._stale)
+                this.get_actor()?.queueFull?.();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    /**
+     * GNOME 50: a window behind changed (somewhere). Re-render in full now, or at
+     * the next catch-up if the pane rendered too recently.
+     */
+    behindChanged() {
+        const wait = this._picture ? this._rerenderWait() : 0;
+        if (wait > 0)
+            this._catchUpIn(wait);
+        else
+            this.get_actor()?.queueFull?.();
     }
 
     stopCatchUp() {
@@ -825,18 +881,10 @@ withShader(class FedoraGlassEffect extends ShaderBase {
         // at most RERENDER_HZ renders a second for changes behind it.
         if ((flags & dirty) && !this._full && !a?._free && this._picture === size &&
             this._placedAt === (a?._placed ?? '')) {
-            const wait = this._renderedAt + (dragging ? DRAG_RERENDER_US : RERENDER_US) - GLib.get_monotonic_time();
+            const wait = this._rerenderWait();
             if (wait > 0) {
-                this._stale = true;
                 this.throttled = (this.throttled ?? 0) + 1;    // read by the QA tools
-                if (!this._catchUp) {
-                    this._catchUp = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.ceil(wait / 1000), () => {
-                        this._catchUp = 0;
-                        if (this._stale)
-                            this.get_actor()?.queueFull?.();
-                        return GLib.SOURCE_REMOVE;
-                    });
-                }
+                this._catchUpIn(wait);
                 super.vfunc_paint(node, paintContext, flags & ~dirty);
                 return;
             }
@@ -871,7 +919,11 @@ withShader(class FedoraGlassEffect extends ShaderBase {
         if (flags & dirty) {
             this._picture = size;
             this._placedAt = a?._placed ?? '';
-            this._renderedAt = GLib.get_monotonic_time();
+            const t = GLib.get_monotonic_time();
+            // Renders close after each other: the source behind keeps changing.
+            if (!this._busySince || t - this._renderedAt > BUSY_GAP_US)
+                this._busySince = t;
+            this._renderedAt = t;
             this._stale = false;
         }
         // Re-rendered for a change in part of it, the pane only gets that part's
@@ -961,6 +1013,11 @@ let RERENDER_US = 1e6 / RERENDER_HZ[0];
 // moves renders once a frame instead of twice; everything renders in full once it ends.
 let dragging = false;
 let DRAG_RERENDER_US = 1e6 / RERENDER_HZ[1];
+// A pane that has re-rendered for changes behind it without a pause (renders less
+// than BUSY_GAP_US apart) for BUSY_AFTER_US catches up at most every BUSY_RERENDER_US.
+const BUSY_AFTER_US = 3e6;
+const BUSY_GAP_US = 400e3;
+let BUSY_RERENDER_US = 2 * RERENDER_US;
 const fullAfterDrag = new Set();
 
 const GLOW_BLUR = 30;   // px the content's light spreads
@@ -983,6 +1040,7 @@ export function setQuality(level) {
     quality = q;
     RERENDER_US = 1e6 / RERENDER_HZ[q];
     DRAG_RERENDER_US = 1e6 / RERENDER_HZ[Math.min(2, q + 1)];
+    BUSY_RERENDER_US = 2 * RERENDER_US;
     panes.forEach(p => p._setCheap(p._moving));
 }
 
@@ -1301,7 +1359,7 @@ class FedoraGlassPane extends Clutter.Actor {
             let clone = this._clones.get(src);
             if (!clone) {
                 restack = true;
-                clone = new Clutter.Clone({source: src});
+                clone = src.meta_window && QUIET_COPIES ? new WindowCopy({source: src}) : new Clutter.Clone({source: src});
                 // A clone outlives its source, so a source that goes away takes its copy with it.
                 const ids = [src.connect('destroy', () => {
                     if (this._clones.get(src) === clone) {
@@ -1309,12 +1367,13 @@ class FedoraGlassPane extends Clutter.Actor {
                         clone.destroy();
                     }
                 })];
-                // The wallpaper paints only inside the frame's redraw area, so a pane
-                // re-rendered for a small change in a window behind would lose the
-                // wallpaper around it, and its blur and rim would read black there.
-                // Redraw the whole pane whenever a window behind changes.
-                if (GObject.signal_lookup('damaged', src.constructor.$gtype))
-                    ids.push(src.connect('damaged', () => frozen.has(src) || this.queueFull()));
+                // GNOME 50 redraws the whole pane for any redraw of a copy inside it, so
+                // there a window behind changing still re-renders each pane that copies it,
+                // in full (the wallpaper paints only inside the frame's redraw area: a
+                // part-redrawn pane would lose it around the change, and its blur and rim
+                // read black), at most as often as the re-render limit allows.
+                if (!QUIET_COPIES && GObject.signal_lookup('damaged', src.constructor.$gtype))
+                    ids.push(src.connect('damaged', () => frozen.has(src) || this._glass.behindChanged()));
                 // A source made in the same frame (the wallpaper, right after the
                 // extension is turned on) has no place yet: copy it once it has one.
                 if (!src.meta_window)
@@ -1361,10 +1420,15 @@ class FedoraGlassPane extends Clutter.Actor {
      * A side on the screen edge carries its glass on out to the edge of the pane.
      * Where that edge is the seam with a second screen, the glass would show on the
      * other screen as a strip beside the window or panel: cut it at the seam.
+     *
+     * A panel's or menu's glass that sits on one screen stops at that screen's edge
+     * on every side: its room for the blur, rim and shadow reached 27 px over the seam,
+     * so each step of the pointer light on a panel redrew the other screen as well.
      */
     _applyClip() {
         const sides = (this._edges ?? '').split(',').map(Number);
-        if (!this._stage || !this._size || !sides.some(Boolean)) {
+        const onOne = this._layer === LAYERS.glass || this._layer === LAYERS.reflections;
+        if (!this._stage || !this._size || !(onOne || sides.some(Boolean))) {
             if (this.has_clip)
                 this.remove_clip();
             return;
@@ -1376,10 +1440,14 @@ class FedoraGlassPane extends Clutter.Actor {
                 this.remove_clip();
             return;
         }
-        const x0 = sides[0] ? Math.max(0, m.x - px) : 0;
-        const y0 = sides[1] ? Math.max(0, m.y - py) : 0;
-        const x1 = sides[2] ? Math.min(pw, m.x + m.width - px) : pw;
-        const y1 = sides[3] ? Math.min(ph, m.y + m.height - py) : ph;
+        // The surface itself lies on that one screen (a px of slack for rounding).
+        const inside = onOne && px + p >= m.x - 1 && py + p >= m.y - 1 &&
+            px + pw - p <= m.x + m.width + 1 && py + ph - p <= m.y + m.height + 1;
+        const cut = i => inside || sides[i];
+        const x0 = cut(0) ? Math.max(0, m.x - px) : 0;
+        const y0 = cut(1) ? Math.max(0, m.y - py) : 0;
+        const x1 = cut(2) ? Math.min(pw, m.x + m.width - px) : pw;
+        const y1 = cut(3) ? Math.min(ph, m.y + m.height - py) : ph;
         if (x0 <= 0 && y0 <= 0 && x1 >= pw && y1 >= ph) {
             if (this.has_clip)
                 this.remove_clip();
@@ -1499,7 +1567,8 @@ class FedoraGlassPane extends Clutter.Actor {
             }
             const [cx, cy] = [Math.round(bx - this._stage[0]), Math.round(by - this._stage[1])];
             const [cw, ch] = [r ? r.width : src.width, r ? r.height : src.height];
-            // Moved behind the pane: redraw all of it, for the same reason as 'damaged' above.
+            // Moved behind the pane: redraw all of it (the wallpaper paints only inside
+            // the frame's redraw area, so a part-redrawn pane would read black around it).
             const moved = clone.x !== cx || clone.y !== cy || clone.width !== cw || clone.height !== ch || !clone.visible;
             clone.set_position(cx, cy);
             clone.set_size(cw, ch);
