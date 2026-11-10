@@ -43,8 +43,7 @@ def test_speed_card_is_registered_and_placed():
     from pathlib import Path
     qml = Path(rg.__file__).resolve().parent.parent / "gui/qml/FedoraGlass"
     assert re.search(r"^SpeedCard 1\.0 SpeedCard\.qml$", (qml / "qmldir").read_text(), re.M)
-    look = (qml / "LookPage.qml").read_text()
-    assert look.index("SpeedCard {") < look.index("MotionCard {")
+    assert "SpeedCard {" in (qml / "GlassPage.qml").read_text()      # on the Glass page
     card = (qml / "SpeedCard.qml").read_text()
     for name in ("speedQuality", "speedCheck", "speedUse"):
         assert f'objectName: "{name}"' in card

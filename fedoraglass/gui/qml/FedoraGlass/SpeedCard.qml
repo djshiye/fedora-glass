@@ -62,26 +62,73 @@ Card {
 
     Column {
         width: parent.width
-        spacing: 16
-        SectionTitle {
-            text: "Speed"
-            resetKeys: ["glass_quality"]
-            caption: "Fedora Glass can measure how smoothly the glass draws on this PC, and draw lighter glass when your graphics card can't keep up."
-        }
-        Column {
+        spacing: 12
+        // One row: what decides the quality, the choice, and the check.
+        Item {
             width: parent.width
-            spacing: 8
-            Text { text: "Glass quality"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-            Segmented {
-                objectName: "speedQuality"
-                width: parent.width
-                model: [{ value: "auto", label: "Auto", tip: "Full glass, made lighter by itself when frames start dropping. It tries full glass again a few minutes later." },
-                        { value: "full", label: "Full", tip: "Every effect, all the time." },
-                        { value: "lighter", label: "Lighter", tip: "Fewer colour samples at the edges and fewer redraws for windows behind. Hard to tell apart from full." },
-                        { value: "lightest", label: "Lightest", tip: "Lighter, and the glass shows only your wallpaper, not the windows behind it. Easiest on the graphics card." }]
-                value: Backend.glassQuality
-                onActivated: (v) => Backend.glassQuality = v
-                Accessible.name: "Glass quality"
+            height: Math.max(headCol.implicitHeight, 40)
+            readonly property bool narrow: width < 460
+            Column {
+                id: headCol
+                anchors.left: parent.left
+                anchors.right: controls.left
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Row {
+                    spacing: 10
+                    Text { text: "Speed"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                    ResetButton {
+                        objectName: "cardReset"
+                        readonly property var keys: ["glass_quality"]
+                        visible: Backend.changedFromDefault.indexOf("glass_quality") >= 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Reset"
+                        tip: "Back to Auto (Apply to use it)"
+                        onClicked: Backend.resetSettings(keys)
+                    }
+                }
+                Text {
+                    visible: !parent.parent.narrow
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    color: Theme.textFaint
+                    font.pixelSize: Theme.fsSmall
+                    text: "Auto picks the best glass your PC can run smoothly"
+                }
+            }
+            Row {
+                id: controls
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+                LgDropdown {
+                    objectName: "speedQuality"
+                    width: 132
+                    glyphs: false
+                    model: [{ value: "auto", label: "Auto", tip: "Full glass, made lighter by itself when frames start dropping. It tries full glass again a few minutes later." },
+                            { value: "full", label: "Full", tip: "Every effect, all the time." },
+                            { value: "lighter", label: "Lighter", tip: "Fewer colour samples at the edges and fewer redraws for windows behind. Hard to tell apart from full." },
+                            { value: "lightest", label: "Lightest", tip: "Lighter, and the glass shows only your wallpaper, not the windows behind it. Easiest on the graphics card." }]
+                    value: Backend.glassQuality
+                    tip: "Glass quality"
+                    onActivated: (v) => Backend.glassQuality = v
+                    Accessible.name: "Glass quality"
+                }
+                LgButton {
+                    objectName: "speedCheck"
+                    id: checkBtn
+                    kind: "flat"
+                    text: "Check speed"
+                    leftPadding: 10; rightPadding: 10
+                    enabled: Backend.glassLive && !root.running
+                    busy: root.running
+                    tip: Backend.glassLive ? "Measure how smoothly each level draws here (about 20 seconds)"
+                                           : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
+                                           : "Apply, then restart your PC once to start the glass."
+                    onClicked: Backend.checkSpeed()
+                    Accessible.name: "Check speed"
+                }
             }
         }
         Text {
@@ -93,35 +140,13 @@ Card {
             font.pixelSize: Theme.fsSmall
             text: root.statusText
         }
-        Row {
+        Text {
+            visible: root.running
             width: parent.width
-            spacing: 12
-            LgButton {
-                objectName: "speedCheck"
-                id: checkBtn
-                kind: "secondary"
-                text: "Check speed"
-                enabled: Backend.glassLive && !root.running
-                tip: Backend.glassLive ? "" : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
-                                            : "Apply, then restart your PC once to start the glass."
-                onClicked: Backend.checkSpeed()
-                Accessible.name: "Check speed"
-            }
-            Spinner {
-                visible: root.running
-                size: 18
-                color: Theme.textDim
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                visible: root.running
-                width: parent.width - checkBtn.width - 18 - 24
-                anchors.verticalCenter: parent.verticalCenter
-                wrapMode: Text.WordWrap
-                color: Theme.textDim
-                font.pixelSize: Theme.fsSmall
-                text: "Checking… this takes about 20 seconds. The glass may look a little plainer for a moment."
-            }
+            wrapMode: Text.WordWrap
+            color: Theme.textDim
+            font.pixelSize: Theme.fsSmall
+            text: "Checking… this takes about 20 seconds. The glass may look a little plainer for a moment."
         }
         Text {
             objectName: "speedFail"

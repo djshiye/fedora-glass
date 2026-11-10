@@ -16,7 +16,8 @@ Sheet {
     readonly property var shortcuts: [
         { keys: ["Ctrl+Enter"], what: "Apply" },
         { keys: ["Ctrl+Z"], what: "Undo changes" },
-        { keys: ["Ctrl+1", "Ctrl+2", "Ctrl+3"], what: "Look, Lock screen, Apps" },
+        { keys: ["Ctrl+F", "/"], what: "Search settings" },
+        { keys: ["Ctrl+1 … 9"], what: "Go to a page, in sidebar order" },
         { keys: ["Tab", "Shift+Tab"], what: "Move to the next or previous control" },
         { keys: ["Arrow keys"], what: "Change a slider, or pick in a group" },
         { keys: ["Space", "Enter"], what: "Press the focused button" },

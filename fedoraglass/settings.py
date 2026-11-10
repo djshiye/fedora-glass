@@ -51,6 +51,30 @@ MOTION_DEFAULTS = {
 }
 SPEED_MIN, SPEED_MAX = 0.5, 2.0
 
+# Motion styles: one choice that sets every animation at once (the Motion page's tiles).
+# Each sets the style and strength of all five; the speed is the user's own and stays.
+def _style(open_, minimize, close, launch, hover, i):
+    return {"open": (open_, i), "minimize": (minimize, i), "close": (close, i),
+            "launch": (launch, i), "hover": (hover, i)}
+
+
+MOTION_STYLES = {
+    "off": _style("off", "off", "off", "off", "off", 0.5),
+    "calm": _style("scalefade", "scalefade", "scalefade", "spring", "scalefade", 0.3),
+    "gnome": _style("gnome", "gnome", "gnome", "off", "off", 0.5),
+    "lively": {ev: (MOTION_DEFAULTS[ev]["preset"], MOTION_DEFAULTS[ev]["intensity"]) for ev in MOTION_EVENTS},
+    "playful": _style("bounce", "jelly", "genie", "bounce", "jelly", 0.75),
+}
+
+
+def motion_style_of(motion: dict[str, dict]) -> str:
+    """The motion style these animations match, ignoring speed, or "custom"."""
+    for name, style in MOTION_STYLES.items():
+        if all(motion[ev]["preset"] == p and (p == "off" or abs(float(motion[ev]["intensity"]) - i) < 0.005)
+               for ev, (p, i) in style.items()):
+            return name
+    return "custom"
+
 # The parts of the desktop that can differ from the global look, and the
 # values each may override (a missing key follows the global setting).
 PARTS = ("panel", "arcmenu", "quicksettings", "calendar", "overview", "windows", "terminal")

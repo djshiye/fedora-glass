@@ -83,12 +83,12 @@ It also themes GTK 3, GTK 4 and libadwaita apps (Files included), Flatpak apps, 
 Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the login screen. The app's
 **Apps** page lists every part, shows which ones you have, and has a switch for each.
 
-<p align="center"><img src="docs/screenshots/app.png" width="860" alt="The Fedora Glass app: live preview and the Liquid to Frosted slider"></p>
+<p align="center"><img src="docs/screenshots/app.png" width="860" alt="The Fedora Glass app: Home page with the live preview, looks, glass slider and colour"></p>
 
 ## Undo or remove
 
-- **Restore original** in the app puts your desktop back exactly as it was before the first Apply.
-- **Remove Fedora Glass…** (at the bottom of the Look page), or `sudo dnf remove fedora-glass`
+- **Restore original** (in the app, under About and restore) puts your desktop back exactly as it was before the first Apply.
+- **Remove Fedora Glass…** (under About and restore), or `sudo dnf remove fedora-glass`
   (Ubuntu: `sudo apt remove fedora-glass`, Arch: `sudo pacman -R fedora-glass`), restores your
   original look and then removes the app.
 - On Arch, the install also added a repository and a key. To take those out too, delete the

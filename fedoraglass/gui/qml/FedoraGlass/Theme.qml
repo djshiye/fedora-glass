@@ -65,5 +65,10 @@ QtObject {
     readonly property int normal: 200
     readonly property int slow: 250
 
+    // The one live preview the pages share (Main places it on the page shown), and the
+    // Motion page's player that the preview plays along with. Null until they exist.
+    property Item preview: null
+    property Item motionDriver: null
+
     function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 }

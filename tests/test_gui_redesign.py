@@ -1,6 +1,6 @@
-"""App redesign: the Look page options sit in six sections with a section bar that
-jumps and follows the scroll, cards carry their own captions, and a first launch
-gets a short welcome that is shown only once."""
+"""App redesign: a sidebar of pages built when first shown, one shared preview,
+settings search, cards that carry their own captions, and a first-launch welcome
+that is shown only once."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from PySide6.QtQuick import QQuickWindow  # noqa: F401 - the window comes back a
 
 from fedoraglass.engine import Engine
 
-SECTIONS = ["colour", "glass", "windows", "motion", "desktop", "more"]
+PAGES = ["home", "colour", "glass", "windows", "motion", "pointer", "lock", "apps", "advanced", "about"]
 _keep: list = []
 
 
@@ -88,48 +88,64 @@ def _spin(ms=60):
         QCoreApplication.processEvents()
 
 
-def test_section_bar_jumps_to_each_section_and_follows_the_scroll(qml):
+def test_sidebar_and_ctrl_numbers_open_each_page(qml):
+    """Every sidebar item opens its page, built the first time it shows, and Ctrl+1 to
+    Ctrl+9 follow the sidebar's order."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
     win = _window(qml)
     try:
         win.setWidth(1316)
         win.setHeight(856)
         win.show()
+        win.requestActivate()
         _spin(300)
-        page = _find(win, "lookPage")
-        side = _find(win, "options")
-        bar = _find(win, "sectionBar")
-        assert [s["value"] for s in page.property("sections").toVariant()] == SECTIONS
-        assert bar.property("value") == "colour"
-        tops = []
-        for name in SECTIONS:
-            page.setProperty("jumpSection", "")
-            page.setProperty("jumpSection", name)
-            _spin(400)
-            assert page.property("currentSection") == name
-            assert bar.property("value") == name
-            sec = _find(win, "section_" + name)
-            tops.append(sec.property("y"))
-            # The section's top is at the top of the column, unless the column ends first.
-            end = side.property("contentHeight") - side.property("height")
-            assert abs(side.property("contentY") - min(sec.property("y"), end)) < 1
-        assert tops == sorted(tops), "sections run in the bar's order"
-        # A click on the bar glides there and the bar stays on the clicked section.
-        side.setProperty("contentY", 0)
-        _spin()
-        bar.activated.emit("motion")
-        _spin(600)
-        assert page.property("currentSection") == "motion"
-        assert abs(side.property("contentY") - _find(win, "section_motion").property("y")) < 1
-        # Scrolling by hand moves the bar along.
-        glass = _find(win, "section_glass").property("y")
-        side.setProperty("contentY", glass + 40)
-        _spin()
-        assert page.property("currentSection") == "glass"
-        side.setProperty("contentY", 0)
-        _spin()
-        assert page.property("currentSection") == "colour"
+        ids = [p["id"] for p in win.property("pageList").toVariant()]
+        assert ids == PAGES
+        assert win.property("page") == "home"
+        assert _find(win, "glassPage") is None, "pages are built only when first shown"
+        for pid in ids:
+            _find(win, "nav_" + pid).clicked.emit()
+            _spin(80)
+            assert win.property("page") == pid
+            page = _find(win, pid + "Page")
+            assert page is not None and page.property("visible"), pid
+        for n, pid in enumerate(ids[:9], start=1):
+            QTest.keyClick(win, Qt.Key(Qt.Key_0 + n), Qt.ControlModifier)
+            _spin(40)
+            assert win.property("page") == pid
     finally:
         win.close()
+
+
+def test_the_one_preview_follows_the_page(qml):
+    """One preview for the whole app: it moves into the slot of each page that has one."""
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        preview = _find(win, "preview")
+        for pid in ("home", "colour", "glass", "lock", "advanced"):
+            win.setProperty("page", pid)
+            _spin(80)
+            if pid == "lock":       # the lock page shows its own lock-screen preview
+                continue
+            slot = _find(win, pid + "PreviewSlot")
+            assert slot is not None, pid
+            pane = preview.parentItem()
+            assert pane.parentItem() == slot, pid
+        assert len([1 for _ in _all(win, "preview")]) == 1
+    finally:
+        win.close()
+
+
+def _all(win, name):
+    todo = [win.contentItem()]
+    while todo:
+        it = todo.pop()
+        if it.objectName() == name:
+            yield it
+        todo.extend(it.childItems())
 
 
 def test_every_card_title_carries_its_own_caption(qml):
@@ -137,6 +153,8 @@ def test_every_card_title_carries_its_own_caption(qml):
     try:
         win.show()
         _spin(200)
+        win.setProperty("page", "glass")
+        _spin(100)
         status = _find(win, "glassStatus")
         assert status is not None and "Apply" in status.property("text")
     finally:
@@ -174,3 +192,35 @@ def _probe_backend(qml):
     obj = probe.create()
     _keep.append((probe, obj))
     return obj.property("b")
+
+
+def test_every_search_result_lands_on_a_real_control(qml):
+    """Each entry in the search index names a control that exists on its page, so a
+    search never opens a page and then finds nothing to light up."""
+    import re
+    from fedoraglass.gui import app as gui_app
+    index = (Path(gui_app.QML_DIR) / "FedoraGlass" / "searchindex.js").read_text()
+    entries = re.findall(r'page: "(\w+)", name: "(\w+)"', index)
+    assert len(entries) >= 50
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        for page in PAGES:
+            win.setProperty("page", page)
+            _spin(60)
+        missing = []
+        for page, name in entries:
+            root = _find(win, page + "Page")
+            hit = None
+            todo = [root] if root is not None else []
+            while todo and hit is None:
+                it = todo.pop()
+                if it.objectName() == name:
+                    hit = it
+                todo.extend(it.childItems())
+            if hit is None:
+                missing.append(f"{page}/{name}")
+        assert not missing, f"search names with no control on their page: {missing}"
+    finally:
+        win.close()

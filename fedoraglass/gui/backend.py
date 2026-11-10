@@ -275,7 +275,7 @@ class Backend(QObject):
         self._dock_name = self._menu_name = ""     # which of them, for the welcome's "Found on this PC"
         # Applied, but the glass (or a Shell part waiting for it) only starts after a restart.
         self._restart_needed = False
-        # "Apply and lock" on the Lock screen page: lock once this Apply finishes well.
+        # "Apply and lock" on the Lock and login page: lock once this Apply finishes well.
         self._lock_after_apply = False
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
@@ -578,6 +578,43 @@ class Backend(QObject):
         motion.setdefault(event, {})[key] = value
         self._set("motion", settings_mod._clean_motion(motion))
 
+    @Property("QVariantList", constant=True)
+    def motionStyles(self) -> list[dict]:
+        return [
+            {"id": "off", "label": "Off", "tip": "No animations: everything happens at once"},
+            {"id": "calm", "label": "Calm", "tip": "Quick, gentle zooms and fades. Nothing bounces."},
+            {"id": "gnome", "label": "GNOME", "tip": "GNOME's own animations, as they come"},
+            {"id": "lively", "label": "Lively", "tip": "Springy windows, a genie into the taskbar and a bouncing app icon (the default)"},
+            {"id": "playful", "label": "Playful", "tip": "Bouncy, jelly-like and fun"},
+        ]
+
+    @Property(str, notify=settingsChanged)
+    def motionStyle(self) -> str:
+        """The motion style the animations match ("custom" when set one by one)."""
+        return settings_mod.motion_style_of({ev: self._s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS})
+
+    @Slot(str)
+    def setMotionStyle(self, name: str) -> None:
+        style = settings_mod.MOTION_STYLES.get(name)
+        if style is None:
+            return
+        motion = {}
+        for ev, (preset, intensity) in style.items():
+            speed = self._s.motion_for(ev)["speed"]
+            motion[ev] = {"preset": preset, "intensity": intensity, "speed": speed}
+        self._set("motion", settings_mod._clean_motion(motion))
+
+    @Property(float, notify=settingsChanged)
+    def motionSpeed(self) -> float:
+        """One speed for every animation: the open animation's, which the slider sets for all."""
+        return float(self._s.motion_for("open")["speed"])
+
+    @motionSpeed.setter
+    def motionSpeed(self, value: float) -> None:
+        v = max(settings_mod.SPEED_MIN, min(settings_mod.SPEED_MAX, float(value)))
+        motion = {ev: {**self._s.motion_for(ev), "speed": v} for ev in settings_mod.MOTION_EVENTS}
+        self._set("motion", settings_mod._clean_motion(motion))
+
     @Slot()
     def resetMotion(self) -> None:
         self._set("motion", {})
@@ -761,6 +798,20 @@ class Backend(QObject):
     @Property(bool, notify=settingsChanged)
     def dirty(self) -> bool:
         return _effective(self._s) != _effective(self._saved.normalized())
+
+    @Property(int, notify=settingsChanged)
+    def changeCount(self) -> int:
+        """How many settings differ from the look applied last (the footer says "3 changes
+        not applied yet"). A part or a motion counts once per part or animation changed."""
+        now, was = _effective(self._s), _effective(self._saved.normalized())
+        n = 0
+        for k in now:
+            a, b = now[k], was[k]
+            if k in ("parts", "motion") and isinstance(a, dict) and isinstance(b, dict):
+                n += sum(1 for key in set(a) | set(b) if a.get(key) != b.get(key))
+            elif a != b:
+                n += 1
+        return n
 
     @Property(str, notify=settingsChanged)
     def activePreset(self) -> str:

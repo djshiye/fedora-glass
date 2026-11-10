@@ -12,7 +12,7 @@ class Cursor(Target):
     def __init__(self) -> None:
         super().__init__(
             id="cursor", name="Mouse pointer", group="Desktop",
-            summary="The pointer style and size picked on the Look page. "
+            summary="The pointer style and size picked on the Pointer and desktop page. "
                     "Restore original brings your own pointer back.",
             plain="Sets the mouse pointer style and size you picked. "
                   "Restore original brings your own pointer back.",

@@ -9,7 +9,6 @@ ColorPicker 1.0 ColorPicker.qml
 CursorCard 1.0 CursorCard.qml
 ConicalGradientDot 1.0 ConicalGradientDot.qml
 CurveGlyph 1.0 CurveGlyph.qml
-Expander 1.0 Expander.qml
 FocusRing 1.0 FocusRing.qml
 FrostSlider 1.0 FrostSlider.qml
 GlassSurface 1.0 GlassSurface.qml
@@ -28,7 +27,7 @@ LgScrollBar 1.0 LgScrollBar.qml
 LgSlider 1.0 LgSlider.qml
 LgSwitch 1.0 LgSwitch.qml
 LgToolTip 1.0 LgToolTip.qml
-LookPage 1.0 LookPage.qml
+TipPopup 1.0 TipPopup.qml
 MotionCard 1.0 MotionCard.qml
 SpeedCard 1.0 SpeedCard.qml
 OverrideSlider 1.0 OverrideSlider.qml
@@ -44,3 +43,18 @@ TargetRow 1.0 TargetRow.qml
 singleton Theme 1.0 Theme.qml
 Toast 1.0 Toast.qml
 WelcomeSheet 1.0 WelcomeSheet.qml
+AccentRow 1.0 AccentRow.qml
+Fold 1.0 Fold.qml
+ToggleChip 1.0 ToggleChip.qml
+SettingsPage 1.0 SettingsPage.qml
+PreviewPane 1.0 PreviewPane.qml
+Sidebar 1.0 Sidebar.qml
+HomePage 1.0 HomePage.qml
+ColourPage 1.0 ColourPage.qml
+GlassPage 1.0 GlassPage.qml
+WindowsPage 1.0 WindowsPage.qml
+MotionPage 1.0 MotionPage.qml
+PointerPage 1.0 PointerPage.qml
+AdvancedPage 1.0 AdvancedPage.qml
+AboutPage 1.0 AboutPage.qml
+PreviewNote 1.0 PreviewNote.qml

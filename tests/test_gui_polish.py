@@ -50,6 +50,22 @@ def _find(win, name):
     return hit
 
 
+PAGES = ["home", "colour", "glass", "windows", "motion", "pointer", "lock", "apps", "advanced", "about"]
+
+
+def _goto(win, page, ms=120):
+    """Show one page of the sidebar; pages are built the first time they show."""
+    win.setProperty("page", page)
+    _spin(ms)
+
+
+def _visit_all(win, back="home"):
+    """Build every page, for tests that look across the whole app."""
+    for page in PAGES:
+        _goto(win, page, 40)
+    _goto(win, back)
+
+
 def _spin(ms=60):
     from PySide6.QtCore import QCoreApplication, QElapsedTimer
     t = QElapsedTimer()
@@ -123,13 +139,13 @@ def test_tab_scrolls_the_focused_control_into_view(qml):
     b = _backend(qml)
     win = _window(qml)
     try:
-        win.setProperty("pageIndex", 2)          # Lock screen: a long options column
+        win.setProperty("page", "pointer")       # Pointer and desktop: a long column
         win.setWidth(1036)
         win.setHeight(716)
         win.show()
         win.requestActivate()
         _spin(600)
-        side = win.findChild(QObject, "lockOptions")
+        side = _find(win, "pointerScroller")
         assert side.property("contentHeight") > side.property("height")
         worst = 0
         for _ in range(40):
@@ -188,6 +204,7 @@ def test_results_sheet_asks_for_a_restart_only_when_needed(qml):
 def test_header_bar_slider_says_what_it_does(qml):
     win = _window(qml)
     try:
+        _goto(win, "windows")
         o = _find(win, "headerOpacity")
         assert o.property("label") == "Opacity"
         assert o.property("format").call([0.65]).toString() == "65% solid"

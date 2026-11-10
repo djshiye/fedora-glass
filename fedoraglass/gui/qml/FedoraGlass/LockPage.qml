@@ -3,13 +3,17 @@ import QtQuick.Controls.Basic as C
 import QtQuick.Effects
 import FedoraGlass.Core
 
-// The Lock screen tab: a live miniature of the lock screen on the left, everything
-// about it on the right (the glass, the clock, the widgets, privacy, the unlock
-// animation, and the login screen).
-Item {
+// Lock and login: the glass, the clock and what sits under it, the unlock animation and
+// the login screen. The page keeps its own small lock-screen preview in the side column.
+SettingsPage {
     id: page
-    readonly property real sideW: width >= 1180 ? 400 : 360
+    objectName: "lockPage"
+    pageId: "lock"
     property alias previewMode: preview.mode
+    readonly property bool weatherMissing: Backend.weatherState === "no-app" || Backend.weatherState === "no-place"
+    readonly property string weatherWhy: Backend.weatherState === "no-app" ? "Weather needs the GNOME Weather app, so nothing shows yet."
+                                       : Backend.weatherState === "no-place" ? "Choose a place in GNOME Weather, so weather has something to show."
+                                       : ""
 
     component Choice: Column {
         property string label: ""
@@ -27,12 +31,7 @@ Item {
             Accessible.name: parent.label
         }
     }
-    component Note: Text {
-        width: parent.width
-        wrapMode: Text.WordWrap
-        color: Theme.textFaint
-        font.pixelSize: Theme.fsSmall
-    }
+    component Divider: Rectangle { width: parent.width; height: 1; color: Theme.divider }
 
     // The unlock animation, played on the preview with the chosen curve and time.
     SequentialAnimation {
@@ -52,21 +51,332 @@ Item {
         NumberAnimation { target: preview; property: "opacity"; to: 1; duration: Theme.slow }
     }
 
-    // ================================================================ left: preview
-    Item {
-        id: left
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.right: side.left
-        anchors.rightMargin: 24
+    Timer {
+        id: focusMessage
+        interval: Theme.slow + 60
+        onTriggered: msgField.forceActiveFocus()
+    }
 
+    // ================================================================ left
+    Card {
+        width: parent.width
+        height: implicitHeight
+        padding: 0
+        Column {
+            x: 20
+            width: parent.width - 40
+            topPadding: 8
+            bottomPadding: 8
+            // The way back to the defaults, shown only while something here has changed.
+            SectionTitle {
+                objectName: "lockGlassReset"
+                visible: changed
+                height: visible ? implicitHeight + 8 : 0
+                text: "Lock screen"
+                resetKeys: ["lock_glass", "lock_blur", "lock_clock"]
+            }
+            SwitchRow {
+                objectName: "lockGlass"
+                label: "Glass lock screen"
+                caption: Backend.reduceTransparency ? "Off while Reduce transparency is on"
+                                                    : "Only your wallpaper shows through, never your windows"
+                tip: "Turns the lock screen into one sheet of frosted glass over your wallpaper. When you unlock, the sheet slides up and your desktop appears underneath. Off gives you GNOME's own lock screen; your widgets stay."
+                implicitHeight: 60
+                checked: Backend.lockGlass
+                onToggled: (v) => Backend.lockGlass = v
+            }
+            Divider {}
+            Item {
+                width: parent.width
+                height: blurSlider.height + 28
+                LabeledSlider {
+                    id: blurSlider
+                    objectName: "lockBlur"
+                    y: 14
+                    enabled: preview.glass
+                    label: "Frost"
+                    from: 10; to: 100; stepSize: 1
+                    value: Backend.lockBlur
+                    defaultValue: Backend.defaults.lock_blur
+                    format: (v) => Math.round(v) + " px"
+                    onMoved: (v) => Backend.lockBlur = Math.round(v)
+                    tip: "How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture."
+                }
+            }
+            Divider {}
+            Item {
+                width: parent.width
+                height: clockChoice.height + 28
+                Choice {
+                    id: clockChoice
+                    objectName: "lockClock"
+                    y: 14
+                    enabled: preview.glass
+                    label: "Clock"
+                    value: Backend.lockClock
+                    model: [{ value: "gnome", label: "GNOME", tip: "GNOME's own clock" },
+                            { value: "bold", label: "Bold", tip: "Large, heavy numbers that stand out on the glass" },
+                            { value: "thin", label: "Thin", tip: "Large, light numbers for a quieter look" }]
+                    onPicked: (v) => { Backend.lockClock = v; preview.mode = "rest" }
+                }
+            }
+        }
+    }
+
+    Card {
+        width: parent.width
+        height: implicitHeight
+        Column {
+            width: parent.width
+            spacing: 12
+            SectionTitle {
+                text: "Under the clock"
+                caption: "Anyone can see these"
+                resetKeys: ["lock_widget_battery", "lock_widget_weather", "lock_greeting", "lock_hide_notifications"]
+                resetTip: "Put these back to their defaults"
+            }
+            Flow {
+                width: parent.width
+                spacing: 8
+                ToggleChip {
+                    objectName: "lockWidgetBattery"
+                    text: "Battery"
+                    on: Backend.lockWidgetBattery
+                    tip: "Shows your battery level and a charging sign." + (Backend.hasBattery ? "" : " This PC has no battery, so nothing shows.")
+                    onSwitched: (v) => { Backend.lockWidgetBattery = v; preview.mode = "rest" }
+                }
+                ToggleChip {
+                    objectName: "lockWidgetWeather"
+                    text: "Weather"
+                    on: Backend.lockWidgetWeather
+                    tip: (page.weatherMissing ? page.weatherWhy + " " : "")
+                         + "Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu)."
+                    onSwitched: (v) => { Backend.lockWidgetWeather = v; preview.mode = "rest" }
+                }
+                ToggleChip {
+                    objectName: "lockGreeting"
+                    text: "Greeting"
+                    on: Backend.lockGreeting
+                    tip: "“Good morning” above the clock, changing through the day. It never shows your name."
+                    onSwitched: (v) => { Backend.lockGreeting = v; preview.mode = "rest" }
+                }
+                ToggleChip {
+                    objectName: "lockMessageChip"
+                    text: "Message"
+                    on: Backend.lockMessage.length > 0
+                    tip: "A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it."
+                    onSwitched: (v) => {
+                        if (v) {
+                            more.expanded = true
+                            focusMessage.restart()
+                        } else {
+                            Backend.lockMessage = ""
+                            msgField.text = ""
+                        }
+                        preview.mode = "rest"
+                    }
+                }
+                ToggleChip {
+                    objectName: "lockHideNotifications"
+                    text: "Hide notifications"
+                    on: Backend.lockHideNotifications
+                    tip: "Hides GNOME's notifications and music controls while the screen is locked. They're all still there when you unlock. GNOME's own notification settings aren't changed."
+                    onSwitched: (v) => { Backend.lockHideNotifications = v; preview.mode = "rest" }
+                }
+            }
+            Text {
+                objectName: "lockWeatherNote"
+                visible: Backend.lockWidgetWeather && page.weatherMissing
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: page.weatherWhy
+                color: Theme.textFaint
+                font.pixelSize: Theme.fsSmall
+            }
+        }
+    }
+
+    Fold {
+        id: more
+        objectName: "lockMore"
+        title: "More lock screen options"
+        summary: "Darken, tint, clock position, unlock animation"
+        Column {
+            width: parent.width
+            spacing: 16
+
+            SectionTitle {
+                group: true
+                text: "Glass"
+                resetKeys: ["lock_dim", "lock_tint", "lock_card", "lock_clock_position"]
+            }
+            LabeledSlider {
+                objectName: "lockDim"
+                enabled: preview.glass
+                label: "Darken"
+                from: 0; to: 0.65
+                value: Backend.lockDim
+                defaultValue: Backend.defaults.lock_dim
+                onMoved: (v) => Backend.lockDim = v
+                tip: "How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable."
+            }
+            LabeledSlider {
+                objectName: "lockTint"
+                enabled: preview.glass
+                label: "Tint"
+                value: Backend.lockTint
+                defaultValue: Backend.defaults.lock_tint
+                onMoved: (v) => Backend.lockTint = v
+                tip: "How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours."
+            }
+            SwitchRow {
+                objectName: "lockCard"
+                enabled: preview.glass
+                label: "Glass card behind the password"
+                caption: "Your picture, name and password field sit on their own pane"
+                tip: "Puts a pane of glass behind your picture, name and password field when you start typing."
+                checked: Backend.lockCard
+                onToggled: (v) => { Backend.lockCard = v; preview.mode = "prompt" }
+            }
+            Choice {
+                objectName: "lockClockPosition"
+                enabled: preview.glass
+                label: "Clock position"
+                value: Backend.lockClockPosition
+                model: [{ value: "gnome", label: "GNOME", tip: "Where GNOME puts it, about a third of the way down" },
+                        { value: "top", label: "Top", tip: "Near the top of the screen, with more wallpaper below. The password appears there too." },
+                        { value: "middle", label: "Middle", tip: "In the middle of the screen. The password appears there too." }]
+                onPicked: (v) => { Backend.lockClockPosition = v; preview.mode = "rest" }
+            }
+
+            SectionTitle {
+                group: true
+                text: "Weather and message"
+                resetKeys: ["lock_weather_place", "lock_message", "lock_widget_style"]
+            }
+            SwitchRow {
+                objectName: "lockWeatherPlace"
+                enabled: Backend.lockWidgetWeather
+                label: "Name the place for weather"
+                caption: "Shows your town next to the weather"
+                tip: "Adds the place name to the weather. Off keeps where you live off your lock screen."
+                checked: Backend.lockWeatherPlace
+                onToggled: (v) => { Backend.lockWeatherPlace = v; preview.mode = "rest" }
+            }
+            Column {
+                width: parent.width
+                spacing: 8
+                Item {
+                    width: parent.width
+                    height: msgLabel.height
+                    Text { id: msgLabel; text: "Message"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                    Text {
+                        anchors.right: parent.right
+                        visible: msgField.activeFocus || msgField.text.length > Backend.lockMessageMax - 20
+                        text: msgField.text.length + " / " + Backend.lockMessageMax
+                        color: Theme.textFaint
+                        font.pixelSize: Theme.fsSmall
+                        font.features: { "tnum": 1 }
+                    }
+                }
+                C.TextField {
+                    id: msgField
+                    objectName: "lockMessage"
+                    width: parent.width
+                    height: 40
+                    leftPadding: 14
+                    rightPadding: 14
+                    color: Theme.text
+                    placeholderText: "For example: If found, please call 555 0100"
+                    placeholderTextColor: Theme.textFaint
+                    selectionColor: Theme.alpha(Theme.accent, 0.4)
+                    selectedTextColor: Theme.text
+                    font.pixelSize: Theme.fsBody
+                    maximumLength: Backend.lockMessageMax
+                    Accessible.name: "Lock screen message"
+                    background: Rectangle {
+                        radius: Theme.rS
+                        color: Theme.well
+                        border.width: msgField.activeFocus ? 2 : 1
+                        border.color: msgField.activeFocus ? Theme.alpha(Theme.accent, 0.85) : Theme.border
+                    }
+                    // Set once, and again only when it changes from elsewhere (Reset):
+                    // typing a space must not be tidied away mid-word.
+                    Component.onCompleted: text = Backend.lockMessage
+                    onTextEdited: { Backend.lockMessage = text; preview.mode = "rest" }
+                    onEditingFinished: text = Backend.lockMessage
+                    Connections {
+                        target: Backend
+                        function onSettingsChanged() {
+                            if (!msgField.activeFocus && msgField.text !== Backend.lockMessage)
+                                msgField.text = Backend.lockMessage
+                        }
+                    }
+                    HoverHandler { id: msgHover }
+                    LgToolTip {
+                        shown: msgHover.hovered && !msgField.activeFocus
+                        text: "A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it."
+                    }
+                }
+            }
+            Choice {
+                objectName: "lockWidgetStyle"
+                label: "Look"
+                value: Backend.lockWidgetStyle
+                model: [{ value: "chips", label: "Glass", tip: "Each widget sits on its own small pane of glass" },
+                        { value: "plain", label: "Text only", tip: "Just the icons and text, straight on the lock screen" }]
+                onPicked: (v) => { Backend.lockWidgetStyle = v; preview.mode = "rest" }
+            }
+
+            SectionTitle {
+                group: true
+                text: "Unlock"
+                resetKeys: ["lock_slide", "lock_slide_ms", "lock_bounce"]
+            }
+            Choice {
+                objectName: "lockSlide"
+                enabled: preview.glass
+                label: "Unlock animation"
+                value: Backend.lockSlide
+                model: [{ value: "gnome", label: "GNOME", tip: "GNOME's own quick slide" },
+                        { value: "smooth", label: "Smooth", tip: "The glass glides up and slows as it leaves" },
+                        { value: "spring", label: "Spring", tip: "The glass gathers itself, then lifts away quickly" }]
+                onPicked: (v) => Backend.lockSlide = v
+            }
+            LabeledSlider {
+                objectName: "lockSlideMs"
+                enabled: preview.glass && Backend.lockSlide !== "gnome"
+                label: "Slide time"
+                from: 250; to: 1200; stepSize: 10
+                value: Backend.lockSlideMs
+                defaultValue: Backend.defaults.lock_slide_ms
+                format: (v) => (v / 1000).toFixed(2) + " s"
+                onMoved: (v) => Backend.lockSlideMs = Math.round(v)
+                tip: "How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant."
+            }
+            LabeledSlider {
+                objectName: "lockBounce"
+                enabled: preview.glass && Backend.lockSlide === "spring"
+                label: "Bounce"
+                value: Backend.lockBounce
+                defaultValue: Backend.defaults.lock_bounce
+                onMoved: (v) => Backend.lockBounce = v
+                tip: "How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first."
+            }
+        }
+    }
+
+    LoginScreenCard {
+        objectName: "loginCard"
+        width: parent.width
+    }
+
+    // ================================================================ right: preview
+    side: [
         Item {
             id: previewBox
-            readonly property real maxH: left.height - hero.height - 16
-            width: Math.min(left.width, maxH * 16 / 9)
+            width: parent.width
             height: width * 9 / 16
-            anchors.horizontalCenter: parent.horizontalCenter
 
             RectangularShadow {
                 anchors.fill: parent
@@ -120,372 +430,38 @@ Item {
                     Accessible.name: "Preview"
                 }
             }
-        }
-
-        Card {
-            id: hero
-            anchors.top: previewBox.bottom
-            anchors.topMargin: 16
+        },
+        Row {
+            spacing: 8
+            LgButton {
+                objectName: "playUnlock"
+                kind: "secondary"
+                text: "Play unlock"
+                iconName: "run"
+                leftPadding: 14
+                enabled: !unlockAnim.running
+                tip: "Shows the unlock animation on the preview, with the time and bounce you picked"
+                onClicked: { preview.mode = "rest"; unlockAnim.restart() }
+            }
+            LgButton {
+                objectName: "lockNow"
+                kind: "secondary"
+                text: Backend.dirty ? "Apply and lock" : "Lock now"
+                iconName: "lock"
+                leftPadding: 14
+                enabled: !Backend.busy
+                tip: Backend.dirty ? "Applies your changes, then locks your screen so you can see them for real."
+                                   : "Locks your screen so you can see it for real. Your password unlocks it as usual."
+                onClicked: Backend.dirty ? Backend.applyAndLock() : Backend.lockScreenNow()
+            }
+        },
+        Text {
+            objectName: "lockStatus"
             width: parent.width
-            height: implicitHeight
-            padding: 20
-
-            Item {
-                width: parent.width
-                height: Math.max(heroText.height, heroButtons.height)
-                Column {
-                    id: heroText
-                    width: parent.width - heroButtons.width - 20
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 4
-                    Text { text: "Lock screen"; color: Theme.text; font.pixelSize: 17; font.weight: Font.Bold }
-                    Text {
-                        objectName: "lockStatus"
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: "Only your wallpaper shows through the glass, never your windows. Changes show after Apply, the next time you lock."
-                        color: Theme.textDim
-                        font.pixelSize: 13
-                    }
-                }
-                Row {
-                    id: heroButtons
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
-                    LgButton {
-                        objectName: "playUnlock"
-                        kind: "secondary"
-                        text: "Play unlock"
-                        iconName: "run"
-                        leftPadding: 14
-                        enabled: !unlockAnim.running
-                        tip: "Shows the unlock animation on the preview, with the time and bounce you picked"
-                        onClicked: { preview.mode = "rest"; unlockAnim.restart() }
-                    }
-                    // Secondary, so Apply stays the one main action. With unapplied changes it
-                    // applies them first: locking alone would show the old look.
-                    LgButton {
-                        objectName: "lockNow"
-                        kind: "secondary"
-                        text: Backend.dirty ? "Apply and lock" : "Lock now"
-                        iconName: "lock"
-                        leftPadding: 14
-                        enabled: !Backend.busy
-                        tip: Backend.dirty ? "Applies your changes, then locks your screen so you can see them for real."
-                                           : "Locks your screen so you can see it for real. Your password unlocks it as usual."
-                        onClicked: Backend.dirty ? Backend.applyAndLock() : Backend.lockScreenNow()
-                    }
-                }
-            }
+            wrapMode: Text.WordWrap
+            text: "Changes show after Apply, the next time you lock."
+            color: Theme.textFaint
+            font.pixelSize: Theme.fsSmall
         }
-    }
-
-    // ================================================================ right: options
-    Flickable {
-        id: side
-        objectName: "lockOptions"
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: -12
-        width: page.sideW + 12
-        contentHeight: opts.height + 8
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        C.ScrollBar.vertical: LgScrollBar {}
-
-        Column {
-            id: opts
-            width: page.sideW
-            spacing: 16
-
-            // ---------------------------------------------------------- glass
-            Card {
-                width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Glass"; resetKeys: ["lock_glass", "lock_blur", "lock_dim", "lock_tint", "lock_card"] }
-                    SwitchRow {
-                        objectName: "lockGlass"
-                        label: "Glass lock screen"
-                        caption: Backend.reduceTransparency ? "Off while Reduce transparency is on"
-                                                            : "A sheet of frosted glass that slides up into your desktop"
-                        tip: "Turns the lock screen into one sheet of frosted glass over your wallpaper. When you unlock, the sheet slides up and your desktop appears underneath. Off gives you GNOME's own lock screen; your widgets stay."
-                        checked: Backend.lockGlass
-                        onToggled: (v) => Backend.lockGlass = v
-                    }
-                    LabeledSlider {
-                        objectName: "lockBlur"
-                        enabled: preview.glass
-                        label: "Frost"
-                        from: 10; to: 100; stepSize: 1
-                        value: Backend.lockBlur
-                        defaultValue: Backend.defaults.lock_blur
-                        format: (v) => Math.round(v) + " px"
-                        onMoved: (v) => Backend.lockBlur = Math.round(v)
-                        tip: "How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture."
-                    }
-                    LabeledSlider {
-                        objectName: "lockDim"
-                        enabled: preview.glass
-                        label: "Darken"
-                        from: 0; to: 0.65
-                        value: Backend.lockDim
-                        defaultValue: Backend.defaults.lock_dim
-                        onMoved: (v) => Backend.lockDim = v
-                        tip: "How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable."
-                    }
-                    LabeledSlider {
-                        objectName: "lockTint"
-                        enabled: preview.glass
-                        label: "Tint"
-                        value: Backend.lockTint
-                        defaultValue: Backend.defaults.lock_tint
-                        onMoved: (v) => Backend.lockTint = v
-                        tip: "How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours."
-                    }
-                    SwitchRow {
-                        objectName: "lockCard"
-                        enabled: preview.glass
-                        label: "Glass card behind the password"
-                        caption: "Your picture, name and password field sit on their own pane"
-                        tip: "Puts a pane of glass behind your picture, name and password field when you start typing."
-                        checked: Backend.lockCard
-                        onToggled: (v) => { Backend.lockCard = v; preview.mode = "prompt" }
-                    }
-                }
-            }
-
-            // ---------------------------------------------------------- clock
-            Card {
-                width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Clock"; resetKeys: ["lock_clock", "lock_clock_position", "lock_greeting"] }
-                    Choice {
-                        objectName: "lockClock"
-                        enabled: preview.glass
-                        label: "Style"
-                        value: Backend.lockClock
-                        model: [{ value: "gnome", label: "GNOME", tip: "GNOME's own clock" },
-                                { value: "bold", label: "Bold", tip: "Large, heavy numbers that stand out on the glass" },
-                                { value: "thin", label: "Thin", tip: "Large, light numbers for a quieter look" }]
-                        onPicked: (v) => { Backend.lockClock = v; preview.mode = "rest" }
-                    }
-                    Choice {
-                        objectName: "lockClockPosition"
-                        enabled: preview.glass
-                        label: "Position"
-                        value: Backend.lockClockPosition
-                        model: [{ value: "gnome", label: "GNOME", tip: "Where GNOME puts it, about a third of the way down" },
-                                { value: "top", label: "Top", tip: "Near the top of the screen, with more wallpaper below. The password appears there too." },
-                                { value: "middle", label: "Middle", tip: "In the middle of the screen. The password appears there too." }]
-                        onPicked: (v) => { Backend.lockClockPosition = v; preview.mode = "rest" }
-                    }
-                    SwitchRow {
-                        objectName: "lockGreeting"
-                        label: "Greeting"
-                        caption: "“Good morning” above the clock, changing through the day"
-                        tip: "A friendly line above the clock that follows the time of day. It never shows your name."
-                        checked: Backend.lockGreeting
-                        onToggled: (v) => { Backend.lockGreeting = v; preview.mode = "rest" }
-                    }
-                }
-            }
-
-            // ---------------------------------------------------------- widgets
-            Card {
-                width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Widgets"; resetKeys: ["lock_widget_battery", "lock_widget_weather", "lock_weather_place", "lock_message", "lock_widget_style"] }
-                    Note {
-                        text: "Under the clock, for anyone to see. Only the battery is on to start with; switch on only what you're happy to show."
-                    }
-                    SwitchRow {
-                        objectName: "lockWidgetBattery"
-                        label: "Battery"
-                        caption: Backend.hasBattery ? "How full it is, and whether it's charging"
-                                                    : "This PC has no battery, so nothing shows"
-                        tip: "Shows your battery level and a charging sign. On a PC without a battery nothing shows."
-                        checked: Backend.lockWidgetBattery
-                        onToggled: (v) => { Backend.lockWidgetBattery = v; preview.mode = "rest" }
-                    }
-                    SwitchRow {
-                        objectName: "lockWidgetWeather"
-                        label: "Weather"
-                        caption: Backend.weatherState === "no-app" ? "Needs the GNOME Weather app, so nothing shows yet"
-                               : Backend.weatherState === "no-place" ? "Choose a place in GNOME Weather, so it has something to show"
-                               : "Now, from GNOME Weather"
-                        tip: "Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu). Needs the Weather app with a place chosen. Nothing shows when there is no weather."
-                        checked: Backend.lockWidgetWeather
-                        onToggled: (v) => { Backend.lockWidgetWeather = v; preview.mode = "rest" }
-                    }
-                    SwitchRow {
-                        objectName: "lockWeatherPlace"
-                        enabled: Backend.lockWidgetWeather
-                        x: 16
-                        width: parent.width - 16
-                        label: "Name the place"
-                        caption: "Shows your town next to the weather"
-                        tip: "Adds the place name to the weather. Off keeps where you live off your lock screen."
-                        checked: Backend.lockWeatherPlace
-                        onToggled: (v) => { Backend.lockWeatherPlace = v; preview.mode = "rest" }
-                    }
-                    Column {
-                        width: parent.width
-                        spacing: 8
-                        Item {
-                            width: parent.width
-                            height: msgLabel.height
-                            Text { id: msgLabel; text: "Message"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                            Text {
-                                anchors.right: parent.right
-                                visible: msgField.activeFocus || msgField.text.length > Backend.lockMessageMax - 20
-                                text: msgField.text.length + " / " + Backend.lockMessageMax
-                                color: Theme.textFaint
-                                font.pixelSize: Theme.fsSmall
-                                font.features: { "tnum": 1 }
-                            }
-                        }
-                        C.TextField {
-                            id: msgField
-                            objectName: "lockMessage"
-                            width: parent.width
-                            height: 40
-                            leftPadding: 14
-                            rightPadding: 14
-                            color: Theme.text
-                            placeholderText: "For example: If found, please call 555 0100"
-                            placeholderTextColor: Theme.textFaint
-                            selectionColor: Theme.alpha(Theme.accent, 0.4)
-                            selectedTextColor: Theme.text
-                            font.pixelSize: Theme.fsBody
-                            maximumLength: Backend.lockMessageMax
-                            Accessible.name: "Lock screen message"
-                            background: Rectangle {
-                                radius: Theme.rS
-                                color: Theme.well
-                                border.width: msgField.activeFocus ? 2 : 1
-                                border.color: msgField.activeFocus ? Theme.alpha(Theme.accent, 0.85) : Theme.border
-                            }
-                            // Set once, and again only when it changes from elsewhere (Reset):
-                            // typing a space must not be tidied away mid-word.
-                            Component.onCompleted: text = Backend.lockMessage
-                            onTextEdited: { Backend.lockMessage = text; preview.mode = "rest" }
-                            onEditingFinished: text = Backend.lockMessage
-                            Connections {
-                                target: Backend
-                                function onSettingsChanged() {
-                                    if (!msgField.activeFocus && msgField.text !== Backend.lockMessage)
-                                        msgField.text = Backend.lockMessage
-                                }
-                            }
-                            HoverHandler { id: msgHover }
-                            LgToolTip {
-                                shown: msgHover.hovered && !msgField.activeFocus
-                                text: "A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it."
-                            }
-                        }
-                    }
-                    Choice {
-                        objectName: "lockWidgetStyle"
-                        label: "Look"
-                        value: Backend.lockWidgetStyle
-                        model: [{ value: "chips", label: "Glass", tip: "Each widget sits on its own small pane of glass" },
-                                { value: "plain", label: "Text only", tip: "Just the icons and text, straight on the lock screen" }]
-                        onPicked: (v) => { Backend.lockWidgetStyle = v; preview.mode = "rest" }
-                    }
-                }
-            }
-
-            // ---------------------------------------------------------- privacy
-            Card {
-                width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Privacy"; resetKeys: ["lock_hide_notifications"] }
-                    SwitchRow {
-                        objectName: "lockHideNotifications"
-                        label: "Hide notifications and music"
-                        caption: "Nothing from your apps under the clock"
-                        tip: "Hides GNOME's notifications and music controls while the screen is locked. They're all still there when you unlock. GNOME's own notification settings aren't changed."
-                        checked: Backend.lockHideNotifications
-                        onToggled: (v) => { Backend.lockHideNotifications = v; preview.mode = "rest" }
-                    }
-                }
-            }
-
-            // ---------------------------------------------------------- unlock
-            Card {
-                width: parent.width
-                height: implicitHeight
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    SectionTitle { text: "Unlock"; resetKeys: ["lock_slide", "lock_slide_ms", "lock_bounce"] }
-                    Choice {
-                        objectName: "lockSlide"
-                        enabled: preview.glass
-                        label: "Animation"
-                        value: Backend.lockSlide
-                        model: [{ value: "gnome", label: "GNOME", tip: "GNOME's own quick slide" },
-                                { value: "smooth", label: "Smooth", tip: "The glass glides up and slows as it leaves" },
-                                { value: "spring", label: "Spring", tip: "The glass gathers itself, then lifts away quickly" }]
-                        onPicked: (v) => Backend.lockSlide = v
-                    }
-                    LabeledSlider {
-                        objectName: "lockSlideMs"
-                        enabled: preview.glass && Backend.lockSlide !== "gnome"
-                        label: "Slide time"
-                        from: 250; to: 1200; stepSize: 10
-                        value: Backend.lockSlideMs
-                        defaultValue: Backend.defaults.lock_slide_ms
-                        format: (v) => (v / 1000).toFixed(2) + " s"
-                        onMoved: (v) => Backend.lockSlideMs = Math.round(v)
-                        tip: "How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant."
-                    }
-                    LabeledSlider {
-                        objectName: "lockBounce"
-                        enabled: preview.glass && Backend.lockSlide === "spring"
-                        label: "Bounce"
-                        value: Backend.lockBounce
-                        defaultValue: Backend.defaults.lock_bounce
-                        onMoved: (v) => Backend.lockBounce = v
-                        tip: "How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first."
-                    }
-                }
-            }
-
-            LoginScreenCard { width: parent.width }
-        }
-    }
-    // Soft edges where the options scroll under, so it's clear there is more.
-    Rectangle {
-        anchors.left: side.left; width: page.sideW
-        y: side.y; height: 24
-        visible: side.contentY > 1
-        gradient: Gradient {
-            GradientStop { position: 0; color: Theme.alpha(Theme.base, 0.9) }
-            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0) }
-        }
-    }
-    Rectangle {
-        anchors.left: side.left; width: page.sideW
-        y: side.y + side.height - height; height: 32
-        visible: side.contentY + side.height < side.contentHeight - 1
-        gradient: Gradient {
-            GradientStop { position: 0; color: Theme.alpha(Theme.base, 0) }
-            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0.92) }
-        }
-    }
+    ]
 }
