@@ -216,3 +216,49 @@ test('the GNOME 51 snippet carries the same shader, replacing the fragment hook'
     assert.equal(snip.post, null);
     assert.equal(snip.replace, parts.code);
 });
+
+// The glass's overall backdrop brightness ("adapt", "lift") is the same for every
+// pixel of a pane, so its four texture reads run once per corner in a vertex snippet
+// and reach the fragment shader as the varying fg_bl (they were four reads per pixel).
+function adaptVertex() {
+    const m = read('glass.js').match(/const ADAPT_VERTEX = \{\s*decls: `([^`]*)`,\s*code: `([^`]*)`,\s*\};/);
+    assert.ok(m, 'ADAPT_VERTEX in glass.js');
+    return {decls: m[1], code: m[2]};
+}
+
+test('the backdrop brightness is read once per corner, not per pixel', () => {
+    const frag = shaderSource('glass.js', 'SHADER');
+    const v = adaptVertex();
+    assert.match(frag, /varying float fg_bl;/);
+    assert.match(v.decls, /varying float fg_bl;/);
+    assert.match(frag, /float bl = fg_bl;/);
+    assert.doesNotMatch(frag, /at\(size \* 0\.5/);
+    assert.match(v.code, /fg_bl = 0\.0;/);
+    // Cogl already declares the sampler in the vertex stage: declaring it again is a
+    // compile error, and then no glass draws at all.
+    assert.doesNotMatch(v.decls, /sampler2D/);
+    assert.match(v.decls, /texture2DLod\(cogl_sampler0,/);
+    // Its uniforms are the fragment shader's own, so the JS sets them already.
+    const fragNames = new Set(uniformNames(frag));
+    for (const n of uniformNames(v.decls))
+        assert.ok(fragNames.has(n), `vertex uniform ${n} is declared by the glass shader too`);
+});
+
+test('build adds the vertex snippet, then the replacing fragment snippet', () => {
+    const v = adaptVertex();
+    const shader = new Shader(shaderSource('glass.js', 'SHADER'), v);
+    const added = [];
+    shader.build({add_glsl_snippet: (hook, decls, code, replace) => added.push({hook, decls, code, replace})});
+    assert.deepEqual(added.map(s => [s.hook, s.replace]), [['vertex', false], ['fragment', true]]);
+    assert.equal(added[0].code, v.code);
+    const snip = shader.coglVertex();
+    assert.equal(snip.hook, 'vertex');
+    assert.equal(snip.post, v.code);
+    assert.equal(shader.coglVertex(), snip);    // one snippet, shared by every pane
+    assert.equal(new Shader(shaderSource('glass.js', 'SHADER')).coglVertex(), null);
+});
+
+test('GNOME 51 adds the vertex snippet to each new pipeline of the glass effect', () => {
+    const src = code('glass.js');
+    assert.match(src, /if \(!SHELL_GLSL\) \{\s*const p = this\.get_pipeline\?\.\(\);\s*if \(p && p !== this\._vertexOn\) \{\s*p\.add_snippet\(GLASS\.coglVertex\(\)\);/);
+});
