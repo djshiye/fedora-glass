@@ -70,6 +70,112 @@ def test_archives_hold_one_safe_theme_with_every_common_shape(style):
         assert f"{style}/cursors/{shape}" in names, shape
 
 
+# Every shape a web page or app can ask for by its standard (CSS) name. GNOME falls back to
+# Adwaita for a missing one, which works but looks out of place, so the styles added from
+# 1.5.20 on must have them all; the first five are allowed a few gaps their upstream has.
+CSS_NAMES = ("default", "context-menu", "help", "pointer", "progress", "wait", "cell",
+             "crosshair", "text", "vertical-text", "alias", "copy", "move", "no-drop",
+             "not-allowed", "grab", "grabbing", "all-scroll", "col-resize", "row-resize",
+             "n-resize", "e-resize", "s-resize", "w-resize", "ne-resize", "nw-resize",
+             "se-resize", "sw-resize", "ew-resize", "ns-resize", "nesw-resize", "nwse-resize",
+             "zoom-in", "zoom-out")
+FIRST_FIVE = {"fedora-glass-light", "fedora-glass-dark", "fedora-glass-bibata-ice",
+              "fedora-glass-bibata-classic", "fedora-glass-whitesur"}
+
+
+@pytest.mark.parametrize("style", [s for s in cursors.STYLE_IDS if s not in FIRST_FIVE])
+def test_new_styles_have_every_standard_shape(fake_env, style):
+    install(fake_env, style)
+    root = cursors.theme_dir(fake_env, style)
+    missing = [n for n in CSS_NAMES if not (root / "cursors" / n).is_file()]
+    assert not missing, missing
+
+
+def _rgba(img):
+    """Straight (not premultiplied) RGBA pixels of a CursorImage, row by row."""
+    out = []
+    for i in range(0, len(img.argb), 4):
+        b, g, r, a = img.argb[i:i + 4]
+        out.append((r * 255 // a, g * 255 // a, b * 255 // a, a) if a else (0, 0, 0, 0))
+    return out
+
+
+def _lum(r, g, b):
+    def ch(c):
+        c /= 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+@pytest.mark.parametrize("style", cursors.STYLE_IDS)
+def test_pointers_read_on_white_and_on_black(fake_env, style):
+    """Seen over a white page, some part of the arrow has at least 3:1 contrast with the
+    white (the WCAG bar for parts of a control), and the same over black, so it never melts
+    into either. Half see-through rims count for what they show over each."""
+    install(fake_env, style)
+    for shape in ("left_ptr", "hand2", "xterm"):
+        img = cursors.read_xcursor(cursors.find_cursor(fake_env, style, shape), 24)
+        px = [p for p in _rgba(img) if p[3] > 0]
+        assert sum(1 for p in px if p[3] >= 128) > 8, shape
+
+        def over(bg):
+            return [_lum(*(round(c * p[3] / 255 + bg * (255 - p[3]) / 255) for c in p[:3])) for p in px]
+        on_white = max(1.05 / (lu + 0.05) for lu in over(255))
+        on_black = max((lu + 0.05) / 0.05 for lu in over(0))
+        assert on_white >= 3 and on_black >= 3, (shape, on_white, on_black)
+
+
+def _box(img):
+    px = _rgba(img)
+    pts = [(i % img.width, i // img.width) for i, p in enumerate(px) if p[3] > 40]
+    xs, ys = [x for x, _ in pts], [y for _, y in pts]
+    return min(xs), min(ys), max(xs), max(ys), px
+
+
+@pytest.mark.parametrize("style", cursors.STYLE_IDS)
+def test_hotspots_sit_where_people_expect(fake_env, style):
+    """The arrow and the hand click at their tip (top left of the drawing, on the drawing);
+    the text beam, crosshair and busy sign of `wait` click in their middle."""
+    install(fake_env, style)
+    for shape, where in (("left_ptr", "tip"), ("hand2", "top"), ("xterm", "middle"),
+                         ("crosshair", "middle")):
+        img = cursors.read_xcursor(cursors.find_cursor(fake_env, style, shape), 48)
+        x0, y0, x1, y1, px = _box(img)
+        w, h = x1 - x0 + 1, y1 - y0 + 1
+        hx, hy = img.xhot, img.yhot
+        near = [px[y * img.width + x][3] for x in range(max(0, hx - 3), min(img.width, hx + 4))
+                for y in range(max(0, hy - 3), min(img.height, hy + 4))]
+        if where != "middle":    # a crosshair may leave its very middle open, to see through
+            assert max(near) > 40, f"{shape}: hotspot ({hx},{hy}) is off the drawing"
+        if where == "tip":
+            assert hx <= x0 + w * 0.3 and hy <= y0 + h * 0.3, (shape, hx, hy, (x0, y0, x1, y1))
+        elif where == "top":
+            assert hy <= y0 + h * 0.35, (shape, hx, hy, (x0, y0, x1, y1))
+        else:
+            assert abs(hx - (x0 + x1) / 2) <= w * 0.25 + 2 and abs(hy - (y0 + y1) / 2) <= h * 0.25 + 2, \
+                (shape, hx, hy, (x0, y0, x1, y1))
+
+
+def _frames(path, size):
+    b = path.read_bytes()
+    n = struct.unpack_from("<I", b, 12)[0]
+    return sum(1 for i in range(n) if struct.unpack_from("<III", b, 16 + 12 * i)[:2] == (0xFFFD0002, size))
+
+
+@pytest.mark.parametrize("style", cursors.STYLE_IDS)
+def test_busy_pointers_move(fake_env, style):
+    install(fake_env, style)
+    root = cursors.theme_dir(fake_env, style)
+    for shape in ("wait", "progress"):
+        assert _frames((root / "cursors" / shape).resolve(), 24) >= 6, shape
+
+
+def test_fun_styles_are_grouped_after_the_plain_ones():
+    fun = [s.fun for s in cursors.STYLES]
+    assert any(fun) and fun == sorted(fun)
+    assert all(s.credit and "·" in s.credit for s in cursors.STYLES)
+
+
 @pytest.mark.parametrize("style", cursors.STYLE_IDS)
 def test_cursor_files_have_gnome_sizes(fake_env, style):
     install(fake_env, style)
@@ -189,10 +295,12 @@ def test_picking_a_tile_changes_only_the_setting_until_apply(qml):
     try:
         win.show()
         _spin()
-        grid = _find(win, "cursorGrid")
-        assert grid is not None
-        names = [it.objectName() for it in grid.childItems() if it.objectName().startswith("cursor_")]
+        grid, fun = _find(win, "cursorGrid"), _find(win, "cursorGridFun")
+        assert grid is not None and fun is not None
+        names = [it.objectName() for g in (grid, fun) for it in g.childItems()
+                 if it.objectName().startswith("cursor_")]
         assert names == ["cursor_keep"] + [f"cursor_{i}" for i in cursors.STYLE_IDS]
+        assert all(_find(win, f"cursor_{s.id}").parentItem() == fun for s in cursors.STYLES if s.fun)
         tile = _find(win, "cursor_fedora-glass-dark")
         tile.clicked.emit()
         _spin()

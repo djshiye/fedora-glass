@@ -13,7 +13,7 @@ sh packaging/install-tree.sh "$src" "$root"
 install -d "$root/usr/share/doc/fedora-glass"
 mv "$root/usr/share/licenses/fedora-glass/"* "$root/usr/share/doc/fedora-glass/"
 rm -r "$root/usr/share/licenses"
-{ echo "Fedora Glass is MIT licensed, with Apache-2.0 parts and GPL-3.0-or-later pointer styles; see LICENSE, Apache-2.0.txt, GPL-3.0.txt and THIRD-PARTY-NOTICES.md here."; } > "$root/usr/share/doc/fedora-glass/copyright"
+{ echo "Fedora Glass is MIT licensed, with Apache-2.0 parts and pointer styles under GPL-3.0-or-later, GPL-2.0 or CC-BY-SA-4.0; see LICENSE, Apache-2.0.txt, GPL-3.0.txt, GPL-2.0.txt, CC-BY-SA-4.0.txt and THIRD-PARTY-NOTICES.md here."; } > "$root/usr/share/doc/fedora-glass/copyright"
 # The repository it updates from, its key and the pin that lets only fedora-glass through.
 # The source and the pin are not conffiles: postinst puts them in /etc/apt from here and
 # postrm takes them out again, so `apt remove` never leaves a source whose key is gone.

@@ -113,7 +113,7 @@ class CursorPicker(QObject):
     @Property("QVariantList", notify=changed)
     def styles(self) -> list[dict]:
         return [{"id": s.id, "name": s.name, "blurb": s.blurb, "credit": s.credit,
-                 "installed": cursors.theme_dir(self._env, s.id) is not None}
+                 "fun": s.fun, "installed": cursors.theme_dir(self._env, s.id) is not None}
                 for s in cursors.STYLES]
 
     @Property(str, notify=changed)
