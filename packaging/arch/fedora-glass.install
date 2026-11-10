@@ -3,6 +3,13 @@ post_install() {
     systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
 }
 
+post_upgrade() {
+    # Glass on the login screen (only if a user turned it on): bring it up to this version's
+    # rules with the colours of their last Apply, so no Apply or password is needed after an
+    # update. Each user's own desktop parts follow at their next login (fedora-glass watch).
+    /usr/libexec/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
+}
+
 pre_remove() {
     # Removing the app (not an upgrade) puts each person's original look back, unless they
     # turned that off in the app, and the normal login screen if the glass was on there.

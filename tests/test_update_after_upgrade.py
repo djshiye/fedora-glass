@@ -82,3 +82,22 @@ def test_with_the_glass_part_off_the_other_parts_are_still_updated(fake_env):
     engine.revert()
     assert not applied_version_path(fake_env).exists()
     assert cli.update_after_upgrade(engine) is False
+
+
+def test_only_the_parts_applied_now_are_redone(fake_env):
+    """A part restored on its own (or one the user never applied, such as a part a newer
+    version adds) waits for the user's own Apply: an update never turns it on."""
+    from fedoraglass.engine import Backup
+    from test_wait_for_glass import ARC
+    engine = desktop(fake_env)
+    mine = Settings()
+    settings_mod.save(mine)
+    engine.apply(mine)
+    assert engine.revert("arcmenu") == []
+    theirs = dict(fake_env.gs[(ARC, None)])
+    _age(fake_env)
+    assert cli.update_after_upgrade(engine) is True
+    assert cli.installed_glass_version(engine) == __version__
+    assert fake_env.gs[(ARC, None)] == theirs, "ArcMenu keeps the user's own look"
+    assert "arcmenu" not in Backup(fake_env).targets_with_changes()
+    assert "glass" in Backup(fake_env).targets_with_changes()

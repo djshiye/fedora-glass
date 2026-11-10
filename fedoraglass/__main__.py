@@ -151,6 +151,8 @@ def update_after_upgrade(eng) -> bool:
     extension in their home folder, the theme files) is still the old version's. At the
     next login, apply it again with the user's own saved settings, the way pressing Apply
     would. Nothing happens after Restore original, or when the versions already match.
+    Only the parts this user has applied now are redone: a part they never applied (or
+    restored on its own), or one a newer version adds, waits for their own Apply.
     Returns True when it applied."""
     if not eng.look_on():
         return False
@@ -163,7 +165,7 @@ def update_after_upgrade(eng) -> bool:
     if had is None or had == __version__:
         return False
     print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
-    eng.apply(settings_mod.load(), if_applied=True)
+    eng.apply(settings_mod.load(), if_applied=True, applied_only=True)
     return True
 
 

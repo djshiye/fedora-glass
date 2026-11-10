@@ -97,6 +97,7 @@ def test_needs_root_and_takes_no_paths(capsys):
         pytest.skip("running as root")
     assert ls.main(["x", "apply", "#3584e4", "#6a3fb5", "0.4"]) == 77
     assert ls.main(["x", "undo"]) == 77
+    assert ls.main(["x", "refresh"]) == 77
     assert ls.main(["x", "status", "/etc/shadow"]) == 77      # no extra arguments, ever
     assert ls.main(["x", "status"]) == 0
 
@@ -165,13 +166,82 @@ def test_a_bad_theme_file_changes_nothing(dirs):
 
 
 @needs_tools
-def test_state_file_holds_only_hashes(dirs):
+def test_state_file_holds_only_hashes_and_the_three_values(dirs):
     shell, state = dirs
     ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
     s = json.loads(Path(state, ls.STATE).read_text())
-    assert set(s) == {"original", "written", "target", "look", "shared"}
+    assert set(s) == {"original", "written", "target", "look", "shared", "values"}
     assert all(len(s[k]) == 64 for k in ("original", "written", "look"))
     assert s["shared"] is False                     # this test theme has gdm.css
+    assert s["values"] == ["#3584e4", "#6a3fb5", 0.4]
+
+
+# ---- refresh: the package's step after an update of Fedora Glass ---------------------
+def _old_rules(state):
+    """Pretend an older Fedora Glass put the glass in (other rules, so another look)."""
+    p = Path(state, ls.STATE)
+    s = json.loads(p.read_text())
+    s["look"] = "0" * 64
+    p.write_text(json.dumps(s))
+    return s
+
+
+@needs_tools
+def test_refresh_brings_old_login_glass_up_to_date_with_the_last_applied_values(dirs):
+    shell, state = dirs
+    ls.apply("#e62d42", "#203050", 0.7, shell, state)
+    first = Path(ls.target(shell)).read_bytes()
+    assert ls.refresh(shell, state) == "up to date"
+    assert Path(ls.target(shell)).read_bytes() == first          # nothing rewritten
+    _old_rules(state)
+    assert not ls.up_to_date("#e62d42", "#203050", 0.7, state)
+    assert ls.refresh(shell, state) == "updated"
+    assert ls.up_to_date("#e62d42", "#203050", 0.7, state)
+    assert ls.status(shell, state) == "on"
+    css = gdm_css(shell)
+    assert css.count(ls.MARK_START) == 1 and "#e62d42" in css   # same colours, one block
+    # And undo still brings back GNOME's own file afterwards.
+    ls.undo(shell, state)
+    assert ls.MARK_START not in gdm_css(shell)
+
+
+@needs_tools
+def test_refresh_never_turns_the_glass_on(dirs, tmp_path):
+    shell, state = dirs
+    before = Path(ls.target(shell)).read_bytes()
+    assert ls.refresh(shell, state) == "off"                     # never turned on
+    ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    ls.undo(shell, state)
+    assert ls.refresh(shell, state) == "off"                     # the user turned it off
+    assert Path(ls.target(shell)).read_bytes() == before
+    # A GNOME update put its own file back: that stays (the app offers to turn it on again).
+    ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    make_theme(tmp_path / "new.gresource", gdm=GDM + "/* GNOME 50.2 */\n")
+    shutil.copyfile(tmp_path / "new.gresource", ls.target(shell))
+    _old_rules(state)
+    assert ls.refresh(shell, state) == "off"
+    assert Path(ls.target(shell)).read_bytes() == (tmp_path / "new.gresource").read_bytes()
+
+
+@needs_tools
+@pytest.mark.parametrize("values", [None, ["#3584e4", "#6a3fb5"], ["/etc/shadow", "#6a3fb5", 0.4],
+                                    ["#3584e4", "#6a3fb5", 9], "#3584e4"])
+def test_refresh_without_good_saved_values_changes_nothing(dirs, values):
+    """Glass turned on by an older version kept no values; a changed state file is not trusted."""
+    shell, state = dirs
+    ls.apply("#3584e4", "#6a3fb5", 0.4, shell, state)
+    s = _old_rules(state)
+    if values is None:
+        del s["values"]
+    else:
+        s["values"] = values
+    Path(state, ls.STATE).write_text(json.dumps(s))
+    on = Path(ls.target(shell)).read_bytes()
+    try:
+        assert ls.refresh(shell, state) == "no saved values"
+    except ls.LoginScreenError:
+        pass
+    assert Path(ls.target(shell)).read_bytes() == on
 
 
 @needs_tools
