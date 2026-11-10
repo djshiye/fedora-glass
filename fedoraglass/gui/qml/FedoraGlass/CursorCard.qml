@@ -141,6 +141,8 @@ Card {
         spacing: 16
         SectionTitle {
             text: "Mouse pointer"
+            resetKeys: ["cursor_theme", "cursor_size"]
+            resetTip: "Keep your own mouse pointer"
             caption: "Point at a style to try it here. Apply sets it for the whole desktop; Restore original brings yours back."
         }
 

@@ -395,7 +395,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 16
-                        SectionTitle { text: "Style and accent" }
+                        SectionTitle { text: "Style and accent"; resetKeys: ["scheme", "accent"] }
                         Column {
                             width: parent.width
                             spacing: 8
@@ -477,7 +477,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 16
-                        SectionTitle { text: "Tint and corners" }
+                        SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius"] }
                         Item {
                             width: parent.width
                             height: 36
@@ -537,6 +537,7 @@ Item {
                         LabeledSlider {
                             label: "Tint strength"
                             value: Backend.tintStrength
+                            defaultValue: Backend.defaults.tint_strength
                             onMoved: (v) => Backend.tintStrength = v
                             tip: "How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane."
                         }
@@ -544,6 +545,7 @@ Item {
                             label: "Corner roundness"
                             from: 0; to: 32; stepSize: 1
                             value: Backend.radius
+                            defaultValue: Backend.defaults.radius
                             format: (v) => Math.round(v) + " px"
                             onMoved: (v) => Backend.radius = v
                             tip: "How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners."
@@ -566,6 +568,7 @@ Item {
                         spacing: 16
                         SectionTitle {
                             text: "Glass effects"
+                            resetKeys: ["refraction", "dispersion", "vibrancy", "bleed", "pointer_light"]
                             captionName: "glassStatus"
                             caption: Backend.glassLive
                                      ? "The preview shows these as you change them. Your desktop changes when you press Apply."
@@ -575,30 +578,35 @@ Item {
                         LabeledSlider {
                             label: "Bend"
                             value: Backend.refraction
+                            defaultValue: Backend.defaults.refraction
                             onMoved: (v) => { Backend.refraction = v; preview.peekEdge("") }
                             tip: "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
                         }
                         LabeledSlider {
                             label: "Rainbow edge"
                             value: Backend.dispersion
+                            defaultValue: Backend.defaults.dispersion
                             onMoved: (v) => { Backend.dispersion = v; preview.peekEdge("") }
                             tip: "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
                         }
                         LabeledSlider {
                             label: "Colour through glass"
                             value: Backend.vibrancy
+                            defaultValue: Backend.defaults.vibrancy
                             onMoved: (v) => Backend.vibrancy = v
                             tip: "How vivid the wallpaper and windows look through the glass. Left keeps their colours as they are; right makes them richer."
                         }
                         LabeledSlider {
                             label: "Colour bleed"
                             value: Backend.bleed
+                            defaultValue: Backend.defaults.bleed
                             onMoved: (v) => Backend.bleed = v
                             tip: "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
                         }
                         LabeledSlider {
                             label: "Light follows pointer"
                             value: Backend.pointerLight
+                            defaultValue: Backend.defaults.pointer_light
                             onMoved: (v) => Backend.pointerLight = v
                             tip: "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
                         }
@@ -613,6 +621,7 @@ Item {
                         spacing: 8
                         SectionTitle {
                             text: "Where the glass shows"
+                            resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows"]
                             caption: "Real glass costs some graphics power. Turn it off where you don't need it."
                         }
                         Column {
@@ -677,7 +686,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 16
-                        SectionTitle { text: "Panel" }
+                        SectionTitle { text: "Panel"; resetKeys: ["panel_style", "panel_margin"] }
                         Column {
                             width: parent.width
                             spacing: 8
@@ -696,6 +705,7 @@ Item {
                             enabled: Backend.panelStyle === "floating"
                             from: 0; to: 32; stepSize: 1
                             value: Backend.panelMargin
+                            defaultValue: Backend.defaults.panel_margin
                             format: (v) => Math.round(v) + " px"
                             onMoved: (v) => Backend.panelMargin = v
                             tip: "The gap between the floating panel and the screen edge. Left sits it against the edge; right floats it further away."
@@ -718,7 +728,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 8
-                        SectionTitle { text: "Glass in motion" }
+                        SectionTitle { text: "Glass in motion"; resetKeys: ["liquid_motion", "menu_grow"] }
                         SwitchRow {
                             label: "Liquid motion"
                             caption: "Glass gives a little when pressed and settles as menus open"
@@ -754,7 +764,7 @@ Item {
                     Column {
                         width: parent.width
                         spacing: 4
-                        SectionTitle { text: "Desktop" }
+                        SectionTitle { text: "Desktop"; resetKeys: ["start_on_desktop", "overview_off"] }
                         SwitchRow {
                             objectName: "startOnDesktop"
                             label: "Start on the desktop"
@@ -829,6 +839,8 @@ Item {
                         spacing: 16
                         SectionTitle {
                             text: "Part by part"
+                            resetKeys: ["parts"]
+                            resetTip: "Every part follows the global look again"
                             caption: "Give one part of the desktop its own look. Anything you leave on Global follows the rest of the Look page."
                         }
                         Column {
@@ -1080,14 +1092,45 @@ Item {
                                 onToggled: (on) => Backend.reduceTransparency = on
                             }
                             LgButton {
+                                objectName: "fineReset"
+                                readonly property var keys: ["opacity", "blur", "terminal_opacity", "reduce_transparency"]
+                                visible: Backend.changedFromDefault.some((k) => keys.indexOf(k) >= 0)
                                 kind: "flat"
-                                text: "Reset all to defaults"
-                                iconName: "refresh"
+                                implicitHeight: 32
+                                text: "Reset fine-tune"
+                                iconName: "undo"
                                 leftPadding: 12
-                                tip: "Back to the default look (Apply to use it)"
-                                onClicked: Backend.resetDefaults()
+                                tip: "Let the Glass slider decide these again (Apply to use it)"
+                                onClicked: Backend.resetSettings(keys)
                             }
                             Item { width: 1; height: 4 }
+                        }
+                    }
+                }
+
+                Card {
+                    objectName: "startOverCard"
+                    width: parent.width
+                    height: implicitHeight
+                    Column {
+                        width: parent.width
+                        spacing: 12
+                        SectionTitle {
+                            text: "Start over"
+                            caption: Backend.changedFromDefault.length > 0
+                                     ? "Puts every setting on every page back to how Fedora Glass comes. Your desktop changes when you press Apply, and Undo changes takes it back until then."
+                                     : "Every setting is at its default."
+                        }
+                        LgButton {
+                            objectName: "resetAll"
+                            kind: "secondary"
+                            implicitHeight: 36
+                            leftPadding: 16; rightPadding: 16
+                            text: "Reset all to defaults"
+                            iconName: "refresh"
+                            enabled: Backend.changedFromDefault.length > 0
+                            tip: "Back to the default look on every page (Apply to use it)"
+                            onClicked: Backend.resetDefaults()
                         }
                     }
                 }

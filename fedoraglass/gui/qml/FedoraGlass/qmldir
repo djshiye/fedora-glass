@@ -19,6 +19,7 @@ LockPage 1.0 LockPage.qml
 LockPreview 1.0 LockPreview.qml
 LoginScreenCard 1.0 LoginScreenCard.qml
 RemoveCard 1.0 RemoveCard.qml
+ResetButton 1.0 ResetButton.qml
 Icon 1.0 Icon.qml
 LabeledSlider 1.0 LabeledSlider.qml
 LgButton 1.0 LgButton.qml

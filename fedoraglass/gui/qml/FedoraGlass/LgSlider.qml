@@ -6,6 +6,7 @@ C.Slider {
     id: control
     property string valueText: ""
     property bool dimmed: false     // shows an "automatic" value, not a chosen one
+    property real markValue: NaN    // a small mark on the track: where the default is
 
     implicitHeight: 28
     implicitWidth: 200
@@ -37,6 +38,18 @@ C.Slider {
                 color: control.dimmed ? Theme.textFaint : Theme.accent
                 Behavior on color { ColorAnimation { duration: Theme.fast } }
             }
+        }
+        // The default's mark: a short tick under the track, out of the knob's way.
+        Rectangle {
+            objectName: "defaultMark"
+            visible: !isNaN(control.markValue) && control.to > control.from
+            readonly property real pos: Math.max(0, Math.min(1, (control.markValue - control.from) / (control.to - control.from)))
+            width: 2
+            height: 5
+            radius: 1
+            x: 11 + pos * (parent.width - 22) - width / 2
+            y: groove.y + groove.height + 3
+            color: Theme.textFaint
         }
     }
 

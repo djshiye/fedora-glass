@@ -95,6 +95,11 @@ The report is `qa-report/report/report.html`. In GitHub each run has these:
 `release-check-report-gnome50`, `release-check-report-gnome51`, `ubuntu-check-report-gnome50`,
 `ubuntu-check-report-gnome51` and the four `stock-check-report-gnome5x[-dock]`, and a short table for each is on the run's summary page.
 
+Every setting can be changed back: with a test desktop running (`--start-only`),
+`docker exec -u dino -e LGQA_OUT=/out NAME python3 /opt/lgqa/suite/checks/reversible.py [setting ...]`
+applies each setting changed, then the defaults again, and lists any dconf key or file that
+did not come back (about 2 minutes for all of them).
+
 On a pull request the checks run only when it has the `release-checks` label, to keep
 Actions use down. They always run before a release and can be started by hand from the
 Actions tab ("Release checks", "Run workflow").
