@@ -411,23 +411,44 @@ Window {
 
             // status
             Row {
+                id: footerStatus
                 anchors.left: restoreButton.right
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 10
+                // Applied, but the glass only starts after a restart: not "Up to date" yet.
+                readonly property string phase: Backend.dirty ? "dirty" : Backend.lostNote !== "" ? "lost"
+                    : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
+                    : Backend.hasBackup ? "done" : "none"
                 Rectangle {
+                    objectName: "statusDot"
                     visible: !Backend.busy
                     width: 8; height: 8; radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Backend.dirty ? Theme.accent : Backend.lostNote !== "" || Backend.loginGlassStale ? Theme.warn : Backend.hasBackup ? Theme.good : Theme.textFaint
+                    color: footerStatus.phase === "dirty" ? Theme.accent
+                         : footerStatus.phase === "done" ? Theme.good
+                         : footerStatus.phase === "none" ? Theme.textFaint : Theme.warn
                 }
                 Text {
+                    objectName: "statusText"
                     visible: !Backend.busy
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Backend.dirty ? "Unapplied changes" : Backend.lostNote !== "" ? "Needs re-apply"
-                        : Backend.loginGlassStale ? "Login screen needs Apply" : Backend.hasBackup ? "Up to date" : "Not applied yet"
+                    text: ({ dirty: "Unapplied changes", lost: "Needs re-apply", login: "Login screen needs Apply",
+                             restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
                     color: Theme.textDim
                     font.pixelSize: 13
+                }
+                LgButton {
+                    objectName: "restartButton"
+                    visible: footerStatus.phase === "restart" && !Backend.busy
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "secondary"
+                    implicitHeight: 28
+                    leftPadding: 12; rightPadding: 12
+                    font.pixelSize: 13
+                    text: "Restart…"
+                    tip: "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
+                    onClicked: Backend.restartPC()
                 }
                 LgButton {
                     objectName: "discardButton"

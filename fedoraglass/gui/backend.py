@@ -218,6 +218,7 @@ class Backend(QObject):
     speedChanged = Signal()
     removingChanged = Signal()
     removeFinished = Signal(bool)
+    restartNeededChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -264,6 +265,8 @@ class Backend(QObject):
         self._motion_state = {"animations": True, "dtpHover": False}
         self._has_dock = False      # Dash to Dock or Ubuntu Dock switched on (the preview draws it)
         self._has_menu = False      # ArcMenu or Spawn switched on
+        # Applied, but the glass (or a Shell part waiting for it) only starts after a restart.
+        self._restart_needed = False
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -994,6 +997,45 @@ class Backend(QObject):
         except OSError:
             pass    # worst case it shows again next time
 
+    # ---- restart to finish -------------------------------------------------
+    @Property(bool, notify=restartNeededChanged)
+    def restartNeeded(self) -> bool:
+        """The look is applied, but the glass only starts when the PC restarts: the glass
+        part is applied and GNOME Shell isn't running it yet, or Shell parts still wait for it."""
+        return self._restart_needed
+
+    def _set_restart_needed(self, on: bool) -> None:
+        on = bool(on)
+        if on != self._restart_needed:
+            self._restart_needed = on
+            self.restartNeededChanged.emit()
+
+    @staticmethod
+    def _restart_state(engine: Any, glass_wanted: bool) -> tuple[bool, bool]:
+        """(the glass runs now, a restart is needed to finish), read on a worker thread."""
+        try:
+            from ..engine import Backup, read_pending, restored_path
+            from ..targets.shell import GlassEffects
+            changed = Backup(engine.env).targets_with_changes()
+            if not changed or restored_path(engine.env).exists():
+                return False, False
+            glass_applied = "glass" in changed
+            running = glass_applied and GlassEffects.running(engine.env)
+            waiting = bool(read_pending())
+            return running, glass_wanted and ((glass_applied and not running) or waiting)
+        except Exception:
+            return False, False
+
+    def _detach(self, program: str, args: list[str]) -> bool:
+        return bool(QProcess.startDetached(program, args))
+
+    @Slot()
+    def restartPC(self) -> None:
+        """Open GNOME's own restart dialog: the user confirms there, nothing restarts without it."""
+        path = self._env.which("gnome-session-quit")
+        if not path or not self._detach(path, ["--reboot"]):
+            self.failed.emit("Could not open the restart dialog. Restart your PC from the system menu instead.")
+
     @Property(bool, notify=targetsChanged)
     def hasBackup(self) -> bool:
         return self._has_backup
@@ -1025,6 +1067,7 @@ class Backend(QObject):
     @Slot()
     def refreshTargets(self) -> None:
         s = self._s.normalized()
+        glass_wanted = self._saved.target_enabled("glass")
 
         def job(report):
             engine = self._engine_obj()
@@ -1049,8 +1092,8 @@ class Backend(QObject):
                             "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
-            return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
-                    lost, self._motion_env(engine), self._extensions_on(engine))
+            return (out, self._backup_exists(engine), self._restart_state(engine, glass_wanted),
+                    self._terminal_palette(engine), lost, self._motion_env(engine), self._extensions_on(engine))
         self._run("detect", job, self._targets_done, show_busy=False)
 
     @staticmethod
@@ -1118,11 +1161,13 @@ class Backend(QObject):
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
             self.failed.emit(f"Could not load targets: {out}")
+            restart = False
         else:
-            (self._targets, self._has_backup, self._glass_live, self._terminal_pal, self._lost,
+            (self._targets, self._has_backup, (self._glass_live, restart), self._terminal_pal, self._lost,
              self._motion_state, (self._has_dock, self._has_menu)) = out
         self._targets_ready = True
         self.targetsChanged.emit()
+        self._set_restart_needed(restart)
 
     @staticmethod
     def _backup_exists(engine: Any) -> bool:
@@ -1233,13 +1278,14 @@ class Backend(QObject):
         self._saved = s
         self.settingsChanged.emit()
         self.savedChanged.emit()
+        glass_wanted = s.target_enabled("glass")
 
         def job(report):
             engine = self._engine_obj()
             ts = list(engine.targets)
             if not ts:
                 report(0.5, "Writing tokens")
-                return [], self._backup_exists(engine)
+                return [], self._backup_exists(engine), self._restart_state(engine, glass_wanted)
             results = {}
             for i, t in enumerate(ts):
                 report(i / len(ts), t.name)
@@ -1248,13 +1294,14 @@ class Backend(QObject):
                 for r in engine.apply(s, only={t.id}):
                     results[r.target] = r
             report(1.0, "Done")
-            return list(results.values()), self._backup_exists(engine)
+            return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
             if isinstance(out, Exception):
                 self.failed.emit(f"Apply stopped: {out}")
                 return
-            results, self._has_backup = out
+            results, self._has_backup, (self._glass_live, restart) = out
+            self._set_restart_needed(restart)    # before applyFinished: the results sheet reads it
             self.targetsChanged.emit()
             self.refreshTargets()          # the glass may be live now, and notes change
             if header_changed:
@@ -1297,6 +1344,7 @@ class Backend(QObject):
             self._glass_live = False
             self._lost = []
             self.targetsChanged.emit()
+            self._set_restart_needed(False)
             if header_changed:
                 self._set_header_note("pending")
             self.revertFinished.emit(problems)
@@ -1527,6 +1575,7 @@ class Backend(QObject):
             problems, self._has_backup = out
             self._lost = []
             self.targetsChanged.emit()
+            self._set_restart_needed(False)
             if problems:
                 self._set_removing(False)
                 self.revertFinished.emit(problems)      # shows what could not be restored
