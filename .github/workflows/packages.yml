@@ -34,6 +34,7 @@ jobs:
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ./out/fedora-glass_*_all.deb >/dev/null
           fedora-glass --version
+          bash qa/package-smoke.sh    # Apply, Restore and the window, as installed
           DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq fedora-glass >/dev/null
       # `apt remove` takes the key away, so it must take the apt source with it, or every
       # later `apt update` fails (NO_PUBKEY). Checked from a fresh install and from an
@@ -87,6 +88,7 @@ jobs:
         run: |
           pacman -U --noconfirm out/fedora-glass-*-any.pkg.tar.xz >/dev/null
           fedora-glass --version
+          bash qa/package-smoke.sh    # Apply, Restore and the window, as installed
           pacman -R --noconfirm fedora-glass >/dev/null
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
