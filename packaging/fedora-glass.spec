@@ -216,6 +216,7 @@ fi
 %changelog
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.20-1
 - Mouse pointer styles: 15 to pick from, with a Just for fun group; set on Apply and undone by Restore original
+- Sliders show their default and a Default button, each card has a Reset, and Reset all to defaults has its own card on the More tab
 - Clearer app: a Restart button when a restart finishes the job, plain-word notes on what each part changes, and a welcome that says what was found on this PC
 - Updates bring your look up to date by themselves at the next login, the login screen included
 - The app says why the glass can't start (extensions switched off, GNOME version not supported yet, an error) instead of asking for a restart that can't help
