@@ -706,6 +706,8 @@ Item {
                         }
                     }
                 }
+
+                CursorCard { width: parent.width }
             }
 
             Column {

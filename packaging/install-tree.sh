@@ -30,6 +30,10 @@ install -Dm644 "$src/data/io.github.djshiye.LiquidGlass.desktop" "$dest/usr/shar
 sed -i 's|^Exec=.*|Exec=fedora-glass gui|' "$dest/usr/share/applications/io.github.djshiye.LiquidGlass.desktop"
 install -Dm644 "$src/data/icons/io.github.djshiye.LiquidGlass.svg" "$dest/usr/share/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg"
 
+# The mouse pointer styles (built by packaging/cursors/build.py): checked against their
+# checksums, then unpacked where every app and the login screen can find them.
+python3 -I "$src/packaging/cursors/unpack.py" "$src" "$dest/usr/share/icons"
+
 # Opt-in glass on the login screen: the only part that runs as root, through pkexec.
 install -Dm755 "$src/fedoraglass/login_screen.py" "$dest/usr/libexec/liquid-glass-login-screen"
 install -Dm644 "$src/data/io.github.djshiye.LiquidGlass.policy" "$dest/usr/share/polkit-1/actions/io.github.djshiye.LiquidGlass.policy"
@@ -59,4 +63,5 @@ chmod 644 "$dest/usr/lib/systemd/user/liquid-glass-watch.service"
 
 install -Dm644 "$src/LICENSE" "$dest/usr/share/licenses/fedora-glass/LICENSE"
 install -Dm644 "$src/LICENSES/Apache-2.0.txt" "$dest/usr/share/licenses/fedora-glass/Apache-2.0.txt"
+install -Dm644 "$src/LICENSES/GPL-3.0.txt" "$dest/usr/share/licenses/fedora-glass/GPL-3.0.txt"
 install -Dm644 "$src/THIRD-PARTY-NOTICES.md" "$dest/usr/share/licenses/fedora-glass/THIRD-PARTY-NOTICES.md"

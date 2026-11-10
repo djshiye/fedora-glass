@@ -14,6 +14,8 @@ import tempfile
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
+from .cursors import SIZES as CURSOR_SIZES, STYLE_IDS as CURSOR_STYLE_IDS
+
 # GNOME's own accent colours (Settings > Appearance), so "system" matches the desktop.
 GNOME_ACCENTS = {
     "blue": "#3584e4", "teal": "#2190a4", "green": "#3a944a", "yellow": "#c88800",
@@ -159,6 +161,11 @@ class Settings:
     # GNOME's own notification settings are not changed).
     lock_hide_notifications: bool = False
 
+    # The mouse pointer: "keep" leaves the user's own; otherwise one of cursors.STYLE_IDS,
+    # set on Apply (Restore original brings theirs back). Size 0 leaves their own size.
+    cursor_theme: str = "keep"
+    cursor_size: int = 0
+
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
 
@@ -228,6 +235,10 @@ class Settings:
         for k, choices in LOCK_CHOICES.items():
             if getattr(s, k) not in choices:
                 setattr(s, k, getattr(Settings, k))
+        if s.cursor_theme != "keep" and s.cursor_theme not in CURSOR_STYLE_IDS:
+            s.cursor_theme = "keep"
+        if s.cursor_size not in CURSOR_SIZES or isinstance(s.cursor_size, bool):
+            s.cursor_size = 0
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None

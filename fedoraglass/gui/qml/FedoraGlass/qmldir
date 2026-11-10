@@ -5,6 +5,7 @@ Card 1.0 Card.qml
 ChangesSheet 1.0 ChangesSheet.qml
 Chip 1.0 Chip.qml
 ColorPicker 1.0 ColorPicker.qml
+CursorCard 1.0 CursorCard.qml
 ConicalGradientDot 1.0 ConicalGradientDot.qml
 CurveGlyph 1.0 CurveGlyph.qml
 Expander 1.0 Expander.qml
