@@ -26,6 +26,28 @@ def _engine():
     return Engine()
 
 
+def _part_ids(eng) -> set[str]:
+    """The parts this version knows, and any part an older one applied that is still on
+    record (so it can still be restored on its own)."""
+    from .engine import Backup, BackupUnreadable
+    ids = {t.id for t in eng.targets}
+    try:
+        ids |= Backup(eng.env).targets_with_changes()
+    except BackupUnreadable:
+        pass
+    return ids
+
+
+def _unknown_parts(eng, wanted: set[str]) -> bool:
+    """Say so, and True, when a part id isn't one: a typo must not look like success."""
+    known = _part_ids(eng)
+    if not (bad := sorted(wanted - known)):
+        return False
+    print(f"fedora-glass: no part called {', '.join(bad)}. The parts are: {', '.join(sorted(known))}",
+          file=sys.stderr)
+    return True
+
+
 def cmd_apply(args: argparse.Namespace) -> int:
     s = settings_mod.load()
     if args.preset:
@@ -35,9 +57,18 @@ def cmd_apply(args: argparse.Namespace) -> int:
     if args.scheme:
         s.scheme = args.scheme
     s = s.normalized()
-    only = set(args.only.split(",")) if args.only else None
-    results = _engine().apply(s, only=only)
-    settings_mod.save(s)
+    eng = _engine()
+    only = {x.strip() for x in args.only.split(",") if x.strip()} if args.only is not None else None
+    if only is not None and (not only or _unknown_parts(eng, only)):
+        if not only:
+            print("fedora-glass: --only needs at least one part", file=sys.stderr)
+        return 2
+    results = eng.apply(s, only=only)
+    if only is None:
+        # Only an Apply of everything makes these the settings of the look: saved after
+        # `--only gtk4 --frost 0.9`, the other parts would take 0.9 at the next dark/light
+        # switch without anyone applying it to them.
+        settings_mod.save(s)
     width = max((len(r.name) for r in results), default=0)
     failed = False
     for r in results:
@@ -70,7 +101,10 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_revert(args: argparse.Namespace) -> int:
-    problems = _engine().revert(args.target)
+    eng = _engine()
+    if args.target is not None and _unknown_parts(eng, {args.target}):
+        return 2
+    problems = eng.revert(args.target)
     for p in problems:
         print(f"✗ {p}", file=sys.stderr)
     if not problems:
