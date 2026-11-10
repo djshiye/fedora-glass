@@ -1,7 +1,8 @@
 .pragma library
 // Every setting search can find: what people call it, other words they might type,
 // the page it lives on and the objectName of the control that search lights up.
-// A test checks that every name here exists on its page.
+// A test checks that every name here exists on its page. `when` names what the control
+// needs to show at all (see Sidebar.available): without it, search doesn't offer it.
 
 var entries = [
     // Home
@@ -26,8 +27,8 @@ var entries = [
     { label: "See windows through the glass", words: "see through windows behind blur gpu", page: "glass", name: "glassSeeWindows" },
     { label: "Speed and glass quality", words: "speed quality performance fps gpu lighter lightest auto check", page: "glass", name: "speedCard" },
     // Panel and windows
-    { label: "Panel floating or docked", words: "dash to panel floating docked pill bar style", page: "windows", name: "panelStyle" },
-    { label: "Panel margin", words: "panel gap margin edge floating", page: "windows", name: "panelMargin" },
+    { label: "Panel floating or docked", words: "dash to panel floating docked pill bar style", page: "windows", name: "panelStyle", when: "dtp" },
+    { label: "Panel margin", words: "panel gap margin edge floating", page: "windows", name: "panelMargin", when: "dtp" },
     { label: "Header bar height", words: "header bar title bar height size compact", page: "windows", name: "headerHeight" },
     { label: "Header bar opacity", words: "header bar transparency opacity see through", page: "windows", name: "headerOpacity" },
     { label: "Terminal follows light and dark", words: "terminal ptyxis light dark follow", page: "windows", name: "terminalFollowsStyle" },
@@ -38,7 +39,8 @@ var entries = [
     { label: "Animation speed", words: "speed animation slower faster", page: "motion", name: "motionSpeed" },
     { label: "Liquid motion", words: "liquid spring press settle", page: "motion", name: "liquidMotion" },
     { label: "Menus grow from their button", words: "menu grow open animation", page: "motion", name: "menuGrow" },
-    { label: "Gliding highlight", words: "taskbar hover highlight glide", page: "motion", name: "motionGlide" },
+    { label: "Gliding highlight", words: "taskbar hover highlight glide", page: "motion", name: "motionGlide", when: "dtp" },
+    { label: "Dash to Panel's own hover animation", words: "dash to panel hover animation taskbar icons bounce", page: "motion", name: "motionDtpNote", when: "dtpHover" },
     { label: "Each animation on its own", words: "open minimize close app starting launch bounce panel hover genie jelly", page: "motion", name: "eachAnimation" },
     // Pointer and desktop
     { label: "Mouse pointer style", words: "cursor pointer mouse arrow style", page: "pointer", name: "cursorCard" },
@@ -53,13 +55,17 @@ var entries = [
     { label: "Weather on the lock screen", words: "weather widget lock place city", page: "lock", name: "lockWidgetWeather" },
     { label: "Greeting on the lock screen", words: "greeting hello name lock", page: "lock", name: "lockGreeting" },
     { label: "Message on the lock screen", words: "message text note lost laptop lock", page: "lock", name: "lockMessageChip" },
+    { label: "Name the place for weather", words: "weather place town city location privacy lock", page: "lock", name: "lockWeatherPlace" },
+    { label: "Lock screen widget look", words: "widgets look glass chips text only plain lock", page: "lock", name: "lockWidgetStyle" },
     { label: "Hide notifications on the lock screen", words: "privacy notifications music hide lock", page: "lock", name: "lockHideNotifications" },
     { label: "Lock screen darken", words: "darken dim lock", page: "lock", name: "lockDim" },
     { label: "Lock screen tint", words: "tint colour lock", page: "lock", name: "lockTint" },
     { label: "Glass card behind the password", words: "password card pane lock", page: "lock", name: "lockCard" },
     { label: "Clock position", words: "clock position top middle lock", page: "lock", name: "lockClockPosition" },
     { label: "Unlock animation", words: "unlock slide bounce animation", page: "lock", name: "lockSlide" },
-    { label: "Glass login screen", words: "login gdm greeter screen password", page: "lock", name: "loginCard" },
+    { label: "Unlock slide time", words: "unlock slide time speed duration slower faster lock", page: "lock", name: "lockSlideMs" },
+    { label: "Unlock bounce", words: "unlock bounce spring dip lock", page: "lock", name: "lockBounce" },
+    { label: "Glass login screen", words: "login gdm greeter screen password", page: "lock", name: "loginCard", when: "login" },
     // Apps
     { label: "Apps that get themed", words: "apps gtk libadwaita libreoffice firefox themed targets", page: "apps", name: "appsList" },
     // Advanced
@@ -71,15 +77,18 @@ var entries = [
     { label: "Reset everything to defaults", words: "reset defaults start over", page: "advanced", name: "resetAll" },
     // About and restore
     { label: "Restore original look", words: "restore original undo revert remove back", page: "about", name: "restoreOriginal" },
-    { label: "Remove Fedora Glass", words: "remove uninstall delete", page: "about", name: "removeApp" },
+    { label: "Remove Fedora Glass", words: "remove uninstall delete", page: "about", name: "removeApp", when: "removable" },
+    { label: "Put my original look back on removal", words: "remove uninstall original look back restore keep", page: "about", name: "undoOnRemove" },
     { label: "Keyboard shortcuts", words: "keyboard shortcuts keys help", page: "about", name: "shortcutsButton" },
     { label: "Version and what's new", words: "version about what's new changelog update", page: "about", name: "aboutVersion" }
 ]
 
 function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, " ") }
 
-// Best matches first: a label that starts with the query, then a word that does, then any match.
-function search(query, pageLabels, limit) {
+// Every match, best first: a label that starts with the query, then a word that does, then
+// any match. `available` maps each `when` to whether that control shows here; an entry
+// whose `when` isn't true there is left out (a missing map leaves everything in).
+function matches(query, pageLabels, available) {
     var q = norm(query).trim()
     if (!q.length)
         return []
@@ -87,6 +96,8 @@ function search(query, pageLabels, limit) {
     var scored = []
     for (var i = 0; i < entries.length; ++i) {
         var e = entries[i]
+        if (e.when && available && available[e.when] !== true)
+            continue
         var label = norm(e.label)
         var hay = label + " " + norm(e.words) + " " + norm(pageLabels[e.page] || "")
         var ok = true
@@ -99,5 +110,9 @@ function search(query, pageLabels, limit) {
         scored.push({ score: score, i: i, e: e })
     }
     scored.sort(function (a, b) { return a.score - b.score || a.i - b.i })
-    return scored.slice(0, limit || 7).map(function (s) { return s.e })
+    return scored.map(function (s) { return s.e })
+}
+
+function search(query, pageLabels, limit, available) {
+    return matches(query, pageLabels, available).slice(0, limit || 7)
 }

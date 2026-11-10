@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic as C
+import FedoraGlass.Core
 import "searchindex.js" as Index
 
 // The app's one menu: the app name, search, and every page one click away.
@@ -72,7 +73,17 @@ Item {
     }
 
     // ---- search ---------------------------------------------------------------
-    property var results: Index.search(field.text, pageLabels, 7)
+    // What shows on this PC: search only offers controls that are there (searchindex.js `when`).
+    readonly property var available: ({
+        dtp: Backend.hasDashToPanel,
+        dtpHover: Backend.hasDashToPanel && (Backend.motionDtpHoverOff
+                  || (Backend.dtpHoverAnimates && Backend.motion.hover.preset !== "off")),
+        removable: Backend.canRemoveApp,
+        login: Backend.loginGlass !== "unavailable"
+    })
+    readonly property int maxResults: 7
+    readonly property var allResults: Index.matches(field.text, pageLabels, available)
+    readonly property var results: allResults.slice(0, maxResults)
     property int hit: 0
     onResultsChanged: hit = 0
     function choose(i) {
@@ -231,6 +242,8 @@ Item {
             id: list
             x: 8; y: 8
             width: parent.width - 16
+            Accessible.role: Accessible.List
+            Accessible.name: "Search results"
             Text {
                 visible: root.results.length === 0
                 width: parent.width
@@ -250,6 +263,10 @@ Item {
                     height: 48
                     radius: Theme.rS - 2
                     color: index === root.hit ? Theme.wellHi : resMouse.containsMouse ? Theme.hover : "transparent"
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: modelData.label + ", " + (root.pageLabels[modelData.page] || "")
+                    Accessible.selected: index === root.hit
+                    Accessible.onPressAction: root.choose(index)
                     Column {
                         x: 12
                         anchors.verticalCenter: parent.verticalCenter
@@ -266,6 +283,18 @@ Item {
                         onPressed: root.choose(res.index)
                     }
                 }
+            }
+            // More match than fit: say so, rather than let the list look complete.
+            Text {
+                objectName: "searchMore"
+                readonly property int more: root.allResults.length - root.results.length
+                visible: more > 0
+                width: parent.width
+                leftPadding: 12; rightPadding: 12; topPadding: 6; bottomPadding: 6
+                text: (more === 1 ? "1 more setting matches." : more + " more settings match.") + " Type more to narrow it down."
+                color: Theme.textFaint
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
             }
         }
     }

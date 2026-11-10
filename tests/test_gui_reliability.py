@@ -174,6 +174,10 @@ def _find(win, name):
     return hit
 
 
+def _js(v):
+    return v.toVariant() if hasattr(v, "toVariant") else v
+
+
 def _spin(ms=60):
     from PySide6.QtCore import QCoreApplication, QElapsedTimer
     t = QElapsedTimer()
@@ -345,4 +349,64 @@ def test_home_and_glass_pages_take_the_presets_from_the_backend(qml):
             ticks = [t["value"] for t in _find(win, slider).property("ticks")]
             assert ticks == pytest.approx([v["frost"] for v in PRESETS.values()]), slider
     finally:
+        win.close()
+
+
+# ---------------------------------------------------------------- 5. search finds only what is there
+
+def test_search_leaves_out_controls_this_pc_does_not_show(qml):
+    b = _probe(qml)
+    win = _window(qml)
+    side = _find(win, "sidebar")
+    field = _find(win, "searchField")
+
+    def found(text):
+        field.setProperty("text", text)
+        _spin(30)
+        return [e["name"] for e in _js(side.property("allResults"))]
+    try:
+        win.show()
+        _spin(200)
+        b._targets_ready, b._has_dtp = True, False
+        b.targetsChanged.emit()
+        _spin()
+        assert "panelStyle" not in found("panel") and "panelMargin" not in found("panel margin")
+        assert "motionGlide" not in found("glide")
+        assert "motionDtpNote" not in found("dash to panel hover")
+        b._has_dtp = True
+        b.targetsChanged.emit()
+        assert "panelStyle" in found("panel") and "motionGlide" in found("glide")
+        assert b.property("canRemoveApp") is False
+        assert "removeApp" not in found("uninstall") and "undoOnRemove" in found("uninstall")
+        assert b.property("loginGlass") == "unavailable"
+        assert "loginCard" not in found("login")
+        for text, name in (("widget look", "lockWidgetStyle"), ("weather place", "lockWeatherPlace"),
+                           ("slide time", "lockSlideMs"), ("bounce", "lockBounce")):
+            assert name in found(text), text
+    finally:
+        field.setProperty("text", "")
+        b._targets_ready = False
+        win.close()
+
+
+def test_search_says_when_more_match_than_it_shows(qml):
+    win = _window(qml)
+    side = _find(win, "sidebar")
+    field = _find(win, "searchField")
+    try:
+        win.show()
+        _spin(200)
+        field.forceActiveFocus()
+        field.setProperty("text", "lock")
+        _spin(60)
+        total = len(_js(side.property("allResults")))
+        assert total > 7 and len(_js(side.property("results"))) == 7
+        more = _find(win, "searchMore")
+        assert more.property("visible")
+        assert more.property("text").startswith(f"{total - 7} more settings match.")
+        field.setProperty("text", "corner")
+        _spin(60)
+        assert not more.property("visible")
+    finally:
+        field.setProperty("text", "")
         win.close()
