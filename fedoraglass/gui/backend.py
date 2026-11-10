@@ -12,6 +12,7 @@ import ast
 import configparser
 import json
 import os
+import re
 import secrets
 import stat
 import time
@@ -30,6 +31,30 @@ from ..env import Env
 from ..settings import GNOME_ACCENTS, PRESETS, Settings
 
 GROUP_ORDER = ("Desktop", "Panel", "Apps", "Terminal", "My apps")
+
+# A detection detail that holds one command that installs the missing part.
+_INSTALL_CMD = re.compile(r"\b(?:sudo \S+ install|flatpak install|pacman -S)\b")
+
+
+def _group_rank(group: str) -> tuple[int, str]:
+    return (GROUP_ORDER.index(group) if group in GROUP_ORDER else 99, group)
+
+
+def _missing_text(t: dict) -> dict:
+    """For a part that is not installed: a calm one-line `reason`, or an `install` hint when
+    a single command fixes it. "Dash to Panel is not installed (pkg)" reads "Not installed
+    (pkg)" under its name. Both are "" for an installed part."""
+    if t["available"]:
+        return {"reason": "", "install": ""}
+    detail = (t.get("detail") or "").strip()
+    if _INSTALL_CMD.search(detail):
+        return {"reason": "", "install": detail}
+    lead = f"{t['name']} is not installed"
+    if not detail or detail == lead:
+        return {"reason": "Not installed", "install": ""}
+    if detail.startswith(lead + " "):
+        return {"reason": "Not installed" + detail[len(lead):], "install": ""}
+    return {"reason": detail, "install": ""}
 
 # The windows the preview opens, so their dock icons get a "running" dot.
 RUNNING_APPS = ("org.gnome.Nautilus", "org.gnome.Ptyxis")
@@ -889,14 +914,33 @@ class Backend(QObject):
         return self._dock
 
     # ---- targets -------------------------------------------------------------------
+    def _target_items(self) -> list[dict]:
+        """Every target to show, in group order, with its switch state. A part that only
+        makes sense where it is installed (the author's own apps) is left out when missing."""
+        items = [dict(t, enabled=self._s.target_enabled(t["id"]), **_missing_text(t))
+                 for t in self._targets if t["available"] or not t.get("hideWhenMissing")]
+        return sorted(items, key=lambda t: _group_rank(t["group"]))   # stable: keeps target order
+
+    @staticmethod
+    def _grouped(items: list[dict]) -> list[dict]:
+        groups: dict[str, list[dict]] = {}
+        for t in items:
+            groups.setdefault(t["group"], []).append(t)
+        return [{"group": g, "items": v} for g, v in groups.items()]
+
     @Property("QVariantList", notify=targetsChanged)
     def targets(self) -> list[dict]:
-        groups: dict[str, list[dict]] = {}
-        for t in self._targets:
-            item = dict(t, enabled=self._s.target_enabled(t["id"]))
-            groups.setdefault(t["group"], []).append(item)
-        order = sorted(groups, key=lambda g: (GROUP_ORDER.index(g) if g in GROUP_ORDER else 99, g))
-        return [{"group": g, "items": groups[g]} for g in order]
+        return self._grouped(self._target_items())
+
+    @Property("QVariantList", notify=targetsChanged)
+    def installedTargets(self) -> list[dict]:
+        """The groups of parts found on this PC, each with only those parts; empty groups go."""
+        return self._grouped([t for t in self._target_items() if t["available"]])
+
+    @Property("QVariantList", notify=targetsChanged)
+    def missingTargets(self) -> list[dict]:
+        """Parts not installed here, flat and in group order, for the folded list."""
+        return [t for t in self._target_items() if not t["available"]]
 
     @Property(bool, notify=targetsChanged)
     def targetsReady(self) -> bool:
@@ -1001,7 +1045,8 @@ class Backend(QObject):
                     available, detail = False, f"Could not check: {e}"
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
-                            "available": available, "detail": detail})
+                            "available": available, "detail": detail,
+                            "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             return (out, self._backup_exists(engine), self._glass_running(engine), self._terminal_palette(engine),
