@@ -110,6 +110,40 @@ def _take_all(q: queue.Queue) -> set:
             return got
 
 
+_said: set[str] = set()
+
+
+def _say_once(line: str, key: str | None = None) -> None:
+    """The watcher runs all session: a problem it keeps meeting goes in the log once
+    (`key`: lines that word the same problem differently count as one)."""
+    if (key or line) not in _said:
+        _said.add(key or line)
+        print(line, file=sys.stderr)
+
+
+def _auto_settings():
+    """The user's settings for an Apply nobody asked for (the watcher, the upgrade step), or
+    None when there is no good settings file to go on: a damaged one stands in as the
+    defaults, and applying those would replace the user's look with them."""
+    s, problem, usable = settings_mod.load_checked()
+    if not usable:
+        _say_once(f"fedora-glass watch: not applying anything by itself: {problem}", key="settings")
+        return None
+    _said.discard("settings")      # good again: a later problem is worth a line of its own
+    return s
+
+
+def _guarded(what: str, fn, *args, **kwargs):
+    """Run one step of the watcher; a failure is logged (once) and the watcher goes on.
+    Ending it would only have its user service start it again every few seconds, failing
+    the same way each time."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:  # noqa: BLE001 - any failure of one step, never the whole watcher
+        _say_once(f"fedora-glass watch: {what} failed: {type(e).__name__}: {e}")
+        return None
+
+
 def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.sleep) -> bool:
     """At login, finish the Shell parts an Apply left waiting for the glass extension
     (see engine.WAITING). GNOME starts extensions a little after the session, so wait
@@ -117,7 +151,8 @@ def finish_pending(eng, wait_s: float = 120.0, step_s: float = 2.0, sleep=time.s
     from .engine import read_pending
     if not read_pending() or not eng.look_on():
         return True
-    s = settings_mod.load()
+    if (s := _auto_settings()) is None:
+        return False
     waited = 0.0
     while not eng.glass_running(s):
         if (why := _glass_waits_for_login(eng)):
@@ -183,8 +218,10 @@ def update_after_upgrade(eng) -> bool:
         had = read_applied_version(eng.env)
     if had is None or had == __version__:
         return False
+    if (s := _auto_settings()) is None:
+        return False
     print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
-    eng.apply(settings_mod.load(), if_applied=True, applied_only=True)
+    eng.apply(s, if_applied=True, applied_only=True)
     return True
 
 
@@ -243,8 +280,8 @@ def cmd_watch(args: argparse.Namespace) -> int:
         return 1
     eng = _engine()
     only = {t.id for t in eng.targets if t.scheme_dependent}
-    update_after_upgrade(eng)
-    finish_pending(eng)
+    _guarded("updating the look after an upgrade", update_after_upgrade, eng)
+    _guarded("finishing the Shell parts", finish_pending, eng)
     changes: queue.Queue[int | None] = queue.Queue()
 
     def follow(i: int, p: subprocess.Popen) -> None:
@@ -275,13 +312,15 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 # Half a watcher would miss switches: stop, and let the user service start a fresh one.
                 print("fedora-glass watch: a gsettings monitor stopped", file=sys.stderr)
                 return 1
-            s = settings_mod.load()
+            if (s := _auto_settings()) is None:
+                continue
             scheme = 0 in got and s.scheme == "auto"
             contrast = 1 in got
             accent = 2 in got and getattr(s, "accent", "") == "system"
             # After Restore original, stay out of the way.
             if eng.look_on() and (scheme or contrast or accent):
-                eng.apply(s, only=None if contrast or accent else only, if_applied=True, applied_only=True)
+                _guarded("Apply", eng.apply, s, only=None if contrast or accent else only,
+                         if_applied=True, applied_only=True)
     finally:
         stop_all()
 

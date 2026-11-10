@@ -149,3 +149,10 @@ def _fedora_by_default(monkeypatch):
     tests/test_distro.py covers Ubuntu and Arch."""
     from fedoraglass import distro
     monkeypatch.setattr(distro, "current", lambda: distro.FEDORA)
+
+
+@pytest.fixture(autouse=True)
+def _watcher_logs_afresh():
+    """The watcher logs each problem once per process: each test is a fresh watcher."""
+    from fedoraglass import __main__ as cli
+    cli._said.clear()

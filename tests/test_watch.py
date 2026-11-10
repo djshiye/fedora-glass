@@ -118,7 +118,7 @@ def test_a_burst_of_switches_makes_one_apply(monkeypatch):
 
     monkeypatch.setattr(cli, "_take_all", take)
     monkeypatch.setattr(cli, "_engine", lambda: eng)
-    monkeypatch.setattr(cli.settings_mod, "load", lambda: type("S", (), {"scheme": "auto"})())
+    monkeypatch.setattr(cli.settings_mod, "load_checked", lambda: (type("S", (), {"scheme": "auto"})(), None, True))
     assert cli.cmd_watch(None) == 1
     assert eng.applies == 1
 
@@ -174,7 +174,7 @@ def _watch_accent(monkeypatch, accent, scheme="dark", lines=("x\n",)):
     monkeypatch.setattr(cli.subprocess, "Popen", popen)
     eng = AccentEngine()
     monkeypatch.setattr(cli, "_engine", lambda: eng)
-    monkeypatch.setattr(cli.settings_mod, "load", lambda: type("S", (), {"scheme": scheme, "accent": accent})())
+    monkeypatch.setattr(cli.settings_mod, "load_checked", lambda: (type("S", (), {"scheme": scheme, "accent": accent})(), None, True))
     real_take = cli._take_all
 
     def take(q):
