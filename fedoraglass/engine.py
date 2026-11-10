@@ -127,8 +127,10 @@ def _kept_mode(path: Path, mode: int) -> int:
     return mode
 
 
-def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
-    """Write via a fresh temp file in the same folder (O_EXCL, so a planted link can't redirect it)."""
+def atomic_write(path: Path, data: bytes, mode: int = 0o644, durable: bool = False) -> None:
+    """Write via a fresh temp file in the same folder (O_EXCL, so a planted link can't redirect it).
+    `durable`: also flush it to disk before and after the rename, so a power cut can't leave
+    an empty or half-written file (the backup manifest; theme files are cheap to write again)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
         path.unlink()       # never write through a link into someone else's file
@@ -136,12 +138,22 @@ def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
+            if durable:
+                f.flush()
+                os.fsync(f.fileno())
         os.chmod(tmp, mode)
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+    if durable:
+        # The rename itself lives in the folder: flush that too.
+        dfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
 
 
 def same_file(path: Path, data: bytes, mode: int) -> bool:
@@ -201,6 +213,11 @@ def format_strv(items: list[str]) -> str:
     return "[" + ", ".join("'" + i.replace("\\", "\\\\").replace("'", "\\'") + "'" for i in items) + "]"
 
 
+class BackupUnreadable(Exception):
+    """The backup of the user's original look exists but can't be read. Apply and Restore
+    stop instead of starting a new, empty backup over it."""
+
+
 class Backup:
     SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak", "dirlinks")
 
@@ -208,24 +225,61 @@ class Backup:
         self.env = env
         self.root = env.state / "liquid-glass/backup"
         self.manifest_path = self.root / "manifest.json"
+        # The manifest as the save before the last one left it, kept in case the manifest
+        # itself is ever damaged (a disk error, a full disk, an editor).
+        self.last_good_path = self.root / "manifest.json.bak"
         self.data: dict[str, dict] = {k: {} for k in self.SECTIONS}
         # Stored originals put back, deleted at the next save() once the manifest no longer
         # points at them: a Restore cut short (the app closed, the PC off) can run again.
         self._used_copies: list[str] = []
+        # What manifest.json holds now, when it is good: a save with nothing new writes
+        # nothing, and a good manifest becomes the last-good copy before it is replaced.
+        self._on_disk: bytes | None = None
         try:
-            loaded = json.loads(self.manifest_path.read_text())
-            if isinstance(loaded, dict):
-                for k in self.data:
-                    self.data[k] = dict(loaded.get(k, {}))
+            raw = self.manifest_path.read_bytes()
+            self.data = self._parse(raw)
+            self._on_disk = raw
+            return
+        except FileNotFoundError:
+            # No manifest: the first Apply, nothing recorded yet. A last-good copy with no
+            # manifest beside it is from an earlier time (the manifest was moved away by
+            # hand) and is not followed.
+            return
+        except (OSError, ValueError) as err:
+            problem = err
+        try:
+            self.data = self._parse(self.last_good_path.read_bytes())
         except (OSError, ValueError):
-            pass
+            raise BackupUnreadable(self._unreadable(problem)) from problem
+
+    @classmethod
+    def _parse(cls, raw: bytes) -> dict[str, dict]:
+        loaded = json.loads(raw.decode("utf-8"))
+        if not isinstance(loaded, dict) or not all(isinstance(loaded.get(k, {}), dict) for k in cls.SECTIONS):
+            raise ValueError("not a Fedora Glass backup")
+        return {k: dict(loaded.get(k, {})) for k in cls.SECTIONS}
+
+    def _unreadable(self, err: Exception) -> str:
+        return (f"Fedora Glass can't read its backup of your original look ({self.manifest_path}: {err}). "
+                "Nothing was changed, so that backup stays as it is. If you don't need your original "
+                "look back, move that file somewhere else and try again.")
 
     def save(self) -> None:
         if self.env.dry_run:
             return
-        self.root.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.root, 0o700)
-        atomic_write(self.manifest_path, json.dumps(self.data, indent=1).encode(), 0o600)
+        text = json.dumps(self.data, indent=1).encode()
+        if text != self._on_disk:
+            self.root.mkdir(parents=True, exist_ok=True)
+            os.chmod(self.root, 0o700)
+            if self._on_disk is not None:
+                atomic_write(self.last_good_path, self._on_disk, 0o600, durable=True)
+            atomic_write(self.manifest_path, text, 0o600, durable=True)
+            if self._on_disk is None:
+                # A last-good copy older than this manifest's beginning must not come back
+                # later as if it were the one before it.
+                with contextlib.suppress(OSError):
+                    self.last_good_path.unlink()
+            self._on_disk = text
         still = {e.get("copy") for e in self.data["files"].values()}
         for copy in self._used_copies:
             if copy not in still:
@@ -436,6 +490,11 @@ class Backup:
             raise IsADirectoryError(f"{path} is a folder")
         if path.is_symlink():
             entry.update(kind="symlink", link=os.readlink(path))
+        elif old is None and (orphan := self._orphan_copy(key, path)) is not None:
+            # A stored original with no record: an Apply was stopped after storing it (by an
+            # older version, or before a save the last-good manifest doesn't have). The file
+            # holds our look now, so that copy is the user's original, not this file.
+            entry.update(kind="file", copy=str(orphan), mode=orphan.stat().st_mode & 0o777)
         elif generated and self._has_header(path):
             # Already one of our generated files, with no record of it: the backup was lost
             # (the state folder wiped, a home folder moved to a new PC). It is not the
@@ -443,11 +502,9 @@ class Backup:
             new_dirs: list[str] = []
             entry.update(kind="missing", new_dirs=new_dirs)
         elif path.is_file():
-            store = self.root / "files"
-            store.mkdir(parents=True, exist_ok=True)
+            copy = self._copy_path(key, path)
+            copy.parent.mkdir(parents=True, exist_ok=True)
             os.chmod(self.root, 0o700)
-            digest = hashlib.sha256(key.encode()).hexdigest()[:16]
-            copy = store / f"{digest}-{path.name}"
             fresh = copy.with_name(copy.name + ".new")
             shutil.copy2(path, fresh)
             os.replace(fresh, copy)       # never a moment without a stored original
@@ -462,6 +519,22 @@ class Backup:
         if old is not None and old.get("copy") and old["copy"] != entry.get("copy"):
             self._forget_file(key, old)
         self.data["files"][key] = entry
+
+    def _copy_path(self, key: str, path: Path) -> Path:
+        digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return self.root / "files" / f"{digest}-{path.name}"
+
+    def _orphan_copy(self, key: str, path: Path) -> Path | None:
+        """A stored original for `path` that the manifest doesn't point at, when `path` now
+        holds one of our files (and the copy doesn't)."""
+        copy = self._copy_path(key, path)
+        if not self._has_header(path) or copy.is_symlink() or not copy.is_file():
+            return None
+        try:
+            with open(copy, "rb") as f:
+                return None if _marked(f.read(512)) else copy
+        except OSError:
+            return None
 
     def record_gsetting(self, target: str, env: Env, g: GSet) -> bool:
         key = f"{g.schema}|{g.path or ''}|{g.key}"
@@ -592,7 +665,15 @@ class Backup:
                 del self.data["files"][key]
                 return None
             # Read the copy first, so a lost backup never costs the current file.
-            original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
+            try:
+                original = Path(e["copy"]).read_bytes() if e["kind"] == "file" else None
+            except FileNotFoundError:
+                # The stored original is gone (deleted by hand, a cleaner app). Nothing can
+                # bring it back, so the record goes too: kept, it would fail every Restore
+                # for good. The file stays as it is.
+                del self.data["files"][key]
+                return (f"{p}: the saved copy of your original was lost, so this file was left "
+                        "as it is (it may still have the Fedora Glass look)")
             if e.get("edits") and e.get("wrote") and e["kind"] in ("file", "missing") and \
                     p.is_file() and not p.is_symlink() and \
                     (e.get("changed") or not self.is_ours(p, e)):
@@ -767,6 +848,7 @@ def _flatpak_apply(env: Env, target: str, a: FlatpakOverride, backup: Backup) ->
             rec["env"][k] = cp.get("Environment", k, fallback=None)  # None: wasn't set
         cp.set("Environment", k, v)
     if not env.dry_run:
+        backup.save()       # what was there before is on record before the file changes
         _flatpak_write(path, cp)
 
 
@@ -839,13 +921,19 @@ class Engine:
 
     def is_applied(self) -> bool:
         """True while anything Fedora Glass changed is still in place."""
-        return bool(Backup(self.env).targets_with_changes())
+        try:
+            return bool(Backup(self.env).targets_with_changes())
+        except BackupUnreadable:
+            return True     # a backup is there, just damaged: Restore says so
 
     def look_on(self) -> bool:
         """True while the glass look is wanted: applied, and not taken away by Restore
         original since. What the watcher and the upgrade step follow (is_applied alone
         stays true when Restore had to leave something behind)."""
-        backup = Backup(self.env)
+        try:
+            backup = Backup(self.env)
+        except BackupUnreadable:
+            return False    # the watcher stays out of the way until the user sees why
         return bool(backup.targets_with_changes()) and not backup.only_folders_left() \
             and not restored_path(self.env).exists()
 
@@ -859,8 +947,12 @@ class Engine:
         with self._locked():
             if if_applied and not self.look_on():
                 return []
-            if applied_only:
+            try:
                 have = Backup(self.env).targets_with_changes()
+            except BackupUnreadable as e:
+                # Changing anything now would record today's look as the "original".
+                return [Result("backup", "Backup", "failed", str(e))]
+            if applied_only:
                 only = have if only is None else only & have
                 if not only:
                     return []
@@ -957,9 +1049,13 @@ class Engine:
 
     def revert(self, target: str | None = None) -> list[str]:
         with self._locked():
+            try:
+                backup = Backup(self.env)
+            except BackupUnreadable as e:
+                return [str(e)]     # nothing to restore from: change nothing, say why
             parked = not self.env.dry_run and target in (None, "glass") and park_arcmenu(self.env)
             try:
-                problems = Backup(self.env).restore(target)
+                problems = backup.restore(target)
             finally:
                 if parked:
                     unpark_arcmenu(self.env)
@@ -977,11 +1073,28 @@ class Engine:
             return problems
 
     # ---- internals ------------------------------------------------------------
-    def _run(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
-        errs: list[str] = []
+    def _record_originals(self, tid: str, actions: list[Action], backup: Backup) -> None:
+        """Record what every file and setting of this target holds now, and save that,
+        before the first change. An Apply stopped half way (the app killed, the PC off)
+        then still has the originals: the next Apply must never take the glass it left
+        behind for the user's own look. A save with nothing new writes nothing."""
         for a in actions:
             if isinstance(a, WriteFile):
                 backup.record_file(tid, a.path, generated=not a.edits)
+            elif isinstance(a, GSet):
+                if a.key in self.env.gsettings_keys(a.schema, a.path):
+                    backup.record_gsetting(tid, self.env, a)
+            elif isinstance(a, Command) and self.env.which(a.argv[0]):
+                for p in a.touches:
+                    backup.record_file(tid, p)
+                backup.record_command(tid, a)
+        backup.save()
+
+    def _run(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+        errs: list[str] = []
+        self._record_originals(tid, actions, backup)
+        for a in actions:
+            if isinstance(a, WriteFile):
                 if not self.env.dry_run:
                     data = a.content.encode() if isinstance(a.content, str) else a.content
                     write_if_changed(a.path, data, _kept_mode(a.path, a.mode))
@@ -996,9 +1109,12 @@ class Engine:
                     if not a.optional:
                         errs.append(f"missing setting {a.schema} {a.key}")
                     continue
+                gkey = f"{a.schema}|{a.path or ''}|{a.key}"
+                fresh = gkey not in backup.data["gsettings"]
                 if not backup.record_gsetting(tid, self.env, a):
                     continue
-                gkey = f"{a.schema}|{a.path or ''}|{a.key}"
+                if fresh:
+                    backup.save()   # recorded only now (a GReset before it took the record)
                 if a.keep_user_change and backup.changed_since(self.env, gkey, backup.data["gsettings"][gkey]):
                     continue    # the user picked their own value after ours: it stays, as on Restore
                 if self.env.gsettings_get(a.schema, a.key, a.path) == a.value:
@@ -1041,6 +1157,7 @@ class Engine:
                     # Only a real change is recorded, so an untouched list doesn't count as applied.
                     rec["by"] = by
                     backup.data["lists"][key] = rec
+                    backup.save()   # our items are on record before the list changes
                     r = self.env.gsettings_set(a.schema, a.key, format_strv(items), a.path)
                     if not r.ok:
                         errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
@@ -1049,9 +1166,6 @@ class Engine:
             elif isinstance(a, Command):
                 if not self.env.which(a.argv[0]):
                     continue
-                for p in a.touches:
-                    backup.record_file(tid, p)
-                backup.record_command(tid, a)
                 if self.env.dry_run:
                     continue
                 r = self.env.run(list(a.argv), timeout=120)
