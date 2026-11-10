@@ -1,13 +1,16 @@
-# Runs the release checks (release-checks.yml), then builds the RPM and publishes it
-# as a GitHub release, either when a version tag
-# (v1.2.3) is pushed or when run by hand from the Actions tab (that run tags the
-# commit with the version in the spec).
+# Runs the release checks (release-checks.yml) and builds the packages side by side: the
+# RPMs (installed and upgraded on Fedora here), and the Ubuntu and Arch packages
+# (packages.yml). Only when all of them passed does the last job make the GitHub release,
+# either when a version tag (v1.2.3) is pushed or when run by hand from the Actions tab
+# (that run tags the commit with the version in the spec).
 #
-# The release RPMs are not signed here: Dino signs them on their own PC with
-# `fedora-glass-sign` (docs/SIGNING.md), which then starts the "DNF repository"
-# workflow (dnf-repo.yml) that publishes them for `sudo dnf upgrade`. Each package
-# gets a GitHub build provenance attestation here, and fedora-glass-sign signs only
-# packages whose attestation says this workflow built them from a commit on main.
+# The release is made as a DRAFT, so nobody can install the unsigned packages from the
+# release page. The packages are not signed here: Dino signs them on their own PC with
+# `fedora-glass-sign` (docs/SIGNING.md), which then publishes the draft and starts the
+# "DNF repository" workflow (dnf-repo.yml) that publishes the repositories for
+# `sudo dnf upgrade`. Each package gets a GitHub build provenance attestation here, and
+# fedora-glass-sign signs only packages whose attestation says this workflow built them
+# from a commit on main.
 name: Release
 
 on:
@@ -16,11 +19,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # create the release and upload the packages
-  actions: read     # fetch the Ubuntu and Arch packages built by the jobs above
+  contents: read
+
+# Two releases at once would fight over the same tag and files; the second waits.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  # The desktop checks must pass first; a failed check stops the release here.
+  # The desktop checks. A failed check stops the release (the last job needs them), while the
+  # packages are built and tested at the same time.
   checks:
     uses: ./.github/workflows/release-checks.yml
     permissions:
@@ -28,23 +36,21 @@ jobs:
 
   # The Ubuntu and Arch packages (packages.yml), each installed on its own Linux first.
   packages:
-    needs: checks
     uses: ./.github/workflows/packages.yml
     permissions:
       contents: read
 
   rpm:
-    needs: [checks, packages]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
-      contents: write      # create the release and upload the packages
-      actions: read        # fetch the Ubuntu and Arch packages built by the jobs above
-      id-token: write      # build provenance: a short-lived Sigstore certificate for this run
-      attestations: write  # build provenance: store the attestations with the repository
+      contents: read       # the checkout, and the earlier releases' packages for the upgrade test
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     steps:
       - name: Tools
-        run: dnf install -y --setopt=install_weak_deps=False rpm-build systemd-rpm-macros git gh python3-pytest python3-gobject
+        run: dnf install -y --setopt=install_weak_deps=False rpm-build systemd-rpm-macros python-rpm-macros git gh python3-pytest python3-gobject
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -62,39 +68,80 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "$GITHUB_SHA ($GITHUB_REF) is not on main"; exit 1; }
 
       - name: Version
+        id: version
         run: |
           spec="$(rpmspec -q --qf '%{version}\n' --srpm packaging/fedora-glass.spec)"
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             test "${GITHUB_REF_NAME#v}" = "$spec" || { echo "tag $GITHUB_REF_NAME but spec says $spec"; exit 1; }
           fi
           echo "VER=$spec" >> "$GITHUB_ENV"
-          echo "TAG=v$spec" >> "$GITHUB_ENV"
+          echo "version=$spec" >> "$GITHUB_OUTPUT"
 
       # No separate test step: rpmbuild runs the whole test suite in the spec's %check,
       # on the same sources it packages, and a failure stops the release there.
 
       - name: Build
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          git config --global --add safe.directory "$PWD"
           mkdir -p ~/rpmbuild/SOURCES
-          git archive --format=tar.gz --prefix="fedora-glass-$VER/" -o ~/rpmbuild/SOURCES/fedora-glass-$VER.tar.gz HEAD
+          git archive --format=tar.gz --prefix="fedora-glass-$VER/" -o ~/rpmbuild/SOURCES/"fedora-glass-$VER.tar.gz" HEAD
           rpmbuild -bb packaging/fedora-glass.spec
           mkdir out
-          cp ~/rpmbuild/RPMS/noarch/fedora-glass-$VER-*.noarch.rpm out/
+          cp ~/rpmbuild/RPMS/noarch/fedora-glass-"$VER"-*.noarch.rpm out/
           # The same app under the old name, which moves a Liquid Glass install to fedora-glass.
-          cp ~/rpmbuild/RPMS/noarch/liquid-glass-$VER-*.noarch.rpm out/
-          # Fixed names too, so .../releases/latest/download/fedora-glass.noarch.rpm always works
+          cp ~/rpmbuild/RPMS/noarch/liquid-glass-"$VER"-*.noarch.rpm out/
+
+      - name: Install, upgrade and remove on Fedora
+        # The built package on a clean Fedora (with the smoke check), the upgrade from the
+        # previous release's package, and the move from Liquid Glass 1.4.4 to fedora-glass.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash packaging/rpm-install-test.sh out "$VER" "$GITHUB_REPOSITORY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: release-rpms
+          path: out/*.rpm
+          if-no-files-found: error
+          retention-days: 1
+
+  # The last step: needs everything above. Puts the packages together, records where they
+  # came from, and makes the draft release.
+  release:
+    needs: [checks, packages, rpm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write      # create the tag and the draft release, and upload the packages
+      id-token: write      # build provenance: a short-lived Sigstore certificate for this run
+      attestations: write  # build provenance: store the attestations with the repository
+    env:
+      VER: ${{ needs.rpm.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: release-rpms
+          path: out
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: deb
+          path: out
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: arch
+          path: out
+
+      - name: Fixed names and checksums
+        run: |
+          case "$VER" in ''|*[!0-9.]*) echo "bad version: $VER"; exit 1 ;; esac
+          cd out
+          # Fixed names, so .../releases/latest/download/fedora-glass.noarch.rpm always works
           # (and the old liquid-glass.noarch.rpm link still leads to the current version).
-          cp out/fedora-glass-$VER-*.noarch.rpm out/fedora-glass.noarch.rpm
-          cp out/liquid-glass-$VER-*.noarch.rpm out/liquid-glass.noarch.rpm
-          # The Ubuntu and Arch packages from the jobs above, under fixed names too.
-          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n deb -D out
-          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n arch -D out
-          cp out/fedora-glass_"$VER"-1_all.deb out/fedora-glass.deb
-          cp out/fedora-glass-"$VER"-1-any.pkg.tar.xz out/fedora-glass.pkg.tar.xz
-          (cd out && sha256sum *.rpm *.deb *.pkg.tar.xz > SHA256SUMS)
+          cp fedora-glass-"$VER"-*.noarch.rpm fedora-glass.noarch.rpm
+          cp liquid-glass-"$VER"-*.noarch.rpm liquid-glass.noarch.rpm
+          cp fedora-glass_"$VER"-1_all.deb fedora-glass.deb
+          cp fedora-glass-"$VER"-1-any.pkg.tar.xz fedora-glass.pkg.tar.xz
+          sha256sum -- *.rpm *.deb *.pkg.tar.xz > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Build provenance
         # Signed proof (Sigstore, stored with the repository) that this workflow built each
@@ -106,9 +153,19 @@ jobs:
             out/*.deb
             out/*.pkg.tar.xz
 
-      - name: Release
+      - name: Draft release
+        # A draft: it is public only after fedora-glass-sign has checked, signed and
+        # uploaded the packages (it publishes the draft itself). The tag is made here, with
+        # this workflow's token, which starts no workflow: a tag made while the signer
+        # publishes the draft would start this one again.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          TAG="v$VER"
+          if on_tag="$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha 2>/dev/null)"; then
+            [ "$on_tag" = "$GITHUB_SHA" ] || { echo "$TAG is at $on_tag, not at $GITHUB_SHA"; exit 1; }
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
             --title "Fedora Glass $VER" --notes "How to install on Fedora, Ubuntu and Arch: https://github.com/djshiye/fedora-glass#install. After that, your normal system update (dnf upgrade, apt upgrade or pacman -Syu) brings each new version."

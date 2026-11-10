@@ -10,6 +10,8 @@
 #   fedora-glass-sign enable-auto     once: from now on, sign each new release by itself
 #   fedora-glass-sign disable-auto    stop doing that
 #
+# A new release is a draft until it is signed: this publishes it at the end.
+#
 # Needs: sudo dnf install rpm-sign createrepo_c gh   (and `gh auth login` once)
 set -euo pipefail
 umask 077
@@ -444,10 +446,13 @@ cmd_publish() {
     mkdir -p "$work/root"
     rpmkeys --root "$work/root" --import "$work/main.key"
 
-    tag="${1:-$(gh release view --repo "$REPO" --json tagName -q .tagName)}"
+    tag="${1:-$(newest_release | cut -d' ' -f1)}"
     case "$tag" in v[0-9]*) ;; *) die "not a release tag: $tag" ;; esac
-    # This release and the two before it, so `dnf downgrade` can roll back.
-    tags="$(gh release list --repo "$REPO" --exclude-drafts --exclude-pre-releases --limit 100 --json tagName -q '.[].tagName' \
+    # This release and the two before it, so `dnf downgrade` can roll back. The release
+    # workflow makes the new release as a draft, so it counts while it is still one; an
+    # older draft (a release that never got signed) does not.
+    tags="$(gh release list --repo "$REPO" --exclude-pre-releases --limit 100 --json tagName,isDraft -q '.[] | "\(.tagName) \(.isDraft)"' \
+            | awk -v t="$tag" '$2 == "false" || $1 == t { print $1 }' \
             | grep -E '^v[0-9]' | sort -rV | awk -v t="$tag" 'f || $0 == t { f = 1; print }' | head -3)"
     [ "$(echo "$tags" | head -1)" = "$tag" ] || die "there is no release $tag."
     older="$(echo "$tags" | tail -n +2 | tr '\n' ' ')"
@@ -530,12 +535,25 @@ cmd_publish() {
     tar -C "$work/site" --owner=0 --group=0 --numeric-owner -czf "$work/dnf-repo.tar.gz" $parts
     say "Uploading the signed repository to release $tag..."
     gh release upload "$tag" "$work/dnf-repo.tar.gz" --repo "$REPO" --clobber
+    # The release workflow keeps a new release a draft, so nobody can install its unsigned
+    # packages from the release page: it goes public only now, after every check passed and
+    # the signed repository is uploaded. A release that is public already (made by an older
+    # workflow) is left as it is.
+    if [ "$(gh release view "$tag" --repo "$REPO" --json isDraft -q .isDraft)" = true ]; then
+        say "Publishing release $tag..."
+        gh release edit "$tag" --repo "$REPO" --draft=false
+    fi
     gh workflow run dnf-repo.yml --repo "$REPO" --ref main -f tag="$tag"
     # For `auto`: when this publish started, and that it has not been retried yet.
     : > "$CONF/publishing-$tag"
     rm -f "$CONF/publish-tries-$tag" "$CONF/publish-gave-up-$tag"
     say "Done. GitHub is publishing it now (about 2 minutes): https://github.com/$REPO/actions/workflows/dnf-repo.yml"
     echo "Then: sudo dnf upgrade --refresh  (Ubuntu: sudo apt update && sudo apt upgrade, Arch: sudo pacman -Syu)"
+}
+
+# The newest release, drafts included (a plain `gh release view` skips them), as "TAG isDraft".
+newest_release() {
+    gh release list --repo "$REPO" --exclude-pre-releases --limit 1 --json tagName,isDraft -q '.[] | "\(.tagName) \(.isDraft)"'
 }
 
 notify() {
@@ -590,10 +608,13 @@ cmd_auto() {
     saved_key
     exec 9>"$CONF/auto.lock"
     flock -n 9 || exit 0
-    tag="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null)" || exit 0
+    newest="$(newest_release 2>/dev/null)" || exit 0
+    read -r tag draft <<<"$newest"
     case "$tag" in v[0-9]*) ;; *) exit 0 ;; esac
     assets="$(gh release view "$tag" --repo "$REPO" --json assets -q '.assets[].name' 2>/dev/null)" || exit 0
-    if grep -qx dnf-repo.tar.gz <<<"$assets"; then site_check "$tag"; exit; fi
+    # A draft is signed (again, if an earlier run stopped before publishing it) and then
+    # published; only a public release can already be on the site.
+    if [ "$draft" != true ] && grep -qx dnf-repo.tar.gz <<<"$assets"; then site_check "$tag"; exit; fi
     # Only once the release has its checksums (the Release workflow adds them with the RPMs).
     grep -qx SHA256SUMS <<<"$assets" || exit 0
     # After a failure (or a cancelled passphrase prompt) wait an hour before the next try.
@@ -667,6 +688,6 @@ case "${1:-}" in
     auto)   cmd_auto ;;
     enable-auto)  cmd_enable_auto ;;
     disable-auto) cmd_disable_auto ;;
-    -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) cmd_publish "$@" ;;
 esac

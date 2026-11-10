@@ -51,13 +51,26 @@ if a[0] == "api":
         assert path.endswith("..." + rd("tagsha").strip()), path
         print(rd("compare", "behind").strip()); sys.exit(0)
     sys.exit(1)
+def newest_first():
+    return sorted(os.listdir(rel), key=lambda t: [int(x) for x in t[1:].split(".")], reverse=True)
+def drafts():
+    return rd("drafts").split()
 if a[:2] == ["release", "view"]:
     tags = sorted(os.listdir(rel), key=lambda t: [int(x) for x in t[1:].split(".")])
+    if "isDraft" in a:
+        print("true" if a[2] in drafts() else "false"); sys.exit(0)
     if "assets" in a:
         print("\n".join(sorted(os.listdir(f"{rel}/{a[2]}")))); sys.exit(0)
     print(tags[-1]); sys.exit(0)
 if a[:2] == ["release", "list"]:
-    print("\n".join(os.listdir(rel))); sys.exit(0)
+    # What `--json tagName,isDraft -q '.[] | "\\(.tagName) \\(.isDraft)"'` prints, newest first;
+    # a plain `gh release view` and `--exclude-drafts` never show a draft.
+    assert "--json" in a and "--exclude-drafts" not in a
+    rows = [f"{t} {'true' if t in drafts() else 'false'}" for t in newest_first()]
+    print("\n".join(rows[:int(opt("--limit"))])); sys.exit(0)
+if a[:2] == ["release", "edit"]:
+    assert a[2] in drafts() and "--draft=false" in a, a
+    open(f"{F}/drafts", "w").write(" ".join(t for t in drafts() if t != a[2])); sys.exit(0)
 if a[:2] == ["release", "download"]:
     src = f"{rel}/{a[2]}/{opt('-p')}"
     if not os.path.exists(src): sys.exit(1)
@@ -236,6 +249,65 @@ def test_signs_only_the_attested_release_and_carries_over_only_signed_packages(w
     assert (conf / "publishing-v1.5.21").exists()
 
 
+def _gh_calls(fake):
+    return _read(fake / "gh.log").splitlines()
+
+
+def test_a_draft_release_is_published_only_after_it_is_signed_and_uploaded(world):
+    """release.yml makes the release a draft, so nobody can install unsigned packages from it:
+    the signer publishes it after the attestation checks and the upload, then starts dnf-repo."""
+    fake, conf, run = world
+    (fake / "drafts").write_text("v1.5.21")
+    r = run("v1.5.21")
+    assert r.returncode == 0, r.stderr + r.stdout
+    calls = _gh_calls(fake)
+    pos = {k: next(i for i, c in enumerate(calls) if c.startswith(k)) for k in
+           ("attestation verify", "release upload", "release edit", "workflow run dnf-repo.yml")}
+    assert pos["attestation verify"] < pos["release upload"] < pos["release edit"] < pos["workflow run dnf-repo.yml"]
+    assert "release edit v1.5.21 --repo djshiye/fedora-glass --draft=false" in calls
+    assert (fake / "uploaded/dnf-repo.tar.gz").exists() and (conf / "publishing-v1.5.21").exists()
+    # The older releases are public already and stay untouched.
+    assert sum(c.startswith("release edit") for c in calls) == 1
+
+
+def test_a_draft_stays_a_draft_when_a_check_fails(world):
+    fake, _, run = world
+    (fake / "drafts").write_text("v1.5.21")
+    (fake / "attested").write_text("fedora-glass.noarch.rpm liquid-glass.noarch.rpm fedora-glass.deb")
+    r = run("v1.5.21")
+    assert r.returncode == 3
+    assert not any(c.startswith("release edit") for c in _gh_calls(fake))
+    assert not (fake / "workflow_runs").exists() and (fake / "drafts").read_text() == "v1.5.21"
+
+
+def test_a_public_release_is_signed_as_before_and_not_edited(world):
+    """A release made by the old workflow is public already: the same flow, no edit."""
+    fake, _, run = world
+    assert run("v1.5.21").returncode == 0
+    assert not any(c.startswith("release edit") for c in _gh_calls(fake))
+    assert "workflow run dnf-repo.yml" in _read(fake / "workflow_runs")
+
+
+def test_default_release_is_the_newest_one_even_as_a_draft(world):
+    fake, _, run = world
+    (fake / "drafts").write_text("v1.5.21")
+    assert run().returncode == 0
+    assert "release edit v1.5.21" in "\n".join(_gh_calls(fake))
+
+
+def test_auto_signs_and_publishes_a_draft_even_if_an_earlier_run_uploaded_the_bundle(world):
+    """A run that stopped between the upload and the publish leaves a draft with its bundle:
+    the next run must finish it, not mistake it for a release the site is waiting on."""
+    fake, conf, run = world
+    (fake / "drafts").write_text("v1.5.21")
+    (fake / "releases/v1.5.21/dnf-repo.tar.gz").write_bytes(b"x")
+    (fake / "site_version").write_text("1.5.20-1\n")
+    assert run("auto").returncode == 0
+    assert "release edit v1.5.21 --repo djshiye/fedora-glass --draft=false" in _gh_calls(fake)
+    assert "workflow run dnf-repo.yml" in _read(fake / "workflow_runs")
+    assert _read(fake / "notify.log").splitlines()[-1].startswith("Fedora Glass 1.5.21 is signed, publishing it now")
+
+
 def test_a_release_started_from_main_is_accepted_too(world):
     fake, _, run = world
     (fake / "attest_ref").write_text("refs/heads/main")
@@ -328,23 +400,27 @@ def test_auto_is_quiet_when_the_site_is_current_or_unreachable(world):
 def test_workflows_pin_every_action_and_release_attests_each_package():
     import re
     wf = ROOT / ".github/workflows"
-    for f in wf.glob("*.yml"):
+    for f in [*wf.glob("*.yml"), *(ROOT / ".github/actions").glob("*/action.yml")]:
         for line in f.read_text().splitlines():
             m = re.match(r"\s*(?:-\s*)?uses:\s*(\S+)", line)
             if m and not m.group(1).startswith("./"):
                 assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", m.group(1)), (f.name, line)
     rel = (wf / "release.yml").read_text()
-    job = rel[rel.index("\n  rpm:\n"):]
+    build = rel[rel.index("\n  rpm:\n"):rel.index("\n  release:\n")]
+    job = rel[rel.index("\n  release:\n"):]
+    # The attestation and the release are made by the last job, which needs everything else.
+    assert "needs: [checks, packages, rpm]" in job
     assert "      id-token: write" in job and "      attestations: write" in job
-    step = job[job.index("- name: Build provenance"):job.index("- name: Release")]
+    assert "id-token" not in build and "contents: write" not in build
+    step = job[job.index("- name: Build provenance"):job.index("- name: Draft release")]
     assert "uses: actions/attest-build-provenance@" in step
     for pattern in ("out/*.rpm", "out/*.deb", "out/*.pkg.tar.xz"):
         assert pattern in step
     # Before the release is made: a pushed tag must be on main as well, not only a hand-started run.
-    gate = job[job.index("- name: Only from main"):job.index("- name: Version")]
+    gate = build[build.index("- name: Only from main"):build.index("- name: Version")]
     assert "if:" not in gate and 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' in gate
-    assert "fetch-depth: 0" in job[:job.index("- name: Only from main")]
-    assert job.index("- name: Only from main") < job.index("- name: Build provenance") < job.index("- name: Release")
+    assert "fetch-depth: 0" in build[:build.index("- name: Only from main")]
+    assert job.index("- name: Fixed names and checksums") < job.index("- name: Build provenance") < job.index("- name: Draft release")
     # The tests run once, in the spec's %check during rpmbuild.
     assert "python3 -m pytest" not in rel
     spec = (ROOT / "packaging/fedora-glass.spec").read_text()

@@ -28,11 +28,16 @@
 # --with-dock           with --stock-desktop: Dash to Dock on, as many stock users add it.
 # LGQA_BUILD_ARGS / LGQA_RUN_ARGS: extra arguments for docker build / docker run (podman on SELinux
 #                       needs LGQA_RUN_ARGS="--security-opt label=disable" to read the mounted folders).
+# --print-base-build    print what builds the GNOME's base image (its name, then one NAME=VALUE build
+#                       argument per line) and stop. The release checks use it to build that image
+#                       once with a layer cache (docker/build-push-action) instead of in every job.
+# LGQA_BASE_PREBUILT=1  use the base image when it is already there (built as printed above) instead
+#                       of building it again; the Ubuntu and stock layers on top are still built here.
 # Exit code: 0 all passed, 1 a check failed, 2 the test desktop did not start.
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/../.." && pwd)
-SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" NAME=${LGQA_NAME:-lgqa-$$}
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" PRINT_BASE="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" NAME=${LGQA_NAME:-lgqa-$$}
 while [ $# -gt 0 ]; do
     case $1 in
         --source) SRC=$(cd "$2" && pwd); shift ;;
@@ -47,6 +52,7 @@ while [ $# -gt 0 ]; do
         --stock-desktop) STOCK=1 ;;
         --with-dock) STOCK_EXTS=dash-to-dock@micxgx.gmail.com ;;
         --start-only) KEEP=1 START_ONLY=1 ;;
+        --print-base-build) PRINT_BASE=1 ;;
         *) echo "unknown option $1" >&2; exit 64 ;;
     esac
     shift
@@ -65,8 +71,18 @@ case $GNOME in
     *) echo "--gnome needs 50 or 51" >&2; exit 64 ;;
 esac
 
-echo "Building the GNOME $GNOME test desktop image (cached after the first time)..."
-docker build -q -t "$IMAGE" "${GNOME_ARGS[@]}" ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
+if [ -n "$PRINT_BASE" ]; then
+    echo "$IMAGE"
+    for ((i = 1; i < ${#GNOME_ARGS[@]}; i += 2)); do echo "${GNOME_ARGS[i]}"; done
+    exit 0
+fi
+
+if [ -n "${LGQA_BASE_PREBUILT:-}" ] && docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    echo "Using the prebuilt GNOME $GNOME test desktop image..."
+else
+    echo "Building the GNOME $GNOME test desktop image (cached after the first time)..."
+    docker build -q -t "$IMAGE" "${GNOME_ARGS[@]}" ${LGQA_BUILD_ARGS:-} "$SUITE" >/dev/null
+fi
 SESSION=session CHECKS=run_checks.py
 if [ -n "$UBUNTU" ]; then
     echo "Adding the stock Ubuntu desktop on top..."
