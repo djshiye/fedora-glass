@@ -192,6 +192,9 @@ Sheet {
                         text: sheet.total === 0 ? qsTr("none: no part that is switched on is installed here")
                             : sheet.plan.length === 1 ? qsTr("%1 in 1 place, each backed up first").arg(sheet.total)
                             : qsTr("%1 in %2 places, each backed up first").arg(sheet.total).arg(sheet.plan.length)
+                        // Longer languages: cut with "…" at the sheet's edge instead of running past it.
+                        width: Math.max(0, Math.min(implicitWidth, detailsHead.width - x - 8))
+                        elide: Text.ElideRight
                         color: Theme.textFaint
                         font.pixelSize: 12
                     }

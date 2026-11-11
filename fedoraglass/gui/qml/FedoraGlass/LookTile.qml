@@ -120,6 +120,9 @@ C.AbstractButton {
             horizontalAlignment: Text.AlignHCenter
             text: tile.shownName
             elide: Text.ElideRight
+            // Longer names (other languages) shrink a little before they are cut.
+            fontSizeMode: Text.HorizontalFit
+            minimumPixelSize: 10
             color: tile.selected ? Theme.text : Theme.textDim
             font.pixelSize: 13
             font.weight: tile.selected ? Font.DemiBold : Font.Normal

@@ -404,7 +404,7 @@ Item {
                     width: files.side - root.u(16)
                     spacing: root.u(2)
                     Repeater {
-                        model: [["clock", qsTr("Recent")], ["star", qsTr("Starred")], ["home", qsTr("Home")], ["document", qsTr("Documents")],
+                        model: [["clock", qsTr("Recent")], ["star", qsTr("Starred")], ["home", qsTr("Home", "folder")], ["document", qsTr("Documents")],
                                 ["download", qsTr("Downloads")], ["music", qsTr("Music")], ["picture", qsTr("Pictures")],
                                 ["video", qsTr("Videos")], ["trash", qsTr("Trash")]]
                         delegate: Rectangle {
@@ -447,7 +447,7 @@ Item {
                             x: root.u(12); anchors.verticalCenter: parent.verticalCenter
                             spacing: root.u(8)
                             Sym { name: "home"; size: root.u(15); anchors.verticalCenter: parent.verticalCenter }
-                            Label { text: qsTr("Home"); anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
+                            Label { text: qsTr("Home", "folder"); anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
                         }
                     }
                     Row {
@@ -949,7 +949,7 @@ Item {
                 Label { text: Backend.userName; anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
             }
             Repeater {
-                model: [["home", qsTr("Home")], ["document", qsTr("Documents")], ["download", qsTr("Downloads")],
+                model: [["home", qsTr("Home", "folder")], ["document", qsTr("Documents")], ["download", qsTr("Downloads")],
                         ["picture", qsTr("Pictures")], ["gear", qsTr("Settings")], ["apps", qsTr("Software")]]
                 delegate: Item {
                     required property var modelData
@@ -1054,8 +1054,8 @@ Item {
             columns: 2
             columnSpacing: root.u(12); rowSpacing: root.u(12)
             Repeater {
-                model: [["wifi", qsTr("Wi-Fi"), qsTr("Home"), true], ["bluetooth", qsTr("Bluetooth"), qsTr("Off"), false],
-                        ["sparkle", qsTr("Power Mode"), qsTr("Balanced"), false], ["moon", qsTr("Night Light"), "", true],
+                model: [["wifi", qsTr("Wi-Fi"), qsTr("Home", "wifi network"), true], ["bluetooth", qsTr("Bluetooth"), qsTr("Off"), false],
+                        ["sparkle", qsTr("Power Mode"), qsTr("Balanced", "power mode"), false], ["moon", qsTr("Night Light"), "", true],
                         ["auto", qsTr("Dark Style"), "", root.dark], ["bell", qsTr("Do Not Disturb"), "", false]]
                 delegate: Rectangle {
                     required property var modelData

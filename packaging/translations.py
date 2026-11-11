@@ -39,7 +39,8 @@ _JS_ESC = {"n": "\n", "t": "\t", "'": "'", '"': '"', "\\": "\\"}
 
 
 def _js_unquote(s: str) -> str:
-    return re.sub(r"\\(.)", lambda m: _JS_ESC.get(m.group(1), m.group(1)), s)
+    return re.sub(r"\\(u[0-9a-fA-F]{4}|.)",
+                  lambda m: chr(int(m.group(1)[1:], 16)) if len(m.group(1)) == 5 else _JS_ESC.get(m.group(1), m.group(1)), s)
 
 
 def _where(path: Path, text: str, pos: int) -> str:

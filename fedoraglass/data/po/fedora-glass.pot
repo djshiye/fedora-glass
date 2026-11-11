@@ -835,7 +835,7 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:79
 #: fedoraglass/gui/qml/FedoraGlass/Fold.qml:40
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:272
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:282
 msgid "%1: %2"
 msgstr ""
 
@@ -1169,7 +1169,7 @@ msgid "Look of app windows, their sidebars and header bars"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:44
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:214
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:224
 #: fedoraglass/gui/changes.py:147
 msgid "Windows"
 msgstr ""
@@ -1198,7 +1198,7 @@ msgid "Give one part its own look. Click a part in the preview or pick it here."
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:91
-msgid "%1 u00b7 own look"
+msgid "%1 · own look"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:96
@@ -1319,15 +1319,15 @@ msgstr ""
 msgid "%1 in %2 places, each backed up first"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:237
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:240
 msgid "%1 changes"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:237
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:240
 msgid "1 change"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:237
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:240
 msgid "nothing to change"
 msgstr ""
 
@@ -1395,18 +1395,18 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:22
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:31
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:185
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:195
 msgid "Style"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:26
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:180
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:190
 #: fedoraglass/gui/qml/FedoraGlass/OverrideSlider.qml:16
 msgid "Auto"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:26
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:180
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:190
 msgid "Follow GNOME's light/dark setting"
 msgstr ""
 
@@ -1415,7 +1415,7 @@ msgid "Always use the dark style, whatever GNOME is set to"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:27
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:181
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:191
 #: fedoraglass/gui/changes.py:80
 msgid "Dark"
 msgstr ""
@@ -1425,7 +1425,7 @@ msgid "Always use the light style, whatever GNOME is set to"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:28
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:182
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:192
 #: fedoraglass/gui/changes.py:80
 msgid "Light"
 msgstr ""
@@ -1644,7 +1644,7 @@ msgid "On, the panel and menus show the windows behind them as well as the wallp
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:214
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:141
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:151
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:211
 msgid "Glass"
 msgstr ""
@@ -1825,56 +1825,44 @@ msgstr ""
 msgid "Light and dark, colours, Qt title bars"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:176
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:102
+msgid "Add a look someone shared with you (a .json file)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:186
 #: fedoraglass/gui/qml/Main.qml:16
 msgid "Colour"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:181
-msgid "Always use the dark style"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:182
-msgid "Always use the light style"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:19
 msgid "Clearest glass, brightest rim"
 msgstr ""
 
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:191
+msgid "Always use the dark style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:192
+msgid "Always use the light style"
+msgstr ""
+
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:20
 msgid "Clear glass with a little haze"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:202
-#: fedoraglass/gui/changes.py:71
-#: fedoraglass/gui/changes.py:134
-msgid "Your own"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:208
-#: fedoraglass/gui/changes.py:156
-msgid "Your own mix"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:21
 msgid "The default: readable and still glassy"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:215
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:237
-#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
-msgid "Off"
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:212
+#: fedoraglass/gui/changes.py:71
+#: fedoraglass/gui/changes.py:134
+msgid "Your own"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:215
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:237
-#: fedoraglass/gui/changes.py:30
-msgid "On"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:217
-msgid "Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass."
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:218
+#: fedoraglass/gui/changes.py:156
+msgid "Your own mix"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:22
@@ -1882,36 +1870,52 @@ msgid "Milky, heavily blurred glass"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:225
-#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:259
-#: fedoraglass/gui/qml/Main.qml:19
-msgid "Motion"
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:247
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
+msgid "Off"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:228
-msgid "How windows, menus and the panel move"
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:225
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:247
+#: fedoraglass/gui/changes.py:30
+msgid "On"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:227
+msgid "Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass."
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:23
 msgid "Almost opaque, for maximum readability"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:236
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:235
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:259
+#: fedoraglass/gui/qml/Main.qml:19
+msgid "Motion"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:238
+msgid "How windows, menus and the panel move"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:246
 msgid "Glass lock"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:239
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:249
 msgid "A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:247
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:257
 msgid "Pointer"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:250
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:260
 msgid "Pick a mouse pointer that matches the glass"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:322
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:334
 msgid "Open %1 settings"
 msgstr ""
 
@@ -1920,24 +1924,20 @@ msgstr ""
 msgid "Look"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:63
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:64
 msgid "Pick one to start. Everything else follows it."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:79
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:70
 msgid "Save look…"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:81
-msgid "Keep this look under a name, to pick again or share"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:90
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:71
 msgid "Add from file…"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:92
-msgid "Add a look someone shared with you (a .json file)"
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:90
+msgid "Keep this look under a name, to pick again or share"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/LabeledSlider.qml:13
@@ -2400,7 +2400,7 @@ msgstr ""
 msgid "Save the look as a file"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LookTile.qml:142
+#: fedoraglass/gui/qml/FedoraGlass/LookTile.qml:145
 msgid "More for %1"
 msgstr ""
 
@@ -2780,11 +2780,16 @@ msgid "Bluetooth"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1057
+msgctxt "wifi network"
+msgid "Home"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1057
 msgid "Wi-Fi"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1058
-#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
+msgctxt "power mode"
 msgid "Balanced"
 msgstr ""
 
@@ -2848,6 +2853,7 @@ msgstr ""
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:407
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:450
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:952
+msgctxt "folder"
 msgid "Home"
 msgstr ""
 
@@ -3504,6 +3510,10 @@ msgid "Off until you turn it on."
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
+msgid "Balanced"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
 msgctxt "preset"
 msgid "Clear"
 msgstr ""
@@ -4076,6 +4086,10 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:98
 msgid "previous last apply undo back forward before earlier look"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:15
+msgid "Home"
 msgstr ""
 
 #: fedoraglass/gui/qml/Main.qml:15

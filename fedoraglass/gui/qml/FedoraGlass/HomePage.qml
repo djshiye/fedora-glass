@@ -58,15 +58,23 @@ SettingsPage {
                     Text {
                         anchors.baseline: lookTitle.baseline
                         // Gives way to the buttons in a narrow window.
-                        width: Math.min(implicitWidth, lookButtons.x - lookTitle.width - 10 - 16)
+                        width: Math.max(0, Math.min(implicitWidth, lookButtons.x - lookTitle.width - 10 - 16))
+                        visible: width >= 80
                         elide: Text.ElideRight
                         text: qsTr("Pick one to start. Everything else follows it.")
                         color: Theme.textFaint
                         font.pixelSize: Theme.fsSmall + 1
                     }
                 }
+                // Measure the buttons with their words, whatever they show now.
+                LgButton { id: saveLookFull; visible: false; kind: "flat"; implicitHeight: 30; leftPadding: 8; rightPadding: 10; iconName: "plus"; text: qsTr("Save look…") }
+                LgButton { id: importLookFull; visible: false; kind: "flat"; implicitHeight: 30; leftPadding: 8; rightPadding: 10; iconName: "document"; text: qsTr("Add from file…") }
                 Row {
                     id: lookButtons
+                    // Too little room for the words (a narrow window, a longer language):
+                    // the buttons show only their icons, and say what they do in the tooltip.
+                    readonly property bool iconsOnly: saveLookFull.implicitWidth + importLookFull.implicitWidth + 4
+                                                      > parent.width - lookTitle.width - 24
                     anchors.right: parent.right
                     anchors.rightMargin: -8
                     anchors.verticalCenter: parent.verticalCenter
@@ -76,7 +84,8 @@ SettingsPage {
                         kind: "flat"
                         implicitHeight: 30
                         leftPadding: 8; rightPadding: 10
-                        text: qsTr("Save look…")
+                        text: lookButtons.iconsOnly ? "" : saveLookFull.text
+                        Accessible.name: saveLookFull.text
                         iconName: "plus"
                         tip: qsTr("Keep this look under a name, to pick again or share")
                         tipBelow: true
@@ -87,7 +96,8 @@ SettingsPage {
                         kind: "flat"
                         implicitHeight: 30
                         leftPadding: 8; rightPadding: 10
-                        text: qsTr("Add from file…")
+                        text: lookButtons.iconsOnly ? "" : importLookFull.text
+                        Accessible.name: importLookFull.text
                         iconName: "document"
                         tip: qsTr("Add a look someone shared with you (a .json file)")
                         tipBelow: true
@@ -297,6 +307,8 @@ SettingsPage {
                 anchors.verticalCenter: ic.verticalCenter
                 text: qt.title
                 elide: Text.ElideRight
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: 11
                 color: Theme.text
                 font.pixelSize: 14
                 font.weight: Font.DemiBold
