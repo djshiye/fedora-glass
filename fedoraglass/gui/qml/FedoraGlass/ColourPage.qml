@@ -40,8 +40,8 @@ SettingsPage {
             SwitchRow {
                 objectName: "wallpaperAccent"
                 label: qsTr("Accent matches my wallpaper")
-                caption: qsTr("Buttons and highlights take a clear colour from your wallpaper when you press Apply")
-                tip: qsTr("Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. It looks again each time you press Apply. Picking an accent above turns this off.")
+                caption: qsTr("Buttons and highlights take a clear colour from your wallpaper, and follow it when you change the wallpaper")
+                tip: qsTr("Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. Once applied, it looks again by itself whenever your wallpaper changes, even with this app closed. Picking an accent above turns this off.")
                 checked: Backend.accentFromWallpaper
                 onToggled: (on) => Backend.accentFromWallpaper = on
             }
@@ -119,8 +119,8 @@ SettingsPage {
             SwitchRow {
                 objectName: "wallpaperTint"
                 label: qsTr("Match my wallpaper")
-                caption: qsTr("The glass takes a soft colour from your wallpaper when you press Apply")
-                tip: qsTr("Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. It looks again each time you press Apply, not by itself. Picking a tint colour turns this off.")
+                caption: qsTr("The glass takes a soft colour from your wallpaper, and follows it when you change the wallpaper")
+                tip: qsTr("Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. Once applied, it looks again by itself whenever your wallpaper changes, even with this app closed. Picking a tint colour turns this off.")
                 checked: Backend.tintFromWallpaper
                 onToggled: (on) => Backend.tintFromWallpaper = on
             }

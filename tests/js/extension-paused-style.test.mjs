@@ -44,6 +44,7 @@ globalThis.fakeMods = {
     'lockwidgets.js': {LockWidgets: part('widgets')},
     'popupstyle.js': {PopupStyle: track('popups')},
     'paused.js': {PausedStyle: track('paused')},
+    'pausestate.js': {PauseState: () => ({set() {}, destroy() {}})},
     'safety.js': {Safety: onChange => {
         safety = {tripped: false, onChange, glassStarted() {}, glassStopped() {}, startFailed() {}, destroy() {}};
         return safety;

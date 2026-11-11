@@ -126,9 +126,11 @@ Card {
                     kind: "flat"
                     text: qsTr("Check speed")
                     leftPadding: 10; rightPadding: 10
-                    enabled: Backend.glassLive && !root.running
+                    enabled: Backend.glassLive && !Backend.glassPaused && !Backend.safeMode && !root.running
                     busy: root.running
-                    tip: Backend.glassLive ? qsTr("Measure how smoothly each level draws here (about 20 seconds)")
+                    tip: Backend.glassPaused ? qsTr("Glass is paused from Quick Settings. Resume it to check the speed.")
+                       : Backend.safeMode ? qsTr("Glass is off right now. Turn it back on to check the speed.")
+                       : Backend.glassLive ? qsTr("Measure how smoothly each level draws here (about 20 seconds)")
                                            : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
                                            : qsTr("Apply, then restart your PC once to start the glass.")
                     onClicked: Backend.checkSpeed()
@@ -146,7 +148,7 @@ Card {
         }
         Text {
             objectName: "speedStatus"
-            visible: Backend.glassLive && root.statusText !== ""
+            visible: Backend.glassLive && !Backend.glassPaused && root.statusText !== ""
             width: parent.width
             wrapMode: Text.WordWrap
             color: Theme.textDim
@@ -155,7 +157,7 @@ Card {
         }
         Text {
             objectName: "speedDrag"
-            visible: Backend.glassLive && Backend.speedDrag !== ""
+            visible: Backend.glassLive && !Backend.glassPaused && Backend.speedDrag !== ""
             width: parent.width
             wrapMode: Text.WordWrap
             color: Theme.textDim

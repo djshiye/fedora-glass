@@ -35,7 +35,7 @@ const added = [];
 const quickSettings = {addExternalIndicator: i => added.push(i)};
 globalThis.fake = {QuickToggle, SystemIndicator, panel: {statusArea: {quickSettings}}, fs: new Map(), Actor: class {}};
 globalThis.logError = () => {};
-const {GlassSwitch, subtitleFor, ICON} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/quicktoggle.js');
+const {GlassSwitch, subtitleFor, isOn, ICON} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/quicktoggle.js');
 const {parse} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/config.js');
 
 beforeEach(() => {
@@ -94,10 +94,28 @@ test('a pause that fails leaves the tile showing the truth', () => {
     sw.destroy();
 });
 
-test('safe mode: the tile stays on, and says why there is no glass', () => {
+test('safe mode: the tile shows off, says why there is no glass, and has nothing to pause', () => {
     assert.equal(subtitleFor(false, true), 'Safe mode');
     assert.equal(subtitleFor(true, true), 'Paused');
     assert.equal(subtitleFor(false, false), null);
+    assert.equal(isOn(false, false), true);
+    assert.equal(isOn(false, true), false, 'no glass in safe mode, so the tile is not on');
+    assert.equal(isOn(true, false), false);
+    const asked = [];
+    const sw = new GlassSwitch('/ext', p => asked.push(p));
+    const t = made[0];
+    sw.setState(false, true);
+    assert.equal(t.checked, false, 'safe mode: not shown as on');
+    assert.equal(t.subtitle, 'Safe mode');
+    assert.equal(t.reactive, false, 'nothing to pause: the tile can not be clicked');
+    sw.setState(false, false);
+    assert.equal(t.checked, true, 'back from safe mode: on again');
+    assert.equal(t.reactive, true);
+    sw.setState(true, true);
+    assert.equal(t.reactive, true, 'a pause can always be ended');
+    t.click();
+    assert.deepEqual(asked, [false], 'a click while paused asks for the glass back');
+    sw.destroy();
 });
 
 test('removed: the tile, its signal and the indicator all go', () => {

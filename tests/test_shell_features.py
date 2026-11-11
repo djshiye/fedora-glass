@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from fedoraglass import palette, settings as sm
+from fedoraglass.color import Color
 from fedoraglass.render import glass as rg
 from fedoraglass.settings import Settings
 
@@ -100,6 +101,28 @@ def test_skip_stays_inside_the_extensions_limits():
     assert len(text.encode()) < 64 * 1024
 
 
+def test_users_apps_get_a_solid_backdrop_in_the_opaque_window_colour():
+    """windows.solidFrom marks where the user's own apps start in skip (the built-in ones
+    come first); their windows get a solid backdrop in solidColor: the window colour the GTK
+    and Qt themes paint see-through over the glass, opaque, in the current scheme and tint."""
+    w = cfg(no_glass_apps=["org.gnome.gedit", "Code"])["windows"]
+    assert w["solidFrom"] == len(rg.WINDOW_SKIP)
+    assert w["skip"][w["solidFrom"]:] == ["org.gnome.gedit"], "only the user's own, each once"
+    dark = palette.build(Settings().normalized(), dark=True)
+    light = palette.build(Settings().normalized(), dark=False)
+    assert dark.window.a < 0.9, "the theme paints the window see-through over the glass"
+    assert w["solidColor"] == dark.window.with_alpha(1).hex6
+    assert re.fullmatch(r"#[0-9a-f]{6}", w["solidColor"])
+    lw = rg.config(Settings(), light)["windows"]
+    assert lw["solidColor"] == light.window.with_alpha(1).hex6 != w["solidColor"], "follows dark and light"
+    assert Color.hex(lw["solidColor"]).luminance() > 0.5 > Color.hex(w["solidColor"]).luminance()
+    # A tint colours it as it colours the window.
+    tinted = cfg(tint="#3070ff", tint_strength=0.8)["windows"]["solidColor"]
+    assert tinted != w["solidColor"]
+    t = Color.hex(tinted)
+    assert t.b > t.r
+
+
 def test_built_in_video_players_match_windows_js():
     js = (EXT / "windows.js").read_text()
     m = re.search(r"^const NO_GLASS = /(.*)/i;$", js, re.M)
@@ -139,7 +162,7 @@ def test_paused_state_is_never_written():
 
 # ---- under the fake Shell -------------------------------------------------------------------
 @pytest.mark.skipif(NODE is None, reason="needs Node.js")
-@pytest.mark.parametrize("name", ["power", "no-glass-apps", "quick-toggle", "extension-pause", "extension"])
+@pytest.mark.parametrize("name", ["power", "no-glass-apps", "solid-backdrop", "quick-toggle", "extension-pause", "extension"])
 def test_extension_logic_under_the_fake_shell(name):
     r = subprocess.run([NODE, "--import", "./tests/js/register.mjs", "--test", f"tests/js/{name}.test.mjs"],
                        cwd=ROOT, capture_output=True, text=True, timeout=60)
@@ -158,20 +181,25 @@ globalThis.fake.ui = new globalThis.fake.Actor();
 globalThis.global = {{workspace_manager: {{get_active_workspace: () => ({{}})}}, get_window_actors: () => []}};
 const fs = await import('node:fs');
 const {{parse}} = await import({json.dumps((EXT / 'config.js').as_uri())});
-const {{withoutGlass}} = await import({json.dumps((EXT / 'windows.js').as_uri())});
+const {{withoutGlass, windowKind}} = await import({json.dumps((EXT / 'windows.js').as_uri())});
 // The parts these features use (glass.js, with the looks' defaults, is a stub here).
 const raw = JSON.parse(fs.readFileSync({json.dumps(str(tmp_path / 'shell-glass.json'))}, 'utf8'));
-const c = parse(JSON.stringify({{windows: {{skip: raw.windows.skip}}, speed: raw.speed}}));
+const c = parse(JSON.stringify({{windows: raw.windows, speed: raw.speed}}));
 console.log(JSON.stringify({{
     nautilus: withoutGlass(['org.gnome.Nautilus'], c.windows.skip),
     code: withoutGlass(['Code', 'code'], c.windows.skip),
     ptyxis: withoutGlass(['org.gnome.Ptyxis'], c.windows.skip),
     steam: withoutGlass(['steam'], c.windows.skip),
     battery: c.speed.lighterOnBattery,
+    kinds: [['org.gnome.Nautilus'], ['Code', 'code'], ['org.gnome.Ptyxis'], ['steam']]
+        .map(ids => windowKind(ids, c.windows.skip, c.windows.solid)),
+    color: c.windows.solidColor,
 }}));
 """)
     r = subprocess.run([NODE, "--import", "./tests/js/register.mjs", str(script)], cwd=ROOT,
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
-    assert json.loads(r.stdout.strip().splitlines()[-1]) == \
-        {"nautilus": True, "code": True, "ptyxis": False, "steam": True, "battery": True}
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert out.pop("kinds") == ["solid", "none", "glass", "none"], "the user's own app solid, the built-in ones nothing"
+    assert out.pop("color") == palette.build(s.normalized(), dark=True).window.with_alpha(1).hex6
+    assert out == {"nautilus": True, "code": True, "ptyxis": False, "steam": True, "battery": True}

@@ -66,12 +66,29 @@ Item {
         }
     }
 
-    Column {
-        id: sideCol
+    // The side column stays put, but scrolls when a small window (or a notice at the
+    // bottom of the window) leaves it less room than its cards need, so nothing spills
+    // under the notice. Clipped only then, so card shadows show in the usual case.
+    Flickable {
+        id: sideFlick
+        objectName: page.pageId + "SideScroller"
         visible: page.hasSide
         x: page.width - page.sideW
         width: page.sideW
-        spacing: page.stacked ? 8 : 12
+        height: page.stacked ? sideCol.height : Math.min(page.height, sideCol.height)
+        contentWidth: width
+        contentHeight: sideCol.height
+        readonly property bool overflows: contentHeight > height + 1
+        interactive: overflows
+        clip: overflows
+        boundsBehavior: Flickable.StopAtBounds
+        C.ScrollBar.vertical: LgScrollBar { visible: sideFlick.overflows }
+
+        Column {
+            id: sideCol
+            width: sideFlick.width
+            spacing: page.stacked ? 8 : 12
+        }
     }
 
     // ---- search: reveal one control --------------------------------------------------

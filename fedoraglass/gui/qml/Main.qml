@@ -550,7 +550,7 @@ Window {
                 id: safeBanner
                 objectName: "safeBanner"
                 readonly property bool shown: Backend.safeMode
-                anchors.bottom: lostBanner.top
+                anchors.bottom: pauseBanner.top
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
@@ -588,8 +588,58 @@ Window {
                     leftPadding: 14; rightPadding: 14
                     text: qsTr("Turn glass back on")
                     iconName: "refresh"
-                    tip: qsTr("Start the glass again. If it keeps failing, it pauses itself again.")
+                    tip: qsTr("Start the glass again. If it keeps failing, it turns itself off again.")
                     onClicked: Backend.resumeGlass()
+                }
+            }
+
+            // ------------------------------------- paused from the Glass tile in Quick
+            // Settings, for this session. Not a problem: the look is saved, and one click
+            // brings the glass back.
+            Rectangle {
+                id: pauseBanner
+                objectName: "pauseBanner"
+                readonly property bool shown: Backend.glassPaused
+                anchors.bottom: lostBanner.top
+                anchors.bottomMargin: shown ? 12 : 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 48, 760)
+                height: shown ? 48 : 0
+                visible: height > 0
+                clip: true
+                radius: Theme.rM
+                color: Theme.well
+                Behavior on height { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                Icon {
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "info"
+                    color: Theme.accentText
+                    size: 18
+                }
+                Text {
+                    objectName: "pauseNote"
+                    x: 42
+                    width: parent.width - x - resumePaused.width - 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Glass is paused from Quick Settings until you resume it or log in again.")
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall
+                    elide: Text.ElideRight
+                }
+                LgButton {
+                    id: resumePaused
+                    objectName: "resumePaused"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "primary"
+                    implicitHeight: 32
+                    leftPadding: 14; rightPadding: 14
+                    text: qsTr("Resume")
+                    iconName: "refresh"
+                    tip: qsTr("Turn the glass back on now, as the Glass tile in Quick Settings does.")
+                    onClicked: Backend.resumePausedGlass()
                 }
             }
     

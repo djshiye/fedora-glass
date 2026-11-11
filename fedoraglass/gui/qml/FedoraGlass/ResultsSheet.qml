@@ -24,15 +24,21 @@ Sheet {
             (r.id === "glass" && r.status === "applied") || (r.status === "info" && r.restart === true)))
     }
     readonly property bool needsRestart: results.length > 0 && restartNeeded(results)
+    // The glass runs but shows nothing now: paused from Quick Settings, or off in safe mode.
+    // The look is saved and shows once the glass is back, so the sheet doesn't say it's on.
+    readonly property bool glassOff: Backend.glassLive && (Backend.glassPaused || Backend.safeMode)
     title: failedCount > 0 ? (failedCount === 1 ? qsTr("Applied, with 1 problem") : qsTr("Applied, with %1 problems").arg(failedCount))
          : results.length === 0 ? qsTr("Settings saved")
          : needsRestart ? qsTr("Applied. Restart your PC to finish")
          : Backend.glassBlocked ? qsTr("Applied, but the glass can't start")
+         : glassOff ? qsTr("Your new look is saved")
          : Backend.glassLive ? qsTr("Fedora Glass is on") : qsTr("Your new look is applied")
     subtitle: results.length === 0 ? qsTr("Nothing to theme was found yet, so only your settings were saved.")
             : failedCount > 0 ? qsTr("Everything else was applied. The details are below.")
             : needsRestart && Backend.glassProblem === "old" ? Backend.glassProblemNote
             : Backend.glassBlocked ? Backend.glassProblemNote
+            : glassOff && Backend.glassPaused && !needsRestart ? qsTr("Glass is paused from Quick Settings, so your desktop shows the new look once you resume it.")
+            : glassOff && Backend.safeMode && !needsRestart ? qsTr("Glass is off right now, so your desktop shows the new look once you turn it back on.")
             : needsRestart ? qsTr("GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them.")
             : qsTr("Open apps pick up the new look when you reopen them.")
     iconName: failedCount > 0 || Backend.glassBlocked ? "alert" : "okCircle"
@@ -40,6 +46,17 @@ Sheet {
     // A stray Enter must never start a restart: with one pending, the sheet opens on "Later".
     initialFocusItem: needsRestart ? laterButton : null
     buttons: [
+        LgButton {
+            objectName: "resultsResume"
+            visible: Backend.glassPaused && !sheet.needsRestart
+            text: qsTr("Resume glass")
+            kind: "secondary"
+            tip: qsTr("Turn the glass back on now, as the Glass tile in Quick Settings does.")
+            onClicked: {
+                Backend.resumePausedGlass()
+                sheet.close()
+            }
+        },
         LgButton {
             id: laterButton
             objectName: "restartLater"

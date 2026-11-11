@@ -5,7 +5,7 @@
   fedora-glass plan            show what Apply would change, change nothing
   fedora-glass status          list targets and whether they're available
   fedora-glass revert [TARGET] restore the original look (everything, or one target)
-  fedora-glass watch           re-apply when GNOME switches dark/light, High Contrast or its accent colour (run by a user service)
+  fedora-glass watch           re-apply when GNOME switches dark/light, High Contrast, its accent colour or the wallpaper (run by a user service)
   fedora-glass on-remove       restore the original look before the package manager takes the app away (run by dnf, apt or pacman)
 """
 
@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 
-from . import __version__, settings as settings_mod
+from . import __version__, settings as settings_mod, wallcolour
 
 
 def _engine():
@@ -144,6 +144,30 @@ def _take_all(q: queue.Queue) -> set:
             got.add(q.get_nowait())
         except queue.Empty:
             return got
+
+
+def _settle_wallpaper(q: queue.Queue, got: set, settle_s: float | None = None, max_s: float | None = None,
+                      clock=time.monotonic) -> set:
+    """A wallpaper change: wait until the wallpaper keys have been quiet for settle_s (but
+    no longer than max_s in all), taking whatever else comes meanwhile, so a wallpaper app
+    that writes them again and again makes one look at the picture."""
+    settle_s = WALLPAPER_SETTLE_S if settle_s is None else settle_s
+    max_s = WALLPAPER_SETTLE_MAX_S if max_s is None else max_s
+    start = clock()
+    quiet_at = start + settle_s
+    while True:
+        left = min(quiet_at, start + max_s) - clock()
+        if left <= 0:
+            return got
+        try:
+            item = q.get(timeout=left)
+        except queue.Empty:
+            return got
+        got.add(item)
+        if item is None:
+            return got          # a monitor ended: the loop stops the watcher
+        if item == WALLPAPER:
+            quiet_at = clock() + settle_s
 
 
 _said: set[str] = set()
@@ -324,9 +348,17 @@ PENDING_RETRY_S = 30 * 60.0
 # A run of switches this close together makes one Apply.
 SETTLE_MS = 150
 
-SCHEME, CONTRAST, ACCENT = 0, 1, 2
+# A new wallpaper is taken once its keys have been quiet this long: a wallpaper app that
+# writes them again and again makes one look at the picture, not one Apply each.
+WALLPAPER_SETTLE_S = 2.0
+# ... but a wallpaper app that never stops writing still gets looked at this often.
+WALLPAPER_SETTLE_MAX_S = 10.0
+
+SCHEME, CONTRAST, ACCENT, WALLPAPER = 0, 1, 2, 3
 WATCH_KEYS = (("org.gnome.desktop.interface", "color-scheme"), ("org.gnome.desktop.a11y.interface", "high-contrast"))
 ACCENT_KEY = ("org.gnome.desktop.interface", "accent-color")
+# GNOME's two wallpapers: picture-uri (light style) and picture-uri-dark (GNOME 42 and later).
+WALLPAPER_KEYS = (("org.gnome.desktop.background", "picture-uri"), ("org.gnome.desktop.background", "picture-uri-dark"))
 
 
 def _has_accent_key() -> bool:
@@ -339,6 +371,17 @@ def _has_accent_key() -> bool:
         return False
 
 
+def _wallpaper_keys() -> tuple[tuple[str, str], ...]:
+    """The wallpaper keys this GNOME has (an older one has no picture-uri-dark): a
+    `gsettings monitor` of a missing key would end at once, and take the watcher with it."""
+    from .env import Env
+    try:
+        have = Env().gsettings_keys(WALLPAPER_KEYS[0][0])
+    except Exception:
+        return ()
+    return tuple(k for k in WALLPAPER_KEYS if k[1] in have)
+
+
 class Watcher:
     """What `fedora-glass watch` does, whatever tells it about a change (GSettings signals,
     or `gsettings monitor` where there is no PyGObject)."""
@@ -349,6 +392,8 @@ class Watcher:
         self.clock = clock
         self.pending_left = True
         self.pending_until = clock() + PENDING_RETRY_S
+        # How the wallpaper's picture is decoded: GdkPixbuf, never Qt (see wallcolour.py).
+        self.read_pixels = None
 
     def start(self) -> None:
         """At login: bring the look up to this version, and finish the waiting Shell parts."""
@@ -363,17 +408,54 @@ class Watcher:
                                          wait_s=0.0) is not True
 
     def changed(self, got: set) -> None:
-        """GNOME switched dark/light (SCHEME), High Contrast (CONTRAST) or its accent (ACCENT)."""
+        """GNOME switched dark/light (SCHEME), High Contrast (CONTRAST), its accent (ACCENT)
+        or the wallpaper (WALLPAPER, once settled)."""
         self.retry_pending()
         if (s := _auto_settings()) is None:
             return
         scheme = SCHEME in got and s.scheme == "auto"
         contrast = CONTRAST in got
         accent = ACCENT in got and getattr(s, "accent", "") == "system"
+        # A new picture, or a dark/light switch that shows the other one.
+        wall = (WALLPAPER in got or scheme) and wallcolour.follows(s)
+        if not (scheme or contrast or accent or wall):
+            return
         # After Restore original, stay out of the way.
-        if (scheme or contrast or accent) and _guarded("checking the look", self.eng.look_on):
+        if not _guarded("checking the look", self.eng.look_on):
+            return
+        if wall and (new := _guarded("taking the wallpaper's colours", self.rematch, s)) is not None:
+            recoloured = (new.tint, new.accent) != (s.tint, s.accent)
+            if _guarded("saving the wallpaper's colours", self._save, new) is None:
+                return      # not saved: applying a look settings.json doesn't hold would be lost
+            s = new
+            if recoloured:
+                accent = True       # a new tint or accent is in every part
+        if scheme or contrast or accent:
             _guarded("Apply", self.eng.apply, s, only=None if contrast or accent else self.only,
                      if_applied=True, applied_only=True)
+
+    def rematch(self, s):
+        """The look with the colours of the wallpaper GNOME shows now, or None when nothing
+        changes (see wallcolour.rematch)."""
+        read = self.read_pixels
+        if read is None:
+            if not wallcolour.can_read_pictures():
+                _say_once("fedora-glass watch: GdkPixbuf isn't installed, so the colour follows a new "
+                          "wallpaper only when you press Apply in the app", key="pixbuf")
+                return None
+            read = wallcolour.pixbuf_pixels
+        env = getattr(self.eng, "env", None)
+        if env is None:
+            from .env import Env
+            env = Env()
+        dark = env.prefers_dark() if s.scheme == "auto" else s.scheme == "dark"
+        return wallcolour.rematch(s, wallcolour.wallpaper_path(env, dark), dark, read)
+
+    @staticmethod
+    def _save(s) -> bool:
+        """Into settings.json, as the app saves a look it applies; the app shows it from there."""
+        settings_mod.save(s)
+        return True
 
     def poll(self) -> int | None:
         """Every minute. 75 when `dnf upgrade` put a new version on disk: the user service
@@ -404,6 +486,9 @@ def cmd_watch(args: argparse.Namespace) -> int:
     GTK 3, terminal, Qt); High Contrast changes every part (glass goes opaque). The accent
     colour is written into every part, so a new one changes them all, when the look the
     user applied says "follow the system" (Apply turned that on, so this is no surprise).
+    A look whose tint or accent matches the wallpaper takes the new picture's colours when
+    the wallpaper changes (or a dark/light switch shows the other picture), saves them in
+    settings.json as the app would, and applies them.
     Exits 75 when a new version is installed, 1 when it can no longer watch."""
     mods = _gio()
     if mods is not None:
@@ -419,7 +504,11 @@ def _watch_gio(Gio, GLib) -> int:
     def has(schema: str, key: str) -> bool:
         found = source.lookup(schema, True) if source is not None else None
         return found is not None and found.has_key(key)
-    keys = WATCH_KEYS + ((ACCENT_KEY,) if has(*ACCENT_KEY) else ())
+    keys = [(SCHEME, *WATCH_KEYS[0]), (CONTRAST, *WATCH_KEYS[1])]
+    if has(*ACCENT_KEY):
+        keys.append((ACCENT, *ACCENT_KEY))
+    # Only the ones there: Gio.Settings would abort the process on a key that isn't.
+    keys += [(WALLPAPER, *k) for k in WALLPAPER_KEYS if has(*k)]
     for schema, key in WATCH_KEYS:
         if not has(schema, key):
             # Gio.Settings would abort the process on a schema that isn't there.
@@ -427,7 +516,7 @@ def _watch_gio(Gio, GLib) -> int:
             return 1
     loop = GLib.MainLoop()
     got: set[int] = set()
-    state = {"code": 0, "settle": 0}
+    state = {"code": 0, "settle": 0, "wall": 0, "wall_first": 0.0}
 
     def settle() -> bool:
         state["settle"] = 0
@@ -436,15 +525,35 @@ def _watch_gio(Gio, GLib) -> int:
         watcher.changed(which)
         return False
 
+    def now() -> float:
+        return GLib.get_monotonic_time() / 1e6
+
+    def wall_settle(gen: int) -> bool:
+        if not state["wall_first"]:
+            return False        # already taken
+        # Only the timer of the last change counts, unless the changes have gone on too long.
+        if gen != state["wall"] and now() - state["wall_first"] < WALLPAPER_SETTLE_MAX_S:
+            return False
+        state["wall_first"] = 0.0
+        watcher.changed({WALLPAPER})
+        return False
+
     def on_change(i: int):
         def changed(_settings, _key) -> None:
+            if i == WALLPAPER:
+                state["wall"] += 1
+                if not state["wall_first"]:
+                    state["wall_first"] = now() or 1e-6
+                gen = state["wall"]
+                GLib.timeout_add(round(WALLPAPER_SETTLE_S * 1000), lambda: wall_settle(gen))
+                return
             got.add(i)
             if not state["settle"]:
                 state["settle"] = GLib.timeout_add(SETTLE_MS, settle)
         return changed
 
     held = []                   # kept, or they would be collected and stop signalling
-    for i, (schema, key) in enumerate(keys):
+    for i, schema, key in keys:
         gs = Gio.Settings.new(schema)
         gs.connect(f"changed::{key}", on_change(i))
         gs.get_value(key)       # GSettings only reports changes to a key once it was read
@@ -467,9 +576,10 @@ def _watch_gio(Gio, GLib) -> int:
 
 def _watch_monitors() -> int:
     """Without PyGObject: one `gsettings monitor` per key."""
-    keys = WATCH_KEYS
+    keys = [(SCHEME, *WATCH_KEYS[0]), (CONTRAST, *WATCH_KEYS[1])]
     if _has_accent_key():
-        keys += (ACCENT_KEY,)
+        keys.append((ACCENT, *ACCENT_KEY))
+    keys += [(WALLPAPER, *k) for k in _wallpaper_keys()]
     procs: list[subprocess.Popen] = []
 
     def stop_all() -> None:
@@ -479,7 +589,7 @@ def _watch_monitors() -> int:
             p.wait()
 
     try:
-        for schema, key in keys:
+        for _i, schema, key in keys:
             procs.append(subprocess.Popen(["gsettings", "monitor", schema, key], stdout=subprocess.PIPE, text=True))
     except OSError as e:
         stop_all()              # never leave the first monitor running on its own
@@ -500,12 +610,14 @@ def _watch_monitors() -> int:
             time.sleep(UPGRADE_POLL_S)
             changes.put(TICK)
 
-    for i, p in enumerate(procs):
+    for (i, _schema, _key), p in zip(keys, procs):
         threading.Thread(target=follow, args=(i, p), daemon=True).start()
     threading.Thread(target=poll, daemon=True).start()
     try:
         while True:
             got = _take_all(changes)
+            if WALLPAPER in got:
+                got = _settle_wallpaper(changes, got)
             if TICK in got and (code := watcher.poll()) is not None:
                 return code
             if None in got:

@@ -157,227 +157,227 @@ msgstr "No se pudo restaurar tu enlace de {folder} a {owner}: {reason}."
 msgid "Backup"
 msgstr "Copia de seguridad"
 
-#: fedoraglass/gui/backend.py:1005
+#: fedoraglass/gui/backend.py:1091
 msgid "Last window drag with {windows} windows open: about {fps} frames a second, smooth."
 msgstr "Último arrastre de ventana con {windows} ventanas abiertas: unos {fps} fotogramas por segundo, fluido."
 
-#: fedoraglass/gui/backend.py:1007
+#: fedoraglass/gui/backend.py:1093
 msgid "Last window drag with {windows} windows open: about {fps} frames a second, a little uneven."
 msgstr "Último arrastre de ventana con {windows} ventanas abiertas: unos {fps} fotogramas por segundo, algo irregular."
 
-#: fedoraglass/gui/backend.py:1008
+#: fedoraglass/gui/backend.py:1094
 msgid "Last window drag with {windows} windows open: about {fps} frames a second, slow."
 msgstr "Último arrastre de ventana con {windows} ventanas abiertas: unos {fps} fotogramas por segundo, lento."
 
-#: fedoraglass/gui/backend.py:1010
+#: fedoraglass/gui/backend.py:1096
 msgid "Last window drag: about {fps} frames a second, smooth."
 msgstr "Último arrastre de ventana: unos {fps} fotogramas por segundo, fluido."
 
-#: fedoraglass/gui/backend.py:1012
+#: fedoraglass/gui/backend.py:1098
 msgid "Last window drag: about {fps} frames a second, a little uneven."
 msgstr "Último arrastre de ventana: unos {fps} fotogramas por segundo, algo irregular."
 
-#: fedoraglass/gui/backend.py:1013
+#: fedoraglass/gui/backend.py:1099
 msgid "Last window drag: about {fps} frames a second, slow."
 msgstr "Último arrastre de ventana: unos {fps} fotogramas por segundo, lento."
 
-#: fedoraglass/gui/backend.py:1475
+#: fedoraglass/gui/backend.py:1561
 msgid "Could not open the restart dialog. Restart your PC from the system menu instead."
 msgstr "No se pudo abrir el diálogo de reinicio. Reinicia el equipo desde el menú del sistema."
 
-#: fedoraglass/gui/backend.py:1501
+#: fedoraglass/gui/backend.py:1587
 msgid "GNOME's own top bar"
 msgstr "La barra superior de GNOME"
 
-#: fedoraglass/gui/backend.py:1503
+#: fedoraglass/gui/backend.py:1589
 msgid "Found on this PC: {list}."
 msgstr "Encontrado en este equipo: {list}."
 
-#: fedoraglass/gui/backend.py:1514
+#: fedoraglass/gui/backend.py:1600
 msgid "Another app replaced the Fedora Glass look for {what}. Apply again to bring it back."
 msgstr "Otra aplicación reemplazó el estilo de Fedora Glass en {what}. Aplica de nuevo para recuperarlo."
 
-#: fedoraglass/gui/backend.py:1556
+#: fedoraglass/gui/backend.py:1642
 msgid "Could not check: {error}"
 msgstr "No se pudo comprobar: {error}"
 
-#: fedoraglass/gui/backend.py:1654
+#: fedoraglass/gui/backend.py:1740
 msgid "Could not switch extensions on. Try the Extensions app instead."
 msgstr "No se pudieron activar las extensiones. Prueba con la aplicación Extensiones."
 
-#: fedoraglass/gui/backend.py:1656
+#: fedoraglass/gui/backend.py:1742
 msgid "Extensions are on again. Press Apply to finish your look."
 msgstr "Las extensiones están activadas de nuevo. Pulsa Aplicar para terminar tu estilo."
 
-#: fedoraglass/gui/backend.py:1697
+#: fedoraglass/gui/backend.py:1783
 msgid "Could not clean up the old copy: {problem}"
 msgstr "No se pudo limpiar la copia antigua: {problem}"
 
-#: fedoraglass/gui/backend.py:1699
+#: fedoraglass/gui/backend.py:1785
 msgid "Old copy cleaned up. Fedora Glass now runs from the package only."
 msgstr "Copia antigua limpiada. Fedora Glass ahora se ejecuta solo desde el paquete."
 
-#: fedoraglass/gui/backend.py:1709
+#: fedoraglass/gui/backend.py:1795
 msgid "Error details copied"
 msgstr "Detalles del error copiados"
 
-#: fedoraglass/gui/backend.py:1743
+#: fedoraglass/gui/backend.py:1829
 msgid "Could not load targets: {error}"
 msgstr "No se pudieron cargar los objetivos: {error}"
 
-#: fedoraglass/gui/backend.py:1842
+#: fedoraglass/gui/backend.py:1928
 msgid "Planning"
 msgstr "Planificando"
 
-#: fedoraglass/gui/backend.py:1850
+#: fedoraglass/gui/backend.py:1936
 msgid "Could not work out the changes: {error}"
 msgstr "No se pudieron calcular los cambios: {error}"
 
-#: fedoraglass/gui/backend.py:1884
-#: fedoraglass/gui/backend.py:2196
+#: fedoraglass/gui/backend.py:1970
+#: fedoraglass/gui/backend.py:2282
 msgid "Could not save settings: {error}"
 msgstr "No se pudo guardar la configuración: {error}"
 
-#: fedoraglass/gui/backend.py:1893
+#: fedoraglass/gui/backend.py:1979
 msgid "Writing tokens"
 msgstr "Escribiendo tokens"
 
-#: fedoraglass/gui/backend.py:1925
+#: fedoraglass/gui/backend.py:2011
 msgid "Apply stopped: {error}"
 msgstr "Aplicar se detuvo: {error}"
 
-#: fedoraglass/gui/backend.py:1957
+#: fedoraglass/gui/backend.py:2043
 msgid "The login screen has your new look. You'll see it the next time you restart your PC."
 msgstr "La pantalla de inicio de sesión tiene tu nuevo estilo. Lo verás la próxima vez que reinicies el equipo."
 
-#: fedoraglass/gui/backend.py:1980
-#: fedoraglass/gui/backend.py:2259
+#: fedoraglass/gui/backend.py:2066
+#: fedoraglass/gui/backend.py:2345
 msgid "Restoring"
 msgstr "Restaurando"
 
-#: fedoraglass/gui/backend.py:1986
+#: fedoraglass/gui/backend.py:2072
 msgid "Restore stopped: {error}"
 msgstr "Restaurar se detuvo: {error}"
 
-#: fedoraglass/gui/backend.py:2048
+#: fedoraglass/gui/backend.py:2134
 msgid "Could not restart Files. Close all Files windows, or restart your PC instead."
 msgstr "No se pudo reiniciar Archivos. Cierra todas las ventanas de Archivos o reinicia el equipo."
 
-#: fedoraglass/gui/backend.py:2136
+#: fedoraglass/gui/backend.py:2222
 msgid "Glass is on the login screen. You'll see it the next time you restart your PC."
 msgstr "El cristal está en la pantalla de inicio de sesión. Lo verás la próxima vez que reinicies el equipo."
 
-#: fedoraglass/gui/backend.py:2140
+#: fedoraglass/gui/backend.py:2226
 msgid "The normal login screen is back."
 msgstr "Se recuperó la pantalla de inicio de sesión normal."
 
-#: fedoraglass/gui/backend.py:2165
+#: fedoraglass/gui/backend.py:2251
 msgid "Not changed: the password wasn't given."
 msgstr "Sin cambios: no se indicó la contraseña."
 
-#: fedoraglass/gui/backend.py:2168
+#: fedoraglass/gui/backend.py:2254
 msgid "the helper didn't finish"
 msgstr "el ayudante no terminó"
 
-#: fedoraglass/gui/backend.py:2169
+#: fedoraglass/gui/backend.py:2255
 msgid "Nothing was changed: {reason}"
 msgstr "No se cambió nada: {reason}"
 
-#: fedoraglass/gui/backend.py:2266
+#: fedoraglass/gui/backend.py:2352
 msgid "Restore stopped, so Fedora Glass was not removed: {error}"
 msgstr "Restaurar se detuvo, así que Fedora Glass no se eliminó: {error}"
 
-#: fedoraglass/gui/backend.py:2298
+#: fedoraglass/gui/backend.py:2384
 msgid "Your original look is back, but Fedora Glass was not removed: the password wasn't given."
 msgstr "Tu estilo original está de vuelta, pero Fedora Glass no se eliminó: no se indicó la contraseña."
 
-#: fedoraglass/gui/backend.py:2300
+#: fedoraglass/gui/backend.py:2386
 msgid "{tool} did not finish"
 msgstr "{tool} no terminó"
 
-#: fedoraglass/gui/backend.py:2301
+#: fedoraglass/gui/backend.py:2387
 msgid "Your original look is back, but removing Fedora Glass failed: {reason}"
 msgstr "Tu estilo original está de vuelta, pero falló la eliminación de Fedora Glass: {reason}"
 
-#: fedoraglass/gui/backend.py:2418
+#: fedoraglass/gui/backend.py:2504
 msgid "Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed."
 msgstr "Steam y sus juegos, reproductores de vídeo (VLC, mpv, Vídeos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice y Prism Launcher, y alguno más. Dibujan sus propias ventanas sólidas, así que el cristal detrás solo restaría rendimiento."
 
-#: fedoraglass/gui/backend.py:2527
-#: fedoraglass/gui/backend.py:2525
+#: fedoraglass/gui/backend.py:2613
+#: fedoraglass/gui/backend.py:2611
 msgid "My look"
 msgstr "Mi estilo"
 
-#: fedoraglass/gui/backend.py:2527
-#: fedoraglass/gui/backend.py:2525
+#: fedoraglass/gui/backend.py:2613
+#: fedoraglass/gui/backend.py:2611
 msgid "My look {n}"
 msgstr "Mi estilo {n}"
 
-#: fedoraglass/gui/backend.py:2538
+#: fedoraglass/gui/backend.py:2624
 msgid "The look couldn't be saved: {reason}"
 msgstr "No se pudo guardar el estilo: {reason}"
 
-#: fedoraglass/gui/backend.py:2542
+#: fedoraglass/gui/backend.py:2628
 msgid "Saved “{name}”"
 msgstr "Se guardó «{name}»"
 
-#: fedoraglass/gui/backend.py:2553
+#: fedoraglass/gui/backend.py:2639
 msgid "The look couldn't be renamed: {reason}"
 msgstr "No se pudo renombrar el estilo: {reason}"
 
-#: fedoraglass/gui/backend.py:2565
+#: fedoraglass/gui/backend.py:2651
 msgid "The look couldn't be deleted: {reason}"
 msgstr "No se pudo eliminar el estilo: {reason}"
 
-#: fedoraglass/gui/backend.py:2570
+#: fedoraglass/gui/backend.py:2656
 msgid "Deleted “{name}”"
 msgstr "Se eliminó «{name}»"
 
-#: fedoraglass/gui/backend.py:2594
+#: fedoraglass/gui/backend.py:2680
 msgid "Pick a file on this PC to save the look in."
 msgstr "Elige un archivo en este equipo donde guardar el estilo."
 
-#: fedoraglass/gui/backend.py:2609
+#: fedoraglass/gui/backend.py:2695
 msgid "Saved as {path}"
 msgstr "Guardado como {path}"
 
-#: fedoraglass/gui/backend.py:2618
+#: fedoraglass/gui/backend.py:2704
 msgid "Pick a look file on this PC."
 msgstr "Elige un archivo de estilo en este equipo."
 
-#: fedoraglass/gui/backend.py:2627
+#: fedoraglass/gui/backend.py:2713
 msgid "The look couldn't be added: {reason}"
 msgstr "No se pudo añadir el estilo: {reason}"
 
-#: fedoraglass/gui/backend.py:2631
+#: fedoraglass/gui/backend.py:2717
 msgid "Added “{name}”. Pick it to try it."
 msgstr "Se añadió «{name}». Elígelo para probarlo."
 
-#: fedoraglass/gui/backend.py:2690
+#: fedoraglass/gui/backend.py:2776
 msgid "today at {time}"
 msgstr "hoy a las {time}"
 
-#: fedoraglass/gui/backend.py:2693
+#: fedoraglass/gui/backend.py:2779
 msgid "yesterday at {time}"
 msgstr "ayer a las {time}"
 
-#: fedoraglass/gui/backend.py:2695
+#: fedoraglass/gui/backend.py:2781
 msgid "on {day} at {time}"
 msgstr "el {day} a las {time}"
 
-#: fedoraglass/gui/backend.py:2800
+#: fedoraglass/gui/backend.py:2886
 msgid "your wallpaper's colour"
 msgstr "el color de tu fondo de escritorio"
 
-#: fedoraglass/gui/backend.py:2854
+#: fedoraglass/gui/backend.py:2940
 msgid "There's no wallpaper picture to take a colour from, so the colour stays as it is."
 msgstr "No hay ninguna imagen de fondo de la que tomar un color, así que el color se queda como está."
 
-#: fedoraglass/gui/backend.py:2857
+#: fedoraglass/gui/backend.py:2943
 msgid "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
 msgstr "Fedora Glass no puede leer la imagen de este fondo, así que el color se queda como está."
 
-#: fedoraglass/gui/backend.py:2859
+#: fedoraglass/gui/backend.py:2945
 msgid "Your wallpaper has hardly any colour in it, so the colour stays as it is."
 msgstr "Tu fondo casi no tiene color, así que el color se queda como está."
 
@@ -389,17 +389,17 @@ msgstr "Mis aplicaciones"
 msgid "{start} and {last}"
 msgstr "{start} y {last}"
 
-#: fedoraglass/gui/backend.py:486
-msgid "Glass is paused because GNOME Shell restarted twice right after starting it. Your desktop works as usual."
-msgstr "El cristal está en pausa porque GNOME Shell se reinició dos veces justo después de iniciarlo. Tu escritorio funciona como siempre."
+#: fedoraglass/gui/backend.py:499
+msgid "Glass turned itself off because GNOME Shell restarted twice right after starting it. Your desktop works as usual."
+msgstr "El cristal se apagó solo porque GNOME Shell se reinició dos veces justo después de iniciarlo. Tu escritorio funciona como siempre."
 
-#: fedoraglass/gui/backend.py:488
-msgid "Glass is paused because it could not start. Your desktop works as usual."
-msgstr "El cristal está en pausa porque no pudo iniciarse. Tu escritorio funciona como siempre."
+#: fedoraglass/gui/backend.py:501
+msgid "Glass turned itself off because it could not start. Your desktop works as usual."
+msgstr "El cristal se apagó solo porque no pudo iniciarse. Tu escritorio funciona como siempre."
 
-#: fedoraglass/gui/backend.py:489
-msgid "Glass is paused because it hit errors. Your desktop works as usual."
-msgstr "El cristal está en pausa porque hubo errores. Tu escritorio funciona como siempre."
+#: fedoraglass/gui/backend.py:502
+msgid "Glass turned itself off because it hit errors. Your desktop works as usual."
+msgstr "El cristal se apagó solo porque hubo errores. Tu escritorio funciona como siempre."
 
 #: fedoraglass/gui/backend.py:64
 #: fedoraglass/targets/apps.py:95
@@ -407,42 +407,42 @@ msgstr "El cristal está en pausa porque hubo errores. Tu escritorio funciona co
 msgid "{name} is not installed"
 msgstr "{name} no está instalado"
 
-#: fedoraglass/gui/backend.py:794
+#: fedoraglass/gui/backend.py:878
 msgid "No animations: everything happens at once"
 msgstr "Sin animaciones: todo ocurre de golpe"
 
-#: fedoraglass/gui/backend.py:795
+#: fedoraglass/gui/backend.py:879
 #: fedoraglass/gui/changes.py:156
 msgid "Calm"
 msgstr "Tranquilo"
 
-#: fedoraglass/gui/backend.py:795
+#: fedoraglass/gui/backend.py:879
 msgid "Quick, gentle zooms and fades. Nothing bounces."
 msgstr "Zooms y fundidos rápidos y suaves. Nada rebota."
 
-#: fedoraglass/gui/backend.py:796
+#: fedoraglass/gui/backend.py:880
 #: fedoraglass/gui/changes.py:156
 msgid "GNOME"
 msgstr "GNOME"
 
-#: fedoraglass/gui/backend.py:796
+#: fedoraglass/gui/backend.py:880
 msgid "GNOME's own animations, as they come"
 msgstr "Las animaciones propias de GNOME, tal cual"
 
-#: fedoraglass/gui/backend.py:797
+#: fedoraglass/gui/backend.py:881
 #: fedoraglass/gui/changes.py:156
 msgid "Lively"
 msgstr "Animado"
 
-#: fedoraglass/gui/backend.py:797
+#: fedoraglass/gui/backend.py:881
 msgid "Springy windows, a genie into the taskbar and a bouncing app icon (the default)"
 msgstr "Ventanas elásticas, efecto genio hacia la barra de tareas e icono de aplicación que rebota (predeterminado)"
 
-#: fedoraglass/gui/backend.py:798
+#: fedoraglass/gui/backend.py:882
 msgid "Bouncy, jelly-like and fun"
 msgstr "Rebotante, gelatinoso y divertido"
 
-#: fedoraglass/gui/backend.py:798
+#: fedoraglass/gui/backend.py:882
 #: fedoraglass/gui/changes.py:156
 msgid "Playful"
 msgstr "Juguetón"
@@ -780,7 +780,7 @@ msgstr "Volver al estilo anterior a tu último Aplicar"
 
 #: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:17
 #: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:46
-#: fedoraglass/gui/qml/Main.qml:810
+#: fedoraglass/gui/qml/Main.qml:860
 msgid "Apply"
 msgstr "Aplicar"
 
@@ -962,7 +962,7 @@ msgid "Choose a tint colour for this part only"
 msgstr "Elige un color de tinte solo para esta parte"
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:240
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:94
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:96
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:20
 msgid "Bend"
 msgstr "Curvatura"
@@ -980,7 +980,7 @@ msgid "How strongly this part's rounded edge bends what's behind it. Left is fla
 msgstr "Cuánto desvía el borde redondeado de esta parte lo que hay detrás. A la izquierda es cristal plano; a la derecha, una lente gruesa."
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:253
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:121
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:123
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:23
 msgid "Colour bleed"
 msgstr "Difusión de color"
@@ -1114,7 +1114,7 @@ msgid "Look of the top bar or Dash to Panel, a dock and the dash in Activities o
 msgstr "Estilo de la barra superior o de Dash to Panel, un dock y el dash de Actividades solamente"
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:39
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:157
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:159
 #: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:21
 msgid "Panel"
 msgstr "Panel"
@@ -1163,7 +1163,7 @@ msgid "Look of the dash and the app grid in Activities"
 msgstr "Estilo del dash y de la cuadrícula de aplicaciones en Actividades"
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:43
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:179
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:181
 #: fedoraglass/gui/changes.py:147
 msgid "Overview"
 msgstr "Vista de actividades"
@@ -1228,8 +1228,8 @@ msgid "Always without glass"
 msgstr "Siempre sin cristal"
 
 #: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:27
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:54
-#: fedoraglass/gui/backend.py:1902
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
+#: fedoraglass/gui/backend.py:1988
 msgid "Done"
 msgstr "Hecho"
 
@@ -1364,12 +1364,12 @@ msgid "Match my wallpaper"
 msgstr "Igualar mi fondo de escritorio"
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:122
-msgid "The glass takes a soft colour from your wallpaper when you press Apply"
-msgstr "El cristal toma un color suave de tu fondo de escritorio al pulsar Aplicar"
+msgid "The glass takes a soft colour from your wallpaper, and follows it when you change the wallpaper"
+msgstr "El cristal toma un color suave de tu fondo de escritorio y lo sigue cuando cambias de fondo"
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:123
-msgid "Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. It looks again each time you press Apply, not by itself. Picking a tint colour turns this off."
-msgstr "Fedora Glass elige el color principal de tu fondo de escritorio, sin contar negro, blanco ni gris, y lo suaviza hasta hacerlo un tinte. Lo vuelve a mirar cada vez que pulsas Aplicar, no por sí solo. Elegir un color de tinte desactiva esto."
+msgid "Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. Once applied, it looks again by itself whenever your wallpaper changes, even with this app closed. Picking a tint colour turns this off."
+msgstr "Fedora Glass elige el color principal de tu fondo de escritorio, sin contar negro, blanco ni gris, y lo suaviza hasta hacerlo un tinte. Una vez aplicado, lo vuelve a mirar por sí solo cada vez que cambia tu fondo, incluso con esta aplicación cerrada. Elegir un color de tinte desactiva esto."
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:130
 msgid "Looking at your wallpaper…"
@@ -1445,12 +1445,12 @@ msgid "Accent matches my wallpaper"
 msgstr "El acento iguala mi fondo de escritorio"
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:43
-msgid "Buttons and highlights take a clear colour from your wallpaper when you press Apply"
-msgstr "Los botones y resaltados toman un color nítido de tu fondo de escritorio al pulsar Aplicar"
+msgid "Buttons and highlights take a clear colour from your wallpaper, and follow it when you change the wallpaper"
+msgstr "Los botones y resaltados toman un color nítido de tu fondo de escritorio y lo siguen cuando cambias de fondo"
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:44
-msgid "Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. It looks again each time you press Apply. Picking an accent above turns this off."
-msgstr "Fedora Glass elige el color principal de tu fondo de escritorio y lo hace lo bastante nítido para botones e interruptores. Lo vuelve a mirar cada vez que pulsas Aplicar. Elegir un acento arriba desactiva esto."
+msgid "Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. Once applied, it looks again by itself whenever your wallpaper changes, even with this app closed. Picking an accent above turns this off."
+msgstr "Fedora Glass elige el color principal de tu fondo de escritorio y lo hace lo bastante nítido para botones e interruptores. Una vez aplicado, lo vuelve a mirar por sí solo cada vez que cambia tu fondo, incluso con esta aplicación cerrada. Elegir un acento arriba desactiva esto."
 
 #: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:57
 msgid "Tint and corners"
@@ -1569,101 +1569,105 @@ msgstr "Esmerilado"
 msgid "Glass: liquid to frosted"
 msgstr "Cristal: de líquido a esmerilado"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:103
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:100
+msgid "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+msgstr "Cuánto desvía el borde redondeado lo que hay detrás. A la izquierda es cristal plano; a la derecha, una lente gruesa."
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:105
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:21
 #: fedoraglass/gui/changes.py:96
 msgid "Rainbow edge"
 msgstr "Borde arcoíris"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:107
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:109
 msgid "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
 msgstr "Separa la luz en colores a lo largo del borde, como el cristal real. A la izquierda no hay franja de color; a la derecha, un borde arcoíris intenso."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:112
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:114
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:22
 #: fedoraglass/gui/changes.py:97
 msgid "Colour through glass"
 msgstr "Color a través del cristal"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:116
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:118
 msgid "How vivid the wallpaper and windows look through the glass. Left keeps their colours as they are; right makes them richer."
 msgstr "Cuán vivos se ven el fondo y las ventanas a través del cristal. A la izquierda conservan sus colores tal cual; a la derecha los hace más ricos."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:125
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:127
 msgid "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
 msgstr "Cuánto iluminan los colores de iconos y texto el cristal que los rodea, como la luz que se extiende dentro del cristal real. A la izquierda el cristal se mantiene neutro; a la derecha les da un resplandor de color."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:130
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:132
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:24
 #: fedoraglass/gui/changes.py:99
 msgid "Light follows pointer"
 msgstr "La luz sigue al puntero"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:134
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:136
 msgid "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
 msgstr "Cuánto se orienta la luz de los bordes del cristal hacia tu puntero al moverse cerca. A la izquierda la luz se queda quieta; a la derecha lo sigue de cerca."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:148
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:150
 msgid "Where the glass shows"
 msgstr "Dónde se ve el cristal"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:149
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:151
 msgid "Each one costs some graphics power. Turn it off where you don't need it."
 msgstr "Cada uno consume algo de potencia gráfica. Desactívalo donde no lo necesites."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:159
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:161
 msgid "Real glass behind the top bar or Dash to Panel, a dock and the dash in Activities. Off leaves plain tinted bars."
 msgstr "Cristal real detrás de la barra superior o de Dash to Panel, un dock y el dash de Actividades. Desactivado deja barras lisas con tinte."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:164
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:166
 msgid "Menus"
 msgstr "Menús"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:166
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:168
 msgid "Quick settings, the calendar, the start menu and app menus. Off leaves plain tinted panes."
 msgstr "Ajustes rápidos, el calendario, el menú de inicio y los menús de las aplicaciones. Desactivado deja paneles lisos con tinte."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:167
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:169
 msgid "Quick settings, the calendar and app menus. Off leaves plain tinted panes."
 msgstr "Ajustes rápidos, el calendario y los menús de las aplicaciones. Desactivado deja paneles lisos con tinte."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:172
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:174
 msgid "App windows"
 msgstr "Ventanas de aplicaciones"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:174
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:176
 msgid "Frosted wallpaper behind see-through app windows. Off shows it sharp, which is lighter on the graphics card."
 msgstr "Fondo de escritorio esmerilado detrás de las ventanas translúcidas de las aplicaciones. Desactivado lo muestra nítido, lo que es más ligero para la tarjeta gráfica."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:181
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:183
 msgid "Blurred wallpaper behind the Activities overview. Off leaves it sharp."
 msgstr "Fondo de escritorio desenfocado detrás de la vista de actividades. Desactivado lo deja nítido."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:186
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:188
 msgid "See windows through"
 msgstr "Ver las ventanas a través"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:189
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:191
 msgid "On, the panel and menus show the windows behind them as well as the wallpaper. Off shows only the wallpaper, which is lighter on the graphics card."
 msgstr "Activado, el panel y los menús muestran las ventanas que hay detrás además del fondo de escritorio. Desactivado muestra solo el fondo, lo que es más ligero para la tarjeta gráfica."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:214
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:216
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:151
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:211
 msgid "Glass"
 msgstr "Cristal"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:223
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:225
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:91
 #: fedoraglass/gui/changes.py:139
 msgid "Glass switch in Quick Settings"
 msgstr "Interruptor del cristal en Ajustes rápidos"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:224
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:226
 msgid "Pause all the glass from Quick Settings, and turn it on again there. It is back on at your next login."
 msgstr "Pausa todo el cristal desde Ajustes rápidos y vuelve a activarlo allí. Se reactiva en tu próximo inicio de sesión."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:226
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:228
 msgid "Handy for a game or a screen share. The tile says Paused while the glass is off."
 msgstr "Útil para un juego o para compartir pantalla. El mosaico dice En pausa mientras el cristal está desactivado."
 
@@ -1685,26 +1689,26 @@ msgid "Bend, rainbow edge, colour bleed and 2 more"
 msgstr "Curvatura, borde arcoíris, difusión de color y 2 más"
 
 #: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:76
+msgid "The preview shows these as you change them. Your desktop shows them once you resume the glass."
+msgstr "La vista previa los muestra mientras los cambias. Tu escritorio los mostrará en cuanto reanudes el cristal."
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:78
 msgid "The preview shows these as you change them."
 msgstr "La vista previa los muestra mientras los cambias."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:78
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:80
 msgid "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
 msgstr "Dibujado por la propia extensión de Shell de Fedora Glass. Aplica y reinicia el equipo una vez para iniciarla."
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:86
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:88
 #: fedoraglass/gui/qml/FedoraGlass/OverrideSlider.qml:65
 #: fedoraglass/gui/qml/FedoraGlass/SectionTitle.qml:41
 msgid "Reset"
 msgstr "Restablecer"
 
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:87
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:89
 msgid "Put the glass effects back to their defaults (Apply to use them)"
 msgstr "Devuelve los efectos de cristal a sus valores predeterminados (Aplicar para usarlos)"
-
-#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:98
-msgid "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
-msgstr "Cuánto desvía el borde redondeado lo que hay detrás. A la izquierda es cristal plano; a la derecha, una lente gruesa."
 
 #: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:129
 msgid "Terminal switches to Fedora Glass colours when you Apply, and its top bar turns to glass."
@@ -2715,8 +2719,8 @@ msgid "Always without glass: %1"
 msgstr "Siempre sin cristal: %1"
 
 #: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:28
-msgid "Their windows get no glass behind them. Handy for apps that draw their own solid windows."
-msgstr "Sus ventanas no llevan cristal detrás. Útil para aplicaciones que dibujan sus propias ventanas sólidas."
+msgid "Their windows get a plain solid background instead of glass, which is also lighter on the graphics card."
+msgstr "Sus ventanas reciben un fondo sólido y sencillo en lugar del cristal, lo que también es más ligero para la tarjeta gráfica."
 
 #: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:30
 msgid "Take every app off this list"
@@ -2943,9 +2947,13 @@ msgstr "Configuración"
 msgid "Software"
 msgstr "Software"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewNote.qml:7
+#: fedoraglass/gui/qml/FedoraGlass/PreviewNote.qml:10
 msgid "The preview changes as you move things. Your desktop changes when you press Apply."
 msgstr "La vista previa cambia mientras mueves cosas. Tu escritorio cambia al pulsar Aplicar."
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewNote.qml:9
+msgid "The preview changes as you move things. Glass is paused, so your desktop shows what you apply once you resume it."
+msgstr "La vista previa cambia mientras mueves cosas. El cristal está en pausa, así que tu escritorio mostrará lo que apliques en cuanto lo reanudes."
 
 #: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:174
 msgid "Show the desktop"
@@ -3016,7 +3024,7 @@ msgid "Remove Fedora Glass…"
 msgstr "Desinstalar Fedora Glass…"
 
 #: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:29
-#: fedoraglass/gui/qml/Main.qml:767
+#: fedoraglass/gui/qml/Main.qml:817
 msgid "Removing Fedora Glass…"
 msgstr "Desinstalando Fedora Glass…"
 
@@ -3041,12 +3049,12 @@ msgid "Your original look is back. Restart your PC to finish, so GNOME lets go o
 msgstr "Tu estilo original está de vuelta. Reinicia el equipo para terminar, de modo que GNOME suelte el cristal por completo."
 
 #: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:72
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:54
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
 msgid "Restart now…"
 msgstr "Reiniciar ahora…"
 
 #: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:75
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:57
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:74
 msgid "GNOME asks before it restarts, so you can save your work first."
 msgstr "GNOME pregunta antes de reiniciar, así que puedes guardar tu trabajo primero."
 
@@ -3054,95 +3062,116 @@ msgstr "GNOME pregunta antes de reiniciar, así que puedes guardar tu trabajo pr
 msgid "Default"
 msgstr "Predeterminado"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:171
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:188
 msgid "%1 parts not installed here, skipped"
 msgstr "%1 partes no instaladas aquí, omitidas"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:30
 msgid "Applied, with %1 problems"
 msgstr "Aplicado, con %1 problemas"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:30
 msgid "Applied, with 1 problem"
 msgstr "Aplicado, con 1 problema"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:28
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:31
 msgid "Settings saved"
 msgstr "Ajustes guardados"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:29
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:32
 msgid "Applied. Restart your PC to finish"
 msgstr "Aplicado. Reinicia el equipo para terminar"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:30
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:33
 msgid "Applied, but the glass can't start"
 msgstr "Aplicado, pero el cristal no puede iniciarse"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:31
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:34
+msgid "Your new look is saved"
+msgstr "Tu nuevo estilo está guardado"
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:35
 msgid "Fedora Glass is on"
 msgstr "Fedora Glass está activado"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:31
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:35
 msgid "Your new look is applied"
 msgstr "Tu nuevo estilo está aplicado"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:32
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:36
 msgid "Nothing to theme was found yet, so only your settings were saved."
 msgstr "Aún no se encontró nada a lo que aplicar tema, así que solo se guardaron tus ajustes."
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:33
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:37
 msgid "Everything else was applied. The details are below."
 msgstr "Todo lo demás se aplicó. Los detalles están abajo."
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:36
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:40
+msgid "Glass is paused from Quick Settings, so your desktop shows the new look once you resume it."
+msgstr "El cristal está en pausa desde Ajustes rápidos, así que tu escritorio mostrará el nuevo estilo en cuanto lo reanudes."
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:41
+msgid "Glass is off right now, so your desktop shows the new look once you turn it back on."
+msgstr "El cristal está apagado ahora mismo, así que tu escritorio mostrará el nuevo estilo en cuanto lo reactives."
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:42
 msgid "GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them."
 msgstr "GNOME inicia el cristal cuando se inicia el equipo. Las aplicaciones abiertas toman el nuevo estilo al reabrirlas."
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:37
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:43
 msgid "Open apps pick up the new look when you reopen them."
 msgstr "Las aplicaciones abiertas toman el nuevo estilo al reabrirlas."
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:47
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:52
+msgid "Resume glass"
+msgstr "Reanudar el cristal"
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:54
+#: fedoraglass/gui/qml/Main.qml:641
+msgid "Turn the glass back on now, as the Glass tile in Quick Settings does."
+msgstr "Vuelve a activar el cristal ahora, como hace el botón Cristal de Ajustes rápidos."
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:64
 msgid "Later"
 msgstr "Más tarde"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:68
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:85
 msgid "%1 applied"
 msgstr "%1 aplicados"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:68
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:85
 msgid "Applied"
 msgstr "Aplicado"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:69
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:86
 msgid "%1 restored"
 msgstr "%1 restaurados"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:69
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:86
 msgid "Restored"
 msgstr "Restaurado"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:70
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:87
 msgid "%1 note"
 msgstr "%1 notas"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:70
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:87
 msgid "Note"
 msgstr "Nota"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:88
 msgid "%1 skipped"
 msgstr "%1 omitidos"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:88
 msgid "Skipped"
 msgstr "Omitido"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:72
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:89
 msgid "%1 failed"
 msgstr "%1 fallidos"
 
-#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:72
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:89
 msgid "Failed"
 msgstr "Fallido"
 
@@ -3208,7 +3237,7 @@ msgid "The look wasn't saved"
 msgstr "El estilo no se guardó"
 
 #: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:227
-#: fedoraglass/gui/qml/Main.qml:946
+#: fedoraglass/gui/qml/Main.qml:996
 msgid "OK"
 msgstr "Aceptar"
 
@@ -3316,7 +3345,7 @@ msgid "Glass quality"
 msgstr "Calidad del cristal"
 
 #: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:127
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:135
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:137
 msgid "Check speed"
 msgstr "Comprobar velocidad"
 
@@ -3325,10 +3354,18 @@ msgid "Full glass"
 msgstr "Cristal completo"
 
 #: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:131
+msgid "Glass is paused from Quick Settings. Resume it to check the speed."
+msgstr "El cristal está en pausa desde Ajustes rápidos. Reanúdalo para comprobar la velocidad."
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:132
+msgid "Glass is off right now. Turn it back on to check the speed."
+msgstr "El cristal está apagado ahora mismo. Reactívalo para comprobar la velocidad."
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:133
 msgid "Measure how smoothly each level draws here (about 20 seconds)"
 msgstr "Mide con qué fluidez dibuja cada nivel aquí (unos 20 segundos)"
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:133
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:135
 msgid "Apply, then restart your PC once to start the glass."
 msgstr "Aplica y reinicia el equipo una vez para iniciar el cristal."
 
@@ -3338,17 +3375,17 @@ msgstr "Aplica y reinicia el equipo una vez para iniciar el cristal."
 msgid "Lighter"
 msgstr "Más ligero"
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:141
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:143
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:89
 #: fedoraglass/gui/changes.py:138
 msgid "Lighter glass on battery"
 msgstr "Cristal más ligero con batería"
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:142
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:144
 msgid "On battery or in Power Saver, use lighter glass. It goes back when you plug in."
 msgstr "Con batería o en Ahorro de energía, usa un cristal más ligero. Vuelve a la normalidad al enchufar."
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:144
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:146
 msgid "Saves battery. Lighter glass is hard to tell apart from full glass. It is never heavier than the quality you picked."
 msgstr "Ahorra batería. El cristal más ligero es difícil de distinguir del completo. Nunca es más pesado que la calidad que elegiste."
 
@@ -3358,25 +3395,13 @@ msgstr "Ahorra batería. El cristal más ligero es difícil de distinguir del co
 msgid "Lightest"
 msgstr "Ultraligero"
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:171
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:173
 msgid "Checking… this takes about 20 seconds. The glass may look a little plainer for a moment."
 msgstr "Comprobando… tarda unos 20 segundos. El cristal puede verse un poco más simple por un momento."
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:213
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:215
 msgid "%1, %2"
 msgstr "%1, %2"
-
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:229
-msgid "Use full glass"
-msgstr "Usar cristal completo"
-
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:229
-msgid "Use lighter glass"
-msgstr "Usar cristal más ligero"
-
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:229
-msgid "Use lightest glass"
-msgstr "Usar cristal ultraligero"
 
 #: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:23
 msgid "A little uneven"
@@ -3386,7 +3411,19 @@ msgstr "Algo irregular"
 msgid "Slow"
 msgstr "Lento"
 
-#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:237
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:231
+msgid "Use full glass"
+msgstr "Usar cristal completo"
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:231
+msgid "Use lighter glass"
+msgstr "Usar cristal más ligero"
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:231
+msgid "Use lightest glass"
+msgstr "Usar cristal ultraligero"
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:239
 msgid "The check redraws all the glass every frame, harder than everyday use."
 msgstr "La comprobación redibuja todo el cristal en cada fotograma, con más exigencia que el uso diario."
 
@@ -4093,6 +4130,18 @@ msgstr "Volver atrás un Aplicar"
 msgid "previous last apply undo back forward before earlier look"
 msgstr "anterior último aplicar deshacer atrás avanzar antes estilo previo"
 
+#: fedoraglass/gui/qml/Main.qml:1003
+msgid "Close when done"
+msgstr "Cerrar al terminar"
+
+#: fedoraglass/gui/qml/Main.qml:1019
+msgid "Some things could not be restored"
+msgstr "Algunas cosas no se pudieron restaurar"
+
+#: fedoraglass/gui/qml/Main.qml:1020
+msgid "Everything else is back. These need a look:"
+msgstr "Todo lo demás ha vuelto. Estas requieren que les eches un vistazo:"
+
 #: fedoraglass/gui/qml/Main.qml:15
 msgid "Home"
 msgstr "Inicio"
@@ -4179,7 +4228,7 @@ msgid "Maximize"
 msgstr "Maximizar"
 
 #: fedoraglass/gui/qml/Main.qml:336
-#: fedoraglass/gui/qml/Main.qml:897
+#: fedoraglass/gui/qml/Main.qml:947
 msgid "Restore"
 msgstr "Restaurar"
 
@@ -4212,188 +4261,184 @@ msgid "Turn glass back on"
 msgstr "Reactivar el cristal"
 
 #: fedoraglass/gui/qml/Main.qml:591
-msgid "Start the glass again. If it keeps failing, it pauses itself again."
-msgstr "Inicia el cristal de nuevo. Si sigue fallando, se vuelve a pausar solo."
+msgid "Start the glass again. If it keeps failing, it turns itself off again."
+msgstr "Inicia el cristal de nuevo. Si sigue fallando, se vuelve a apagar solo."
 
-#: fedoraglass/gui/qml/Main.qml:637
+#: fedoraglass/gui/qml/Main.qml:625
+msgid "Glass is paused from Quick Settings until you resume it or log in again."
+msgstr "El cristal está en pausa desde Ajustes rápidos hasta que lo reanudes o vuelvas a iniciar sesión."
+
+#: fedoraglass/gui/qml/Main.qml:639
+msgid "Resume"
+msgstr "Reanudar"
+
+#: fedoraglass/gui/qml/Main.qml:687
 msgid "Re-apply"
 msgstr "Reaplicar"
 
-#: fedoraglass/gui/qml/Main.qml:640
+#: fedoraglass/gui/qml/Main.qml:690
 msgid "Write the Fedora Glass look again. Nothing else changes."
 msgstr "Escribe de nuevo el estilo de Fedora Glass. No cambia nada más."
 
-#: fedoraglass/gui/qml/Main.qml:714
+#: fedoraglass/gui/qml/Main.qml:764
 msgid "1 change not applied yet"
 msgstr "1 cambio sin aplicar"
 
-#: fedoraglass/gui/qml/Main.qml:715
+#: fedoraglass/gui/qml/Main.qml:765
 msgid "%1 changes not applied yet"
 msgstr "%1 cambios sin aplicar"
 
-#: fedoraglass/gui/qml/Main.qml:716
+#: fedoraglass/gui/qml/Main.qml:766
 msgid "Unapplied changes"
 msgstr "Cambios sin aplicar"
 
-#: fedoraglass/gui/qml/Main.qml:717
+#: fedoraglass/gui/qml/Main.qml:767
 msgid "1 part didn't change."
 msgstr "1 parte no cambió."
 
-#: fedoraglass/gui/qml/Main.qml:718
+#: fedoraglass/gui/qml/Main.qml:768
 msgid "%1 parts didn't change."
 msgstr "%1 partes no cambiaron."
 
-#: fedoraglass/gui/qml/Main.qml:719
+#: fedoraglass/gui/qml/Main.qml:769
 msgid "Login screen needs Apply"
 msgstr "La pantalla de inicio de sesión necesita Aplicar"
 
-#: fedoraglass/gui/qml/Main.qml:719
+#: fedoraglass/gui/qml/Main.qml:769
 msgid "Needs re-apply"
 msgstr "Necesita reaplicar"
 
-#: fedoraglass/gui/qml/Main.qml:720
+#: fedoraglass/gui/qml/Main.qml:770
 msgid "Not applied yet"
 msgstr "Sin aplicar aún"
 
-#: fedoraglass/gui/qml/Main.qml:720
+#: fedoraglass/gui/qml/Main.qml:770
 msgid "Restart to finish"
 msgstr "Reinicia para terminar"
 
-#: fedoraglass/gui/qml/Main.qml:720
+#: fedoraglass/gui/qml/Main.qml:770
 msgid "Up to date"
 msgstr "Al día"
 
-#: fedoraglass/gui/qml/Main.qml:732
+#: fedoraglass/gui/qml/Main.qml:782
 msgid "Restart…"
 msgstr "Reiniciar…"
 
-#: fedoraglass/gui/qml/Main.qml:733
+#: fedoraglass/gui/qml/Main.qml:783
 msgid "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
 msgstr "El cristal del panel y los menús se inicia al reiniciar el equipo. GNOME pregunta antes de reiniciar."
 
-#: fedoraglass/gui/qml/Main.qml:744
+#: fedoraglass/gui/qml/Main.qml:794
 msgid "See what happened"
 msgstr "Ver qué pasó"
 
-#: fedoraglass/gui/qml/Main.qml:745
+#: fedoraglass/gui/qml/Main.qml:795
 msgid "What applied, and what went wrong with the rest"
 msgstr "Qué se aplicó y qué falló con el resto"
 
-#: fedoraglass/gui/qml/Main.qml:756
+#: fedoraglass/gui/qml/Main.qml:806
 msgid "Undo"
 msgstr "Deshacer"
 
-#: fedoraglass/gui/qml/Main.qml:758
+#: fedoraglass/gui/qml/Main.qml:808
 msgid "Go back to the last look that applied fully (Ctrl+Z)"
 msgstr "Volver al último estilo que se aplicó por completo (Ctrl+Z)"
 
-#: fedoraglass/gui/qml/Main.qml:759
+#: fedoraglass/gui/qml/Main.qml:809
 msgid "Go back to the look you applied last (Ctrl+Z)"
 msgstr "Volver al estilo que aplicaste por última vez (Ctrl+Z)"
 
-#: fedoraglass/gui/qml/Main.qml:768
+#: fedoraglass/gui/qml/Main.qml:818
 msgid "Applying %1…"
 msgstr "Aplicando %1…"
 
-#: fedoraglass/gui/qml/Main.qml:769
+#: fedoraglass/gui/qml/Main.qml:819
 msgid "Restoring your original look…"
 msgstr "Restaurando tu estilo original…"
 
-#: fedoraglass/gui/qml/Main.qml:770
+#: fedoraglass/gui/qml/Main.qml:820
 msgid "Cleaning up the old copy…"
 msgstr "Limpiando la copia antigua…"
 
-#: fedoraglass/gui/qml/Main.qml:771
+#: fedoraglass/gui/qml/Main.qml:821
 msgid "Working out the changes…"
 msgstr "Calculando los cambios…"
 
-#: fedoraglass/gui/qml/Main.qml:798
+#: fedoraglass/gui/qml/Main.qml:848
 msgid "See changes"
 msgstr "Ver cambios"
 
-#: fedoraglass/gui/qml/Main.qml:802
+#: fedoraglass/gui/qml/Main.qml:852
 msgid "What you changed and haven't applied yet, and every file and setting Apply writes"
 msgstr "Lo que cambiaste y aún no has aplicado, y cada archivo y ajuste que escribe Aplicar"
 
-#: fedoraglass/gui/qml/Main.qml:816
+#: fedoraglass/gui/qml/Main.qml:866
 msgid "Save and apply the look everywhere (Ctrl+Enter)"
 msgstr "Guardar y aplicar el estilo en todas partes (Ctrl+Intro)"
 
-#: fedoraglass/gui/qml/Main.qml:842
+#: fedoraglass/gui/qml/Main.qml:892
 msgid "Closing once the login screen has your new look"
 msgstr "Se cerrará cuando la pantalla de inicio de sesión tenga tu nuevo estilo"
 
-#: fedoraglass/gui/qml/Main.qml:854
+#: fedoraglass/gui/qml/Main.qml:904
 msgid "Your original look is back"
 msgstr "Tu estilo original está de vuelta"
 
-#: fedoraglass/gui/qml/Main.qml:889
+#: fedoraglass/gui/qml/Main.qml:939
 msgid "Restore your original look?"
 msgstr "¿Restaurar tu estilo original?"
 
-#: fedoraglass/gui/qml/Main.qml:890
+#: fedoraglass/gui/qml/Main.qml:940
 msgid "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later."
 msgstr "Todos los archivos y ajustes que cambió Fedora Glass vuelven a como estaban antes de tu primer Aplicar. Tus ajustes de Fedora Glass se conservan, así que podrás aplicarlos de nuevo más adelante."
 
-#: fedoraglass/gui/qml/Main.qml:909
+#: fedoraglass/gui/qml/Main.qml:959
 msgid "Apply your changes before closing?"
 msgstr "¿Aplicar tus cambios antes de cerrar?"
 
-#: fedoraglass/gui/qml/Main.qml:910
+#: fedoraglass/gui/qml/Main.qml:960
 msgid "You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last."
 msgstr "Cambiaste el estilo pero aún no lo has aplicado. Si cierras ahora, esos cambios se pierden y tu escritorio conserva el estilo que aplicaste por última vez."
 
-#: fedoraglass/gui/qml/Main.qml:915
+#: fedoraglass/gui/qml/Main.qml:965
 msgid "Close without applying"
 msgstr "Cerrar sin aplicar"
 
-#: fedoraglass/gui/qml/Main.qml:921
+#: fedoraglass/gui/qml/Main.qml:971
 msgid "Apply and close"
 msgstr "Aplicar y cerrar"
 
-#: fedoraglass/gui/qml/Main.qml:937
+#: fedoraglass/gui/qml/Main.qml:987
 msgid "Fedora Glass is being removed"
 msgstr "Se está desinstalando Fedora Glass"
 
-#: fedoraglass/gui/qml/Main.qml:937
+#: fedoraglass/gui/qml/Main.qml:987
 msgid "Your look is being applied"
 msgstr "Se está aplicando tu estilo"
 
-#: fedoraglass/gui/qml/Main.qml:938
+#: fedoraglass/gui/qml/Main.qml:988
 msgid "The login screen is being updated"
 msgstr "Se está actualizando la pantalla de inicio de sesión"
 
-#: fedoraglass/gui/qml/Main.qml:938
+#: fedoraglass/gui/qml/Main.qml:988
 msgid "Your original look is coming back"
 msgstr "Tu estilo original está volviendo"
 
-#: fedoraglass/gui/qml/Main.qml:939
+#: fedoraglass/gui/qml/Main.qml:989
 msgid "Closing now could stop it half way. Fedora Glass tells you when it's done."
 msgstr "Cerrar ahora podría detenerlo a medias. Fedora Glass te avisa cuando termine."
 
-#: fedoraglass/gui/qml/Main.qml:940
+#: fedoraglass/gui/qml/Main.qml:990
 msgid "It waits for your password. Closing now would stop it half way."
 msgstr "Espera tu contraseña. Cerrar ahora lo detendría a medias."
 
-#: fedoraglass/gui/qml/Main.qml:941
+#: fedoraglass/gui/qml/Main.qml:991
 msgid "Closing now would stop it half way. It only takes a moment."
 msgstr "Cerrar ahora lo detendría a medias. Solo tarda un momento."
 
-#: fedoraglass/gui/qml/Main.qml:946
+#: fedoraglass/gui/qml/Main.qml:996
 msgid "Keep open"
 msgstr "Mantener abierto"
-
-#: fedoraglass/gui/qml/Main.qml:953
-msgid "Close when done"
-msgstr "Cerrar al terminar"
-
-#: fedoraglass/gui/qml/Main.qml:969
-msgid "Some things could not be restored"
-msgstr "Algunas cosas no se pudieron restaurar"
-
-#: fedoraglass/gui/qml/Main.qml:970
-msgid "Everything else is back. These need a look:"
-msgstr "Todo lo demás ha vuelto. Estas requieren que les eches un vistazo:"
 
 #: fedoraglass/settings.py:684
 msgid "Your settings file was damaged, so its last good copy was used. The damaged file is kept as {path}."

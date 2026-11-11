@@ -23,7 +23,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "grabhover.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
-         "speed.js", "tuning.js", "popupstyle.js", "paused.js", "stackclip.js", "prefs.js", "power.js",
+         "speed.js", "tuning.js", "popupstyle.js", "paused.js", "pausestate.js", "stackclip.js", "prefs.js", "power.js",
          "quicktoggle.js", "strings.js", "glass-symbolic.svg")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
@@ -56,6 +56,13 @@ def window_skip(s: Settings) -> list[str]:
     """The apps whose windows get no glass: the built-in ones first, so the user's own can
     never push them out of the extension's limit, then the user's, each once."""
     return list(dict.fromkeys([*WINDOW_SKIP, *s.no_glass_apps]))[:SKIP_MAX]
+
+
+def solid_window_color(t: Tokens) -> str:
+    """The backdrop of an app without glass: the window background the themes paint over
+    the glass (GTK's window-bg-color, Kvantum's window), opaque, so the app looks like a
+    plain solid window in the current scheme and tint."""
+    return t.window.with_alpha(1).hex6
 
 
 def extension_files() -> dict[str, str]:
@@ -254,6 +261,11 @@ def config(s: Settings, t: Tokens) -> dict:
         # surroundings, under the window's own background. Terminals have their own look.
         "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": scale(t.window_radius)["l"],   # the same as the GTK window corners
                     "skip": window_skip(s), "look": _window_look(t, "windows"),
+                    # The user's own apps in skip (from this index on; the built-in ones come
+                    # first) get a solid backdrop instead of glass, in the window colour the
+                    # GTK and Qt themes paint see-through over the glass, made opaque. The
+                    # watcher renders this file again on each dark/light switch.
+                    "solidFrom": len(WINDOW_SKIP), "solidColor": solid_window_color(t),
                     "terminalLook": _window_look(t, "terminal")},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},

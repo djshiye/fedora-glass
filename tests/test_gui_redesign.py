@@ -239,13 +239,21 @@ def _open_page(win, pid, w, h):
     return _find(win, "previewPane"), _find(win, "preview")
 
 
+def _settings_page(item):
+    """The SettingsPage an item sits in (the side column scrolls, so a few levels up)."""
+    while item is not None and item.property("stacked") is None:
+        item = item.parentItem()
+    assert item is not None
+    return item
+
+
 def test_the_preview_takes_half_the_page_and_shows_glass_close_up(qml):
     """Beside the cards the preview gets about half the page, and close up it draws the
     desktop at about half real size (it was a fifth), so blur, corners and rims read."""
     win = _window(qml)
     try:
         pane, preview = _open_page(win, "glass", 1316, 856)
-        assert not _find(win, "glassPreviewSlot").parentItem().parentItem().property("stacked")
+        assert _settings_page(_find(win, "glassPreviewSlot")).property("stacked") is False
         assert pane.width() >= 440 and pane.property("viewH") >= 360
         assert pane.property("closeUp") is True
         assert preview.property("s") >= 0.5
@@ -263,7 +271,7 @@ def test_a_small_window_puts_the_preview_above_the_cards(qml):
     try:
         pane, preview = _open_page(win, "glass", 1036, 716)
         slot = _find(win, "glassPreviewSlot")
-        page = slot.parentItem().parentItem()
+        page = _settings_page(slot)
         assert page.property("stacked") is True
         assert pane.width() >= 560                    # the full page width, not a side column
         scroller = _find(win, "glassScroller")
@@ -321,5 +329,24 @@ def test_clicking_a_part_on_the_zoomed_preview_picks_that_part(qml):
         QTest.mouseClick(win, Qt.LeftButton, Qt.NoModifier, QPoint(int(p.x()), int(p.y())))
         _spin(100)
         assert pane.property("outlinedPart") == "terminal"
+    finally:
+        win.close()
+
+
+def test_a_short_window_scrolls_the_home_side_cards_instead_of_spilling(qml):
+    """At the smallest window size (and more so with a notice at the bottom, such as
+    "Glass is paused") Home's right-hand cards scroll in their own room instead of
+    running under the notice and the Apply bar."""
+    win = _window(qml)
+    try:
+        _open_page(win, "home", 1036, 560)
+        side = _find(win, "homeSideScroller")
+        page = _settings_page(side)
+        assert side.property("overflows") is True
+        assert side.y() + side.height() <= page.height() + 0.5
+        assert side.property("contentHeight") > side.height()
+        # A tall window: no scrolling, nothing clipped.
+        _open_page(win, "home", 1316, 1000)
+        assert side.property("overflows") is False and side.clip() is False
     finally:
         win.close()
