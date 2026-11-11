@@ -68,6 +68,24 @@ def test_backend_knows_every_default_and_what_changed(make_backend):
     assert b.property("changedFromDefault") == []
 
 
+def test_reset_all_keeps_this_pcs_own_choices(make_backend):
+    """Which apps get the look, the remove switch and the apps without glass are this PC's,
+    not the look's: Reset all leaves them, and then has nothing more to do."""
+    b = make_backend()
+    assert b.property("canResetAll") is False
+    b.setTargetEnabled("gtk4", False)
+    b._set("no_glass_apps", ["org.gnome.Nautilus"])
+    assert b.property("canResetAll") is False, "only this PC's choices differ"
+    b.setProperty("radius", 0)
+    assert b.property("canResetAll") is True
+    b.resetDefaults()
+    assert b.property("radius") == 18
+    assert b._s.no_glass_apps == ["org.gnome.Nautilus"] and b._s.targets == {"gtk4": False}
+    assert b.property("canResetAll") is False
+    b.resetSettings(["no_glass_apps"])          # its card's Reset still empties the list
+    assert b._s.no_glass_apps == []
+
+
 def test_every_setting_can_be_put_back(make_backend):
     """resetSettings takes every look setting back, one at a time."""
     b = make_backend()
@@ -195,8 +213,11 @@ def test_reset_all_is_in_plain_sight(qml):
         while p is not None:
             assert p.property("title") != "Fine-tune"
             p = p.parentItem()
+        b._set("no_glass_apps", ["org.gnome.Nautilus"])
         btn.clicked.emit()
         _spin()
         assert b.property("radius") == 18 and b.property("lockBlur") == 60
+        assert b.settings().no_glass_apps == ["org.gnome.Nautilus"]
+        assert not btn.property("enabled"), "the list kept, nothing more to reset"
     finally:
         b.discardChanges()

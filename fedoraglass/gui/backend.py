@@ -1072,9 +1072,23 @@ class Backend(QObject):
             self._s = s
             self._changed()
 
+    def _all_reset(self) -> Settings:
+        """Every setting at its default but this PC's own choices: which apps get the look,
+        what happens on removal, and the apps without glass (the list picked on this PC,
+        kept like the apps that get the look; its card's Reset still empties it)."""
+        return Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove,
+                        no_glass_apps=list(self._s.no_glass_apps))
+
+    @Property(bool, notify=settingsChanged)
+    def canResetAll(self) -> bool:
+        """Whether Reset all would change anything (the apps picked stay, so not always
+        when changedFromDefault lists something)."""
+        dtp = self.hasDashToPanel
+        return _effective(self._all_reset(), dtp) != _effective(self._s, dtp)
+
     @Slot()
     def resetDefaults(self) -> None:
-        s = Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove)
+        s = self._all_reset()
         if s != self._s:
             was_dark = self._effective_dark()
             self._s = s
