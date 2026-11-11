@@ -31,6 +31,7 @@ from . import looks as looks_mod
 from . import wallcolour
 from ..color import Color
 from ..env import Env
+from .. import i18n
 from ..i18n import _, N_, gettext as tr
 from ..settings import GNOME_ACCENTS, PRESETS, Settings
 
@@ -227,7 +228,13 @@ def installed_apps(env: Env) -> list[dict]:
             ids = settings_mod.clean_app_ids(ids)
             if not ids:
                 continue
-            out.append({"id": p.name, "name": (sec.get("Name") or stem).strip() or stem,
+            name = ""
+            lang = i18n.language()
+            for code in ([lang, lang.split("_")[0]] if lang else []):
+                name = (sec.get(f"Name[{code}]") or "").strip()    # the app's name in our language
+                if name:
+                    break
+            out.append({"id": p.name, "name": name or (sec.get("Name") or stem).strip() or stem,
                         "icon": (sec.get("Icon") or "").strip(), "ids": ids})
     out.sort(key=lambda a: (a["name"].casefold(), a["id"]))
     return out

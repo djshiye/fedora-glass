@@ -335,3 +335,28 @@ def test_search_finds_the_new_controls(qml):
     finally:
         field.setProperty("text", "")
         win.close()
+
+
+def test_installed_apps_show_the_name_in_the_apps_language(apps_dirs, home):
+    from fedoraglass import i18n
+    from fedoraglass.gui import backend as bmod
+    user, _system = apps_dirs
+    desktop(user, "loc.desktop", "Text Editor",
+            extra="Name[pt]=Editor de texto\nName[pt_BR]=Editor de texto (BR)\nName[de]=Textbearbeitung\n")
+    desktop(user, "loc2.desktop", "Calculator", extra="Name[pt]=Calculadora\n")
+
+    def names():
+        return {a["id"]: a["name"] for a in bmod.installed_apps(bmod.Env())}
+    try:
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr(i18n, "_catalog", {})
+            m.setattr(i18n, "_lang", "pt_BR")
+            n = names()
+            assert n["loc.desktop"] == "Editor de texto (BR)" and n["loc2.desktop"] == "Calculadora"
+            m.setattr(i18n, "_lang", "fr")
+            n = names()
+            assert n["loc.desktop"] == "Text Editor"          # no French name: the plain Name
+            m.setattr(i18n, "_lang", None)
+            assert names()["loc.desktop"] == "Text Editor"
+    finally:
+        i18n.reset()
