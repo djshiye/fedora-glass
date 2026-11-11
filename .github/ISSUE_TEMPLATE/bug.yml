@@ -28,7 +28,7 @@ body:
     attributes:
       label: Fedora Glass version
       description: "`fedora-glass --version`, or About in the app."
-      placeholder: 1.5.22
+      placeholder: 1.5.23
     validations:
       required: true
   - type: textarea

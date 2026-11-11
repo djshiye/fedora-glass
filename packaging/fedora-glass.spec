@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.22
+Version:        1.5.23
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -226,6 +226,17 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.23-1
+- Apply only counts as done when it is: a failed Apply keeps your changes unapplied, and a part that didn't change says so
+- A damaged settings file never turns into the default look; the last good copy is used and only Apply writes it again
+- Background helper: one process instead of four, and a disk problem no longer makes it restart every 5 seconds
+- Login screen glass can't get stuck on if its helper is interrupted; one helper run at a time
+- Dragging a big window over many windows takes about 40 % less time per frame; the Speed card tells how smooth your last drag was
+- App: closing or Apply wait for removal and the login screen step; presets, search, small screens, wallpaper preview and screen readers fixed; starts faster
+- Restore finishes with an unusual Flatpak file, and doesn't wait 15 s for a GNOME Shell that isn't running
+- Ubuntu: the light/dark follower comes back after a remove and install
+- Releases stay hidden until they are signed; the Fedora package is installed and upgraded in the checks; ships in GNOME Software listings
+
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.22-1
 - A preview big enough to judge the glass: about half the page beside the settings, and Home's preview fills the room above the looks
 - Close up by default: the desktop at about half its real size, looking at the start menu, Quick Settings or the calendar; drag to look around, or switch to the whole screen

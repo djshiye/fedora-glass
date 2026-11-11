@@ -71,6 +71,11 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.5.23" date="2026-11-11">
+      <description>
+        <p>Sturdier: a failed Apply or a damaged settings file never changes your look, a lighter background helper, faster window drags, and many app fixes.</p>
+      </description>
+    </release>
     <release version="1.5.22" date="2026-11-10">
       <description>
         <p>A preview big enough to judge the glass, close up by default, and a little less memory.</p>
