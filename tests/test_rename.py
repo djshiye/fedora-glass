@@ -99,11 +99,11 @@ def test_only_old_theme_names_count_as_old(fake_env):
 def test_shell_theme_moves_to_the_new_name(fake_env, monkeypatch):
     seeded_env(fake_env)
     before = {k: dict(v) for k, v in fake_env.gs.items()}
-    monkeypatch.setattr(ts, "THEME_NAME", "LiquidGlass")       # what 1.4.4 did
-    Engine(fake_env, ts.TARGETS).apply(Settings())
+    with monkeypatch.context() as m:
+        m.setattr(ts, "THEME_NAME", "LiquidGlass")               # what 1.4.4 did
+        Engine(fake_env, ts.TARGETS).apply(Settings())
     old = fake_env.data / "themes/LiquidGlass/gnome-shell/gnome-shell.css"
     assert old.is_file()
-    monkeypatch.undo()
     seeded_schema = ("org.gnome.shell.extensions.user-theme", None)
     Engine(fake_env, ts.TARGETS).apply(Settings())
     assert fake_env.gs[seeded_schema]["name"] == "'FedoraGlass'"
