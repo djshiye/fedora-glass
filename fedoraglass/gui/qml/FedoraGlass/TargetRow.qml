@@ -12,6 +12,9 @@ Item {
     // switch then changes only this, and no row is built again.
     readonly property bool on: Backend.targetStates[item.id] !== false
     readonly property var notes: item.notes || []
+    // A part that is off until the user turns it on (the Firefox theme): off is how it
+    // starts, so it gets a calm "Optional" pill, not the amber "Off" of a part switched off.
+    readonly property bool optionalOff: available && !on && item.optIn === true
     property bool notesOpen: false
 
     implicitHeight: body.height + 32
@@ -32,7 +35,7 @@ Item {
             id: dot
             y: 6
             width: 10; height: 10; radius: 5
-            color: !row.available ? Theme.textFaint : row.on ? Theme.good : Theme.warn
+            color: !row.available || row.optionalOff ? Theme.textFaint : row.on ? Theme.good : Theme.warn
             opacity: row.available ? 1 : 0.6
         }
 
@@ -59,7 +62,18 @@ Item {
                     Text { id: naLabel; anchors.centerIn: parent; text: "Not available"; color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
                 }
                 Rectangle {
-                    visible: row.available && !row.on
+                    objectName: "optionalPill"
+                    visible: row.optionalOff
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 20
+                    width: optLabel.implicitWidth + 16
+                    radius: height / 2
+                    color: Theme.well
+                    Text { id: optLabel; anchors.centerIn: parent; text: "Optional"; color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
+                }
+                Rectangle {
+                    objectName: "offPill"
+                    visible: row.available && !row.on && !row.optionalOff
                     anchors.verticalCenter: parent.verticalCenter
                     height: 20
                     width: offLabel.implicitWidth + 16
@@ -75,6 +89,15 @@ Item {
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
                 lineHeight: 1.1
+            }
+            Text {
+                objectName: "optionalHint"
+                visible: row.optionalOff
+                width: parent.width
+                text: "Off until you turn it on."
+                color: Theme.textDim
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
             }
             TextEdit {      // often an install command: selectable
                 visible: !row.available && (row.item.detail || "").length > 0

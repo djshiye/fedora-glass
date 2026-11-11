@@ -67,3 +67,64 @@ def test_apply_with_the_row_left_off_touches_no_profile(backend):
     b.apply()
     assert b.waitIdle()
     assert list(prof.iterdir()) == []
+
+
+def _spin(ms=60):
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer
+    t = QElapsedTimer()
+    t.start()
+    while t.elapsed() < ms:
+        QCoreApplication.processEvents()
+
+
+def _row(qml, item):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlComponent
+    comp = QQmlComponent(qml)
+    comp.setData(b"import QtQuick\nimport FedoraGlass\nTargetRow { width: 800 }", QUrl())
+    row = comp.createWithInitialProperties({"item": item})
+    assert row is not None, comp.errorString()
+    _KEEP.append(comp)
+    from PySide6.QtQml import QQmlEngine
+    QQmlEngine.setObjectOwnership(row, QQmlEngine.ObjectOwnership.CppOwnership)
+    _spin()
+    return row
+
+
+def _shown(row, name):
+    from PySide6.QtCore import QObject
+    return row.findChild(QObject, name).property("visible")
+
+
+def test_optional_part_off_is_calm_and_a_part_switched_off_is_not(qml):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlComponent
+    probe = QQmlComponent(qml)
+    probe.setData(b"import QtQuick\nimport FedoraGlass.Core\nQtObject { property var b: Backend }", QUrl())
+    b = probe.create().property("b")
+    saved = dict(b._s.targets)
+    try:
+        item = {"id": "firefox-theme", "name": "Firefox", "group": "Apps", "summary": "s", "notes": [],
+                "available": True, "detail": "", "optIn": True}
+        ff = _row(qml, item)
+        lo = _row(qml, {**item, "id": "libreoffice", "name": "LibreOffice", "optIn": False})
+        b.setTargetEnabled("libreoffice", False)
+        _spin()
+        # Off by design: "Optional" and a plain hint, no amber pill.
+        assert _shown(ff, "optionalPill") and _shown(ff, "optionalHint") and not _shown(ff, "offPill")
+        # Switched off by the user: today's amber "Off".
+        assert _shown(lo, "offPill") and not _shown(lo, "optionalPill") and not _shown(lo, "optionalHint")
+        b.setTargetEnabled("firefox-theme", True)
+        _spin()
+        assert not any(_shown(ff, n) for n in ("optionalPill", "optionalHint", "offPill"))
+        ff.deleteLater()
+        lo.deleteLater()
+    finally:
+        for k in ("firefox-theme", "libreoffice"):
+            b.setTargetEnabled(k, saved.get(k, settings_mod.target_default(k)))
+
+
+def test_backend_marks_opt_in_rows(backend):
+    b, _prof = backend
+    items = {t["id"]: t for g in b.property("targets") for t in g["items"]}
+    assert items["firefox-theme"]["optIn"] is True

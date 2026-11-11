@@ -1438,7 +1438,9 @@ class Backend(QObject):
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
                             "available": available, "detail": detail,
-                            "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
+                            "hideWhenMissing": bool(getattr(t, "hide_when_missing", False)),
+                            # Off until the user turns it on: off is its normal state, not a warning.
+                            "optIn": t.id in settings_mod.OPT_IN_TARGETS})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             package = self._remove_package
