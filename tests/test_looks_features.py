@@ -147,6 +147,13 @@ def test_each_own_colour_is_kept_by_its_own_wallpaper_switch():
     assert s.tint_own == "#112233" and s.accent_own == ""
 
 
+def test_a_look_name_loses_bidi_overrides_and_zero_width_characters():
+    assert looks.clean_name("Evil\u202egpj.exe") == "Evilgpj.exe"
+    assert looks.clean_name("\u200bNi\u200dght\ufeff \u2066blue\u2069") == "Night blue"
+    assert looks.clean_name("\u200b\u200e") == ""
+    assert looks.clean_name("Café 🌙") == "Café 🌙"
+
+
 def test_reading_a_look_never_hangs_on_a_pipe_or_reads_a_device(tmp_path):
     fifo = tmp_path / "pipe.json"
     os.mkfifo(fifo)

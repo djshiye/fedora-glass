@@ -57,9 +57,12 @@ def looks_dir(settings_path: Path | None = None) -> Path:
 
 
 def clean_name(raw: object) -> str:
-    """A look's name: plain text on one line, at most NAME_MAX characters."""
+    """A look's name: plain text on one line, at most NAME_MAX characters. Format characters
+    (bidi overrides, zero-width ones) go too: in a look from somewhere else they could make
+    a name read as another one."""
     if not isinstance(raw, str):
         return ""
+    raw = "".join(c for c in raw if unicodedata.category(c) != "Cf")
     return settings_mod.clean_message(raw)[:NAME_MAX].strip()
 
 
