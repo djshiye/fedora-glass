@@ -12,7 +12,7 @@ class Actor {
 globalThis.fake = {Actor, ui: new Actor(), overview: {visible: false}};
 globalThis.global = {workspace_manager: {get_active_workspace: () => ({})}, get_window_actors: () => []};
 
-const {withoutGlass} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/windows.js');
+const {appIds, withoutGlass} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/windows.js');
 const {parse} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/config.js');
 
 // What appIds() gives for a few real windows: wm_class, wm_class_instance, gtk_application_id, sandboxed_app_id.
@@ -27,10 +27,35 @@ test('a listed app gets no glass, by its desktop id, WM class or Flatpak id', ()
     assert.equal(withoutGlass(['org.gnome.Ptyxis'], skip), false, 'apps not listed keep their glass');
 });
 
-test('matching is exact: a listed id never takes glass off a different app', () => {
+test('matching is whole ids: a listed id never takes glass off a different app', () => {
     const skip = ['org.gnome'];
     assert.equal(withoutGlass(NAUTILUS, skip), false);
-    assert.equal(withoutGlass(['Org.Gnome.Nautilus'], ['org.gnome.Nautilus']), false);
+    assert.equal(withoutGlass(['org.gnome.Nautilus2'], ['org.gnome.Nautilus']), false);
+});
+
+test('case does not matter: a StartupWMClass of Gimp matches a window of class gimp', () => {
+    assert.equal(withoutGlass(['gimp'], ['Gimp']), true);
+    assert.equal(withoutGlass(['Org.Gnome.Nautilus'], ['org.gnome.Nautilus']), true);
+    const skip = ['MyApp'];
+    assert.equal(withoutGlass(['myapp'], skip), true, 'again with the same list (worked out once)');
+});
+
+test('the desktop id GNOME matched the window to counts, without ".desktop"', () => {
+    const win = {get_wm_class: () => 'jetbrains-idea', get_wm_class_instance: () => 'jetbrains-idea',
+        get_gtk_application_id: () => null, get_sandboxed_app_id: () => null};
+    globalThis.fake.windowTracker = {get_window_app: w => (w === win ? {get_id: () => 'com.jetbrains.IntelliJ-IDEA.desktop'} : null)};
+    try {
+        const ids = appIds(win);
+        assert.deepEqual(ids, ['jetbrains-idea', 'jetbrains-idea', 'com.jetbrains.IntelliJ-IDEA']);
+        assert.equal(withoutGlass(ids, ['com.jetbrains.IntelliJ-IDEA']), true);
+        // No app known, or the tracker failing: the window's own ids still count.
+        globalThis.fake.windowTracker = {get_window_app: () => null};
+        assert.deepEqual(appIds(win), ['jetbrains-idea', 'jetbrains-idea']);
+        globalThis.fake.windowTracker = {get_window_app: () => { throw new Error('forced'); }};
+        assert.deepEqual(appIds(win), ['jetbrains-idea', 'jetbrains-idea']);
+    } finally {
+        delete globalThis.fake.windowTracker;
+    }
 });
 
 test('the built-in games and video players stay without glass with an empty list', () => {

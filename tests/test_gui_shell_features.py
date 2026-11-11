@@ -134,6 +134,24 @@ def test_an_id_no_installed_app_has_is_a_row_of_its_own(make_backend, apps_dirs)
     assert b.settings().no_glass_apps == []
 
 
+def test_ids_are_matched_to_apps_without_regard_to_case(make_backend, apps_dirs):
+    """The extension compares ids without regard to case, so the list does too."""
+    b = make_backend()
+    _loaded(b)
+    b._set("no_glass_apps", ["CODE"])
+    rows = _js(b.property("noGlassApps"))
+    assert [(r["key"], r["name"]) for r in rows] == [("code.desktop", "Visual Studio Code")]
+    b.addNoGlassApp("code.desktop")
+    assert b.settings().no_glass_apps == ["CODE"], "already on the list"
+    b.toggleNoGlassApp("code.desktop")
+    assert b.settings().no_glass_apps == [], "on the list, so the picker's row takes it off"
+    from fedoraglass.render.glass import always_without_glass
+    assert always_without_glass("CODE") and always_without_glass("Obsidian") and not always_without_glass("codex")
+    b._set("no_glass_apps", ["Org.Gnome.Nautilus"])
+    b.removeNoGlassApp("org.gnome.Nautilus.desktop")
+    assert b.settings().no_glass_apps == []
+
+
 def test_apply_renders_the_list_into_shell_glass_json(make_backend, apps_dirs):
     from fedoraglass import palette
     from fedoraglass.render import glass as rg

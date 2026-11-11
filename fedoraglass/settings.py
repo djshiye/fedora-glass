@@ -352,7 +352,7 @@ APP_ID_MAX = 199
 
 
 def clean_app_ids(raw: object) -> list[str]:
-    """App ids as the extension compares them with a window's (exactly): strings with no
+    """App ids as the extension compares them with a window's (whole ids, any case): strings with no
     control characters, trimmed, 1..APP_ID_MAX long, each once, at most NO_GLASS_APPS_MAX."""
     if not isinstance(raw, (list, tuple)):
         return []

@@ -39,9 +39,13 @@ WINDOW_NO_GLASS = re.compile(
     r"retroarch|org\.libretro\.retroarch)$", re.IGNORECASE)
 
 
+_WINDOW_SKIP_ANY_CASE = frozenset(i.casefold() for i in WINDOW_SKIP)
+
+
 def always_without_glass(app_id: str) -> bool:
-    """Whether the extension keeps glass off this app's windows whatever the user picks."""
-    return app_id in WINDOW_SKIP or bool(WINDOW_NO_GLASS.match(app_id))
+    """Whether the extension keeps glass off this app's windows whatever the user picks
+    (windows.js compares the skip ids without regard to case)."""
+    return app_id.casefold() in _WINDOW_SKIP_ANY_CASE or bool(WINDOW_NO_GLASS.match(app_id))
 
 
 # config.js keeps at most this many skip ids (built-in and the user's together).

@@ -4,6 +4,7 @@ import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {SwitcherPopup} from 'resource:///org/gnome/shell/ui/switcherPopup.js';
@@ -53,18 +54,46 @@ function noCull() {
 }
 const NO_CULL = 'fedora-glass-no-cull';
 
-function appIds(w) {
-    return [w.get_wm_class(), w.get_wm_class_instance(), w.get_gtk_application_id(), w.get_sandboxed_app_id()]
+/**
+ * The ids a window carries: its WM class and instance, GTK application id, Flatpak id, and
+ * the desktop id (without ".desktop") GNOME matched it to, which is what the app's list
+ * holds even when the window's own ids say something else.
+ */
+export function appIds(w) {
+    let app = null;
+    try {
+        app = Shell.WindowTracker.get_default()?.get_window_app(w)?.get_id() ?? null;
+    } catch {
+        app = null;     // no app known for this window: its own ids still count
+    }
+    if (typeof app === 'string')
+        app = app.replace(/\.desktop$/i, '');
+    return [w.get_wm_class(), w.get_wm_class_instance(), w.get_gtk_application_id(), w.get_sandboxed_app_id(), app]
         .filter(id => typeof id === 'string' && id.length);
+}
+
+// The user's list in lower case, worked out once per list (config.js gives a new one on each change).
+const lowered = new WeakMap();
+function skipSet(skip) {
+    let set = lowered.get(skip);
+    if (!set) {
+        set = new Set(skip.map(id => id.toLowerCase()));
+        lowered.set(skip, set);
+    }
+    return set;
 }
 
 /**
  * Whether an app's windows get no glass: one the user listed in the Fedora Glass app
  * (skip, from shell-glass.json: desktop ids, WM classes, app ids), a built-in game or
- * video player, or Fedora Glass itself. ids: the window's, as appIds gives them.
+ * video player, or Fedora Glass itself. ids: the window's, as appIds gives them; any of
+ * them matching a listed id, whatever its case, counts.
  */
 export function withoutGlass(ids, skip) {
-    return ids.some(id => skip.includes(id) || NO_GLASS.test(id) || OWN_APP.test(id));
+    // Without regard to case: a .desktop file's StartupWMClass and the window's class
+    // often differ only in that (Gimp and gimp).
+    const want = skipSet(skip);
+    return ids.some(id => want.has(id.toLowerCase()) || NO_GLASS.test(id) || OWN_APP.test(id));
 }
 
 /** The card a frameless app draws inside its window ({margin, radius}), or null. */

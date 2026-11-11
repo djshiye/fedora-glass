@@ -2299,10 +2299,12 @@ class Backend(QObject):
         return self._apps_state == "ready"
 
     def _app_of(self) -> dict[str, dict]:
+        """Installed apps by each id their windows carry, in lower case: the extension
+        compares ids without regard to case, so "CODE" typed into the file is Code's."""
         index: dict[str, dict] = {}
         for a in self._apps:
             for i in a["ids"]:
-                index.setdefault(i, a)
+                index.setdefault(i.casefold(), a)
         return index
 
     @Property("QVariantList", notify=installedAppsChanged)
@@ -2320,7 +2322,7 @@ class Backend(QObject):
         rows: list[dict] = []
         by_key: dict[str, dict] = {}
         for i in self._s.no_glass_apps:
-            a = index.get(i)
+            a = index.get(i.casefold())
             key = a["id"] if a else i
             if key in by_key:
                 by_key[key]["ids"].append(i)
@@ -2341,7 +2343,8 @@ class Backend(QObject):
         app = next((a for a in self._apps if a["id"] == desktop_id), None)
         if app is None:
             return
-        self._set_no_glass([*self._s.no_glass_apps, *app["ids"]])
+        have = {i.casefold() for i in self._s.no_glass_apps}
+        self._set_no_glass([*self._s.no_glass_apps, *(i for i in app["ids"] if i.casefold() not in have)])
 
     @Slot(str)
     def removeNoGlassApp(self, key: str) -> None:
@@ -2349,9 +2352,9 @@ class Backend(QObject):
         installed app's key is its desktop id, so a row added as that app goes whole."""
         row = next((r for r in self._get_no_glass_apps() if r["key"] == key), None)
         app = next((a for a in self._apps if a["id"] == key), None)
-        drop = set(row["ids"] if row else []) | set(app["ids"] if app else [])
+        drop = {i.casefold() for i in [*(row["ids"] if row else []), *(app["ids"] if app else [])]}
         if drop:
-            self._set_no_glass([i for i in self._s.no_glass_apps if i not in drop])
+            self._set_no_glass([i for i in self._s.no_glass_apps if i.casefold() not in drop])
 
     @Slot(str)
     def toggleNoGlassApp(self, desktop_id: str) -> None:
@@ -2359,7 +2362,8 @@ class Backend(QObject):
         app = next((a for a in self._apps if a["id"] == desktop_id), None)
         if app is None:
             return
-        if any(i in self._s.no_glass_apps for i in app["ids"]):
+        have = {i.casefold() for i in self._s.no_glass_apps}
+        if any(i.casefold() in have for i in app["ids"]):
             self.removeNoGlassApp(desktop_id)
         else:
             self.addNoGlassApp(desktop_id)
