@@ -77,7 +77,7 @@ def test_only_one_damaged_copy_is_kept(tmp_path):
     p.write_text("[two]")
     sm.load(p)
     assert p.with_name("settings.json.damaged").read_text() == "[two]"
-    assert sorted(x.name for x in p.parent.iterdir()) == ["settings.json.damaged"]
+    assert sorted(x.name for x in p.parent.iterdir() if x.name != ".settings.json.lock") == ["settings.json.damaged"]
 
 
 # ---- downgrade --------------------------------------------------------------------------
@@ -223,3 +223,75 @@ def test_save_without_backup_and_put_back_leave_the_bak_alone(tmp_path):
     assert sm.load(p).frost == 0.3 and json.loads(bak.read_text())["frost"] == 0.2
     sm.put_back(None, tmp_path / "liquid-glass/none.json")     # no file before: none after
     assert sm.read_raw(tmp_path / "liquid-glass/none.json") is None
+
+
+# ---- the app saving while the watcher finds the old file damaged -------------------------
+def test_a_file_saved_after_the_damaged_read_is_not_moved_aside(tmp_path, monkeypatch):
+    """The watcher reads a damaged file; before it moves that aside, the app saves a good
+    one. The good one must stay settings.json."""
+    p = _path(tmp_path)
+    p.parent.mkdir(parents=True)
+    p.write_text('{"frost": 0.9, "rad')
+    real = sm._parse
+    calls = []
+
+    def parse_then_app_saves(raw):
+        if not calls:
+            calls.append(1)
+            try:
+                return real(raw)
+            finally:
+                sm.save(Settings(frost=0.4), p)      # the app's Apply, right after the read
+        return real(raw)
+    monkeypatch.setattr(sm, "_parse", parse_then_app_saves)
+    got = sm.load_checked(p)
+    assert got == (Settings(frost=0.4), None, True)
+    assert sm.load(p).frost == 0.4
+    assert not p.with_name("settings.json.damaged").exists()
+
+
+def test_the_move_aside_waits_for_a_save_in_progress(tmp_path):
+    import fcntl
+    p = _path(tmp_path)
+    p.parent.mkdir(parents=True)
+    p.write_text("{")
+    lock = os.open(p.with_name(".settings.json.lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)              # a save() holds it
+    import threading
+    done = threading.Event()
+    t = threading.Thread(target=lambda: (sm.load_checked(p), done.set()))
+    t.start()
+    assert not done.wait(0.3), "it waits for the save"
+    assert p.read_text() == "{"
+    p.write_text(json.dumps({"frost": 0.4}))     # what that save wrote
+    fcntl.flock(lock, fcntl.LOCK_UN)
+    os.close(lock)
+    t.join(5)
+    assert done.is_set() and sm.load(p).frost == 0.4
+    assert not p.with_name("settings.json.damaged").exists()
+
+
+def test_looking_moves_and_writes_nothing(fake_env, monkeypatch, capsys):
+    from fedoraglass import __main__ as cli
+    sm.save(Settings(frost=0.8))
+    sm.save(Settings(frost=0.9))
+    p = sm.settings_path()
+    p.write_text('{"frost": 0.9, "tar')
+    got = sm.load_checked(fix=False)
+    assert got.usable and got.settings.frost == 0.8
+    assert p.read_text() == '{"frost": 0.9, "tar' and not p.with_name("settings.json.damaged").exists()
+
+    class _Eng:
+        targets = []
+        env = fake_env
+
+        def plan(self, s):
+            return {}
+
+        def is_applied(self):
+            return False
+    monkeypatch.setattr(cli, "_engine", lambda: _Eng())
+    for cmd in (cli.cmd_status, cli.cmd_plan, cli.cmd_on_remove):
+        assert cmd(None) == 0
+        assert p.read_text() == '{"frost": 0.9, "tar', cmd.__name__
+        assert not p.with_name("settings.json.damaged").exists(), cmd.__name__

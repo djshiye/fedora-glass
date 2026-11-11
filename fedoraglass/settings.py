@@ -7,11 +7,14 @@ version does, and are written back on save, so going back a version loses nothin
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import math
 import os
 import re
 import tempfile
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import NamedTuple
@@ -448,50 +451,84 @@ def _read(path: Path) -> dict | None:
     return _parse(raw)
 
 
-def load_checked(path: Path | None = None) -> Loaded:
+@contextlib.contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """One writer of settings.json at a time: save() and the step that moves a damaged file
+    aside (the app and the watcher both do that). Plain reads don't take it."""
+    fd = os.open(path.with_name(f".{path.name}.lock"), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def load_checked(path: Path | None = None, *, fix: bool = True, _tries: int = 3) -> Loaded:
     """Load the settings and say whether they can be trusted.
 
     A missing file is the defaults (a first start). A file that is there but damaged (a
     power cut mid-write, a bad hand edit) is never quietly taken for the defaults: the
     watcher would then apply them over the user's look. It is moved aside as
     settings.json.damaged (only the latest is kept) and the last good copy that save()
-    keeps (settings.json.bak) takes its place, when that one reads."""
+    keeps (settings.json.bak) takes its place, when that one reads.
+    `fix=False` only reads (the last good copy, when there is one) and moves or writes
+    nothing: for commands that just look (status, plan) and for the package removal."""
     path = path or settings_path()
+    damaged = _sibling(path, ".damaged")
+    blob = None
     try:
-        raw = _read(path)
+        blob = path.read_bytes()
+        raw = _parse(blob)
+    except FileNotFoundError:
+        if damaged.exists():
+            # Damaged earlier and nothing saved since: still no file of the user's to go on.
+            return Loaded(_stand_in(path), damage_notice(path), False)
+        return Loaded(Settings(), None, True)
     except (OSError, ValueError) as err:
         problem: Exception = err
     else:
-        if raw is None and _sibling(path, ".damaged").exists():
-            # Damaged earlier and nothing saved since: still no file of the user's to go on.
-            return Loaded(_stand_in(path), damage_notice(path), False)
-        return Loaded(_from_dict(raw or {}), None, True)
-    damaged = _sibling(path, ".damaged")
-    if isinstance(problem, ValueError):
+        return Loaded(_from_dict(raw), None, True)
+    if fix and isinstance(problem, ValueError):
         # Readable but not settings: set it aside, so a later save can't lose it and a
         # copy is there to look at. A read error (EIO, no permission) moves nothing.
         try:
-            os.replace(path, damaged)
-            os.utime(damaged)       # when it was found, for damage_notice()
+            with _locked(path):
+                try:
+                    now = path.read_bytes()
+                except OSError:
+                    now = None
+                if now != blob:
+                    # The app saved a good file since it was read: that one must not go.
+                    raise _ReadAgain
+                os.replace(path, damaged)
+                os.utime(damaged)       # when it was found, for damage_notice()
+                good = _good_copy(path)
+                if good is not None:
+                    _write(path, json.dumps(good, indent=2).encode() + b"\n")
+                    os.utime(damaged)   # newer than the copy put back: the notice stays until a save
+        except _ReadAgain:
+            if _tries > 0:
+                return load_checked(path, fix=fix, _tries=_tries - 1)
         except OSError:
             pass
-    try:
-        good = _read(_sibling(path, ".bak"))
-    except (OSError, ValueError):
-        good = None
+    good = _good_copy(path)
     if good is not None:
-        s = _from_dict(good)
-        if isinstance(problem, ValueError):
-            try:
-                _write(path, json.dumps(good, indent=2).encode() + b"\n")
-                os.utime(damaged)   # newer than the copy put back: the notice stays until a save
-            except OSError:
-                pass
-        return Loaded(s, f"Your settings file {path} could not be read ({problem}), so the last good "
-                         "copy of it is used." + _kept(damaged), True)
+        return Loaded(_from_dict(good), f"Your settings file {path} could not be read ({problem}), so the last good "
+                                        "copy of it is used." + _kept(damaged), True)
     return Loaded(_stand_in(path), f"Your settings file {path} could not be read ({problem}), and there is "
                               "no good copy of it. Fedora Glass shows its defaults and changes nothing by "
                               "itself until you press Apply." + _kept(damaged), False)
+
+
+class _ReadAgain(Exception):
+    pass
+
+
+def _good_copy(path: Path) -> dict | None:
+    try:
+        return _read(_sibling(path, ".bak"))
+    except (OSError, ValueError):
+        return None
 
 
 def _on_remove_path(path: Path) -> Path:
@@ -533,18 +570,19 @@ def put_back(before: bytes | None, path: Path | None = None) -> None:
     Unlike save(), the last good copy (.bak) is left alone: it must never become the look
     that failed."""
     path = path or settings_path()
-    if before is None:
-        path.unlink(missing_ok=True)
-    else:
-        _write(path, before)
+    with _locked(path):
+        if before is None:
+            path.unlink(missing_ok=True)
+        else:
+            _write(path, before)
 
 
 def _kept(damaged: Path) -> str:
     return f" The damaged file is kept as {damaged}." if damaged.exists() else ""
 
 
-def load(path: Path | None = None) -> Settings:
-    return load_checked(path).settings
+def load(path: Path | None = None, *, fix: bool = True) -> Settings:
+    return load_checked(path, fix=fix).settings
 
 
 def damage_notice(path: Path | None = None) -> str | None:
@@ -673,14 +711,15 @@ def save(s: Settings, path: Path | None = None, *, backup: bool = True) -> Path:
     .bak must stay the last one that was."""
     path = path or settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        before = path.read_bytes()
-        old = _parse(before)
-    except (OSError, ValueError):
-        before, old = None, {}
-    out = _keep_newer(asdict(s.normalized()), old)
-    if before is not None and backup:
-        # The file as it was, good, kept for the day settings.json itself is found damaged.
-        _write(_sibling(path, ".bak"), before)
-    _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")
+    with _locked(path):
+        try:
+            before = path.read_bytes()
+            old = _parse(before)
+        except (OSError, ValueError):
+            before, old = None, {}
+        out = _keep_newer(asdict(s.normalized()), old)
+        if before is not None and backup:
+            # The file as it was, good, kept for the day settings.json itself is found damaged.
+            _write(_sibling(path, ".bak"), before)
+        _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")
     return path

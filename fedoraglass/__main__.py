@@ -82,7 +82,8 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    for tid, actions in _engine().plan(settings_mod.load()).items():
+    # Commands that only look move and write nothing, not even a damaged settings file.
+    for tid, actions in _engine().plan(settings_mod.load(fix=False)).items():
         print(f"[{tid}]")
         for a in actions:
             print(f"  {a.describe()}")
@@ -91,7 +92,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     eng = _engine()
-    s = settings_mod.load()
+    s = settings_mod.load(fix=False)
     for t in eng.targets:
         d = t.detect(eng.env)
         state = "on " if s.target_enabled(t.id) else "off"
@@ -114,8 +115,9 @@ def cmd_revert(args: argparse.Namespace) -> int:
 
 def cmd_on_remove(args: argparse.Namespace) -> int:
     """Run by `dnf remove fedora-glass`, as each person with a look applied (never as root),
-    before the app's files go: Restore original, unless they turned that off in the app."""
-    s = settings_mod.load()
+    before the app's files go: Restore original, unless they turned that off in the app.
+    It reads the settings and changes none of them: a damaged file stays where it is."""
+    s = settings_mod.load(fix=False)
     if not s.undo_on_remove:
         print("Fedora Glass: your look stays as it is (you turned off undo on removal).")
         return 0
