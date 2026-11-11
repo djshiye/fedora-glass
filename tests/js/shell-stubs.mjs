@@ -84,6 +84,17 @@ const STUBS = {
             FileQueryInfoFlags: {NOFOLLOW_SYMLINKS: 1}, FileType: {REGULAR: 1}, FileMonitorFlags: {WATCH_MOVES: 8},
             FileCreateFlags: {PRIVATE: 1, REPLACE_DESTINATION: 2}, FileCopyFlags: {OVERWRITE: 1},
             Settings: globalThis.fake?.Settings ?? class {},
+            // D-Bus proxies: a test that needs them sets globalThis.fake.dbus (see power.test.mjs);
+            // without it no service answers, as on a PC without them.
+            BusType: {SYSTEM: 1, SESSION: 2}, DBusProxyFlags: {NONE: 0, DO_NOT_AUTO_START: 4},
+            DBusProxy: {
+                new_for_bus: (...a) => globalThis.fake.dbus?.new_for_bus(...a),
+                new_for_bus_finish: res => {
+                    if (res?.error) throw res.error;
+                    return res.proxy;
+                },
+            },
+            Cancellable: class { cancel() { this._c = true; } is_cancelled() { return !!this._c; } },
         };`,
     'resource/signalTracker.js': 'export const debugGetSignalTrackers = () => globalThis.fake.signalTrackers;',
     'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},

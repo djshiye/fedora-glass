@@ -36,6 +36,10 @@ Card {
         if (lv === "") return ""
         if (Backend.speedReason === "slow")
             return "Right now: " + lv + " glass, because frames were dropping. It tries full glass again in a few minutes."
+        if (Backend.speedReason === "battery")
+            return Backend.speedPower === "saver"
+                   ? "Right now: " + lv + " glass, because Power Saver is on."
+                   : "Right now: " + lv + " glass, because you're on battery."
         if (Backend.speedReason === "retry")
             return "Right now: trying full glass again."
         return "Right now: " + lv + " glass."
@@ -80,11 +84,11 @@ Card {
                     Text { text: "Speed"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                     ResetButton {
                         objectName: "cardReset"
-                        readonly property var keys: ["glass_quality"]
-                        visible: Backend.changedFromDefault.indexOf("glass_quality") >= 0
+                        readonly property var keys: ["glass_quality", "lighter_on_battery"]
+                        visible: Backend.changedFromDefault.some((k) => keys.indexOf(k) >= 0)
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Reset"
-                        tip: "Back to Auto (Apply to use it)"
+                        tip: "Back to Auto, and lighter glass on battery (Apply to use them)"
                         onClicked: Backend.resetSettings(keys)
                     }
                 }
@@ -130,6 +134,14 @@ Card {
                     Accessible.name: "Check speed"
                 }
             }
+        }
+        SwitchRow {
+            objectName: "lighterOnBattery"
+            label: "Lighter glass on battery"
+            caption: "On battery or in Power Saver, use lighter glass. It goes back when you plug in."
+            checked: Backend.lighterOnBattery
+            tip: "Saves battery. Lighter glass is hard to tell apart from full glass. It is never heavier than the quality you picked."
+            onToggled: (on) => Backend.lighterOnBattery = on
         }
         Text {
             objectName: "speedStatus"

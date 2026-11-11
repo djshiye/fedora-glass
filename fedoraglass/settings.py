@@ -192,6 +192,11 @@ class Settings:
     cursor_theme: str = "keep"
     cursor_size: int = 0
 
+    # ---- Shell features: lighter glass on battery ----
+    # On battery or in Power Saver, the glass draws at most at the lighter level (never
+    # heavier than glass_quality or auto picked); back on mains it goes back.
+    lighter_on_battery: bool = True
+
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
 
@@ -272,6 +277,9 @@ class Settings:
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
+        # ---- Shell features (lighter glass on battery) ----
+        for k in ("lighter_on_battery",):
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         return s
 
 

@@ -668,6 +668,8 @@ class Backend(QObject):
     overviewOff = _p("overview_off", bool)
     motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
     hoverGlide = _p("hover_glide", bool)
+    # ---- Shell features: lighter glass on battery ----
+    lighterOnBattery = _p("lighter_on_battery", bool)
     del _p
 
     # ---- animations ----------------------------------------------------------------
@@ -878,7 +880,13 @@ class Backend(QObject):
 
     def _get_speed_reason(self) -> str:
         v = self._speed_status.get("reason")
-        return v if v in ("setting", "slow", "retry", "check") else ""
+        return v if v in ("setting", "slow", "retry", "check", "battery") else ""
+
+    def _get_speed_power(self) -> str:
+        """Why the glass is lighter than set: "battery" (on battery) or "saver" (Power Saver
+        is on), when the extension says so (speed.js); else ""."""
+        v = self._speed_status.get("power")
+        return v if self._get_speed_reason() == "battery" and v in ("battery", "saver") else ""
 
     def _get_speed_drag(self) -> str:
         """The last window drag the desktop timed (speed.js writes it at the end of a drag), in
@@ -906,6 +914,7 @@ class Backend(QObject):
 
     speedLevel = Property(str, _get_speed_level, notify=speedChanged)
     speedReason = Property(str, _get_speed_reason, notify=speedChanged)
+    speedPower = Property(str, _get_speed_power, notify=speedChanged)
     speedDrag = Property(str, _get_speed_drag, notify=speedChanged)
     speedState = Property(str, _get_speed_state, notify=speedChanged)
     speedResult = Property("QVariantMap", _get_speed_result, notify=speedChanged)

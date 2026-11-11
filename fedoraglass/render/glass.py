@@ -22,7 +22,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "grabhover.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
-         "speed.js", "tuning.js", "popupstyle.js", "stackclip.js", "prefs.js")
+         "speed.js", "tuning.js", "popupstyle.js", "stackclip.js", "prefs.js", "power.js")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
@@ -233,7 +233,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "parts": parts,
         "lock": _lock_config(s, off),
         "grow": {"enabled": s.menu_grow},
-        "speed": {"quality": s.glass_quality},
+        "speed": {"quality": s.glass_quality, "lighterOnBattery": s.lighter_on_battery},
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": bool(s.start_on_desktop) or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
