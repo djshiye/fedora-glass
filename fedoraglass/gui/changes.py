@@ -12,7 +12,7 @@ from dataclasses import fields
 from typing import Any, Callable
 
 from .. import settings as settings_mod
-from ..i18n import _, N_, gettext as tr
+from ..i18n import _, N_, gettext as tr, pgettext
 from ..settings import GNOME_ACCENTS, MOTION_EVENTS, Settings
 
 PAGE_ORDER = ("home", "colour", "glass", "windows", "motion", "pointer", "lock", "apps", "advanced", "about")
@@ -148,7 +148,8 @@ PART_LABELS = {"panel": N_("Panel"), "arcmenu": N_("Start menu"), "quicksettings
 PART_KEY_LABELS = {"tint": (N_("tint"), colour_hex), "tint_strength": (N_("tint strength"), pct), "radius": (N_("corners"), px),
                    "frost": (N_("frost"), pct), "refraction": (N_("bend"), pct), "bleed": (N_("colour bleed"), pct),
                    "reflections": (N_("edge reflections"), pct)}
-EVENT_LABELS = {"open": N_("Open"), "minimize": N_("Minimize and restore"), "close": N_("Close"), "launch": N_("App starting"),
+# "Open" the verb is the extension's button; this one is the noun, so it has a context.
+EVENT_LABELS = {"minimize": N_("Minimize and restore"), "close": N_("Close"), "launch": N_("App starting"),
                 "hover": N_("Panel hover")}
 MOTION_LABELS = {"gnome": N_("GNOME default"), "spring": N_("Spring"), "bounce": N_("Bounce"), "jelly": N_("Jelly"), "genie": N_("Genie"),
                  "scalefade": N_("Scale and fade"), "off": N_("Off")}
@@ -182,7 +183,7 @@ def _motion_rows(now: Settings, was: Settings) -> list[dict]:
                          "motion.speed"))
     for ev in MOTION_EVENTS:
         x, y = a[ev], b[ev]
-        label = tr(EVENT_LABELS[ev])
+        label = pgettext("motion event", "Open") if ev == "open" else tr(EVENT_LABELS[ev])
         if not styled and x["preset"] != y["preset"]:
             rows.append(_row("motion", "eachAnimation", _("{event} animation").format(event=label), _motion_name(y["preset"]),
                              _motion_name(x["preset"]), f"motion.{ev}.preset"))

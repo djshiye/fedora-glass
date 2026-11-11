@@ -81,6 +81,10 @@ msgstr "Tudo é configurado no app Fedora Glass, com prévia ao vivo."
 msgid "Open Fedora Glass"
 msgstr "Abrir o Fedora Glass"
 
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/prefs.js:29
+msgid "Open"
+msgstr "Abrir"
+
 #: fedoraglass/data/extension/liquid-glass@djshiye.github.io/prefs.js:33
 msgid "The Fedora Glass app is not installed."
 msgstr "O app Fedora Glass não está instalado."
@@ -153,295 +157,295 @@ msgstr "Não foi possível restaurar seu link de {folder} para {owner}: {reason}
 msgid "Backup"
 msgstr "Backup"
 
-#: fedoraglass/gui/backend.py:1000
+#: fedoraglass/gui/backend.py:1005
+msgid "Last window drag with {windows} windows open: about {fps} frames a second, smooth."
+msgstr "Última arrastada de janela com {windows} janelas abertas: cerca de {fps} quadros por segundo, fluida."
+
+#: fedoraglass/gui/backend.py:1007
 msgid "Last window drag with {windows} windows open: about {fps} frames a second, a little uneven."
 msgstr "Última arrastada de janela com {windows} janelas abertas: cerca de {fps} quadros por segundo, um pouco irregular."
 
-#: fedoraglass/gui/backend.py:1001
+#: fedoraglass/gui/backend.py:1008
 msgid "Last window drag with {windows} windows open: about {fps} frames a second, slow."
 msgstr "Última arrastada de janela com {windows} janelas abertas: cerca de {fps} quadros por segundo, lenta."
 
-#: fedoraglass/gui/backend.py:1003
+#: fedoraglass/gui/backend.py:1010
 msgid "Last window drag: about {fps} frames a second, smooth."
 msgstr "Última arrastada de janela: cerca de {fps} quadros por segundo, fluida."
 
-#: fedoraglass/gui/backend.py:1005
+#: fedoraglass/gui/backend.py:1012
 msgid "Last window drag: about {fps} frames a second, a little uneven."
 msgstr "Última arrastada de janela: cerca de {fps} quadros por segundo, um pouco irregular."
 
-#: fedoraglass/gui/backend.py:1006
+#: fedoraglass/gui/backend.py:1013
 msgid "Last window drag: about {fps} frames a second, slow."
 msgstr "Última arrastada de janela: cerca de {fps} quadros por segundo, lenta."
 
-#: fedoraglass/gui/backend.py:1468
+#: fedoraglass/gui/backend.py:1475
 msgid "Could not open the restart dialog. Restart your PC from the system menu instead."
 msgstr "Não foi possível abrir a caixa de reinício. Reinicie o computador pelo menu do sistema."
 
-#: fedoraglass/gui/backend.py:1494
+#: fedoraglass/gui/backend.py:1501
 msgid "GNOME's own top bar"
 msgstr "A barra superior do próprio GNOME"
 
-#: fedoraglass/gui/backend.py:1496
+#: fedoraglass/gui/backend.py:1503
 msgid "Found on this PC: {list}."
 msgstr "Encontrado neste computador: {list}."
 
-#: fedoraglass/gui/backend.py:1507
+#: fedoraglass/gui/backend.py:1514
 msgid "Another app replaced the Fedora Glass look for {what}. Apply again to bring it back."
 msgstr "Outro app substituiu o visual do Fedora Glass em {what}. Aplique de novo para recuperá-lo."
 
-#: fedoraglass/gui/backend.py:1549
+#: fedoraglass/gui/backend.py:1556
 msgid "Could not check: {error}"
 msgstr "Não foi possível verificar: {error}"
 
-#: fedoraglass/gui/backend.py:1647
+#: fedoraglass/gui/backend.py:1654
 msgid "Could not switch extensions on. Try the Extensions app instead."
 msgstr "Não foi possível ativar as extensões. Tente o app Extensões."
 
-#: fedoraglass/gui/backend.py:1649
+#: fedoraglass/gui/backend.py:1656
 msgid "Extensions are on again. Press Apply to finish your look."
 msgstr "As extensões estão ativas de novo. Clique em Aplicar para concluir seu visual."
 
-#: fedoraglass/gui/backend.py:1690
+#: fedoraglass/gui/backend.py:1697
 msgid "Could not clean up the old copy: {problem}"
 msgstr "Não foi possível limpar a cópia antiga: {problem}"
 
-#: fedoraglass/gui/backend.py:1692
+#: fedoraglass/gui/backend.py:1699
 msgid "Old copy cleaned up. Fedora Glass now runs from the package only."
 msgstr "Cópia antiga removida. O Fedora Glass agora roda só a partir do pacote."
 
-#: fedoraglass/gui/backend.py:1702
+#: fedoraglass/gui/backend.py:1709
 msgid "Error details copied"
 msgstr "Detalhes do erro copiados"
 
-#: fedoraglass/gui/backend.py:1736
+#: fedoraglass/gui/backend.py:1743
 msgid "Could not load targets: {error}"
 msgstr "Não foi possível carregar os alvos: {error}"
 
-#: fedoraglass/gui/backend.py:1835
+#: fedoraglass/gui/backend.py:1842
 msgid "Planning"
 msgstr "Planejando"
 
-#: fedoraglass/gui/backend.py:1843
+#: fedoraglass/gui/backend.py:1850
 msgid "Could not work out the changes: {error}"
 msgstr "Não foi possível calcular as alterações: {error}"
 
-#: fedoraglass/gui/backend.py:1877
-#: fedoraglass/gui/backend.py:2188
+#: fedoraglass/gui/backend.py:1884
+#: fedoraglass/gui/backend.py:2196
 msgid "Could not save settings: {error}"
 msgstr "Não foi possível salvar as configurações: {error}"
 
-#: fedoraglass/gui/backend.py:1886
+#: fedoraglass/gui/backend.py:1893
 msgid "Writing tokens"
 msgstr "Gravando tokens"
 
-#: fedoraglass/gui/backend.py:1918
+#: fedoraglass/gui/backend.py:1925
 msgid "Apply stopped: {error}"
 msgstr "Aplicar parou: {error}"
 
-#: fedoraglass/gui/backend.py:1949
+#: fedoraglass/gui/backend.py:1957
 msgid "The login screen has your new look. You'll see it the next time you restart your PC."
 msgstr "A tela de login tem seu novo visual. Você o verá na próxima vez que reiniciar o computador."
 
-#: fedoraglass/gui/backend.py:1972
-#: fedoraglass/gui/backend.py:2251
+#: fedoraglass/gui/backend.py:1980
+#: fedoraglass/gui/backend.py:2259
 msgid "Restoring"
 msgstr "Restaurando"
 
-#: fedoraglass/gui/backend.py:1978
+#: fedoraglass/gui/backend.py:1986
 msgid "Restore stopped: {error}"
 msgstr "Restaurar parou: {error}"
 
-#: fedoraglass/gui/backend.py:2040
+#: fedoraglass/gui/backend.py:2048
 msgid "Could not restart Files. Close all Files windows, or restart your PC instead."
 msgstr "Não foi possível reiniciar o Arquivos. Feche todas as janelas do Arquivos ou reinicie o computador."
 
-#: fedoraglass/gui/backend.py:2128
+#: fedoraglass/gui/backend.py:2136
 msgid "Glass is on the login screen. You'll see it the next time you restart your PC."
 msgstr "O vidro está na tela de login. Você o verá na próxima vez que reiniciar o computador."
 
-#: fedoraglass/gui/backend.py:2132
+#: fedoraglass/gui/backend.py:2140
 msgid "The normal login screen is back."
 msgstr "A tela de login normal voltou."
 
-#: fedoraglass/gui/backend.py:2157
+#: fedoraglass/gui/backend.py:2165
 msgid "Not changed: the password wasn't given."
 msgstr "Nada foi alterado: a senha não foi informada."
 
-#: fedoraglass/gui/backend.py:2160
+#: fedoraglass/gui/backend.py:2168
 msgid "the helper didn't finish"
 msgstr "o assistente não terminou"
 
-#: fedoraglass/gui/backend.py:2161
+#: fedoraglass/gui/backend.py:2169
 msgid "Nothing was changed: {reason}"
 msgstr "Nada foi alterado: {reason}"
 
-#: fedoraglass/gui/backend.py:2258
+#: fedoraglass/gui/backend.py:2266
 msgid "Restore stopped, so Fedora Glass was not removed: {error}"
 msgstr "Restaurar parou, então o Fedora Glass não foi removido: {error}"
 
-#: fedoraglass/gui/backend.py:2290
+#: fedoraglass/gui/backend.py:2298
 msgid "Your original look is back, but Fedora Glass was not removed: the password wasn't given."
 msgstr "Seu visual original voltou, mas o Fedora Glass não foi removido: a senha não foi informada."
 
-#: fedoraglass/gui/backend.py:2292
+#: fedoraglass/gui/backend.py:2300
 msgid "{tool} did not finish"
 msgstr "{tool} não terminou"
 
-#: fedoraglass/gui/backend.py:2293
+#: fedoraglass/gui/backend.py:2301
 msgid "Your original look is back, but removing Fedora Glass failed: {reason}"
 msgstr "Seu visual original voltou, mas a remoção do Fedora Glass falhou: {reason}"
 
-#: fedoraglass/gui/backend.py:2410
+#: fedoraglass/gui/backend.py:2418
 msgid "Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed."
 msgstr "Steam e seus jogos, players de vídeo (VLC, mpv, Vídeos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice e Prism Launcher, e mais alguns. Eles desenham as próprias janelas sólidas, então vidro por trás só custaria desempenho."
 
-#: fedoraglass/gui/backend.py:2519
-#: fedoraglass/gui/backend.py:2517
+#: fedoraglass/gui/backend.py:2527
+#: fedoraglass/gui/backend.py:2525
 msgid "My look"
 msgstr "Meu visual"
 
-#: fedoraglass/gui/backend.py:2519
-#: fedoraglass/gui/backend.py:2517
+#: fedoraglass/gui/backend.py:2527
+#: fedoraglass/gui/backend.py:2525
 msgid "My look {n}"
 msgstr "Meu visual {n}"
 
-#: fedoraglass/gui/backend.py:2530
+#: fedoraglass/gui/backend.py:2538
 msgid "The look couldn't be saved: {reason}"
 msgstr "Não foi possível salvar o visual: {reason}"
 
-#: fedoraglass/gui/backend.py:2534
+#: fedoraglass/gui/backend.py:2542
 msgid "Saved “{name}”"
 msgstr "“{name}” salvo"
 
-#: fedoraglass/gui/backend.py:2545
+#: fedoraglass/gui/backend.py:2553
 msgid "The look couldn't be renamed: {reason}"
 msgstr "Não foi possível renomear o visual: {reason}"
 
-#: fedoraglass/gui/backend.py:2557
+#: fedoraglass/gui/backend.py:2565
 msgid "The look couldn't be deleted: {reason}"
 msgstr "Não foi possível excluir o visual: {reason}"
 
-#: fedoraglass/gui/backend.py:2562
+#: fedoraglass/gui/backend.py:2570
 msgid "Deleted “{name}”"
 msgstr "“{name}” excluído"
 
-#: fedoraglass/gui/backend.py:2586
+#: fedoraglass/gui/backend.py:2594
 msgid "Pick a file on this PC to save the look in."
 msgstr "Escolha um arquivo neste computador para salvar o visual."
 
-#: fedoraglass/gui/backend.py:2601
+#: fedoraglass/gui/backend.py:2609
 msgid "Saved as {path}"
 msgstr "Salvo como {path}"
 
-#: fedoraglass/gui/backend.py:2610
+#: fedoraglass/gui/backend.py:2618
 msgid "Pick a look file on this PC."
 msgstr "Escolha um arquivo de visual neste computador."
 
-#: fedoraglass/gui/backend.py:2619
+#: fedoraglass/gui/backend.py:2627
 msgid "The look couldn't be added: {reason}"
 msgstr "Não foi possível adicionar o visual: {reason}"
 
-#: fedoraglass/gui/backend.py:2623
+#: fedoraglass/gui/backend.py:2631
 msgid "Added “{name}”. Pick it to try it."
 msgstr "“{name}” adicionado. Escolha-o para experimentar."
 
-#: fedoraglass/gui/backend.py:2682
+#: fedoraglass/gui/backend.py:2690
 msgid "today at {time}"
 msgstr "hoje às {time}"
 
-#: fedoraglass/gui/backend.py:2685
+#: fedoraglass/gui/backend.py:2693
 msgid "yesterday at {time}"
 msgstr "ontem às {time}"
 
-#: fedoraglass/gui/backend.py:2687
+#: fedoraglass/gui/backend.py:2695
 msgid "on {day} at {time}"
 msgstr "em {day} às {time}"
 
-#: fedoraglass/gui/backend.py:2791
+#: fedoraglass/gui/backend.py:2800
 msgid "your wallpaper's colour"
 msgstr "a cor do seu papel de parede"
 
-#: fedoraglass/gui/backend.py:2840
+#: fedoraglass/gui/backend.py:2854
 msgid "There's no wallpaper picture to take a colour from, so the colour stays as it is."
 msgstr "Não há imagem de papel de parede para tirar uma cor, então a cor continua como está."
 
-#: fedoraglass/gui/backend.py:2843
+#: fedoraglass/gui/backend.py:2857
 msgid "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
 msgstr "O Fedora Glass não consegue ler a imagem deste papel de parede, então a cor continua como está."
 
-#: fedoraglass/gui/backend.py:2845
+#: fedoraglass/gui/backend.py:2859
 msgid "Your wallpaper has hardly any colour in it, so the colour stays as it is."
 msgstr "Seu papel de parede quase não tem cor, então a cor continua como está."
 
-#: fedoraglass/gui/backend.py:37
+#: fedoraglass/gui/backend.py:38
 msgid "My apps"
 msgstr "Meus apps"
 
-#: fedoraglass/gui/backend.py:47
+#: fedoraglass/gui/backend.py:48
 msgid "{start} and {last}"
 msgstr "{start} e {last}"
 
-#: fedoraglass/gui/backend.py:479
+#: fedoraglass/gui/backend.py:486
 msgid "Glass is paused because GNOME Shell restarted twice right after starting it. Your desktop works as usual."
 msgstr "O vidro está pausado porque o GNOME Shell reiniciou duas vezes logo após iniciá-lo. Sua área de trabalho funciona normalmente."
 
-#: fedoraglass/gui/backend.py:481
+#: fedoraglass/gui/backend.py:488
 msgid "Glass is paused because it could not start. Your desktop works as usual."
 msgstr "O vidro está pausado porque não conseguiu iniciar. Sua área de trabalho funciona normalmente."
 
-#: fedoraglass/gui/backend.py:482
+#: fedoraglass/gui/backend.py:489
 msgid "Glass is paused because it hit errors. Your desktop works as usual."
 msgstr "O vidro está pausado porque encontrou erros. Sua área de trabalho funciona normalmente."
 
-#: fedoraglass/gui/backend.py:63
+#: fedoraglass/gui/backend.py:64
 #: fedoraglass/targets/apps.py:95
 #: fedoraglass/targets/apps.py:138
 msgid "{name} is not installed"
 msgstr "{name} não está instalado"
 
-#: fedoraglass/gui/backend.py:787
+#: fedoraglass/gui/backend.py:794
 msgid "No animations: everything happens at once"
 msgstr "Sem animações: tudo acontece de uma vez"
 
-#: fedoraglass/gui/backend.py:788
-#: fedoraglass/gui/changes.py:155
+#: fedoraglass/gui/backend.py:795
+#: fedoraglass/gui/changes.py:156
 msgid "Calm"
 msgstr "Calmo"
 
-#: fedoraglass/gui/backend.py:788
+#: fedoraglass/gui/backend.py:795
 msgid "Quick, gentle zooms and fades. Nothing bounces."
 msgstr "Zooms e esmaecimentos rápidos e suaves. Nada quica."
 
-#: fedoraglass/gui/backend.py:789
-#: fedoraglass/gui/changes.py:155
+#: fedoraglass/gui/backend.py:796
+#: fedoraglass/gui/changes.py:156
 msgid "GNOME"
 msgstr "GNOME"
 
-#: fedoraglass/gui/backend.py:789
+#: fedoraglass/gui/backend.py:796
 msgid "GNOME's own animations, as they come"
 msgstr "As animações do próprio GNOME, como vêm"
 
-#: fedoraglass/gui/backend.py:790
-#: fedoraglass/gui/changes.py:155
+#: fedoraglass/gui/backend.py:797
+#: fedoraglass/gui/changes.py:156
 msgid "Lively"
 msgstr "Animado"
 
-#: fedoraglass/gui/backend.py:790
+#: fedoraglass/gui/backend.py:797
 msgid "Springy windows, a genie into the taskbar and a bouncing app icon (the default)"
 msgstr "Janelas elásticas, efeito gênio na barra de tarefas e ícone de app quicando (o padrão)"
 
-#: fedoraglass/gui/backend.py:791
+#: fedoraglass/gui/backend.py:798
 msgid "Bouncy, jelly-like and fun"
 msgstr "Quicante, gelatinoso e divertido"
 
-#: fedoraglass/gui/backend.py:791
-#: fedoraglass/gui/changes.py:155
+#: fedoraglass/gui/backend.py:798
+#: fedoraglass/gui/changes.py:156
 msgid "Playful"
 msgstr "Divertido"
-
-#: fedoraglass/gui/backend.py:998
-msgid "Last window drag with {windows} windows open: about {fps} frames a second, smooth."
-msgstr "Última arrastada de janela com {windows} janelas abertas: cerca de {fps} quadros por segundo, fluida."
 
 #: fedoraglass/gui/changes.py:109
 msgid "Same as the window"
@@ -499,29 +503,29 @@ msgstr "fosco"
 msgid "edge reflections"
 msgstr "reflexos nas bordas"
 
-#: fedoraglass/gui/changes.py:187
+#: fedoraglass/gui/changes.py:188
 msgid "{event} animation"
 msgstr "Animação de {event}"
 
-#: fedoraglass/gui/changes.py:190
+#: fedoraglass/gui/changes.py:191
 msgid "{event} strength"
 msgstr "Intensidade de {event}"
 
-#: fedoraglass/gui/changes.py:193
+#: fedoraglass/gui/changes.py:194
 msgid "{event} speed"
 msgstr "Velocidade de {event}"
 
-#: fedoraglass/gui/changes.py:211
+#: fedoraglass/gui/changes.py:212
 msgid "{part}: {setting}"
 msgstr "{part}: {setting}"
 
-#: fedoraglass/gui/changes.py:222
 #: fedoraglass/gui/changes.py:223
+#: fedoraglass/gui/changes.py:224
 msgid "Left alone"
 msgstr "Deixado como está"
 
-#: fedoraglass/gui/changes.py:222
 #: fedoraglass/gui/changes.py:223
+#: fedoraglass/gui/changes.py:224
 msgid "Themed"
 msgstr "Com tema"
 
@@ -594,70 +598,70 @@ msgstr "Destaque"
 msgid "Window glass"
 msgstr "Vidro das janelas"
 
-#: fedoraglass/gui/looks.py:155
+#: fedoraglass/gui/looks.py:178
 msgid "This file is too big to be a look (looks are under {kb} KB)."
 msgstr "Este arquivo é grande demais para ser um visual (visuais têm menos de {kb} KB)."
 
-#: fedoraglass/gui/looks.py:159
+#: fedoraglass/gui/looks.py:182
 msgid "This file isn't a look: it isn't text."
 msgstr "Este arquivo não é um visual: não é texto."
 
-#: fedoraglass/gui/looks.py:161
+#: fedoraglass/gui/looks.py:184
 msgid "This file isn't a look: it isn't readable JSON."
 msgstr "Este arquivo não é um visual: não é um JSON legível."
 
-#: fedoraglass/gui/looks.py:163
+#: fedoraglass/gui/looks.py:186
 msgid "This file isn't a look: it holds no settings."
 msgstr "Este arquivo não é um visual: não tem configurações."
 
-#: fedoraglass/gui/looks.py:165
+#: fedoraglass/gui/looks.py:188
 msgid "This file isn't a Fedora Glass look."
 msgstr "Este arquivo não é um visual do Fedora Glass."
 
-#: fedoraglass/gui/looks.py:168
+#: fedoraglass/gui/looks.py:191
 msgid "This look file has no version, so it can't be read safely."
 msgstr "Este arquivo de visual não tem versão, então não pode ser lido com segurança."
 
-#: fedoraglass/gui/looks.py:171
+#: fedoraglass/gui/looks.py:194
 msgid "This look file holds no settings."
 msgstr "Este arquivo de visual não tem configurações."
 
-#: fedoraglass/gui/looks.py:175
+#: fedoraglass/gui/looks.py:198
 msgid "This look file holds none of the settings this version knows."
 msgstr "Este arquivo de visual não tem nenhuma das configurações que esta versão conhece."
 
-#: fedoraglass/gui/looks.py:176
-#: fedoraglass/gui/looks.py:262
+#: fedoraglass/gui/looks.py:199
+#: fedoraglass/gui/looks.py:285
 msgid "Imported look"
 msgstr "Visual importado"
 
-#: fedoraglass/gui/looks.py:185
+#: fedoraglass/gui/looks.py:208
 msgid "That file isn't there any more."
 msgstr "Esse arquivo não existe mais."
 
-#: fedoraglass/gui/looks.py:187
+#: fedoraglass/gui/looks.py:210
 msgid "That file can't be opened ({reason})."
 msgstr "Não foi possível abrir esse arquivo ({reason})."
 
-#: fedoraglass/gui/looks.py:190
+#: fedoraglass/gui/looks.py:213
 msgid "That isn't a file a look can be read from."
 msgstr "Desse arquivo não dá para ler um visual."
 
-#: fedoraglass/gui/looks.py:194
+#: fedoraglass/gui/looks.py:217
 msgid "That file can't be read ({reason})."
 msgstr "Não foi possível ler esse arquivo ({reason})."
 
-#: fedoraglass/gui/looks.py:253
-#: fedoraglass/gui/looks.py:268
+#: fedoraglass/gui/looks.py:276
+#: fedoraglass/gui/looks.py:291
 msgid "Give the look a name."
 msgstr "Dê um nome ao visual."
 
-#: fedoraglass/gui/looks.py:271
-#: fedoraglass/gui/looks.py:290
+#: fedoraglass/gui/looks.py:294
+#: fedoraglass/gui/looks.py:313
 msgid "That look isn't there any more."
 msgstr "Esse visual não existe mais."
 
-#: fedoraglass/gui/looks.py:296
+#: fedoraglass/gui/looks.py:318
 msgid "The look couldn't be saved there ({reason})."
 msgstr "Não foi possível salvar o visual ali ({reason})."
 
@@ -1180,7 +1184,7 @@ msgstr "Visual das janelas de terminal"
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:45
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1253
-#: fedoraglass/gui/backend.py:37
+#: fedoraglass/gui/backend.py:38
 msgid "Terminal"
 msgstr "Terminal"
 
@@ -1225,7 +1229,7 @@ msgstr "Sempre sem vidro"
 
 #: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:27
 #: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:54
-#: fedoraglass/gui/backend.py:1895
+#: fedoraglass/gui/backend.py:1902
 msgid "Done"
 msgstr "Concluir"
 
@@ -1469,8 +1473,8 @@ msgid "Choose your own tint colour instead"
 msgstr "Escolher sua própria cor de matiz"
 
 #: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:121
-#: fedoraglass/gui/backend.py:65
-#: fedoraglass/gui/backend.py:67
+#: fedoraglass/gui/backend.py:66
+#: fedoraglass/gui/backend.py:68
 msgid "Not installed"
 msgstr "Não instalado"
 
@@ -1861,7 +1865,7 @@ msgid "Your own"
 msgstr "Seu próprio"
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:218
-#: fedoraglass/gui/changes.py:156
+#: fedoraglass/gui/changes.py:157
 msgid "Your own mix"
 msgstr "Sua própria mistura"
 
@@ -2181,7 +2185,7 @@ msgstr "O vidro desliza para cima e desacelera ao sair"
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:344
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
-#: fedoraglass/gui/changes.py:153
+#: fedoraglass/gui/changes.py:154
 msgid "Spring"
 msgstr "Mola"
 
@@ -2203,7 +2207,7 @@ msgstr "Quanto tempo o vidro leva para deslizar para fora ao desbloquear. Reduzi
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:361
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
-#: fedoraglass/gui/changes.py:153
+#: fedoraglass/gui/changes.py:154
 msgid "Bounce"
 msgstr "Quique"
 
@@ -2414,9 +2418,10 @@ msgstr "%1, seu visual"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:17
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
-#: fedoraglass/gui/changes.py:151
+#: fedoraglass/gui/changes.py:186
+msgctxt "motion event"
 msgid "Open"
-msgstr "Abrir"
+msgstr "Abertura"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:17
 msgid "Windows appearing, from the taskbar or anywhere"
@@ -2428,13 +2433,13 @@ msgstr "Para dentro e para fora do ícone da barra de tarefas"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:18
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
-#: fedoraglass/gui/changes.py:151
+#: fedoraglass/gui/changes.py:152
 msgid "Minimize and restore"
 msgstr "Minimizar e restaurar"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:20
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
-#: fedoraglass/gui/changes.py:151
+#: fedoraglass/gui/changes.py:152
 msgid "App starting"
 msgstr "App iniciando"
 
@@ -2444,7 +2449,7 @@ msgstr "O ícone da barra de tarefas quica até a janela aparecer"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:21
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
-#: fedoraglass/gui/changes.py:152
+#: fedoraglass/gui/changes.py:153
 msgid "Panel hover"
 msgstr "Foco no painel"
 
@@ -2453,22 +2458,22 @@ msgid "Taskbar icons, tray and clock"
 msgstr "Ícones da barra de tarefas, bandeja e relógio"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
-#: fedoraglass/gui/changes.py:153
+#: fedoraglass/gui/changes.py:154
 msgid "GNOME default"
 msgstr "Padrão do GNOME"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
-#: fedoraglass/gui/changes.py:153
+#: fedoraglass/gui/changes.py:154
 msgid "Jelly"
 msgstr "Gelatina"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
-#: fedoraglass/gui/changes.py:153
+#: fedoraglass/gui/changes.py:154
 msgid "Genie"
 msgstr "Gênio"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
-#: fedoraglass/gui/changes.py:154
+#: fedoraglass/gui/changes.py:155
 msgid "Scale and fade"
 msgstr "Escala e esmaecimento"
 
@@ -2617,7 +2622,7 @@ msgstr "Voltar às animações padrão"
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:117
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:41
-#: fedoraglass/gui/changes.py:181
+#: fedoraglass/gui/changes.py:182
 msgid "Animation speed"
 msgstr "Velocidade da animação"
 
@@ -2672,7 +2677,7 @@ msgstr "Escolha um estilo para vê-lo aqui."
 
 #: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:28
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:40
-#: fedoraglass/gui/changes.py:176
+#: fedoraglass/gui/changes.py:177
 msgid "Motion style"
 msgstr "Estilo de movimento"
 
@@ -2739,7 +2744,7 @@ msgstr "Nenhum app adicionado. Toda janela recebe vidro, exceto as abaixo."
 
 #: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:19
 #: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
-#: fedoraglass/gui/backend.py:37
+#: fedoraglass/gui/backend.py:38
 msgid "Desktop"
 msgstr "Área de trabalho"
 
@@ -4137,7 +4142,7 @@ msgid "Lock screen glass, clock, widgets and the login screen (Ctrl+7)"
 msgstr "Vidro da tela de bloqueio, relógio, widgets e a tela de login (Ctrl+7)"
 
 #: fedoraglass/gui/qml/Main.qml:22
-#: fedoraglass/gui/backend.py:37
+#: fedoraglass/gui/backend.py:38
 msgid "Apps"
 msgstr "Apps"
 

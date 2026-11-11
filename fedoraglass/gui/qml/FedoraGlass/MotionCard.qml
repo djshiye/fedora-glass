@@ -14,7 +14,7 @@ Card {
     color: embedded ? "transparent" : Theme.surface
 
     readonly property var events: [
-        { ev: "open",     label: qsTr("Open"),                 caption: qsTr("Windows appearing, from the taskbar or anywhere") },
+        { ev: "open",     label: qsTr("Open", "motion event"),                 caption: qsTr("Windows appearing, from the taskbar or anywhere") },
         { ev: "minimize", label: qsTr("Minimize and restore"), caption: qsTr("Into and out of the taskbar icon") },
         { ev: "close",    label: qsTr("Close"),                caption: "" },
         { ev: "launch",   label: qsTr("App starting"),         caption: qsTr("The taskbar icon bounces until the window shows") },
@@ -290,7 +290,7 @@ Card {
 
             Text {
                 x: 12; y: 10
-                text: root.pvEvent === "minimize" ? qsTr("Minimize and restore") : root.pvEvent === "launch" ? qsTr("App starting") : root.pvEvent === "hover" ? qsTr("Panel hover") : root.pvEvent === "close" ? qsTr("Close") : qsTr("Open")
+                text: root.pvEvent === "minimize" ? qsTr("Minimize and restore") : root.pvEvent === "launch" ? qsTr("App starting") : root.pvEvent === "hover" ? qsTr("Panel hover") : root.pvEvent === "close" ? qsTr("Close") : qsTr("Open", "motion event")
                 color: Theme.textFaint
                 font.pixelSize: 11
                 font.weight: Font.Medium
