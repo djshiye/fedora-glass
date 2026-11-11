@@ -84,7 +84,9 @@ def _file(tmp_path, data, name="look.json") -> Path:
     ({"format": "fedora-glass-look", "version": 1, "settings": [1]}, "holds no settings"),
     ({"format": "fedora-glass-look", "version": 1, "settings": {"targets": {"x": False}, "evil": 1}}, "none of the settings"),
     (b"[" * 100000 + b"]" * 100000, "too big"),
-    (b"[" * 30000 + b"]" * 30000, "readable JSON"),
+    # Deep nesting is refused either way: as unreadable where json gives up (RecursionError),
+    # or as no settings where a newer Python parses it (3.14 on Fedora 44).
+    (b"[" * 30000 + b"]" * 30000, "readable JSON|holds no settings"),
 ])
 def test_a_bad_look_file_says_what_is_wrong(tmp_path, data, words):
     with pytest.raises(looks.LookError, match=words):
