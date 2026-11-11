@@ -234,6 +234,15 @@ fi
 - Dragging a big window over many windows takes about 40 % less time per frame; the Speed card tells how smooth your last drag was
 - App: closing or Apply wait for removal and the login screen step; presets, search, small screens, wallpaper preview and screen readers fixed; starts faster
 - Restore finishes with an unusual Flatpak file, and doesn't wait 15 s for a GNOME Shell that isn't running
+- After login, Dash to Panel and the Shell theme no longer stay unstyled for a minute when GNOME is slow to report the glass
+- New: save your own looks, share them as a file and add one from a file
+- New: See changes says what changed in plain words, page by page, with a dot on pages that changed
+- New: go back to the look before your last Apply, and forward again
+- New: the glass tint and accent can match your wallpaper
+- New: opt-in Fedora Glass colours for Firefox, taken away exactly by Restore original
+- New: lighter glass on battery or in Power Saver
+- New: your own list of apps whose windows get no glass
+- New: a Glass switch in Quick Settings pauses all the glass until the next login; menus stay readable while it is paused
 - Ubuntu: the light/dark follower comes back after a remove and install
 - Releases stay hidden until they are signed; the Fedora package is installed and upgraded in the checks; ships in GNOME Software listings
 

@@ -74,6 +74,7 @@
     <release version="1.5.23" date="2026-11-11">
       <description>
         <p>Sturdier: a failed Apply or a damaged settings file never changes your look, a lighter background helper, faster window drags, and many app fixes.</p>
+        <p>New: saved and shared looks, plain-language changes, one step back, wallpaper colours, Firefox colours, lighter glass on battery, apps without glass, and a Glass switch in Quick Settings.</p>
       </description>
     </release>
     <release version="1.5.22" date="2026-11-10">
