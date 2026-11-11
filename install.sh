@@ -66,7 +66,7 @@ if command -v dnf >/dev/null && command -v rpm >/dev/null; then
 elif command -v apt-get >/dev/null && command -v dpkg-query >/dev/null; then
   pm="sudo apt-get install -y"
   want=(python3-gi gir1.2-glib-2.0 python3-pyside6.qtquick python3-pyside6.qtquickcontrols2 qml6-module-qtquick-controls
-        qml6-module-qtquick-effects qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-style-kvantum
+        qml6-module-qtquick-effects qml6-module-qtquick-shapes qml6-module-qtquick-window qml6-module-qtquick-dialogs qt6-style-kvantum
         gnome-shell-extension-user-theme)
   for p in "${want[@]}"; do dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'ok installed' || missing+=("$p"); done
 elif command -v pacman >/dev/null; then
