@@ -759,16 +759,30 @@ def firefox_content_css(dark: Tokens, light: Tokens) -> str:
     return "\n".join(out)
 
 
+# The lines Fedora Glass writes between its markers. When the end marker is gone (the user
+# deleted it), only these go, so every rule the user wrote after our begin line stays.
+_OUR_LINE = re.compile(r"""^\s*(?:@import\s+url\(\s*["']fedora-glass[\w-]*\.css["']\s*\)\s*;"""
+                       r"""|user_pref\(\s*["']""" + re.escape(FIREFOX_PREF) + r"""["']\s*,\s*true\s*\)\s*;)\s*$""")
+
+
 def without_block(text: str, begin: str, end: str) -> str:
-    """`text` with every line from a `begin` marker line to the next `end` marker line taken out."""
-    out, inside = [], False
-    for ln in text.splitlines(keepends=True):
-        if not inside and begin in ln:
-            inside = True
-        if not inside:
+    """`text` with every line from a `begin` marker line to the next `end` marker line taken out.
+    A `begin` line with no `end` after it loses only itself and our own lines right under it."""
+    lines = text.splitlines(keepends=True)
+    out, i = [], 0
+    while i < len(lines):
+        ln = lines[i]
+        if begin not in ln:
             out.append(ln)
-        elif end in ln:
-            inside = False
+            i += 1
+            continue
+        stop = next((j for j in range(i + 1, len(lines)) if end in lines[j]), None)
+        if stop is not None:
+            i = stop + 1
+            continue
+        i += 1
+        while i < len(lines) and _OUR_LINE.match(lines[i]):
+            i += 1
     return "".join(out)
 
 

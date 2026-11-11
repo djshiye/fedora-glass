@@ -100,6 +100,24 @@ def test_userjs_pref_checks_and_block():
     assert ra.without_block(out, ra.FIREFOX_BEGIN, ra.FIREFOX_END) == mine + "\n"
 
 
+
+def test_lost_end_marker_keeps_the_users_own_lines():
+    # The user deleted our end marker: only our own lines go, never their rules below.
+    p = ra.FIREFOX_PREF
+    css = ra.css_import_block("#nav-bar { border: 0 }\n", "fedora-glass.css")
+    css = css.replace(f"/* {ra.FIREFOX_END} */\n", "")
+    assert ra.without_block(css, ra.FIREFOX_BEGIN, ra.FIREFOX_END) == "#nav-bar { border: 0 }\n"
+    again = ra.css_import_block(css, "fedora-glass.css")
+    assert again.count("@import") == 1 and again.endswith("#nav-bar { border: 0 }\n")
+    js = ra.userjs_block('user_pref("a.b", 1);\n').replace(f"// {ra.FIREFOX_END}\n", "")
+    js += 'user_pref("browser.startup.page", 3);\n'
+    assert ra.without_block(js, ra.FIREFOX_BEGIN, ra.FIREFOX_END) == \
+        'user_pref("a.b", 1);\nuser_pref("browser.startup.page", 3);\n'
+    # A user's own line for the same pref, away from our begin line, stays.
+    mine = f'// {ra.FIREFOX_BEGIN}\nuser_pref("x", 1);\nuser_pref("{p}", true);\n'
+    assert ra.without_block(mine, ra.FIREFOX_BEGIN, ra.FIREFOX_END) == f'user_pref("x", 1);\nuser_pref("{p}", true);\n'
+    assert unmerge.unmerge(css, "", ("block", ra.FIREFOX_BEGIN, ra.FIREFOX_END)) == "#nav-bar { border: 0 }\n"
+
 # ---- opt-in --------------------------------------------------------------------------------
 def test_off_until_turned_on(fake_env):
     make_profile(fake_env.home / ".mozilla/firefox")
