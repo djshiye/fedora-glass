@@ -8,7 +8,7 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {SwitcherPopup} from 'resource:///org/gnome/shell/ui/switcherPopup.js';
 
-import {GlassPane} from './glass.js';
+import {GlassPane, copying} from './glass.js';
 import {screenEdges, windowWatch, wallpaper, Signals} from './common.js';
 
 // ---- app windows -------------------------------------------------------------------
@@ -77,6 +77,13 @@ export function glassFrame(frame, card, maximized) {
     return {rect: {x: x + m, y: y + m, width: width - 2 * m, height: height - 2 * m}, radius: card.radius};
 }
 
+// The rect r less its four r×r corners, as two bands that cross: all it covers fully
+// with rounded corners of radius r.
+function bands(g, r) {
+    return [{x: g.x + r, y: g.y, width: g.width - 2 * r, height: g.height},
+        {x: g.x, y: g.y + r, width: g.width, height: g.height - 2 * r}].filter(q => q.width > 0 && q.height > 0);
+}
+
 function isMaximized(w) {
     if (typeof w.is_maximized === 'function')
         return w.is_maximized();
@@ -114,11 +121,51 @@ function underFullscreen(actor, win) {
 // frame, as soon as the window can be seen.
 const DROP_MS = 2000;
 
-// The window lying above `win` on its screen that hides all of it, or null: a full-screen
-// window, or a maximized one with its glass showing (its glass under it is opaque).
-function coveredBy(win, glassOf, seesWindows) {
+// What is left of the rect r once the rects in `cover` are taken out of it, as rects
+// that don't overlap; null when that would take more than `max` of them (not worth
+// working out).
+export function uncovered(r, cover, max = 64) {
+    let left = r.width > 0 && r.height > 0 ? [r] : [];
+    for (const c of cover) {
+        if (!left.length)
+            break;
+        const next = [];
+        for (const p of left) {
+            const [px1, py1, cx1, cy1] = [p.x + p.width, p.y + p.height, c.x + c.width, c.y + c.height];
+            if (c.width <= 0 || c.height <= 0 || c.x >= px1 || cx1 <= p.x || c.y >= py1 || cy1 <= p.y) {
+                next.push(p);
+                continue;
+            }
+            // The bands above and below c, then the parts left and right of it between them.
+            if (c.y > p.y)
+                next.push({x: p.x, y: p.y, width: p.width, height: c.y - p.y});
+            if (cy1 < py1)
+                next.push({x: p.x, y: cy1, width: p.width, height: py1 - cy1});
+            const [y0, y1] = [Math.max(p.y, c.y), Math.min(py1, cy1)];
+            if (c.x > p.x)
+                next.push({x: p.x, y: y0, width: c.x - p.x, height: y1 - y0});
+            if (cx1 < px1)
+                next.push({x: cx1, y: y0, width: px1 - cx1, height: y1 - y0});
+        }
+        if (next.length > max)
+            return null;
+        left = next;
+    }
+    return left;
+}
+
+// Whether the windows lying above `win` on its screen hide all of it, together: full-screen
+// windows, and windows whose glass is opaque (see WindowGlass.covers). Up to 1.5.22 only one
+// full-screen or maximized window counted, so a window under a few others kept its glass,
+// and was drawn under them, though nobody could see any of it.
+function coveredBy(win, glassOf) {
     const ws = global.workspace_manager.get_active_workspace();
     const f = win.get_frame_rect();
+    // A px of slack all round: a maximized window may sit a px off its screen's edge.
+    const r = {x: f.x + 1, y: f.y + 1, width: f.width - 2, height: f.height - 2};
+    if (r.width <= 0 || r.height <= 0)
+        return false;
+    const cover = [];
     let above = false;
     for (const a of global.get_window_actors()) {
         const w = a.meta_window;
@@ -128,15 +175,102 @@ function coveredBy(win, glassOf, seesWindows) {
         }
         if (!above || !w || gone(w) || w.minimized || !a.visible || a.opacity < 255 || !w.located_on_workspace(ws))
             continue;
-        // A maximized window whose glass copies the windows behind it (the focused one)
-        // shows them through its blur: they are not hidden.
-        if (!w.fullscreen && !(isMaximized(w) && glassOf(a)?.shown && !seesWindows(w)))
-            continue;
-        const r = w.get_frame_rect();
-        if (r.x <= f.x + 1 && r.y <= f.y + 1 && r.x + r.width >= f.x + f.width - 1 && r.y + r.height >= f.y + f.height - 1)
-            return w;
+        if (w.fullscreen)
+            cover.push(w.get_frame_rect());
+        else
+            cover.push(...glassOf(a)?.covers() ?? []);
     }
-    return null;
+    return cover.length > 0 && uncovered(r, cover)?.length === 0;
+}
+
+// Rects next to each other that make one rect together, as that one rect (uncovered cuts
+// what is left into more pieces than it needs).
+export function joined(rects) {
+    const out = rects.map(q => ({...q}));
+    for (let again = true; again;) {
+        again = false;
+        for (let i = 0; i < out.length && !again; i++) {
+            for (let j = i + 1; j < out.length; j++) {
+                const [a, b] = [out[i], out[j]];
+                const below = a.x === b.x && a.width === b.width && (a.y + a.height === b.y || b.y + b.height === a.y);
+                const beside = a.y === b.y && a.height === b.height && (a.x + a.width === b.x || b.x + b.width === a.x);
+                if (!below && !beside)
+                    continue;
+                out[i] = {x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: below ? a.width : a.width + b.width,
+                    height: below ? a.height + b.height : a.height};
+                out.splice(j, 1);
+                again = true;
+                break;
+            }
+        }
+    }
+    return out;
+}
+// Each part drawn on its own draws the glass once more (a little work for the Shell), so
+// more parts than this are drawn as up to this many strips across, each the rect around
+// what shows of it.
+const MAX_PARTS = 8;
+export function fewParts(parts, r) {
+    if (parts.length <= MAX_PARTS)
+        return parts;
+    const out = [];
+    for (let i = 0; i < MAX_PARTS; i++) {
+        const y0 = r.y + Math.floor(r.height * i / MAX_PARTS), y1 = r.y + Math.floor(r.height * (i + 1) / MAX_PARTS);
+        let [x1, x2, t, b] = [Infinity, -Infinity, Infinity, -Infinity];
+        for (const q of parts) {
+            const [qt, qb] = [Math.max(q.y, y0), Math.min(q.y + q.height, y1)];
+            if (qb <= qt)
+                continue;
+            [x1, x2, t, b] = [Math.min(x1, q.x), Math.max(x2, q.x + q.width), Math.min(t, qt), Math.max(b, qb)];
+        }
+        if (x2 > x1)
+            out.push({x: x1, y: t, width: x2 - x1, height: b - t});
+    }
+    return out;
+}
+
+// Whether the actor is drawn where it lies, as it is: not scaled, moved or turned.
+function plain(a) {
+    return a.scale_x === 1 && a.scale_y === 1 && a.translation_x === 0 && a.translation_y === 0 &&
+        a.rotation_angle_x === 0 && a.rotation_angle_y === 0 && a.rotation_angle_z === 0;
+}
+
+// The holder of a piece of a window's glass (see WindowGlass._build). Drawn on the screen,
+// it leaves out what the opaque glass of windows above covers (see WindowGlass._paintBox),
+// and so it does in the glass of the focused window, which copies the windows behind it
+// in their order: a window dragged over 20 others drew all of their glass, under its own
+// and again for each of the five pieces of its own glass, every frame (1.5.22). Anyone
+// else's copy of the window (Alt+Tab, the overview, Dash to Panel's previews) and a
+// picture of it (a window screenshot) still get all of it.
+let Holder = null;     // made on first use
+function holder() {
+    Holder ??= GObject.registerClass({GTypeName: 'FedoraGlassHolder'}, class Holder extends Clutter.Actor {
+        vfunc_paint(ctx) {
+            let box = null;
+            try {
+                box = this._glass?._paintBox(this, ctx) ?? null;
+            } catch {
+                box = null;   // draw it all rather than not at all
+            }
+            if (box === false)
+                return;
+            if (!box) {
+                super.vfunc_paint(ctx);
+                return;
+            }
+            // Each part that shows, on its own: they never overlap, so nothing is drawn twice.
+            const fb = ctx.get_framebuffer();
+            for (const b of box) {
+                fb.push_rectangle_clip(...b);
+                try {
+                    super.vfunc_paint(ctx);
+                } finally {
+                    fb.pop_clip();
+                }
+            }
+        }
+    });
+    return new Holder({name: 'fedora-glass-holder', reactive: false, visible: false});
 }
 
 // Sources nobody can see through the glass at (x, y, w, h) are left out: a grid of
@@ -201,14 +335,34 @@ class WindowGlass {
         this._rimHolders = [];
         this._frameKey = '';
         this._settle = 0;
+        this._ids = null;          // the app's ids (see appIds)
+        this._coverKey = '';       // what it hid from the windows below when last asked (see _noteCover)
+        this._coverRect = null;
+        this.frame = null;         // its frame when last seen (see Windows._changed)
         for (const s of ['position-changed', 'size-changed', 'notify::fullscreen', 'notify::minimized',
-            'notify::maximized-horizontally', 'notify::maximized-vertically', 'notify::wm-class', 'workspace-changed'])
+            'notify::maximized-horizontally', 'notify::maximized-vertically', 'workspace-changed'])
             this._signals.on(this.win, s, () => this.queue());
+        for (const s of ['notify::wm-class', 'notify::gtk-application-id']) {
+            this._signals.on(this.win, s, () => {
+                this._ids = null;
+                this._applyLook();
+                this.queue();
+            });
+        }
         this._signals.on(actor, 'destroy', () => this.destroy());
         // A closing window's actor outlives it while the close animation plays, but
         // Mutter asserts if the window is asked about its monitor once unmanaged.
         this._signals.on(this.win, 'unmanaging', () => this.destroy());
         this.update(owner.cfg.windows);
+    }
+
+    /**
+     * The app's ids (WM class, its instance, application id, sandboxed app id). Asked for
+     * on every sync, and each is a call into Mutter: kept until the window says one changed.
+     */
+    appIds() {
+        this._ids ??= appIds(this.win);
+        return this._ids;
     }
 
     /** Whether the glass is on screen now (read by the windows above, see coveredBy). */
@@ -229,11 +383,90 @@ class WindowGlass {
             return [];
         // Where its glass is now (its own _place may not have run yet this frame); the
         // usual corners are the largest it has, so this never claims too much.
-        const card = glassFrame(w.get_frame_rect(), clientCard(appIds(w)), isMaximized(w));
-        const g = {...card.rect};
+        const card = glassFrame(w.get_frame_rect(), clientCard(this.appIds()), isMaximized(w));
         const r = Math.ceil(isMaximized(w) ? 0 : card.radius ?? this.settings.radius ?? 0);
-        return [{x: g.x + r, y: g.y, width: g.width - 2 * r, height: g.height},
-            {x: g.x, y: g.y + r, width: g.width, height: g.height - 2 * r}].filter(q => q.width > 0 && q.height > 0);
+        return bands(card.rect, r);
+    }
+
+    /**
+     * What this window hides from the windows below it (see coveredBy): what its glass
+     * covers fully, but nothing while it copies the windows behind it (the focused one:
+     * they show through its blur) or while it moves (it would hide and show them again
+     * on every step).
+     */
+    covers() {
+        if (this._settle || this.owner.seesWindows(this.win))
+            return [];
+        return this.solidRects();
+    }
+
+    /**
+     * What its glass covers while it is drawn (see Holder), from its actor's top left:
+     * where its pane is now, all but the rounded corners. Nothing while it is see-through,
+     * moved, turned or drawn through an effect (another extension's animation).
+     */
+    paintCover() {
+        const a = this.actor, s = this._shape;
+        if (!s || !this.shown || a.opacity < 255 || this.pane.opacity < 255 || !plain(a) ||
+            a.get_effects().some(e => e !== a.get_effect(NO_CULL)))
+            return [];
+        const p = this.pane.pad;
+        return bands({x: this._holder.x + p, y: this._holder.y + p, width: s.width, height: s.height},
+            Math.ceil(s.r ?? 0));
+    }
+
+    /**
+     * The parts of holder h to draw, in its own px: [[x1, y1, x2, y2], ...], which never
+     * overlap; null for all of it, false for none (the opaque glass of the windows above
+     * covers it all). On the screen,
+     * all windows above count; in our own copy of this window (glass that shows the
+     * windows behind it), those it draws over this one; in anyone else's copy, or in a
+     * picture of the window (it has no redraw area), none do.
+     */
+    _paintBox(h, ctx) {
+        if (!plain(this.actor))
+            return null;
+        let pane = null, at = this.actor;
+        if (h.is_in_clone_paint()) {
+            // In a pane, each window is drawn where its copy lies (see GlassPane._syncClones).
+            // A window the pane doesn't copy itself is in someone else's copy (the overview's,
+            // which the pane copies while the overview is open).
+            at = copying.pane?._clones?.get(this.actor);
+            if (!at)
+                return null;
+            pane = copying.pane;
+        } else if (!ctx.get_redraw_clip()) {
+            return null;
+        }
+        const [ox, oy] = [at.x + h.x, at.y + h.y];
+        let r = {x: ox, y: oy, width: h.width, height: h.height};
+        // A copy draws only what lies inside its pane (see GlassPane._clipClone), but Clutter
+        // still draws all of the window for it: the rim's strips each drew every piece of
+        // every window's glass behind them, nearly all of it outside the strip.
+        const cb = pane ? at._clipBox : null;
+        if (cb) {
+            const [x1, y1] = [Math.max(r.x, at.x + cb[0]), Math.max(r.y, at.y + cb[1])];
+            const [x2, y2] = [Math.min(r.x + r.width, at.x + cb[0] + cb[2]), Math.min(r.y + r.height, at.y + cb[1] + cb[3])];
+            if (x2 <= x1 || y2 <= y1) {
+                this.owner.paintStats.skipped++;
+                return false;
+            }
+            r = {x: x1, y: y1, width: x2 - x1, height: y2 - y1};
+        }
+        const cover = this.owner.coverAbove(this.actor, pane) ?? [];
+        const left = uncovered(r, cover);
+        if (!left)
+            return null;
+        if (!left.length) {
+            this.owner.paintStats.skipped++;
+            return false;
+        }
+        const parts = fewParts(joined(left), r);
+        if (parts.length === 1 && parts[0].x <= ox && parts[0].y <= oy &&
+            parts[0].x + parts[0].width >= ox + h.width && parts[0].y + parts[0].height >= oy + h.height)
+            return null;
+        this.owner.paintStats.clipped++;
+        return parts.map(q => [q.x - ox, q.y - oy, q.x + q.width - ox, q.y + q.height - oy]);
     }
 
     _build() {
@@ -246,20 +479,21 @@ class WindowGlass {
         // switch, an app streaming text); with it, it is drawn again only when what
         // is behind the window changes. Up to 1.5.18 the holder kept it as an
         // offscreen actor, at twice the screen's size under fractional scaling.
-        const holder = p => {
-            const h = new Clutter.Actor({name: 'fedora-glass-holder', reactive: false, visible: false});
+        const hold = p => {
+            const h = holder();
+            h._glass = this;
             h.add_child(p);
             p.setKeep(true);
             return h;
         };
-        this._holder = holder(this.pane);
+        this._holder = hold(this.pane);
         // The rim only draws along the edge: four thin panes, top, bottom, left and
         // right, each copying and drawing only its own strip (top and bottom hold the
         // rounded corners). Up to 1.5.6 it was one pane the size of the window, shown
         // through four clipped copies; every change behind it then copied the backdrop
         // of the whole window and repainted all of the window, for a 3 px line.
         this.rims = [0, 1, 2, 3].map(() => new GlassPane('rim'));
-        this._rimHolders = this.rims.map(holder);
+        this._rimHolders = this.rims.map(hold);
         for (const p of [this.pane, ...this.rims]) {
             this._pieceSignals.on(p, 'destroy', () => {
                 // Torn down from outside (the window's actor going away): go with it.
@@ -289,6 +523,8 @@ class WindowGlass {
         pane?.destroy();
         rims?.forEach(r => r.destroy());
         for (const h of holders) {
+            if (h)
+                h._glass = null;
             try {
                 h?.destroy();
             } catch {}   // gone with the window
@@ -329,7 +565,7 @@ class WindowGlass {
     _applyLook() {
         if (!this.pane || !this.settings)
             return;
-        const ids = appIds(this.win);
+        const ids = this.appIds();
         const term = this.settings.terminalLook && ids.some(id => TERMINALS.test(id));
         const look = term ? this.settings.terminalLook : this.settings.look;
         this.pane.setLook(look);
@@ -353,7 +589,7 @@ class WindowGlass {
         if (typeof w.is_client_decorated === 'function' && w.get_client_type?.() === Meta.WindowClientType.X11 &&
             !w.is_client_decorated())
             return 'out';
-        const ids = appIds(w);
+        const ids = this.appIds();
         if (ids.some(id => s.skip.includes(id) || NO_GLASS.test(id) || OWN_APP.test(id)))
             return 'out';
         if (w.minimized)
@@ -366,7 +602,7 @@ class WindowGlass {
         // for a moment (a workspace switch slides the windows out with their glass).
         if (!w.located_on_workspace(global.workspace_manager.get_active_workspace()))
             return 'hidden';
-        if (coveredBy(w, a => this.owner.glassOf(a), c => this.owner.seesWindows(c)))
+        if (coveredBy(w, a => this.owner.glassOf(a)))
             return 'hidden';
         return null;
     }
@@ -456,20 +692,37 @@ class WindowGlass {
             this._hide(why);
             if (why === 'hidden' && this.pane && this.pane.visible)
                 this._place();   // as it was: it may still slide past during a workspace switch
-            return;
+        } else {
+            if (this._drop)
+                GLib.source_remove(this._drop);
+            this._drop = 0;
+            this._build();
+            this._attach(true);
+            this._place();
         }
-        if (this._drop)
-            GLib.source_remove(this._drop);
-        this._drop = 0;
-        this._build();
-        this._attach(true);
-        this._place();
+        this._noteCover(true);
+    }
+
+    /**
+     * What this window hides from the windows below may have changed (its glass came or
+     * went, it settled after moving): those it hid or hides now look again. `now`: from
+     * inside a sync, where a sync queued would wait for the next frame.
+     */
+    _noteCover(now) {
+        const rects = this._dead || gone(this.win) || this.win.minimized || !this.actor.visible ? [] : this.covers();
+        const key = rects.map(q => `${q.x},${q.y},${q.width},${q.height}`).join(' ');
+        if (key === this._coverKey)
+            return;
+        const was = this._coverRect;
+        this._coverKey = key;
+        this._coverRect = rects.length ? this.win.get_frame_rect() : null;
+        this.owner.belowChanged(this, [was, this._coverRect], now);
     }
 
     _place() {
         const {pane, rims} = this;
         const w = this.win;
-        const card = glassFrame(w.get_frame_rect(), clientCard(appIds(w)), isMaximized(w));
+        const card = glassFrame(w.get_frame_rect(), clientCard(this.appIds()), isMaximized(w));
         const frame = card.rect;
         const buf = w.get_buffer_rect();
         // Maximized and tiled windows have square corners and no rim on the sides
@@ -551,6 +804,9 @@ class WindowGlass {
             this._settle = 0;
             for (const p of this.pane ? [this.pane, ...this.rims] : [])
                 p.setKeep(true);
+            // Settled: it hides the windows below again (see covers).
+            if (!this._dead)
+                this._noteCover(false);
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -611,8 +867,13 @@ export class Windows {
             this._pending.add(ids);
         });
         global.get_window_actors().forEach(a => this._add(a));
+        // Drawn on the screen, each piece of glass leaves out what the windows above cover
+        // (see WindowGlass._paintBox): worked out once a frame.
+        this._stack = null;
+        this.paintStats = {clipped: 0, skipped: 0};    // read by the QA tools
+        this._afterPaint = global.stage.connect('after-paint', () => (this._stack = null));
         // A window moved, raised or closed changes what the windows above it show.
-        this._onWindows = () => this.sync();
+        this._onWindows = win => (win ? this._changed(win) : this.sync());
         windowWatch.current?.listeners.add(this._onWindows);
         this._signals.on(global.display, 'notify::focus-window', () => this.sync());
         // A game or video going full screen pauses the glass of the windows it covers.
@@ -677,7 +938,99 @@ export class Windows {
             g.queue();
     }
 
+    /**
+     * One window moved, changed size, or was minimized or hidden. Up to 1.5.22 every
+     * window's glass then worked out again whether it could be seen and what lay behind
+     * it, each asking about every other window: for each step of a drag, with 20 windows
+     * open, a few thousand calls into Mutter. Only these can change: the window itself,
+     * the focused window (its glass shows the windows behind it), and the windows below
+     * that it hid before or hides now (see coveredBy).
+     */
+    _changed(win) {
+        let g = null;
+        for (const x of this._glass.values()) {
+            if (x.win === win)
+                g = x;
+        }
+        if (!g || g._dead || gone(win)) {
+            this.sync();
+            return;
+        }
+        g.queue();
+        const focus = global.display.focus_window;
+        for (const x of this._glass.values()) {
+            if (x.win === focus)
+                x.queue();
+        }
+        const was = g.frame;
+        g.frame = win.get_frame_rect();
+        if (g._coverKey)
+            this.belowChanged(g, [was, g._coverRect, g.frame], false);
+    }
+
+    /** The windows below g's that lie in any of rects look again whether they can be seen. */
+    belowChanged(g, rects, now) {
+        rects = rects.filter(Boolean);
+        if (!rects.length)
+            return;
+        for (const a of global.get_window_actors()) {
+            if (a === g.actor)
+                break;     // bottom first: the rest are above it
+            const x = this._glass.get(a);
+            if (!x || x._dead || gone(x.win))
+                continue;
+            const f = x.win.get_frame_rect();
+            if (!rects.some(r => r.x < f.x + f.width && r.x + r.width > f.x && r.y < f.y + f.height && r.y + r.height > f.y))
+                continue;
+            if (now)
+                x.sync();
+            else
+                x.queue();
+        }
+    }
+
+    /**
+     * What the opaque glass of the windows above `actor` covers this frame (see
+     * WindowGlass.paintCover), or null when it has none. With `pane`: only of the windows
+     * that pane copies, which it draws over this one (see GlassPane.setSources).
+     */
+    coverAbove(actor, pane = null) {
+        if (!this._stack) {
+            const list = global.get_window_actors().map(a => ({actor: a, parent: a.get_parent(), rects: null}));
+            this._stack = {list, index: new Map(list.map((e, i) => [e.actor, i])), above: new Map()};
+        }
+        const st = this._stack;
+        const i = st.index.get(actor);
+        if (i === undefined)
+            return null;
+        let memo = st.above.get(pane);
+        if (!memo)
+            st.above.set(pane, memo = new Map());
+        let out = memo.get(i);
+        if (out)
+            return out;
+        out = [];
+        const parent = st.list[i].parent;
+        for (let j = i + 1; j < st.list.length; j++) {
+            const e = st.list[j];
+            // On the screen a window is drawn where its actor is; in a pane, where its copy is.
+            const at = pane ? pane._clones?.get(e.actor) : e.actor;
+            if (!at?.visible || (!pane && e.parent !== parent))
+                continue;
+            e.rects ??= this._glass.get(e.actor)?.paintCover() ?? [];
+            const [x, y] = [at.x, at.y];
+            for (const q of e.rects)
+                out.push({x: q.x + x, y: q.y + y, width: q.width, height: q.height});
+        }
+        memo.set(i, out);
+        return out;
+    }
+
     destroy() {
+        if (this._afterPaint)
+            global.stage.disconnect(this._afterPaint);
+        this._afterPaint = 0;
+        this._stack = null;
         windowWatch.current?.listeners.delete(this._onWindows);
         this._signals.clear();
         this._pending.forEach(p => p.clear());

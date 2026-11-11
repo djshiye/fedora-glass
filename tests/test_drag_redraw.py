@@ -34,3 +34,15 @@ def test_copies_are_clipped_to_the_pane():
     assert "this._size" in clip and "clone.set_clip(" in clip
     # unchanged clips are not set again (each set_clip queues a redraw)
     assert "clone._clipKey === key" in clip
+
+
+def test_copies_draw_through_clutter_own_paint():
+    # The glass marks "our own copy is drawing" from the pane (GlassPane.vfunc_paint), so a
+    # window's glass can leave out what the windows above it cover there. Marked from the
+    # copies instead (a Clutter.Clone subclass with its own vfunc_paint), the wallpaper came
+    # out dark in every pane: the panel glass lost its light in the release checks.
+    for cls in ("FedoraGlassClone extends Clutter.Clone", "FedoraGlassWindowCopy extends Clutter.Clone"):
+        body_ = re.search(rf"class {cls} \{{(.*?)\n\}}\);", GLASS, re.S).group(1)
+        assert "vfunc_paint(" not in body_
+    pane = re.search(r"class FedoraGlassPane extends Clutter\.Actor \{(.*?)\n\}\);", GLASS, re.S).group(1)
+    assert "copying.pane = this;" in pane and "copying.pane = was;" in pane
