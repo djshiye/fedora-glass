@@ -14,7 +14,6 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 const DIR = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'fedora-glass']);
-const FILE = Gio.File.new_for_path(GLib.build_filenamev([DIR, 'popups.css']));
 // Loading new rules restyles every widget on screen, twice (out with the old
 // sheet, in with the new): a few hundred ms on a full desktop, and the whole
 // screen stands still meanwhile. While a slider moves in the app (frost, corner
@@ -25,7 +24,12 @@ const FILE = Gio.File.new_for_path(GLib.build_filenamev([DIR, 'popups.css']));
 export const SETTLE_MS = 1500;
 
 export class PopupStyle {
-    constructor(cfg) {
+    // The same loader also carries the sheet for a paused glass (paused.js): its own
+    // config key and file, and no wait, as it must be there the moment the glass goes.
+    constructor(cfg, {key = 'popupCss', file = 'popups.css', settleMs = SETTLE_MS} = {}) {
+        this._key = key;
+        this._file = Gio.File.new_for_path(GLib.build_filenamev([DIR, file]));
+        this._settleMs = settleMs;
         this._css = '';
         this._theme = null;
         this._loading = false;
@@ -40,7 +44,7 @@ export class PopupStyle {
     }
 
     update(cfg) {
-        const css = cfg?.popupCss ?? '';
+        const css = cfg?.[this._key] ?? '';
         this._want = css;
         if (css === this._css) {
             this._cancelSettle();   // back to the rules already loaded
@@ -48,13 +52,13 @@ export class PopupStyle {
         }
         // The first rules and turning them off take effect at once; new rules while
         // some are loaded wait until they settle.
-        if (!this._css || !css) {
+        if (!this._css || !css || !this._settleMs) {
             this._cancelSettle();
             this._set(css);
             return;
         }
         this._cancelSettle();
-        this._settleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SETTLE_MS, () => {
+        this._settleId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._settleMs, () => {
             this._settleId = 0;
             this._set(this._want);
             return GLib.SOURCE_REMOVE;
@@ -78,7 +82,7 @@ export class PopupStyle {
         }
         // Private to the user: the folder is 0700 and the file 0600.
         GLib.mkdir_with_parents(DIR, 0o700);
-        FILE.replace_contents(new TextEncoder().encode(css), null, false,
+        this._file.replace_contents(new TextEncoder().encode(css), null, false,
             Gio.FileCreateFlags.PRIVATE | Gio.FileCreateFlags.REPLACE_DESTINATION, null);
         this._load();
     }
@@ -95,8 +99,8 @@ export class PopupStyle {
             // again would make every widget on screen restyle twice more, and theme
             // reloads come in bursts (Restore original, light and dark).
             // The list can hold empty entries (seen while the screen is locked).
-            if (!theme.get_custom_stylesheets().some(f => f?.equal(FILE)))
-                theme.load_stylesheet(FILE);
+            if (!theme.get_custom_stylesheets().some(f => f?.equal(this._file)))
+                theme.load_stylesheet(this._file);
             this._theme = theme;
         } catch (e) {
             console.error(`Fedora Glass: no pop-up styles: ${e}`);
@@ -109,7 +113,7 @@ export class PopupStyle {
         // From the theme in use too: GNOME copies custom stylesheets into each new theme.
         for (const theme of new Set([this._theme, this._context.get_theme()])) {
             try {
-                theme?.unload_stylesheet(FILE);
+                theme?.unload_stylesheet(this._file);
             } catch {}   // that theme is gone
         }
         this._theme = null;
@@ -117,7 +121,7 @@ export class PopupStyle {
 
     _remove() {
         try {
-            FILE.delete(null);
+            this._file.delete(null);
         } catch {}   // already gone
     }
 

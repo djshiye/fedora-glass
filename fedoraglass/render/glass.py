@@ -23,7 +23,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "grabhover.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
-         "speed.js", "tuning.js", "popupstyle.js", "stackclip.js", "prefs.js", "power.js",
+         "speed.js", "tuning.js", "popupstyle.js", "paused.js", "stackclip.js", "prefs.js", "power.js",
          "quicktoggle.js", "glass-symbolic.svg")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
@@ -272,6 +272,11 @@ def config(s: Settings, t: Tokens) -> dict:
         # The theme's pop-up rules (OSD, Alt+Tab) again, loaded by the extension as its own
         # stylesheet so they win over other extensions' sheets (popupstyle.js).
         "popupCss": shell.render_extension_css(t),
+        # While the glass is paused (Quick Settings) or in safe mode: the panel, menus and
+        # pop-ups nearly solid in the theme's colours, as nothing blurs what is under them
+        # (paused.js). pausedAlpha is how solid Dash to Panel's panel gets then.
+        "pausedCss": shell.render_paused_css(t),
+        "pausedAlpha": shell.PAUSED_ALPHA,
     }
 
 

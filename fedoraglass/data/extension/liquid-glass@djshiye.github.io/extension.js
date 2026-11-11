@@ -20,6 +20,7 @@ import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
 import {LockWidgets} from './lockwidgets.js';
+import {PausedStyle} from './paused.js';
 import {PopupStyle} from './popupstyle.js';
 import {GlassSwitch} from './quicktoggle.js';
 import {Safety, guarded} from './safety.js';
@@ -45,6 +46,7 @@ export default class FedoraGlassExtension extends Extension {
             this._widgets?.update(cfg);
             this._animations?.update(cfg);
             this._popupStyle?.update(cfg);
+            this._pausedStyle?.update(cfg);
             if (this._locked === false)
                 this._syncSwitch(cfg);
         }));
@@ -67,8 +69,10 @@ export default class FedoraGlassExtension extends Extension {
         const cfg = this._config.value;
         if (locked) {
             // The pop-up sheet goes once the lock screen is up (see PopupStyle.destroyLater).
-            const popups = this._popupStyle;
+            // Only one of the two sheets is ever loaded.
+            const popups = this._popupStyle ?? this._pausedStyle;
             this._popupStyle = null;
+            this._pausedStyle = null;
             this._stopSession();
             this._popupsLater(popups);
             this._leaving?.destroy();
@@ -130,6 +134,7 @@ export default class FedoraGlassExtension extends Extension {
                 this._speed = null;
             }
             this._startGlass(cfg);
+            this._syncPausedStyle();
             this._syncSwitch(cfg);
             try {
                 this._rescue = new ArcMenuRescue();
@@ -200,7 +205,9 @@ export default class FedoraGlassExtension extends Extension {
             return;
         }
         // Only with the glass: without it these see-through pop-ups would have nothing behind them.
+        // The solid sheet of a paused glass goes first, so the two are never loaded together.
         // An unlock right after a lock: the old sheet goes first (both use the same file).
+        this._dropPausedStyle();
         this._dropLeavingPopups();
         try {
             this._popupStyle = new PopupStyle(cfg);
@@ -238,7 +245,38 @@ export default class FedoraGlassExtension extends Extension {
             this._stopGlass();
         else if (this._locked === false && !this._manager)
             this._startGlass(this._config.value);
+        this._syncPausedStyle();
         this._showSwitch();
+    }
+
+    // ---- solid surfaces while the glass is paused or in safe mode (paused.js) ----------
+    /** On the desktop with the glass paused or in safe mode, the theme's see-through surfaces
+     *  go nearly solid; with the glass back, or on the lock screen, they are as the theme has them. */
+    _syncPausedStyle() {
+        const want = this._locked === false && !this._manager && (this._paused || !!this._safety?.tripped);
+        if (!want) {
+            this._dropPausedStyle();
+            return;
+        }
+        if (this._pausedStyle)
+            return;
+        // At once, not after a lock's later removal: that one is the glass's own sheet.
+        this._dropLeavingPopups();
+        try {
+            this._pausedStyle = new PausedStyle(this._config.value);
+        } catch (e) {
+            console.error(`Fedora Glass: no solid surfaces while paused: ${e}`);
+            this._pausedStyle = null;
+        }
+    }
+
+    _dropPausedStyle() {
+        try {
+            this._pausedStyle?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the solid surfaces');
+        }
+        this._pausedStyle = null;
     }
 
     // ---- the Quick Settings switch ----------------------------------------------------
@@ -293,6 +331,7 @@ export default class FedoraGlassExtension extends Extension {
         } else if (this._locked === true && !this._lock) {
             this._startLock(this._config.value);
         }
+        this._syncPausedStyle();
         this._showSwitch();
     }
 
@@ -301,6 +340,7 @@ export default class FedoraGlassExtension extends Extension {
         this._dropSwitch();
         // Glass first, so GNOME's own window animations are back before the lock screen comes up.
         this._stopGlass();
+        this._dropPausedStyle();
         this._safety?.glassStopped();
         this._rescue?.destroy();
         this._rescue = null;
