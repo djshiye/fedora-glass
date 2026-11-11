@@ -81,9 +81,10 @@ var entries = [
     { label: "Put my original look back on removal", words: "remove uninstall original look back restore keep", page: "about", name: "undoOnRemove" },
     { label: "Keyboard shortcuts", words: "keyboard shortcuts keys help", page: "about", name: "shortcutsButton" },
     { label: "Version and what's new", words: "version about what's new changelog update", page: "about", name: "aboutVersion" },
-    // Shell features: lighter glass on battery, apps without glass
+    // Shell features: lighter glass on battery, apps without glass, the Quick Settings switch
     { label: "Lighter glass on battery", words: "battery power saver laptop energy lighter speed quality", page: "glass", name: "lighterOnBattery" },
-    { label: "Apps without glass", words: "apps windows no glass skip exclude games video steam list", page: "windows", name: "noGlassCard" }
+    { label: "Apps without glass", words: "apps windows no glass skip exclude games video steam list", page: "windows", name: "noGlassCard" },
+    { label: "Glass switch in Quick Settings", words: "quick settings tile pause turn off glass toggle switch menu", page: "glass", name: "quickToggle" }
 ]
 
 function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, " ") }

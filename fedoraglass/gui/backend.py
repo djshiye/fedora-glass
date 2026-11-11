@@ -724,8 +724,9 @@ class Backend(QObject):
     overviewOff = _p("overview_off", bool)
     motionDtpHoverOff = _p("motion_dtp_hover_off", bool)
     hoverGlide = _p("hover_glide", bool)
-    # ---- Shell features: lighter glass on battery ----
+    # ---- Shell features: lighter glass on battery, the Quick Settings switch ----
     lighterOnBattery = _p("lighter_on_battery", bool)
+    quickToggle = _p("quick_toggle", bool)
     del _p
 
     # ---- animations ----------------------------------------------------------------

@@ -34,6 +34,12 @@ def test_lighter_on_battery_is_on_and_reads_a_hand_edit_as_meant():
     assert Settings(lighter_on_battery="maybe").normalized().lighter_on_battery is True
 
 
+def test_quick_toggle_is_on_and_reads_a_hand_edit_as_meant():
+    assert Settings().quick_toggle is True
+    assert Settings(quick_toggle=0).normalized().quick_toggle is False
+    assert Settings(quick_toggle=None).normalized().quick_toggle is True
+
+
 def test_app_ids_are_cleaned():
     assert Settings().no_glass_apps == []
     raw = [" org.gnome.Nautilus ", "org.gnome.Nautilus", "", "a" * 200, "a" * 199, "bad\nid", "x\x00",
@@ -44,6 +50,17 @@ def test_app_ids_are_cleaned():
     assert Settings(no_glass_apps={"a": 1}).normalized().no_glass_apps == []
     many = [f"app.{i}" for i in range(400)]
     assert len(Settings(no_glass_apps=many).normalized().no_glass_apps) == sm.NO_GLASS_APPS_MAX
+
+
+def test_all_three_saved_and_loaded(tmp_path):
+    p = tmp_path / "settings.json"
+    sm.save(Settings(lighter_on_battery=False, quick_toggle=False, no_glass_apps=["code", "Code"]), p)
+    s = sm.load(p)
+    assert (s.lighter_on_battery, s.quick_toggle, s.no_glass_apps) == (False, False, ["code", "Code"])
+    # An older file without these keys gets the defaults.
+    p.write_text(json.dumps({"frost": 0.3}))
+    s = sm.load(p)
+    assert (s.lighter_on_battery, s.quick_toggle, s.no_glass_apps) == (True, True, [])
 
 
 def test_a_damaged_list_costs_only_that_setting(tmp_path):
@@ -57,6 +74,13 @@ def test_a_damaged_list_costs_only_that_setting(tmp_path):
 def test_lighter_on_battery_is_rendered():
     assert cfg()["speed"] == {"quality": "auto", "lighterOnBattery": True}
     assert cfg(lighter_on_battery=False, glass_quality="full")["speed"] == {"quality": "full", "lighterOnBattery": False}
+
+
+def test_quick_settings_switch_is_rendered():
+    assert cfg()["quickToggle"] == {"enabled": True}
+    assert cfg(quick_toggle=False)["quickToggle"] == {"enabled": False}
+    # Reduce transparency takes the glass off, not the switch.
+    assert cfg(reduce_transparency=True)["quickToggle"] == {"enabled": True}
 
 
 def test_skip_has_the_built_in_apps_first_then_the_users():
@@ -85,15 +109,37 @@ def test_built_in_video_players_match_windows_js():
 
 
 # ---- the extension's files ---------------------------------------------------------------
+def test_new_files_ship_with_the_extension():
+    for name in ("power.js", "quicktoggle.js", "glass-symbolic.svg"):
+        assert name in rg.FILES and (EXT / name).is_file()
+    files = rg.extension_files()
+    assert "QuickToggle" in files["quicktoggle.js"] and "new_for_bus" in files["power.js"]
+
+
+def test_tile_icon_is_a_symbolic_svg():
+    root = ET.fromstring((EXT / "glass-symbolic.svg").read_text())
+    assert root.tag.endswith("svg") and root.get("viewBox") == "0 0 16 16"
+    # Symbolic: one flat colour that GNOME recolours to its text colour.
+    fills = {e.get("fill") for e in root.iter() if e.get("fill")}
+    assert fills == {"#2e3436"}
+
+
 def test_power_watch_polls_nothing_and_starts_no_service():
     js = (EXT / "power.js").read_text()
     assert "timeout_add" not in js and "DO_NOT_AUTO_START" in js and "_sync" not in js
     assert "net.hadess.PowerProfiles" in js and "org.freedesktop.UPower.PowerProfiles" in js
 
 
+def test_paused_state_is_never_written():
+    """The pause is for this session only: nothing in its path writes a file."""
+    for name in ("quicktoggle.js",):
+        js = re.sub(r"//.*", "", (EXT / name).read_text())
+        assert not re.search(r"set_contents|replace_contents|Gio\.Settings|settings\.json", js)
+
+
 # ---- under the fake Shell -------------------------------------------------------------------
 @pytest.mark.skipif(NODE is None, reason="needs Node.js")
-@pytest.mark.parametrize("name", ["power", "no-glass-apps"])
+@pytest.mark.parametrize("name", ["power", "no-glass-apps", "quick-toggle", "extension-pause", "extension"])
 def test_extension_logic_under_the_fake_shell(name):
     r = subprocess.run([NODE, "--import", "./tests/js/register.mjs", "--test", f"tests/js/{name}.test.mjs"],
                        cwd=ROOT, capture_output=True, text=True, timeout=60)

@@ -9,7 +9,7 @@ register('./extension-stubs.mjs', import.meta.url);
 const made = [];
 const part = name => function () {
     made.push(name);
-    return {destroy() { made.push(`${name} gone`); }, update() {}};
+    return {destroy() { made.push(`${name} gone`); }, update() {}, setState() {}};
 };
 const fail = name => () => {
     throw new Error(`${name} failed`);
@@ -26,6 +26,7 @@ globalThis.fakeMods = {
         guarded: (_w, fn) => fn},
     'speed.js': {Speed: part('speed')},
     'surfaces.js': {GlassManager: part('glass')},
+    'quicktoggle.js': {GlassSwitch: part('switch')},
     'themetidy.js': {UserThemesTidy: part('tidy')},
     'tuning.js': {effectiveConfig: cfg => cfg},
     'Extension': {Extension: function () { return {}; }},

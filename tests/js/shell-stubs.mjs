@@ -15,6 +15,8 @@ const STUBS = {
         build_filenamev: parts => parts.join('/'),
         mkdir_with_parents: () => 0,
         FileSetContentsFlags: {NONE: 0, CONSISTENT: 1},
+        FileTest: {EXISTS: 16},
+        file_test: path => globalThis.fake.fs?.has(path) ?? false,
         file_set_contents_full: (path, bytes, flags, mode) => {
             globalThis.fake.fs.set(path, {text: new TextDecoder().decode(bytes), mode, flags});
             return true;
@@ -94,6 +96,7 @@ const STUBS = {
                     return res.proxy;
                 },
             },
+            FileIcon: class { constructor(p) { this.file = p.file; } },
             Cancellable: class { cancel() { this._c = true; } is_cancelled() { return !!this._c; } },
         };`,
     'resource/signalTracker.js': 'export const debugGetSignalTrackers = () => globalThis.fake.signalTrackers;',
@@ -105,12 +108,14 @@ const STUBS = {
             {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
-        export const panel = {statusArea: {}};
+        export const panel = globalThis.fake.panel ?? {statusArea: {}};
         export const extensionManager = globalThis.fake.extensionManager;
         export const overview = globalThis.fake.overview;
         export const sessionMode = globalThis.fake.sessionMode;
         export const uiGroup = globalThis.fake.uiGroup;
         export const screenshotUI = globalThis.fake.screenshotUI;`,
+    'resource/quickSettings.js': `export const QuickToggle = globalThis.fake.QuickToggle ?? class {};
+        export const SystemIndicator = globalThis.fake.SystemIndicator ?? class {};`,
     'resource/background.js': 'export const BackgroundManager = globalThis.fake.BackgroundManager ?? class {};',
     'resource/fileUtils.js': 'export const loadInterfaceXML = () => "";',
     'resource/overviewControls.js': 'export const ControlsState = {HIDDEN: 0, WINDOW_PICKER: 1, APP_GRID: 2};',

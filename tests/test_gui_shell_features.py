@@ -152,6 +152,15 @@ def test_built_in_ones_are_named(make_backend):
         assert word in text
 
 
+def test_quick_toggle_is_a_setting(make_backend):
+    b = make_backend()
+    assert b.property("quickToggle") is True
+    b.setProperty("quickToggle", False)
+    assert b.settings().quick_toggle is False and "quick_toggle" in b.property("changedFromDefault")
+    b.resetSettings(["quick_toggle"])
+    assert b.settings().quick_toggle is True
+
+
 # ---- the controls ---------------------------------------------------------------------------
 def _probe(qml):
     from test_gui_reliability import _probe as probe
@@ -195,6 +204,26 @@ def test_speed_card_battery_switch_and_reason(qml):
         b.speedChanged.emit()
         b.targetsChanged.emit()
         b.resetSettings(["lighter_on_battery"])
+        win.close()
+
+
+def test_quick_settings_switch_on_the_glass_page(qml):
+    b = _probe(qml)
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(150)
+        _page(win, "glass")
+        row = _find(win, "quickToggle")
+        tile = _find(win, "quickTogglePreview")
+        assert row is not None and row.property("visible") and row.property("checked") is True
+        assert row.property("label") == "Glass switch in Quick Settings"
+        assert tile.property("opacity") == 1
+        row.toggled.emit(False)
+        _spin(300)
+        assert b.property("quickToggle") is False and tile.property("opacity") < 0.5
+    finally:
+        b.resetSettings(["quick_toggle"])
         win.close()
 
 
@@ -283,6 +312,8 @@ def test_search_finds_the_new_controls(qml):
         assert "lighterOnBattery" in found("battery")
         assert "lighterOnBattery" in found("power saver")
         assert "noGlassCard" in found("apps without glass")
+        assert "quickToggle" in found("quick settings")
+        assert "quickToggle" in found("pause")
     finally:
         field.setProperty("text", "")
         win.close()

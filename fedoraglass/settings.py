@@ -192,7 +192,7 @@ class Settings:
     cursor_theme: str = "keep"
     cursor_size: int = 0
 
-    # ---- Shell features: lighter glass on battery, apps without glass ----
+    # ---- Shell features: lighter glass on battery, apps without glass, the Quick Settings switch ----
     # On battery or in Power Saver, the glass draws at most at the lighter level (never
     # heavier than glass_quality or auto picked); back on mains it goes back.
     lighter_on_battery: bool = True
@@ -200,6 +200,8 @@ class Settings:
     # window by (desktop id without ".desktop", WM class, app id). The built-in ones
     # (render/glass.py WINDOW_SKIP and windows.js NO_GLASS) always apply on top.
     no_glass_apps: list[str] = field(default_factory=list)
+    # A "Glass" tile in GNOME's Quick Settings that pauses all the glass until the next login.
+    quick_toggle: bool = True
 
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
@@ -281,8 +283,8 @@ class Settings:
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
-        # ---- Shell features (lighter glass on battery, apps without glass) ----
-        for k in ("lighter_on_battery",):
+        # ---- Shell features (lighter glass on battery, apps without glass, Quick Settings switch) ----
+        for k in ("lighter_on_battery", "quick_toggle"):
             setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         s.no_glass_apps = clean_app_ids(s.no_glass_apps)
         return s

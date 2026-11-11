@@ -159,6 +159,8 @@ export function parse(text) {
     // battery or in Power Saver unless the app's switch for that is off.
     const speed = raw.speed && typeof raw.speed === 'object' ? raw.speed : {};
     cfg.speed = {quality: cleanQuality(raw.speed), lighterOnBattery: speed.lighterOnBattery !== false};
+    // The "Glass" tile in Quick Settings that pauses the glass (quicktoggle.js); on unless it says off.
+    cfg.quickToggle = {enabled: !(raw.quickToggle && typeof raw.quickToggle === 'object' && raw.quickToggle.enabled === false)};
     cfg.popupCss = cleanPopupCss(raw.popupCss);
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
