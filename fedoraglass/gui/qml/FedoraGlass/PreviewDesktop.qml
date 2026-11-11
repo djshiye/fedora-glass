@@ -156,6 +156,54 @@ Item {
         PauseAnimation { duration: 500 }
     }
 
+    // ---- Liquid motion: the taskbar gives under a press and is drawn out as you drag
+    // along it, as motion.js and glass.js do on the desktop. Press and drag the
+    // preview's taskbar to feel it; moving the How liquid slider plays a short drag.
+    readonly property real liquidStrength: Backend.liquidStrength
+    // The slider (0..1) as the extension's factor: 0.4 is 1, the original feel (render/glass.py).
+    readonly property real liquid: liquidStrength <= 0.4 ? 0.25 + liquidStrength / 0.4 * 0.75
+                                                         : 1 + (liquidStrength - 0.4) / 0.6 * 1.5
+    readonly property bool liquidOn: Backend.liquidMotion && glassOn && panel.glass
+    property bool pressHeld: false
+    property point pressPointer: Qt.point(0, 0)    // the pointer, in panel px
+    property real pressAmt: 0
+    property real pressVel: 0
+    property real pressSX: 0                       // the press point: trails the pointer
+    property real pressSY: 0
+    function pressStart(p) { pressPointer = p; pressSX = p.x; pressSY = p.y; pressHeld = true }
+    FrameAnimation {
+        objectName: "liquidPress"
+        running: root.pressHeld || Math.abs(root.pressAmt) > 0.002 || Math.abs(root.pressVel) > 0.002
+        onTriggered: {
+            const dt = Math.min(0.033, Math.max(0.001, frameTime))
+            const lq = root.liquid
+            const to = root.pressHeld && root.liquidOn ? 1 : 0
+            const c = Math.min(74, 44 / Math.sqrt(lq))
+            let x = root.pressAmt, v = root.pressVel
+            const steps = Math.max(1, Math.ceil(dt / 0.008)), h = dt / steps
+            for (let i = 0; i < steps; i++) { v += (1370 * (to - x) - c * v) * h; x += v * h }
+            if (to === 0 && Math.abs(x) + Math.abs(v) < 0.002) { x = 0; v = 0 }
+            const e = 1 - Math.exp(-dt / (0.04 * Math.pow(lq, 0.75)))
+            root.pressSX += (root.pressPointer.x - root.pressSX) * e
+            root.pressSY += (root.pressPointer.y - root.pressSY) * e
+            root.pressAmt = x
+            root.pressVel = v
+        }
+    }
+    property real demoPressX: 0
+    onDemoPressXChanged: if (liquidDemo.running) pressPointer = Qt.point(demoPressX, panel.height / 2)
+    SequentialAnimation {
+        id: liquidDemo
+        ScriptAction { script: { root.demoPressX = root.u(380); root.pressStart(Qt.point(root.u(380), panel.height / 2)) } }
+        PauseAnimation { duration: 200 }
+        NumberAnimation { target: root; property: "demoPressX"; to: root.u(1150); duration: 1000; easing.type: Easing.InOutSine }
+        PauseAnimation { duration: 120 }
+        ScriptAction { script: root.pressHeld = false }
+    }
+    // Played once the slider rests a moment, so dragging it doesn't restart it at every step.
+    Timer { id: liquidDemoSoon; interval: 220; onTriggered: if (root.liquidOn && !pressPoint.active) liquidDemo.restart() }
+    onLiquidStrengthChanged: liquidDemoSoon.restart()
+
     // ---- menus opening: grow out of their button (Menus grow) with a spring (Liquid motion)
     property real pop: 1
     readonly property bool grow: Backend.menuGrow
@@ -633,6 +681,7 @@ Item {
 
     ShellGlass {
         id: panel
+        objectName: "liquidPanel"
         part: "panel"
         glass: root.panelGlass && (root.dtpThemed || root.topBar)
         z: 5
@@ -649,6 +698,24 @@ Item {
         Behavior on x { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
         Behavior on y { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
         Behavior on width { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+        pressAt: Qt.point(root.pressSX, root.pressSY)
+        press: root.liquidOn ? Math.max(0, Math.min(1, root.pressAmt)) : 0
+        liquid: root.liquid
+        // Drawn out towards the pointer only when more liquid than the original (motion.js).
+        pull: root.pressAmt > 0.01 ? Qt.point(1.5 * Math.max(0, root.liquid - 1) * (root.pressPointer.x - root.pressSX),
+                                              1.5 * Math.max(0, root.liquid - 1) * (root.pressPointer.y - root.pressSY))
+                                   : Qt.point(0, 0)
+        pressScale: root.s
+        PointHandler {
+            id: pressPoint
+            objectName: "liquidPressPoint"
+            enabled: root.liquidOn
+            onActiveChanged: {
+                if (active) { liquidDemo.stop(); root.pressStart(point.position) }
+                else root.pressHeld = false
+            }
+            onPointChanged: if (active) root.pressPointer = point.position
+        }
 
         Rectangle {     // menu button, pressed while the menu is open
             id: menuButton

@@ -133,7 +133,7 @@ SettingsPage {
                 topPadding: 8
                 bottomPadding: 4
                 text: qsTr("Glass in motion")
-                resetKeys: ["liquid_motion", "menu_grow", "hover_glide"]
+                resetKeys: ["liquid_motion", "liquid_strength", "menu_grow", "hover_glide"]
             }
             SwitchRow {
                 objectName: "liquidMotion"
@@ -142,6 +142,19 @@ SettingsPage {
                 tip: qsTr("Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings.")
                 checked: Backend.liquidMotion
                 onToggled: (on) => { Backend.liquidMotion = on; if (Theme.preview) Theme.preview.showPopup() }
+            }
+            LabeledSlider {
+                objectName: "liquidStrength"
+                inline: true
+                enabled: Backend.liquidMotion
+                label: qsTr("How liquid")
+                value: Backend.liquidStrength
+                defaultValue: Backend.defaults.liquid_strength
+                format: (v) => v < 0.15 ? qsTr("Firm", "glass feel") : v < 0.33 ? qsTr("Soft", "glass feel")
+                             : v < 0.47 ? qsTr("Normal", "glass feel") : v < 0.75 ? qsTr("Liquid", "glass feel")
+                             : qsTr("Very liquid", "glass feel")
+                onMoved: (v) => Backend.liquidStrength = v
+                tip: qsTr("How much the glass gives when you press it, like on the taskbar. Right makes it softer: a deeper, wider dip that stretches after your pointer as you drag and wobbles as it settles. Press and drag the taskbar in the preview to try it.")
             }
             Rectangle { width: parent.width; height: 1; color: Theme.divider }
             SwitchRow {

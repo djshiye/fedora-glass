@@ -215,15 +215,22 @@ export class Motion {
             const w = animate ? L.pointerLight ?? 0 : 0;
             let tk = 0;
             let [tx, ty] = [st.x, st.y];
-            if (w > 0 && this._pointer) {
+            // A press follows the pointer even with the pointer light off (it used to
+            // stay at the pane's top left corner then).
+            if ((w > 0 || st.pressT > 0 || st.press > 0.01) && this._pointer) {
                 [tx, ty] = this._pointer;
                 const dx = Math.max(r[0] - tx, 0, tx - r[0] - r[2]);
                 const dy = Math.max(r[1] - ty, 0, ty - r[1] - r[3]);
-                tk = Math.min(1, w * 1.6) * Math.max(0, 1 - Math.hypot(dx, dy) / REACH);
+                tk = w > 0 ? Math.min(1, w * 1.6) * Math.max(0, 1 - Math.hypot(dx, dy) / REACH) : 0;
             }
-            if (st.x === null || st.k < 0.01)
-                [st.x, st.y] = [tx, ty];     // a light that is off jumps; a lit one glides
-            const e = 1 - Math.exp(-dt / 0.04);
+            const held = st.pressT > 0 || st.press > 0.01;
+            if (st.x === null || (st.k < 0.01 && !held))
+                [st.x, st.y] = [tx, ty];     // a light that is off jumps; a lit one (or a press) glides
+            // How liquid the glass is (the app's slider): 1 is the original feel. More
+            // liquid, the press point trails the pointer further and springs back with
+            // more wobble; less, it follows closely and settles without overshoot.
+            const lq = Math.max(0.25, Math.min(2.5, L.liquid ?? 1));
+            const e = 1 - Math.exp(-dt / (0.04 * lq ** 0.75));
             const fade = 1 - Math.exp(-dt / 0.08);
             const prev = [st.x, st.y, st.k, st.press, st.open];
             if (tx !== null) {
@@ -233,7 +240,7 @@ export class Motion {
             st.k += (tk - st.k) * fade;
             // Press and open: springs with a small overshoot.
             if (animate) {
-                [st.press, st.pressV] = spring(st.press, st.pressV, st.pressT, 1370, 44, dt);   // ~180 ms
+                [st.press, st.pressV] = spring(st.press, st.pressV, st.pressT, 1370, Math.min(74, 44 / Math.sqrt(lq)), dt);   // ~180 ms
                 [st.open, st.openV] = spring(st.open, st.openV, 1, 900, 36, dt);           // ~220 ms
             } else {
                 [st.press, st.pressV, st.open, st.openV] = [0, 0, 1, 0];
@@ -249,14 +256,20 @@ export class Motion {
                 moving = true;
             }
             const now_ = [st.x, st.y, st.k, st.press, st.open];
+            // Dragged while pressed, glass more liquid than the original is drawn out
+            // towards the pointer (glass.js touch()); at 1 and below it stays round.
+            const drawOut = 1.5 * Math.max(0, lq - 1) * (st.press > 0.01 && tx !== null ? 1 : 0);
+            const pull = [drawOut * ((tx ?? 0) - st.x), drawOut * ((ty ?? 0) - st.y)];
+            const pulled = Math.abs(pull[0] - (st.pullX ?? 0)) + Math.abs(pull[1] - (st.pullY ?? 0)) > 0.25;
+            [st.pullX, st.pullY] = pull;
             // Only what shows: an unlit pointer moving about costs nothing.
-            const lit = st.k > 0.003 || prev[2] > 0.003;
+            const lit = st.k > 0.003 || prev[2] > 0.003 || held;
             // Settling lands exactly on the rest values: a last step too small to
             // pass the thresholds would leave a menu at 0.999 of its size (soft
             // text, and glass a pixel or two off its edge).
             const landed = settled && now_.some((v, i) => i > 1 && v !== prev[i]);
-            if (landed || now_.some((v, i) => (i > 1 || lit) && Math.abs(v - prev[i]) > (i < 2 ? 0.25 : 1e-3)))
-                f.setMotion({sx: st.x ?? 0, sy: st.y ?? 0, k: st.k, press: st.press, open: st.open});
+            if (landed || pulled || now_.some((v, i) => (i > 1 || lit) && Math.abs(v - prev[i]) > (i < 2 ? 0.25 : 1e-3)))
+                f.setMotion({sx: st.x ?? 0, sy: st.y ?? 0, k: st.k, press: st.press, open: st.open, pullX: st.pullX, pullY: st.pullY});
         }
         if (this._stepItem(dt))
             moving = true;

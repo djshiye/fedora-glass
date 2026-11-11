@@ -25,6 +25,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {setQuality, glassRenders, redrawAllPanes, shownPanes} from './glass.js';
+import {GrabMove} from './grabmove.js';
 import {PowerWatch} from './power.js';
 import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
 
@@ -90,9 +91,9 @@ export class Speed {
         // Mutter makes new views when screens change (plugged in, unplugged, a new
         // refresh rate): forget the old ones, and read the new refresh rates.
         this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._views.clear());
-        // A window dragged or resized with the pointer or the keyboard (see surfaces.js).
-        this._grabIds = [global.display.connect('grab-op-begin', () => this._dragBegin()),
-            global.display.connect('grab-op-end', () => this._dragEnd())];
+        // A window dragged or resized with the pointer or the keyboard (see surfaces.js),
+        // from its first real move: a window only held (a press on the taskbar) is no drag.
+        this._grabMove = new GrabMove(global.display, on => on ? this._dragBegin() : this._dragEnd());
         try {
             this._monitor = this._configDir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
             this._monitorId = this._monitor.connect('changed', (_m, file, other) => {
@@ -524,8 +525,8 @@ export class Speed {
             this._writeNow();
         }
         this._drag = null;
-        this._grabIds?.forEach(id => global.display.disconnect(id));
-        this._grabIds = null;
+        this._grabMove?.destroy();
+        this._grabMove = null;
         this._stopRetry();
         if (this._before)
             global.stage.disconnect(this._before);

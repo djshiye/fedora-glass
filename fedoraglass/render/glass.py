@@ -22,7 +22,7 @@ UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
-         "animations.js", "curves.js", "glide.js", "grabhover.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
+         "animations.js", "curves.js", "glide.js", "grabhover.js", "grabmove.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
          "speed.js", "tuning.js", "popupstyle.js", "paused.js", "pausestate.js", "stackclip.js", "prefs.js", "power.js",
          "quicktoggle.js", "strings.js", "glass-symbolic.svg")
 
@@ -67,6 +67,15 @@ def solid_window_color(t: Tokens) -> str:
 
 def extension_files() -> dict[str, str]:
     return {name: (SOURCE / name).read_text(encoding="utf-8") for name in FILES}
+
+
+def liquid_factor(strength: float) -> float:
+    """The app's 0..1 liquid slider as the extension's factor: 0.25 (firm) .. 2.5 (very
+    liquid), with the default 0.4 at exactly 1, the original feel."""
+    s = min(1.0, max(0.0, float(strength)))
+    if s <= 0.4:
+        return round(0.25 + s / 0.4 * 0.75, 3)
+    return round(1.0 + (s - 0.4) / 0.6 * 1.5, 3)
 
 
 def _brightness(t: Tokens, f: float) -> float:
@@ -237,6 +246,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "bleed": t.bleed,              # how much content colours light up the glass
         "pointerLight": 0.0 if off else s.pointer_light,   # the light turns towards the pointer
         "motion": 1 if s.liquid_motion and not off else 0, # press and open springs
+        "liquid": liquid_factor(s.liquid_strength),        # how far the glass gives under a press
         "tint": [0, 0, 0, 0],          # the Shell theme paints the tint
         "highlight": t.glare,
         "lightAngle": -125,            # from the top left, as in the preview

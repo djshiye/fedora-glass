@@ -10,6 +10,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {moving, stopMoving, releaseAllPanes} from './glass.js';
 import {WindowWatch, windowWatch, motion, wallpaper, Signals} from './common.js';
+import {GrabMove} from './grabmove.js';
 import {WindowAnimationHold} from './hold.js';
 import {Motion} from './motion.js';
 import {Panels} from './panels.js';
@@ -64,8 +65,9 @@ export class GlassManager {
             for (const s of ['showing', 'shown', 'hiding', 'hidden'])
                 this._signals.on(Main.overview, s, () => this._parts.forEach(p => p.sync?.()));
             // A window dragged or resized behind the glass re-renders it every frame.
-            this._signals.on(global.display, 'grab-op-begin', () => moving(true));
-            this._signals.on(global.display, 'grab-op-end', () => moving(false));
+            // Only once it really moves: a press on the taskbar holds a maximized
+            // window without moving it (see grabmove.js).
+            this._grabMove = new GrabMove(global.display, on => moving(on));
         } catch (e) {
             try {
                 this.destroy();
@@ -83,6 +85,8 @@ export class GlassManager {
 
     destroy() {
         this._signals.clear();
+        this._grabMove?.destroy();
+        this._grabMove = null;
         this._hold?.destroy();
         this._hold = null;
         releaseAllPanes(true);

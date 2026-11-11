@@ -116,6 +116,7 @@ class Settings:
     bleed: float = 0.6              # 0..1, how much icon and text colours light up the glass around them
     pointer_light: float = 0.5      # 0..1, how far the light on the glass turns towards the pointer
     liquid_motion: bool = True      # glass springs a little when pressed and when a menu opens
+    liquid_strength: float = 0.4    # 0..1, how far the glass gives under a press (0.4: the original feel)
     menu_grow: bool = True          # menus grow out of the button that opened them, and flow back on close
     glass_panel: bool = True
     glass_menus: bool = True        # menus, quick settings, calendar, ArcMenu, Spawn
@@ -239,6 +240,7 @@ class Settings:
         s.vibrancy = _clamp(float(s.vibrancy))
         s.bleed = _clamp(float(s.bleed), Settings.bleed)
         s.pointer_light = _clamp(float(s.pointer_light), Settings.pointer_light)
+        s.liquid_strength = _clamp(float(s.liquid_strength), Settings.liquid_strength)
         for k in ("liquid_motion", "menu_grow", "hover_glide"):
             setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         s.radius = _int(s.radius, 0, 32, Settings.radius)

@@ -35,6 +35,12 @@ Item {
     property point pointer: Qt.point(0, 0)
     property real pointerK: 0
     property real pointerReach: 72       // px around the pointer where the rim catches more
+    // Liquid motion: pressed, the glass gives under the pointer (see glass.frag touch()).
+    property point pressAt: Qt.point(0, 0)  // px on this item
+    property real press: 0               // 0..1
+    property real liquid: 1              // how far it gives: 1 is the original feel
+    property point pull: Qt.point(0, 0)  // px it is drawn out towards the pointer
+    property real pressScale: 1          // px here per desktop px
     property bool live: true
 
     property color shadowColor: "transparent"
@@ -141,6 +147,11 @@ Item {
         property point ptr: root.pointer
         property real ptrK: root.pointerK
         property real ptrReach: root.pointerReach
+        property point pressAt: root.pressAt
+        property real press: root.press
+        property real liquid: root.liquid
+        property point pull: root.pull
+        property real pressScale: root.pressScale
         fragmentShader: Qt.resolvedUrl("shaders/glass.frag.qsb")
     }
 

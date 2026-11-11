@@ -34,6 +34,11 @@ layout(std140, binding = 0) uniform buf {
     vec2 ptr;          // the pointer, in px on this item (the pointer light setting)
     float ptrK;        // 0..1, how far the light turns towards the pointer
     float ptrReach;    // px, how far around the pointer the rim catches more (180 desktop px)
+    vec2 pressAt;      // where the glass is pressed, px on this item
+    float press;       // 0..1, how far it is pressed in (a spring, as in motion.js)
+    float liquid;      // how far the glass gives: 1 is the original feel (glass.js)
+    vec2 pull;         // px the press is drawn out towards the pointer while dragged
+    float pressScale;  // preview px per desktop px: the give reaches as far as on the desktop
 };
 layout(binding = 1) uniform sampler2D source;
 layout(binding = 2) uniform sampler2D content;
@@ -208,6 +213,19 @@ vec3 glow(vec2 px, vec2 n, float inside, float bev, float F, float crest) {
     return vec3(1.0) - exp(-c * bleed * 2.6) + tone * hair * 0.065;
 }
 
+// Pressed, the glass gives under the finger, as in glass.js touch() and dent():
+// around the press point the edge rounds off wider and steeper and the top tilts in.
+float touch(vec2 dp, float s) {
+    float pl = length(pull);
+    if (pl > 0.5) {
+        vec2 u = pull / pl;
+        float along = dot(dp, u);
+        float ahead = along / (1.0 + pl / s * step(0.0, along));
+        dp = u * ahead + (dp - u * along);
+    }
+    return press * exp(-dot(dp, dp) / (2.0 * s * s));
+}
+
 void main() {
     vec2 c = size * 0.5;
     vec2 px0 = qt_TexCoord0 * size;
@@ -228,20 +246,26 @@ void main() {
 
     // The bevel is a share of the short side, as in glass.js: a quarter on a
     // menu, more on a thin bar; the bezel setting is the least it may be.
-    float th = refraction;
+    vec2 dp = px0 - pressAt;
+    float give = max(90.0 * pressScale, 0.6 * min(c.x, c.y)) * sqrt(max(liquid, 0.0));
+    float deep = min(liquid, 1.0) + 0.35 * max(liquid - 1.0, 0.0);   // as in glass.js
+    float tch = press > 0.001 ? touch(dp, give) : 0.0;
+    float th = refraction * (1.0 + 0.3 * deep * press) * (1.0 + deep * tch);
     float slope = 0.0;
     float x = 0.0;
     float shortSide = 2.0 * min(c.x, c.y);
     float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
     float bev = bezel > 0.0 ? min(clamp(share * shortSide, bezel, 2.6 * bezel), 0.45 * shortSide) : 0.0;
+    bev *= 1.0 + 0.6 * deep * tch;
     float gr = min(max(r * 1.5, bev * 1.15), min(c.x, c.y));
     vec2 n = gradRoundRect(p, c, gr);
     if (bev > 0.0 && inside < bev) {
         x = 1.0 - inside / bev;
         slope = squircleSlope(x) * 1.6;
     }
-    vec2 dome = depth * 0.25 * p / max(c.x, c.y);
-    vec3 N = normalize(vec3(n * slope + dome + jitter(px0), 1.0));
+    vec2 dome = min(1.0, depth + 0.25 * deep * press) * 0.25 * p / max(c.x, c.y);
+    vec2 dent = -dp / give * 0.45 * deep * tch;
+    vec3 N = normalize(vec3(n * slope + dome + dent + jitter(px0), 1.0));
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);
 
