@@ -6,7 +6,7 @@ import QtQuick.Controls.Basic as C
 C.AbstractButton {
     id: control
     property string tip: ""
-    text: "Default"
+    text: qsTr("Default")
     implicitHeight: 24
     implicitWidth: row.implicitWidth + 18
     hoverEnabled: true

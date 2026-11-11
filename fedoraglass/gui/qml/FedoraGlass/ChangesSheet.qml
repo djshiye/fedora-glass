@@ -35,15 +35,15 @@ Sheet {
     }
     property bool detailsOpen: false
     onAboutToShow: detailsOpen = changes.length === 0
-    title: "What Apply will change"
+    title: qsTr("What Apply will change")
     subtitle: changes.length === 0
-        ? "You haven't changed anything since your last Apply. Apply puts the same look on your desktop again."
-        : (changes.length === 1 ? "1 change" : changes.length + " changes") + " not applied yet. Click one to go to it."
+        ? qsTr("You haven't changed anything since your last Apply. Apply puts the same look on your desktop again.")
+        : (changes.length === 1 ? qsTr("1 change not applied yet. Click one to go to it.") : qsTr("%1 changes not applied yet. Click one to go to it.").arg(changes.length))
     iconName: "list"
     buttons: [
-        LgButton { text: "Close"; kind: "secondary"; onClicked: sheet.close() },
+        LgButton { text: qsTr("Close"); kind: "secondary"; onClicked: sheet.close() },
         LgButton {
-            text: "Apply"
+            text: qsTr("Apply")
             kind: "primary"
             iconName: "check"
             enabled: !Backend.busy
@@ -97,8 +97,8 @@ Sheet {
                                     enabled: canJump
                                     hoverEnabled: true
                                     focusPolicy: Qt.StrongFocus
-                                    Accessible.name: modelData.label + ": " + modelData.before + " to " + modelData.after
-                                    Accessible.description: canJump ? "Go to this setting" : ""
+                                    Accessible.name: qsTr("%1: %2 to %3").arg(modelData.label).arg(modelData.before).arg(modelData.after)
+                                    Accessible.description: canJump ? qsTr("Go to this setting") : ""
                                     onClicked: { sheet.close(); sheet.jump(modelData.page, modelData.name) }
                                     HoverHandler { cursorShape: change.canJump ? Qt.PointingHandCursor : Qt.ArrowCursor }
                                     background: Rectangle {
@@ -166,7 +166,7 @@ Sheet {
                 hoverEnabled: true
                 focusPolicy: Qt.StrongFocus
                 onClicked: sheet.detailsOpen = !sheet.detailsOpen
-                Accessible.name: "Files and settings Apply writes"
+                Accessible.name: qsTr("Files and settings Apply writes")
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
                 background: Rectangle {
                     radius: Theme.rXs
@@ -184,14 +184,14 @@ Sheet {
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Files and settings Apply writes"
+                        text: qsTr("Files and settings Apply writes")
                         color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: sheet.total === 0 ? "none: no part that is switched on is installed here"
-                            : sheet.total + " in " + sheet.plan.length + (sheet.plan.length === 1 ? " place" : " places")
-                              + ", each backed up first"
+                        text: sheet.total === 0 ? qsTr("none: no part that is switched on is installed here")
+                            : sheet.plan.length === 1 ? qsTr("%1 in 1 place, each backed up first").arg(sheet.total)
+                            : qsTr("%1 in %2 places, each backed up first").arg(sheet.total).arg(sheet.plan.length)
                         color: Theme.textFaint
                         font.pixelSize: 12
                     }
@@ -234,7 +234,7 @@ Sheet {
                             Text { anchors.verticalCenter: parent.verticalCenter; text: grp.modelData.name; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: grp.n === 0 ? "nothing to change" : grp.n + (grp.n === 1 ? " change" : " changes")
+                                text: grp.n === 0 ? qsTr("nothing to change") : grp.n === 1 ? qsTr("1 change") : qsTr("%1 changes").arg(grp.n)
                                 color: Theme.textFaint
                                 font.pixelSize: 12
                             }

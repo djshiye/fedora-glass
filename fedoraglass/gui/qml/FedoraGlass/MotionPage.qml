@@ -25,11 +25,11 @@ SettingsPage {
             width: parent.width
             spacing: 14
             SectionTitle {
-                text: "Motion style"
-                caption: Backend.motionStyle === "custom" ? "Your own mix. Pick a style to set every animation at once."
-                                                          : "One choice sets every animation"
+                text: qsTr("Motion style")
+                caption: Backend.motionStyle === "custom" ? qsTr("Your own mix. Pick a style to set every animation at once.")
+                                                          : qsTr("One choice sets every animation")
                 resetKeys: ["motion"]
-                resetTip: "Back to Lively, at normal speed"
+                resetTip: qsTr("Back to Lively, at normal speed")
             }
             Row {
                 id: styleRow
@@ -49,7 +49,7 @@ SettingsPage {
                         implicitHeight: 96
                         hoverEnabled: true
                         focusPolicy: Qt.StrongFocus
-                        Accessible.name: modelData.label + " motion"
+                        Accessible.name: qsTr("%1 motion").arg(modelData.label)
                         Accessible.role: Accessible.RadioButton
                         Accessible.checked: selected
                         onClicked: { Backend.setMotionStyle(modelData.id); page.play() }
@@ -102,9 +102,9 @@ SettingsPage {
                 height: 32
                 enabled: Backend.motionStyle !== "off"
                 opacity: enabled ? 1 : 0.5
-                Text { id: speedLabel; anchors.verticalCenter: parent.verticalCenter; text: "Speed"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                Text { id: slower; x: 90; anchors.verticalCenter: parent.verticalCenter; text: "Slower"; color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
-                Text { id: faster; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Faster"; color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
+                Text { id: speedLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Speed"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                Text { id: slower; x: 90; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Slower"); color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
+                Text { id: faster; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Faster"); color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
                 LgSlider {
                     anchors.left: slower.right; anchors.leftMargin: 12
                     anchors.right: faster.left; anchors.rightMargin: 12
@@ -114,7 +114,7 @@ SettingsPage {
                     markValue: 1
                     onMoved: Backend.motionSpeed = value
                     onPressedChanged: if (!pressed) page.play()
-                    Accessible.name: "Animation speed"
+                    Accessible.name: qsTr("Animation speed")
                 }
             }
         }
@@ -132,24 +132,24 @@ SettingsPage {
                 width: parent.width
                 topPadding: 8
                 bottomPadding: 4
-                text: "Glass in motion"
+                text: qsTr("Glass in motion")
                 resetKeys: ["liquid_motion", "menu_grow", "hover_glide"]
             }
             SwitchRow {
                 objectName: "liquidMotion"
-                label: "Liquid motion"
-                caption: "Glass gives a little when pressed and settles as menus open"
-                tip: "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
+                label: qsTr("Liquid motion")
+                caption: qsTr("Glass gives a little when pressed and settles as menus open")
+                tip: qsTr("Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings.")
                 checked: Backend.liquidMotion
                 onToggled: (on) => { Backend.liquidMotion = on; if (Theme.preview) Theme.preview.showPopup() }
             }
             Rectangle { width: parent.width; height: 1; color: Theme.divider }
             SwitchRow {
                 objectName: "menuGrow"
-                label: "Menus grow from their button"
+                label: qsTr("Menus grow from their button")
                 caption: ""
-                tip: (Backend.hasStartMenu ? "The start menu, quick settings and the calendar" : "Quick settings and the calendar")
-                     + " pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings."
+                tip: Backend.hasStartMenu ? qsTr("The start menu, quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
+                                          : qsTr("Quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                 enabled: Backend.liquidMotion
                 checked: Backend.menuGrow
                 onToggled: (on) => { Backend.menuGrow = on; if (Theme.preview) Theme.preview.showPopup() }
@@ -159,9 +159,9 @@ SettingsPage {
                 id: glide
                 objectName: "motionGlide"
                 visible: Backend.hasDashToPanel     // it glides along Dash to Panel's taskbar only
-                label: "Gliding highlight"
+                label: qsTr("Gliding highlight")
                 caption: ""
-                tip: "Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on."
+                tip: qsTr("Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on.")
                 checked: Backend.hoverGlide
                 onToggled: (on) => Backend.hoverGlide = on
             }
@@ -170,8 +170,8 @@ SettingsPage {
 
     Fold {
         objectName: "eachAnimation"
-        title: "Each animation on its own"
-        summary: "Open, minimize, close, app starting, panel hover"
+        title: qsTr("Each animation on its own")
+        summary: qsTr("Open, minimize, close, app starting, panel hover")
         MotionCard { id: motionCard; embedded: true; width: parent.width }
     }
 
@@ -184,14 +184,14 @@ SettingsPage {
                 kind: "secondary"
                 implicitHeight: 32
                 leftPadding: 12; rightPadding: 14
-                text: "Play again"
+                text: qsTr("Play again")
                 iconName: "run"
                 enabled: Backend.motionStyle !== "off"
                 onClicked: page.play()
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Pick a style to watch it play here."
+                text: qsTr("Pick a style to watch it play here.")
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsSmall + 1
             }

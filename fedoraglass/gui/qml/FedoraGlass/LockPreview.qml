@@ -49,8 +49,8 @@ Item {
     Timer { interval: 30000; running: root.visible; repeat: true; onTriggered: root.now = new Date() }
     function greeting() {
         const h = now.getHours()
-        return h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 17 ? "Good afternoon"
-             : h >= 17 && h < 22 ? "Good evening" : "Good night"
+        return h >= 5 && h < 12 ? qsTr("Good morning") : h >= 12 && h < 17 ? qsTr("Good afternoon")
+             : h >= 17 && h < 22 ? qsTr("Good evening") : qsTr("Good night")
     }
 
     clip: true
@@ -168,7 +168,7 @@ Item {
                     Chip_ {
                         visible: root.showWeather
                         icon: "cloud"
-                        text: "14°  ·  Partly cloudy" + (Backend.lockWeatherPlace ? "  ·  Your town" : "")
+                        text: Backend.lockWeatherPlace ? qsTr("14°  ·  Partly cloudy  ·  Your town") : qsTr("14°  ·  Partly cloudy")
                     }
                 }
                 Rectangle {
@@ -196,7 +196,7 @@ Item {
             }
             Text {   // GNOME's hint, faded in after a while
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Click or press a key to unlock"
+                text: qsTr("Click or press a key to unlock")
                 color: Qt.rgba(1, 1, 1, 0.7)
                 font.pixelSize: root.pt(11)
                 topPadding: root.u(24)
@@ -221,8 +221,8 @@ Item {
                 Icon { name: "message"; size: root.u(28); color: "white"; layered: false; anchors.verticalCenter: parent.verticalCenter }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    Text { text: "Messages"; color: "white"; font.pixelSize: root.pt(11); font.weight: Font.Bold }
-                    Text { text: "2 new notifications"; color: Qt.rgba(1, 1, 1, 0.75); font.pixelSize: root.pt(10) }
+                    Text { text: qsTr("Messages"); color: "white"; font.pixelSize: root.pt(11); font.weight: Font.Bold }
+                    Text { text: qsTr("2 new notifications"); color: Qt.rgba(1, 1, 1, 0.75); font.pixelSize: root.pt(10) }
                 }
             }
         }
@@ -276,7 +276,7 @@ Item {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: Backend.userName || "You"
+                    text: Backend.userName || qsTr("You")
                     color: "white"
                     font.pixelSize: root.pt(14)
                     font.weight: Font.Bold

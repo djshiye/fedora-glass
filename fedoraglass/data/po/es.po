@@ -1,0 +1,4868 @@
+# Fedora Glass: Español words.
+# Keep the %1, %2 and {name} markers exactly as they are; they are filled in by the app.
+msgid ""
+msgstr ""
+"Project-Id-Version: fedora-glass\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: fedoraglass/cursors.py:38
+msgid "Frosted glass, dark rim"
+msgstr ""
+
+#: fedoraglass/cursors.py:38
+msgid "Glass Light"
+msgstr ""
+
+#: fedoraglass/cursors.py:40
+msgid "Glass Dark"
+msgstr ""
+
+#: fedoraglass/cursors.py:40
+msgid "Smoked glass, light rim"
+msgstr ""
+
+#: fedoraglass/cursors.py:42
+msgid "Rounded, white"
+msgstr ""
+
+#: fedoraglass/cursors.py:43
+msgid "Rounded, black"
+msgstr ""
+
+#: fedoraglass/cursors.py:44
+msgid "Sharp corners, white"
+msgstr ""
+
+#: fedoraglass/cursors.py:45
+msgid "Sharp corners, black"
+msgstr ""
+
+#: fedoraglass/cursors.py:47
+msgid "Crisp, white"
+msgstr ""
+
+#: fedoraglass/cursors.py:49
+msgid "Crisp, black"
+msgstr ""
+
+#: fedoraglass/cursors.py:51
+msgid "Like macOS"
+msgstr ""
+
+#: fedoraglass/cursors.py:53
+msgid "Yes, a banana"
+msgstr ""
+
+#: fedoraglass/cursors.py:55
+msgid "Bright orange"
+msgstr ""
+
+#: fedoraglass/cursors.py:57
+msgid "Soft purple"
+msgstr ""
+
+#: fedoraglass/cursors.py:59
+msgid "Soft blue"
+msgstr ""
+
+#: fedoraglass/cursors.py:61
+#: fedoraglass/cursors.py:63
+msgid "Bold and round"
+msgstr ""
+
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/prefs.js:26
+msgid "Everything is set in the Fedora Glass app, with a live preview."
+msgstr ""
+
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/prefs.js:28
+msgid "Open Fedora Glass"
+msgstr ""
+
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/prefs.js:33
+msgid "The Fedora Glass app is not installed."
+msgstr ""
+
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/quicktoggle.js:33
+msgid "Paused"
+msgstr ""
+
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/quicktoggle.js:34
+msgid "Safe mode"
+msgstr ""
+
+#: fedoraglass/distro.py:35
+msgid "remove the {package} package"
+msgstr ""
+
+#: fedoraglass/engine.py:1004
+msgid "Couldn't start: {error}"
+msgstr ""
+
+#: fedoraglass/engine.py:1059
+msgid "Colours for other apps"
+msgstr ""
+
+#: fedoraglass/engine.py:1168
+msgid "missing setting {schema} {key}"
+msgstr ""
+
+#: fedoraglass/engine.py:284
+msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
+msgstr ""
+
+#: fedoraglass/engine.py:50
+msgid "Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, and this part needs the glass behind it."
+msgstr ""
+
+#: fedoraglass/engine.py:511
+msgid "{path} is a folder"
+msgstr ""
+
+#: fedoraglass/engine.py:661
+msgid "Flatpak overrides: {error}"
+msgstr ""
+
+#: fedoraglass/engine.py:685
+msgid "is now a folder, left as it is"
+msgstr ""
+
+#: fedoraglass/engine.py:696
+msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
+msgstr ""
+
+#: fedoraglass/engine.py:742
+msgid "{path}: changed since Apply and can't be read, so it was left as it is"
+msgstr ""
+
+#: fedoraglass/engine.py:770
+msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
+msgstr ""
+
+#: fedoraglass/engine.py:782
+msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
+msgstr ""
+
+#: fedoraglass/engine.py:784
+msgid "Couldn't restore your {folder} link to {owner}: {reason}."
+msgstr ""
+
+#: fedoraglass/engine.py:984
+msgid "Backup"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1000
+msgid "Last window drag with {windows} windows open: about {fps} frames a second, a little uneven."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1001
+msgid "Last window drag with {windows} windows open: about {fps} frames a second, slow."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1003
+msgid "Last window drag: about {fps} frames a second, smooth."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1005
+msgid "Last window drag: about {fps} frames a second, a little uneven."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1006
+msgid "Last window drag: about {fps} frames a second, slow."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1468
+msgid "Could not open the restart dialog. Restart your PC from the system menu instead."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1494
+msgid "GNOME's own top bar"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1496
+msgid "Found on this PC: {list}."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1507
+msgid "Another app replaced the Fedora Glass look for {what}. Apply again to bring it back."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1549
+msgid "Could not check: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1647
+msgid "Could not switch extensions on. Try the Extensions app instead."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1649
+msgid "Extensions are on again. Press Apply to finish your look."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1690
+msgid "Could not clean up the old copy: {problem}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1692
+msgid "Old copy cleaned up. Fedora Glass now runs from the package only."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1702
+msgid "Error details copied"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1736
+msgid "Could not load targets: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1835
+msgid "Planning"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1843
+msgid "Could not work out the changes: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1877
+#: fedoraglass/gui/backend.py:2188
+msgid "Could not save settings: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1886
+msgid "Writing tokens"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1918
+msgid "Apply stopped: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1949
+msgid "The login screen has your new look. You'll see it the next time you restart your PC."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1972
+#: fedoraglass/gui/backend.py:2251
+msgid "Restoring"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:1978
+msgid "Restore stopped: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2040
+msgid "Could not restart Files. Close all Files windows, or restart your PC instead."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2128
+msgid "Glass is on the login screen. You'll see it the next time you restart your PC."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2132
+msgid "The normal login screen is back."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2157
+msgid "Not changed: the password wasn't given."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2160
+msgid "the helper didn't finish"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2161
+msgid "Nothing was changed: {reason}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2258
+msgid "Restore stopped, so Fedora Glass was not removed: {error}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2290
+msgid "Your original look is back, but Fedora Glass was not removed: the password wasn't given."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2292
+msgid "{tool} did not finish"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2293
+msgid "Your original look is back, but removing Fedora Glass failed: {reason}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2410
+msgid "Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2519
+#: fedoraglass/gui/backend.py:2517
+msgid "My look"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2519
+#: fedoraglass/gui/backend.py:2517
+msgid "My look {n}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2530
+msgid "The look couldn't be saved: {reason}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2534
+msgid "Saved “{name}”"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2545
+msgid "The look couldn't be renamed: {reason}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2557
+msgid "The look couldn't be deleted: {reason}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2562
+msgid "Deleted “{name}”"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2586
+msgid "Pick a file on this PC to save the look in."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2601
+msgid "Saved as {path}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2610
+msgid "Pick a look file on this PC."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2619
+msgid "The look couldn't be added: {reason}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2623
+msgid "Added “{name}”. Pick it to try it."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2682
+msgid "today at {time}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2685
+msgid "yesterday at {time}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2687
+msgid "on {day} at {time}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2791
+msgid "your wallpaper's colour"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2840
+msgid "There's no wallpaper picture to take a colour from, so the colour stays as it is."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2843
+msgid "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:2845
+msgid "Your wallpaper has hardly any colour in it, so the colour stays as it is."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:37
+msgid "My apps"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:47
+msgid "{start} and {last}"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:479
+msgid "Glass is paused because GNOME Shell restarted twice right after starting it. Your desktop works as usual."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:481
+msgid "Glass is paused because it could not start. Your desktop works as usual."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:482
+msgid "Glass is paused because it hit errors. Your desktop works as usual."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:63
+#: fedoraglass/targets/apps.py:95
+#: fedoraglass/targets/apps.py:138
+msgid "{name} is not installed"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:787
+msgid "No animations: everything happens at once"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:788
+#: fedoraglass/gui/changes.py:155
+msgid "Calm"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:788
+msgid "Quick, gentle zooms and fades. Nothing bounces."
+msgstr ""
+
+#: fedoraglass/gui/backend.py:789
+#: fedoraglass/gui/changes.py:155
+msgid "GNOME"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:789
+msgid "GNOME's own animations, as they come"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:790
+#: fedoraglass/gui/changes.py:155
+msgid "Lively"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:790
+msgid "Springy windows, a genie into the taskbar and a bouncing app icon (the default)"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:791
+msgid "Bouncy, jelly-like and fun"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:791
+#: fedoraglass/gui/changes.py:155
+msgid "Playful"
+msgstr ""
+
+#: fedoraglass/gui/backend.py:998
+msgid "Last window drag with {windows} windows open: about {fps} frames a second, smooth."
+msgstr ""
+
+#: fedoraglass/gui/changes.py:109
+msgid "Same as the window"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:113
+msgid "Dash to Panel's own hover animation off"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:120
+msgid "Lock screen clock"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:135
+msgid "Tint matches the wallpaper"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:136
+msgid "Accent matches the wallpaper"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:141
+msgid "1 app"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:141
+msgid "{n} apps"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:148
+msgid "corners"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:148
+msgid "tint"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:148
+msgid "tint strength"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:149
+msgid "bend"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:149
+msgid "colour bleed"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:149
+msgid "frost"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:150
+msgid "edge reflections"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:187
+msgid "{event} animation"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:190
+msgid "{event} strength"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:193
+msgid "{event} speed"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:211
+msgid "{part}: {setting}"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:222
+#: fedoraglass/gui/changes.py:223
+msgid "Left alone"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:222
+#: fedoraglass/gui/changes.py:223
+msgid "Themed"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:33
+msgid "Automatic"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:45
+msgid "Blue"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:45
+msgid "Green"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:45
+msgid "Teal"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:45
+msgid "Yellow"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:46
+msgid "Orange"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:46
+msgid "Pink"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:46
+msgid "Purple"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:46
+msgid "Red"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:47
+msgid "Slate"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:56
+msgid "System"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:56
+msgid "System ({name})"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:59
+msgid "Custom ({hex})"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:65
+#: fedoraglass/gui/changes.py:141
+msgid "None"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:76
+msgid "GNOME's own"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:81
+msgid "Accent"
+msgstr ""
+
+#: fedoraglass/gui/changes.py:93
+msgid "Window glass"
+msgstr ""
+
+#: fedoraglass/gui/looks.py:155
+msgid "This file is too big to be a look (looks are under {kb} KB)."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:159
+msgid "This file isn't a look: it isn't text."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:161
+msgid "This file isn't a look: it isn't readable JSON."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:163
+msgid "This file isn't a look: it holds no settings."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:165
+msgid "This file isn't a Fedora Glass look."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:168
+msgid "This look file has no version, so it can't be read safely."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:171
+msgid "This look file holds no settings."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:175
+msgid "This look file holds none of the settings this version knows."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:176
+#: fedoraglass/gui/looks.py:262
+msgid "Imported look"
+msgstr ""
+
+#: fedoraglass/gui/looks.py:185
+msgid "That file isn't there any more."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:187
+msgid "That file can't be opened ({reason})."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:190
+msgid "That isn't a file a look can be read from."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:194
+msgid "That file can't be read ({reason})."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:253
+#: fedoraglass/gui/looks.py:268
+msgid "Give the look a name."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:271
+#: fedoraglass/gui/looks.py:290
+msgid "That look isn't there any more."
+msgstr ""
+
+#: fedoraglass/gui/looks.py:296
+msgid "The look couldn't be saved there ({reason})."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:105
+msgid "It was applied %1. One click applies it again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:106
+msgid "It was applied %1. One click applies it again, and you can come forward after."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:107
+msgid "One click applies it again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:108
+msgid "One click applies it again, and you can come forward after."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:121
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:141
+msgid "Go back"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:121
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:141
+msgid "Go forward"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:124
+msgid "Apply the look you had before you went back"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:125
+msgid "Apply the look you had before your last Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:133
+msgid "Go back and drop your changes?"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:133
+msgid "Go forward and drop your changes?"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:134
+msgid "You changed the look but haven't applied it. Going forward applies the earlier look in their place, and those changes are lost."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:135
+msgid "You changed the look but haven't applied it. Going back applies the earlier look in their place, and those changes are lost."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:139
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:49
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:151
+msgid "Cancel"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:161
+msgid "Restore your original look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:166
+msgid "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:167
+msgid "Nothing to restore yet: Fedora Glass hasn't changed anything on your desktop."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:180
+msgid "Restore original…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:183
+msgid "Put back every file and setting as it was before Fedora Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:184
+msgid "Nothing to restore: Fedora Glass hasn't changed anything yet"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:44
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:10
+msgid "Version %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:59
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:52
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:84
+msgid "Keyboard shortcuts"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:61
+msgid "Every keyboard shortcut in the app (F1)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:69
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:32
+msgid "What's new"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:71
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:36
+msgid "Opens the release notes in your web browser"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:96
+msgid "Go forward to the look you went back from"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutPage.qml:97
+msgid "Go back to the look before your last Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:17
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:46
+#: fedoraglass/gui/qml/Main.qml:810
+msgid "Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:18
+msgid "Undo changes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:19
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:126
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:133
+msgid "Search settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:20
+msgid "Go to a page, in sidebar order"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:21
+msgid "Move to the next or previous control"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:22
+msgid "Arrow keys"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:22
+msgid "Change a slider, or pick in a group"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:23
+msgid "Press the focused button"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:24
+msgid "Close a sheet like this one"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:25
+msgid "Show this sheet"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:26
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:78
+msgid "Close Fedora Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:41
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:44
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:19
+msgid "Close"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:79
+msgid "%1 or %2"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:79
+#: fedoraglass/gui/qml/FedoraGlass/Fold.qml:40
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:272
+msgid "%1: %2"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AccentRow.qml:24
+msgid "System accent (follows GNOME Settings)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AccentRow.qml:49
+msgid "Custom colour…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AccentRow.qml:55
+msgid "Custom accent"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:114
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:153
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:16
+msgid "Tint strength"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:115
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:128
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:142
+msgid "Same as everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:116
+msgid "Follows the tint strength on the Colour page"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:117
+msgid "Go back to the tint strength used everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:118
+msgid "How much of the tint colour is mixed into this part. Left is clear, colourless glass; right is strongly coloured."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:127
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:97
+#: fedoraglass/gui/changes.py:79
+msgid "Frost"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:129
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:312
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:324
+msgid "Follows How much glass on the Glass page"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:130
+msgid "Go back to the glass used everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:131
+msgid "How frosted this part is. Left is clear glass with a light blur; right is milky, heavily blurred and easier to read."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:141
+msgid "Corners"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:143
+msgid "Follows Corner roundness on the Colour page"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:144
+msgid "Go back to the corners used everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:145
+msgid "How round this part's corners are. Left is sharp, square corners; right is soft, pill-like corners."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:149
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:323
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:165
+msgid "%1 px"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:158
+msgid "%1 more for this part"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:159
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:229
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:81
+msgid "Tint colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:159
+msgid "Tint colour, bend, reflections"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:169
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:64
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:227
+msgid "Tint"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:171
+msgid "Its own colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:184
+msgid "Follows the tint colour on the Colour page"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:184
+msgid "Go back to the tint colour used everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:197
+msgid "Tint colour for this part"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:199
+msgid "Choose a tint colour for this part only"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:240
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:94
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:20
+msgid "Bend"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:242
+msgid "Follows Bend under Glass effects on the Glass page"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:243
+msgid "Go back to the bend used everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:244
+msgid "How strongly this part's rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:253
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:121
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:23
+msgid "Colour bleed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:255
+msgid "Follows Colour bleed under Glass effects on the Glass page"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:256
+msgid "Go back to the colour bleed used everywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:257
+msgid "How much the colours of icons and text light up the glass of this part. Left keeps it neutral; right gives them a coloured glow."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:266
+#: fedoraglass/gui/changes.py:85
+msgid "Edge reflections"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:268
+msgid "Follows the default edge reflections"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:269
+msgid "Go back to the default edge reflections"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:270
+msgid "How strongly the edge of this part catches reflections of its surroundings. Left shows none; right gives bright, mirror-like edges."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:285
+msgid "Reset %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:288
+msgid "Make this part look like the rest of the desktop again"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:300
+msgid "Fine-tune"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:301
+msgid "Transparency, blur, terminal opacity, reduce transparency"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:307
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:75
+#: fedoraglass/gui/changes.py:86
+msgid "Transparency"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:308
+msgid "How solid panels and header bars look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:313
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:325
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:336
+msgid "Go back to following How much glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:314
+msgid "How solid panels and header bars look. Left is see-through; right is nearly solid."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:315
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:84
+msgid "%1% solid"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:319
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:76
+#: fedoraglass/gui/changes.py:87
+msgid "Blur"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:326
+msgid "How much the background behind glass is blurred. Left shows it sharp; right melts it into soft colour."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:331
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:77
+#: fedoraglass/gui/changes.py:94
+msgid "Terminal opacity"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:337
+msgid "How see-through terminal windows are. Left lets the desktop show through; right is a solid background."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:342
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:78
+#: fedoraglass/gui/changes.py:88
+msgid "Reduce transparency"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:343
+msgid "Nearly opaque surfaces and no blur, for readability"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:344
+msgid "Makes every surface nearly solid and turns the blur off. Easier to read, but no longer see-through."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:354
+msgid "Reset fine-tune"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:357
+msgid "Let How much glass decide these again (Apply to use it)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:375
+msgid "Start over"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:380
+msgid "Every look setting back to its default. The apps you picked stay. Applied after Apply, and Undo takes it back until then."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:381
+msgid "Every look setting is at its default."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:39
+msgid "Look of the top bar or Dash to Panel, a dock and the dash in Activities only"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:39
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:157
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:21
+msgid "Panel"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:394
+msgid "Reset all"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:396
+msgid "Back to the default look on every page (Apply to use it)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:40
+msgid "Look of the ArcMenu or Spawn application menu only"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:40
+#: fedoraglass/gui/changes.py:146
+msgid "Start menu"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:404
+msgid "Click a part of the preview to give it its own look."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:41
+msgid "Look of quick settings, menus, volume pop-ups and dialogs"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:41
+#: fedoraglass/gui/changes.py:146
+msgid "Quick settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:42
+#: fedoraglass/gui/changes.py:146
+msgid "Calendar"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:42
+msgid "Look of the calendar and notification pop-ups"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:43
+msgid "Look of the dash and the app grid in Activities"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:43
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:179
+#: fedoraglass/gui/changes.py:147
+msgid "Overview"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:44
+msgid "Look of app windows, their sidebars and header bars"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:44
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:214
+#: fedoraglass/gui/changes.py:147
+msgid "Windows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:45
+msgid "Look of terminal windows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:45
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1253
+#: fedoraglass/gui/backend.py:37
+msgid "Terminal"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:75
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:74
+msgid "Part by part"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:77
+msgid "Every part looks like the rest of the desktop again"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:78
+msgid "Give one part its own look. Click a part in the preview or pick it here."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:91
+msgid "%1 u00b7 own look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:96
+msgid "%1. Has its own look."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:10
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:90
+msgid "Apps without glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:11
+msgid "Pick the apps whose windows should get no glass. Apply to use them."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:110
+msgid "%1, always without glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:150
+msgid "Always without glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:54
+#: fedoraglass/gui/backend.py:1895
+msgid "Done"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:56
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:63
+msgid "Search apps"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:79
+msgid "Looking for your apps…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:80
+msgid "No app matches “%1”."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:81
+msgid "No apps were found."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:93
+msgid "Installed apps"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:146
+msgid "Not installed here, %1, hidden"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:146
+msgid "Not installed here, %1, shown"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:174
+msgid "Not installed here (%1)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:182
+msgid "Skipped on Apply. Install one, then choose Check again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:25
+msgid "Apps and surfaces"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:28
+msgid "%1 will be themed on Apply. Anything not installed is skipped, and Restore original undoes everything."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:29
+msgid "Checking what's installed…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:41
+msgid "Check again"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:44
+msgid "Look for newly installed apps and extensions"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:55
+msgid "Looking at your system…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/AppsPage.qml:91
+msgid "No themable apps were found"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:100
+msgid "%1: %2 to %3"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:101
+msgid "Go to this setting"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:169
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:187
+msgid "Files and settings Apply writes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:192
+msgid "none: no part that is switched on is installed here"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:193
+msgid "%1 in 1 place, each backed up first"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:194
+msgid "%1 in %2 places, each backed up first"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:237
+msgid "%1 changes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:237
+msgid "1 change"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:237
+msgid "nothing to change"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:38
+msgid "What Apply will change"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:40
+msgid "You haven't changed anything since your last Apply. Apply puts the same look on your desktop again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:41
+msgid "%1 changes not applied yet. Click one to go to it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:41
+msgid "1 change not applied yet. Click one to go to it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColorPicker.qml:147
+msgid "Hex colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColorPicker.qml:8
+msgid "Custom colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:121
+msgid "Match my wallpaper"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:122
+msgid "The glass takes a soft colour from your wallpaper when you press Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:123
+msgid "Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. It looks again each time you press Apply, not by itself. Picking a tint colour turns this off."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:130
+msgid "Looking at your wallpaper…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:132
+msgid "Your wallpaper changed since the last Apply. Press Apply to take its colour again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:157
+msgid "How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:161
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:17
+#: fedoraglass/gui/changes.py:84
+msgid "Corner roundness"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:167
+msgid "How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:18
+msgid "Style and accent"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:22
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:31
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:185
+msgid "Style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:26
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:180
+#: fedoraglass/gui/qml/FedoraGlass/OverrideSlider.qml:16
+msgid "Auto"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:26
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:180
+msgid "Follow GNOME's light/dark setting"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:27
+msgid "Always use the dark style, whatever GNOME is set to"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:181
+#: fedoraglass/gui/changes.py:80
+msgid "Dark"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:28
+msgid "Always use the light style, whatever GNOME is set to"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:28
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:182
+#: fedoraglass/gui/changes.py:80
+msgid "Light"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:37
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:14
+msgid "Accent colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:42
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:97
+msgid "Accent matches my wallpaper"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:43
+msgid "Buttons and highlights take a clear colour from your wallpaper when you press Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:44
+msgid "Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. It looks again each time you press Apply. Picking an accent above turns this off."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:57
+msgid "Tint and corners"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:67
+msgid "Taken from your wallpaper"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:67
+msgid "The colour the glass leans towards"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:83
+msgid "Choose the tint colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ColourPage.qml:83
+msgid "Choose your own tint colour instead"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:121
+#: fedoraglass/gui/backend.py:65
+#: fedoraglass/gui/backend.py:67
+msgid "Not installed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:13
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:197
+msgid "Keep mine"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:144
+#: fedoraglass/gui/changes.py:133
+#: fedoraglass/targets/cursor.py:15
+msgid "Mouse pointer"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:146
+msgid "Keep your own mouse pointer"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:147
+msgid "Point at a style to try it here. Apply sets it for the whole desktop; Restore original brings yours back."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:167
+msgid "Just for fun"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:168
+msgid "Playful looks, same clear shapes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:193
+msgid "Size"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:197
+msgid "Leave the pointer size as it is now"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:198
+msgid "GNOME's normal pointer size"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:198
+msgid "Normal"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:199
+msgid "A third bigger than normal"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:199
+msgid "Large"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:200
+msgid "Larger"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:200
+msgid "Twice the normal size"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:203
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:49
+#: fedoraglass/gui/changes.py:134
+msgid "Pointer size"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:29
+msgid "Pointer style %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/CursorCard.qml:38
+msgid "%1. Not installed with this copy of Fedora Glass."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:11
+msgid "The main control. Left is clear, bright liquid glass that bends what is behind it. Right is thick, milky frost that blurs it and keeps text easy to read."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:176
+#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
+msgid "Liquid"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:183
+#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:76
+msgid "Frosted"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:53
+msgid "Glass: liquid to frosted"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:103
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:21
+#: fedoraglass/gui/changes.py:96
+msgid "Rainbow edge"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:107
+msgid "Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:112
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:22
+#: fedoraglass/gui/changes.py:97
+msgid "Colour through glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:116
+msgid "How vivid the wallpaper and windows look through the glass. Left keeps their colours as they are; right makes them richer."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:125
+msgid "How much the colours of icons and text light up the glass around them, like light spreading inside real glass. Left keeps the glass neutral; right gives them a coloured glow."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:130
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:24
+#: fedoraglass/gui/changes.py:99
+msgid "Light follows pointer"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:134
+msgid "How much the light on the glass edges turns towards your pointer as it moves nearby. Left keeps the light still; right lets it follow closely."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:148
+msgid "Where the glass shows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:149
+msgid "Each one costs some graphics power. Turn it off where you don't need it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:159
+msgid "Real glass behind the top bar or Dash to Panel, a dock and the dash in Activities. Off leaves plain tinted bars."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:164
+msgid "Menus"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:166
+msgid "Quick settings, the calendar, the start menu and app menus. Off leaves plain tinted panes."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:167
+msgid "Quick settings, the calendar and app menus. Off leaves plain tinted panes."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:172
+msgid "App windows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:174
+msgid "Frosted wallpaper behind see-through app windows. Off shows it sharp, which is lighter on the graphics card."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:181
+msgid "Blurred wallpaper behind the Activities overview. Off leaves it sharp."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:186
+msgid "See windows through"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:189
+msgid "On, the panel and menus show the windows behind them as well as the wallpaper. Off shows only the wallpaper, which is lighter on the graphics card."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:214
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:141
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:211
+msgid "Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:223
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:91
+#: fedoraglass/gui/changes.py:139
+msgid "Glass switch in Quick Settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:224
+msgid "Pause all the glass from Quick Settings, and turn it on again there. It is back on at your next login."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:226
+msgid "Handy for a game or a screen share. The tile says Paused while the glass is off."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:19
+msgid "How much glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:29
+msgid "Back to Balanced"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:60
+msgid "Glass effects"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:61
+msgid "Bend, rainbow edge, colour bleed and 2 more"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:76
+msgid "The preview shows these as you change them."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:78
+msgid "Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:86
+#: fedoraglass/gui/qml/FedoraGlass/OverrideSlider.qml:65
+#: fedoraglass/gui/qml/FedoraGlass/SectionTitle.qml:41
+msgid "Reset"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:87
+msgid "Put the glass effects back to their defaults (Apply to use them)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:98
+msgid "How strongly the rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:129
+msgid "Terminal switches to Fedora Glass colours when you Apply, and its top bar turns to glass."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:130
+msgid "Terminal uses its own colours (%1), so its top bar stays solid."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:140
+msgid "Keep my colours"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:140
+msgid "Use Fedora Glass terminal colours"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:142
+msgid "Leaves Terminal on %1. Its top bar stays solid."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:143
+msgid "Changes Terminal's text and background colours to the Fedora Glass palette, which also turns its top bar to glass. Restore original brings your own colours back."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:151
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:36
+#: fedoraglass/gui/changes.py:111
+msgid "Terminal follows light and dark"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:152
+msgid "Terminal is dark on its own, even in light mode"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:153
+msgid "Terminal has its own light/dark setting, which starts out dark. Turn this on and Terminal follows GNOME's light or dark style like your other apps. Turn it off, or Restore original, and Terminal goes back to your own setting."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:16
+msgid "Window header bars"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:160
+#: fedoraglass/gui/changes.py:112
+msgid "Qt apps get the same title bar"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:161
+msgid "For apps like qBittorrent. Applies after you restart your PC"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:162
+msgid "Qt apps draw their own title bar in fixed colours that no theme can change. Turn this on and they open through GNOME's X11 support instead, so GNOME draws their title bar exactly like your other apps. Two trade-offs: through X11 an app is less sealed off than on Wayland, so other X11 apps can see what you type into it, and with fractional scaling (such as 125%) it can look slightly soft. Flatpak apps keep their own bar. Turn it off, or Restore original, to go back."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:18
+msgid "The bar along the top of Files, Terminal, Settings and other GNOME apps"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:186
+msgid "X11 keeps apps less separated: other X11 apps can see what you type in them. Leave this off if you use a Qt password manager such as KeePassXC."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:48
+msgid "Files shows the new bars the next time you open it. Terminal does once all its windows are closed."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:49
+msgid "Open apps keep the old bars until reopened. Terminal updates once all its windows are closed. Files keeps running in the background, so restart it here."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:60
+msgid "Restart Files"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:62
+msgid "Closes all open Files windows so Files starts fresh with the new bars. Terminal is left alone."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:69
+msgid "Height"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:73
+msgid "%1 px · GNOME default"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:75
+msgid "Sets how tall the bar at the top of app windows is. 47 px is GNOME's normal size."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:79
+msgid "Opacity"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:80
+msgid "How solid the header bar's glass is"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:86
+msgid "Window"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:87
+msgid "The header bar uses the same glass as the rest of the window"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:88
+msgid "Go back to the same glass as the rest of the window"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:89
+msgid "Sets how much of the desktop shows through the bar at the top of app windows. Left is clearer, right is more solid."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:95
+msgid "Terminal and Qt apps"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HeaderBarCard.qml:96
+msgid "Light and dark, colours, Qt title bars"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:176
+#: fedoraglass/gui/qml/Main.qml:16
+msgid "Colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:181
+msgid "Always use the dark style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:182
+msgid "Always use the light style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:19
+msgid "Clearest glass, brightest rim"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:20
+msgid "Clear glass with a little haze"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:202
+#: fedoraglass/gui/changes.py:71
+#: fedoraglass/gui/changes.py:134
+msgid "Your own"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:208
+#: fedoraglass/gui/changes.py:156
+msgid "Your own mix"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:21
+msgid "The default: readable and still glassy"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:215
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:237
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
+msgid "Off"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:215
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:237
+#: fedoraglass/gui/changes.py:30
+msgid "On"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:217
+msgid "Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:22
+msgid "Milky, heavily blurred glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:225
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:259
+#: fedoraglass/gui/qml/Main.qml:19
+msgid "Motion"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:228
+msgid "How windows, menus and the panel move"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:23
+msgid "Almost opaque, for maximum readability"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:236
+msgid "Glass lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:239
+msgid "A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:247
+msgid "Pointer"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:250
+msgid "Pick a mouse pointer that matches the glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:322
+msgid "Open %1 settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:57
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:325
+msgid "Look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:63
+msgid "Pick one to start. Everything else follows it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:79
+msgid "Save look…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:81
+msgid "Keep this look under a name, to pick again or share"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:90
+msgid "Add from file…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:92
+msgid "Add a look someone shared with you (a .json file)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LabeledSlider.qml:13
+#: fedoraglass/gui/qml/FedoraGlass/OverrideSlider.qml:14
+msgid "%1%"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LabeledSlider.qml:44
+msgid "Back to the default, %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:103
+msgid "How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:115
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:429
+msgid "Clock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:117
+msgid "GNOME's own clock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:118
+#: fedoraglass/gui/changes.py:120
+msgid "Bold"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:118
+msgid "Large, heavy numbers that stand out on the glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:119
+msgid "Large, light numbers for a quieter look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:119
+#: fedoraglass/gui/changes.py:120
+msgid "Thin"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:133
+msgid "Under the clock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:134
+msgid "Anyone can see these"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:136
+msgid "Put these back to their defaults"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:14
+msgid "Weather needs the GNOME Weather app, so nothing shows yet."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:143
+msgid "Battery"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:145
+msgid "Shows your battery level and a charging sign."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:146
+msgid "Shows your battery level and a charging sign. This PC has no battery, so nothing shows."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:15
+msgid "Choose a place in GNOME Weather, so weather has something to show."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:151
+msgid "Weather"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:153
+msgid "%1 Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu)."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:154
+msgid "Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu)."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:159
+msgid "Greeting"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:161
+msgid "“Good morning” above the clock, changing through the day. It never shows your name."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:166
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:273
+msgid "Message"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:168
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:319
+msgid "A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:182
+msgid "Hide notifications"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:184
+msgid "Hides GNOME's notifications and music controls while the screen is locked. They're all still there when you unlock. GNOME's own notification settings aren't changed."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:203
+msgid "More lock screen options"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:204
+msgid "Darken, tint, clock position, unlock animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:217
+msgid "Darken"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:222
+msgid "How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:231
+msgid "How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:236
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:65
+#: fedoraglass/gui/changes.py:119
+msgid "Glass card behind the password"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:237
+msgid "Your picture, name and password field sit on their own pane"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:238
+msgid "Puts a pane of glass behind your picture, name and password field when you start typing."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:245
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:66
+#: fedoraglass/gui/changes.py:121
+msgid "Clock position"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:247
+msgid "Where GNOME puts it, about a third of the way down"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:248
+msgid "Near the top of the screen, with more wallpaper below. The password appears there too."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:248
+#: fedoraglass/gui/changes.py:122
+msgid "Top"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:249
+msgid "In the middle of the screen. The password appears there too."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:249
+#: fedoraglass/gui/changes.py:122
+msgid "Middle"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:255
+msgid "Weather and message"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:261
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:60
+#: fedoraglass/gui/changes.py:128
+msgid "Name the place for weather"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:262
+msgid "Shows your town next to the weather"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:263
+msgid "Adds the place name to the weather. Off keeps where you live off your lock screen."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:277
+msgid "%1 / %2"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:291
+msgid "For example: If found, please call 555 0100"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:297
+msgid "Lock screen message"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:327
+msgid "Each widget sits on its own small pane of glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:328
+msgid "Just the icons and text, straight on the lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:328
+#: fedoraglass/gui/changes.py:131
+msgid "Text only"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:334
+msgid "Unlock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:340
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:67
+#: fedoraglass/gui/changes.py:123
+msgid "Unlock animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:342
+msgid "GNOME's own quick slide"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:343
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:23
+#: fedoraglass/gui/changes.py:123
+msgid "Smooth"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:343
+msgid "The glass glides up and slows as it leaves"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:344
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
+#: fedoraglass/gui/changes.py:153
+msgid "Spring"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:344
+msgid "The glass gathers itself, then lifts away quickly"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:350
+msgid "Slide time"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:354
+msgid "%1 s"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:356
+msgid "How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:361
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
+#: fedoraglass/gui/changes.py:153
+msgid "Bounce"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:365
+msgid "How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:429
+msgid "The lock screen as it waits, with the clock and your widgets"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:430
+msgid "Password"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:430
+msgid "The lock screen once you start typing your password"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:433
+msgid "Preview"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:442
+msgid "Play unlock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:446
+msgid "Shows the unlock animation on the preview, with the time and bounce you picked"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:452
+msgid "Apply and lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:452
+msgid "Lock now"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:456
+msgid "Applies your changes, then locks your screen so you can see them for real."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:457
+msgid "Locks your screen so you can see it for real. Your password unlocks it as usual."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:465
+msgid "Changes show after Apply, the next time you lock."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:75
+msgid "Lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:80
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:53
+#: fedoraglass/gui/changes.py:115
+msgid "Glass lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:81
+msgid "Off while Reduce transparency is on"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:82
+msgid "Only your wallpaper shows through, never your windows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:83
+msgid "Turns the lock screen into one sheet of frosted glass over your wallpaper. When you unlock, the sheet slides up and your desktop appears underneath. Off gives you GNOME's own lock screen; your widgets stay."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:171
+msgid "14°  ·  Partly cloudy"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:171
+msgid "14°  ·  Partly cloudy  ·  Your town"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:199
+msgid "Click or press a key to unlock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:224
+msgid "Messages"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:225
+msgid "2 new notifications"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:279
+msgid "You"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:52
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:66
+msgid "Good afternoon"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:52
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:64
+msgid "Good morning"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:53
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:68
+msgid "Good evening"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:53
+#: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:69
+msgid "Good night"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:23
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:70
+msgid "Glass login screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:27
+msgid "Needs your password once. Apply keeps it up to date."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:36
+msgid "The login screen can't see your wallpaper, so it gets a soft glow in your tint colour with glass panes for your name and password. It changes a system file, so your password is needed, also when Apply updates it. GNOME updates put the normal login screen back by themselves."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:46
+msgid "The login screen still has an older look. Apply brings it up to date; it asks for your password."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:47
+msgid "Glass is on the login screen, in your tint and accent colours. Apply keeps it up to date."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:48
+msgid "A GNOME update put the normal login screen back. Turn the glass on again to bring it back."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:49
+msgid "Waiting for your password…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:50
+msgid "The login screen you see after a restart is GNOME's own."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:60
+msgid "Update it now"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:60
+msgid "Update to my colours"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:60
+msgid "Use glass on the login screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:61
+msgid "Asks for your password, then puts glass on the login screen in the colours you applied last."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:70
+msgid "Put the normal login screen back"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:71
+msgid "Asks for your password, then puts GNOME's own login screen back exactly as it was."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:84
+msgid "The login screen gets the look you applied last. Apply first to bring your newest colours along."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookFileDialogs.qml:20
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:94
+msgid "Add a look from a file"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookFileDialogs.qml:23
+msgid "All files (*)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookFileDialogs.qml:23
+#: fedoraglass/gui/qml/FedoraGlass/LookFileDialogs.qml:33
+msgid "Fedora Glass looks (*.json)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookFileDialogs.qml:29
+msgid "Save the look as a file"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookTile.qml:142
+msgid "More for %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookTile.qml:33
+msgid "%1 preset"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/LookTile.qml:33
+msgid "%1, your look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:17
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
+#: fedoraglass/gui/changes.py:151
+msgid "Open"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:17
+msgid "Windows appearing, from the taskbar or anywhere"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:18
+msgid "Into and out of the taskbar icon"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:18
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
+#: fedoraglass/gui/changes.py:151
+msgid "Minimize and restore"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:20
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
+#: fedoraglass/gui/changes.py:151
+msgid "App starting"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:20
+msgid "The taskbar icon bounces until the window shows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:21
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:293
+#: fedoraglass/gui/changes.py:152
+msgid "Panel hover"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:21
+msgid "Taskbar icons, tray and clock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
+#: fedoraglass/gui/changes.py:153
+msgid "GNOME default"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:24
+#: fedoraglass/gui/changes.py:153
+msgid "Jelly"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
+#: fedoraglass/gui/changes.py:153
+msgid "Genie"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:25
+#: fedoraglass/gui/changes.py:154
+msgid "Scale and fade"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:261
+msgid "How windows open, minimize and close, and how the panel answers your pointer."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:267
+msgid "Reduce animation is on in GNOME Settings, so none of these play. Turn it off in Settings › Accessibility to see them."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:27
+msgid "GNOME's own animation for this"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:28
+msgid "Springs into place with one soft overshoot"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:29
+msgid "Lands and hops two or three times, smaller each time"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:30
+msgid "Squashes and stretches like jelly as it settles"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:31
+msgid "Pours into the taskbar icon and back out, like a genie"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:32
+msgid "A quick, calm zoom and fade"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:33
+msgid "No animation: it happens at once"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:416
+msgid "%1 animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:429
+msgid "Play a preview"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:430
+msgid "Play a preview of %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:440
+msgid "More settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:441
+msgid "Intensity and speed for %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:474
+msgid "Nothing plays, so there is nothing to adjust."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:475
+msgid "GNOME's own animation keeps its own timing."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:480
+msgid "Intensity"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:486
+msgid "How lively it is: how far it overshoots or bounces before settling. Left settles calmly; right is bouncier."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:497
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:105
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:85
+msgid "Speed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:502
+msgid "%1×"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:509
+msgid "How fast it plays. Left is slower, the middle is normal speed, right is faster."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:513
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:106
+msgid "Slower"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:520
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:107
+msgid "Faster"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:542
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:162
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:44
+msgid "Gliding highlight"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:543
+msgid "One highlight slides from icon to icon along the taskbar"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:544
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:164
+msgid "Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:556
+msgid "Dash to Panel's own hover animation turns off when you Apply."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:557
+msgid "Dash to Panel animates its own icons on hover, so taskbar icons use its animation. The tray and clock use this one."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:563
+msgid "Keep Dash to Panel's"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:563
+msgid "Use Fedora Glass hover"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:564
+msgid "Leaves Dash to Panel's own hover animation on."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:565
+msgid "Turns Dash to Panel's own hover animation off when you Apply. Restore original turns it back on."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:577
+msgid "Reset motion"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionCard.qml:580
+msgid "Go back to the default animations"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:117
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:41
+#: fedoraglass/gui/changes.py:181
+msgid "Animation speed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:135
+msgid "Glass in motion"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:140
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:42
+#: fedoraglass/gui/changes.py:100
+msgid "Liquid motion"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:141
+msgid "Glass gives a little when pressed and settles as menus open"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:142
+msgid "Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:149
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:43
+#: fedoraglass/gui/changes.py:101
+msgid "Menus grow from their button"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:151
+msgid "The start menu, quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:152
+msgid "Quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:173
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:46
+msgid "Each animation on its own"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:174
+msgid "Open, minimize, close, app starting, panel hover"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:187
+msgid "Play again"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:194
+msgid "Pick a style to watch it play here."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:28
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:40
+#: fedoraglass/gui/changes.py:176
+msgid "Motion style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:29
+msgid "Your own mix. Pick a style to set every animation at once."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:30
+msgid "One choice sets every animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:32
+msgid "Back to Lively, at normal speed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/MotionPage.qml:52
+msgid "%1 motion"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:132
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:52
+msgid "Remove"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:134
+msgid "Give %1 glass again (Apply to use it)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:136
+msgid "Remove %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:155
+msgid "Always without glass: %1"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:28
+msgid "Their windows get no glass behind them. Handy for apps that draw their own solid windows."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:30
+msgid "Take every app off this list"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:39
+msgid "Add app"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:41
+msgid "Pick an installed app"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:43
+msgid "Add an app without glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:65
+msgid "Glass behind app windows is off on the Glass page, so no app gets it right now."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:87
+msgid "No apps added. Every window gets glass, except the ones below."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:19
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
+#: fedoraglass/gui/backend.py:37
+msgid "Desktop"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:22
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:50
+#: fedoraglass/gui/changes.py:106
+msgid "Start on the desktop"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:23
+msgid "Start straight on your desktop, not the Activities overview"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:24
+msgid "When your PC starts, GNOME shows your desktop and panel instead of opening Activities first. Until you choose, it is on with Dash to Panel and off on GNOME's own desktop. If Dash to Panel or Just Perfection is installed, their own start-up option is set to match."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:33
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:51
+#: fedoraglass/gui/changes.py:107
+msgid "Turn off the overview"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:34
+msgid "No overview from the Super key, hot corner or swipe, and no workspace view"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:36
+msgid "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Open apps from ArcMenu, Spawn, Dash to Panel or a dock. Switch this off, or turn off Fedora Glass, and it all comes back at once."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:37
+msgid "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Without ArcMenu or Spawn the app grid still opens, so you can open apps from it, Dash to Panel or a dock. Switch this off, or turn off Fedora Glass, and it all comes back at once."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1057
+msgid "Bluetooth"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1057
+msgid "Wi-Fi"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1058
+#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
+msgid "Balanced"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1058
+msgid "Night Light"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1058
+msgid "Power Mode"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1059
+msgid "Dark Style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1059
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1142
+msgid "Do Not Disturb"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1111
+msgid "2 min"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1111
+msgid "Copied 12 photos to Pictures"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1112
+msgid "1 h"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1112
+msgid "3 updates are ready to install"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1228
+msgid "Type to search"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1315
+msgid "Activities is off: no hot corner, Super key or swipe opens this"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1491
+msgid "Glass edge at full size"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:398
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:906
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1111
+msgid "Files"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:407
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:952
+msgid "Documents"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:407
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:450
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:952
+msgid "Home"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:407
+msgid "Recent"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:407
+msgid "Starred"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:408
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:952
+msgid "Downloads"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:408
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
+msgid "Music"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:408
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:953
+msgid "Pictures"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:409
+msgid "Trash"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:409
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:474
+msgid "Videos"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:473
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1448
+msgid "Projects"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:474
+msgid "Games"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:474
+msgid "Public"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:474
+msgid "Templates"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:892
+msgid "Search…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:898
+msgid "Pinned"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:907
+msgid "Text Editor"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:908
+msgid "Calculator"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:909
+msgid "Extensions"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:909
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:953
+msgid "Settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:953
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1112
+msgid "Software"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewNote.qml:7
+msgid "The preview changes as you move things. Your desktop changes when you press Apply."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:174
+msgid "Show the desktop"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:174
+msgid "Show the desktop with the start menu"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:175
+msgid "Show Quick Settings"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:176
+msgid "Show the calendar and notifications"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:177
+msgid "Show Activities (the overview)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:180
+msgid "Preview shows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:201
+msgid "Close up: glass at about half its real size. Drag to look around."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:202
+msgid "Show the whole screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:205
+msgid "Preview size"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:222
+msgid "Preview the dark style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:223
+msgid "Preview the light style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/PreviewPane.qml:226
+msgid "Preview style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:15
+msgid "Removing Fedora Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:18
+msgid "Put my original look back"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:19
+msgid "When Fedora Glass is removed, your desktop goes back to how it was before"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:20
+msgid "On: removing Fedora Glass (here, or with %1) first does what Restore original does. Off: the glass and themes stay after the app is gone. Saved straight away."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:29
+msgid "Remove Fedora Glass…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:29
+#: fedoraglass/gui/qml/Main.qml:767
+msgid "Removing Fedora Glass…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:34
+msgid "Puts your original look back, then removes the app. Asks for your password."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:43
+msgid "Remove Fedora Glass?"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:44
+msgid "Your original look comes back first, exactly as Restore original does. Then Fedora Glass is removed from your PC, which needs your password. Your Fedora Glass settings are kept, in case you install it again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:63
+msgid "Fedora Glass is removed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:64
+msgid "Your original look is back. Restart your PC to finish, so GNOME lets go of the glass completely."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:72
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:54
+msgid "Restart now…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:75
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:57
+msgid "GNOME asks before it restarts, so you can save your work first."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResetButton.qml:9
+msgid "Default"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:171
+msgid "%1 parts not installed here, skipped"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:27
+msgid "Applied, with %1 problems"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:27
+msgid "Applied, with 1 problem"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:28
+msgid "Settings saved"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:29
+msgid "Applied. Restart your PC to finish"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:30
+msgid "Applied, but the glass can't start"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:31
+msgid "Fedora Glass is on"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:31
+msgid "Your new look is applied"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:32
+msgid "Nothing to theme was found yet, so only your settings were saved."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:33
+msgid "Everything else was applied. The details are below."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:36
+msgid "GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:37
+msgid "Open apps pick up the new look when you reopen them."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:47
+msgid "Later"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:68
+msgid "%1 applied"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:68
+msgid "Applied"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:69
+msgid "%1 restored"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:69
+msgid "Restored"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:70
+msgid "%1 note"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:70
+msgid "Note"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
+msgid "%1 skipped"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
+msgid "Skipped"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:72
+msgid "%1 failed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:72
+msgid "Failed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:100
+msgid "Delete…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:133
+msgid "Rename your look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:133
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:93
+msgid "Save this look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:135
+msgid "It joins the looks on Home, to pick again or share. A look keeps the colours, the glass, motion, the lock screen's look and the pointer. Your choice of apps and this PC's own settings stay out of it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:155
+msgid "Rename"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:155
+msgid "Save"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:165
+msgid "Name"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:174
+msgid "For example: Evening blue"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:180
+msgid "Look name"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:199
+msgid "Delete “%1”?"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:200
+msgid "Only the saved look goes. Your desktop keeps the look you applied."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:208
+msgid "Delete"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:222
+msgid "The look wasn't saved as a file"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:222
+msgid "This look can't be added"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:223
+msgid "The look wasn't saved"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:227
+#: fedoraglass/gui/qml/Main.qml:946
+msgid "OK"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:250
+msgid "Saving looks as files needs Qt's file dialogs, which aren't installed. On Ubuntu and Debian, install qml6-module-qtquick-dialogs."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:27
+msgid "Your looks"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:57
+msgid "Your look. Pick it to see it here; Apply puts it on your desktop."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:87
+msgid "Rename…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:92
+msgid "Save as a file…"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SectionTitle.qml:16
+msgid "Put this card back to its defaults"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SectionTitle.qml:42
+msgid "%1 (Apply to use them)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Segmented.qml:55
+msgid "%1, selected"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:148
+msgid "Clear search"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:167
+msgid "Has changes not applied yet"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:261
+msgid "Search results"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:266
+msgid "No setting matches \"%1\""
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:309
+msgid "%1 more settings match. Type more to narrow it down."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:309
+msgid "1 more setting matches. Type more to narrow it down."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Sidebar.qml:42
+msgid "Fedora Glass: home"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:102
+msgid "Auto picks the best glass your PC can run smoothly"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:11
+msgid "full"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:11
+msgid "lighter"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:11
+msgid "lightest"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:114
+msgid "Full glass, made lighter by itself when frames start dropping. It tries full glass again a few minutes later."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:115
+msgid "Every effect, all the time."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:115
+#: fedoraglass/gui/changes.py:90
+msgid "Full"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:116
+msgid "Fewer colour samples at the edges and fewer redraws for windows behind. Hard to tell apart from full."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:117
+msgid "Lighter, and the glass shows only your wallpaper, not the windows behind it. Easiest on the graphics card."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:119
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:121
+#: fedoraglass/gui/changes.py:89
+msgid "Glass quality"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:127
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:135
+msgid "Check speed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:13
+msgid "Full glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:131
+msgid "Measure how smoothly each level draws here (about 20 seconds)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:133
+msgid "Apply, then restart your PC once to start the glass."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:14
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:116
+#: fedoraglass/gui/changes.py:90
+msgid "Lighter"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:141
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:89
+#: fedoraglass/gui/changes.py:138
+msgid "Lighter glass on battery"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:142
+msgid "On battery or in Power Saver, use lighter glass. It goes back when you plug in."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:144
+msgid "Saves battery. Lighter glass is hard to tell apart from full glass. It is never heavier than the quality you picked."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:15
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:117
+#: fedoraglass/gui/changes.py:90
+msgid "Lightest"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:171
+msgid "Checking… this takes about 20 seconds. The glass may look a little plainer for a moment."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:213
+msgid "%1, %2"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:229
+msgid "Use full glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:229
+msgid "Use lighter glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:229
+msgid "Use lightest glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:23
+msgid "A little uneven"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:23
+msgid "Slow"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:237
+msgid "The check redraws all the glass every frame, harder than everyday use."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:32
+msgid "%1 frames a second"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:32
+msgid "1 frame a second"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:38
+msgid "Right now: %1 glass, because frames were dropping. It tries full glass again in a few minutes."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:41
+msgid "Right now: %1 glass, because Power Saver is on."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:42
+msgid "Right now: %1 glass, because you're on battery."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:44
+msgid "Right now: trying full glass again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:45
+msgid "Right now: %1 glass."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:51
+msgid "Full glass was the fastest here, but every level dropped frames."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:52
+msgid "Lighter glass was the fastest here, but every level dropped frames."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:53
+msgid "Lightest glass was the fastest here, but every level dropped frames."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:54
+msgid "Full glass runs smoothly on this PC."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:55
+msgid "Full glass is the best fit for this PC."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:56
+msgid "Lighter glass is the best fit for this PC."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:56
+msgid "Lightest glass is the best fit for this PC."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:60
+msgid "The desktop didn't answer. Make sure Fedora Glass is turned on, then try again."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:63
+msgid "There's no glass on screen to measure. Turn on glass for the panel, menus or windows first."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:64
+msgid "The check couldn't run. Try again in a moment."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:92
+msgid "Back to Auto, and lighter glass on battery (Apply to use them)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:121
+msgid "Hide notes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:121
+msgid "Show notes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:134
+msgid "Hide %1 notes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:134
+msgid "Hide 1 note"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:135
+msgid "%1 notes"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:135
+msgid "1 note"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:185
+msgid "%1 (not available)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:188
+msgid "Left alone (turning it off later restores it)"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:188
+msgid "Not installed here, so it is skipped"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:188
+msgid "Themed on Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:62
+msgid "Not available"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:72
+msgid "Optional"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/TargetRow.qml:97
+msgid "Off until you turn it on."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
+msgctxt "preset"
+msgid "Clear"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/Theme.qml:76
+msgid "Solid"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:11
+msgid "Welcome to Fedora Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:12
+msgid "Glass for your panel, menus, lock screen and apps. Try anything here: your desktop only changes when you press Apply."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:18
+msgid "Clear and bright"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:19
+msgid "Readable, still glassy"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:20
+msgid "Calm, milky frost"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:222
+msgid "The preview shows every change straight away."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:222
+msgid "Try it here"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:223
+msgid "Press Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:223
+msgid "Your apps change at once. Restart once for the glass."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:224
+msgid "Restore original puts everything back."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:224
+msgid "Undo any time"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:31
+msgid "Customise first"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:37
+msgid "Apply this look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:42
+msgid "Applies the look you picked to your desktop and apps. Restore original undoes it."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WelcomeSheet.qml:54
+msgid "Pick a starting look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:25
+msgid "Dash to Panel"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:29
+msgid "A glass pill that floats above the screen edge"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:29
+#: fedoraglass/gui/changes.py:91
+msgid "Floating"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:30
+msgid "A full-width bar along the screen edge"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:30
+#: fedoraglass/gui/changes.py:91
+msgid "Docked"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:33
+msgid "Panel style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:38
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:33
+#: fedoraglass/gui/changes.py:92
+msgid "Panel margin"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WindowsPage.qml:45
+msgid "The gap between the floating panel and the screen edge. Left sits it against the edge; right floats it further away."
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:11
+msgid "Look presets"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:11
+msgid "liquid clear balanced frosted solid preset style start"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:13
+msgid "Light or dark style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:13
+msgid "dark light auto scheme mode night"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:14
+msgid "accent color highlight system custom"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:15
+msgid "tint color hue glass colour"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:16
+msgid "tint amount color strength"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:17
+msgid "corners radius round rounded sharp"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:19
+msgid "frost frosted liquid clear glass amount milky"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:20
+msgid "refraction lens bend edge thickness strength"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:21
+msgid "dispersion rainbow chromatic fringe colour edge"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:22
+msgid "vibrancy saturation vivid colour through"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:23
+msgid "bleed glow icons light spread"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:24
+msgid "pointer light mouse highlight follow"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:25
+#: fedoraglass/gui/changes.py:102
+msgid "Glass on the panel"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:25
+msgid "panel taskbar top bar dock glass where"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:26
+#: fedoraglass/gui/changes.py:103
+msgid "Glass on menus"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:26
+msgid "menus popups quick settings calendar glass where"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:27
+msgid "Glass behind app windows"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:27
+msgid "app windows translucent blur behind where"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:28
+#: fedoraglass/gui/changes.py:104
+msgid "Glass in the overview"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:28
+msgid "overview activities blur where"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:29
+#: fedoraglass/gui/changes.py:105
+msgid "See windows through the glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:29
+msgid "see through windows behind blur gpu"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:30
+msgid "Speed and glass quality"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:30
+msgid "speed quality performance fps gpu lighter lightest auto check"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:32
+msgid "Panel floating or docked"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:32
+msgid "dash to panel floating docked pill bar style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:33
+msgid "panel gap margin edge floating"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:34
+#: fedoraglass/gui/changes.py:108
+msgid "Header bar height"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:34
+msgid "header bar title bar height size compact"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:35
+#: fedoraglass/gui/changes.py:109
+msgid "Header bar opacity"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:35
+msgid "header bar transparency opacity see through"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:36
+msgid "terminal ptyxis light dark follow"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:37
+#: fedoraglass/gui/changes.py:110
+msgid "Terminal colours"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:37
+msgid "terminal colours palette colors"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:38
+msgid "Qt apps title bar"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:38
+msgid "qt kde title bar x11 keepassxc"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:40
+msgid "animation motion calm lively playful off gnome"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:41
+msgid "speed animation slower faster"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:42
+msgid "liquid spring press settle"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:43
+msgid "menu grow open animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:44
+msgid "taskbar hover highlight glide"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:45
+msgid "Dash to Panel's own hover animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:45
+msgid "dash to panel hover animation taskbar icons bounce"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:46
+msgid "open minimize close app starting launch bounce panel hover genie jelly"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:48
+msgid "Mouse pointer style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:48
+msgid "cursor pointer mouse arrow style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:49
+msgid "cursor pointer size large small"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:50
+msgid "start desktop login overview boot"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:51
+msgid "overview activities super key hot corner off"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:53
+msgid "lock screen glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:54
+#: fedoraglass/gui/changes.py:116
+msgid "Lock screen frost"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:54
+msgid "lock blur frost"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:55
+msgid "Lock screen clock style"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:55
+msgid "clock bold thin font lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:56
+#: fedoraglass/gui/changes.py:126
+msgid "Battery on the lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:56
+msgid "battery widget lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:57
+#: fedoraglass/gui/changes.py:127
+msgid "Weather on the lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:57
+msgid "weather widget lock place city"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:58
+#: fedoraglass/gui/changes.py:129
+msgid "Greeting on the lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:58
+msgid "greeting hello name lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:59
+#: fedoraglass/gui/changes.py:130
+msgid "Message on the lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:59
+msgid "message text note lost laptop lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:60
+msgid "weather place town city location privacy lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:61
+#: fedoraglass/gui/changes.py:131
+msgid "Lock screen widget look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:61
+msgid "widgets look glass chips text only plain lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:62
+#: fedoraglass/gui/changes.py:132
+msgid "Hide notifications on the lock screen"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:62
+msgid "privacy notifications music hide lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:63
+#: fedoraglass/gui/changes.py:117
+msgid "Lock screen darken"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:63
+msgid "darken dim lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:64
+#: fedoraglass/gui/changes.py:118
+msgid "Lock screen tint"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:64
+msgid "tint colour lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:65
+msgid "password card pane lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:66
+msgid "clock position top middle lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:67
+msgid "unlock slide bounce animation"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:68
+#: fedoraglass/gui/changes.py:124
+msgid "Unlock slide time"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:68
+msgid "unlock slide time speed duration slower faster lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:69
+#: fedoraglass/gui/changes.py:125
+msgid "Unlock bounce"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:69
+msgid "unlock bounce spring dip lock"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:70
+msgid "login gdm greeter screen password"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:72
+msgid "Apps that get themed"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:72
+msgid "apps gtk libadwaita libreoffice firefox themed targets"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:74
+msgid "part panel start menu quick settings calendar windows terminal own look override"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:75
+msgid "opacity transparency solid fine tune"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:76
+msgid "blur radius px fine tune"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:77
+msgid "terminal opacity transparency see through"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:78
+msgid "reduce transparency readability opaque accessibility"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:79
+msgid "Reset everything to defaults"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:79
+msgid "reset defaults start over"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:81
+msgid "Restore original look"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:81
+msgid "restore original undo revert remove back"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:82
+msgid "Remove Fedora Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:82
+msgid "remove uninstall delete"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:83
+msgid "Put my original look back on removal"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:83
+msgid "remove uninstall original look back restore keep"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:84
+msgid "keyboard shortcuts keys help"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:85
+msgid "Version and what's new"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:85
+msgid "version about what's new changelog update"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:87
+msgid "Firefox colours"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:87
+msgid "firefox browser mozilla theme toolbar tabs userchrome"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:89
+msgid "battery power saver laptop energy lighter speed quality"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:90
+msgid "apps windows no glass skip exclude games video steam list"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:91
+msgid "quick settings tile pause turn off glass toggle switch menu"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:93
+msgid "save my look name keep favourite"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:94
+msgid "import open share look file json"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:95
+msgid "Your saved looks"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:95
+msgid "my looks saved rename delete export share file"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:96
+msgid "Tint matches my wallpaper"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:96
+msgid "wallpaper background match tint colour automatic picture"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:97
+msgid "wallpaper background match accent colour automatic picture"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:98
+msgid "Go back one Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/searchindex.js:98
+msgid "previous last apply undo back forward before earlier look"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:15
+msgid "Presets, glass, colour and the big switches (Ctrl+1)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:15
+msgid "Your look in one place"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:16
+msgid "Light or dark, accent, tint and corners (Ctrl+2)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:17
+msgid "How much glass, its effects, where it shows and speed (Ctrl+3)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:18
+msgid "Panel and windows"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:18
+msgid "The panel, header bars, terminal and Qt apps (Ctrl+4)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:19
+msgid "How windows, menus and the panel move (Ctrl+5)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:20
+msgid "Mouse pointer, start on the desktop, the overview (Ctrl+6)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:20
+msgid "Pointer and desktop"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:21
+msgid "Lock and login"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:21
+msgid "Lock screen glass, clock, widgets and the login screen (Ctrl+7)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:22
+#: fedoraglass/gui/backend.py:37
+msgid "Apps"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:22
+msgid "Choose what gets themed (Ctrl+8)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:23
+msgid "Advanced"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:23
+msgid "For when you want full control"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:23
+msgid "Part by part, fine-tune and start over (Ctrl+9)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:24
+msgid "About and restore"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:24
+msgid "Version, shortcuts, restore your original look or remove Fedora Glass"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:335
+msgid "Minimize"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:336
+msgid "Maximize"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:336
+#: fedoraglass/gui/qml/Main.qml:897
+msgid "Restore"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:455
+msgid "An old hand-installed copy of Fedora Glass still runs at login with its older look."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:469
+msgid "Clean up old copy"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:472
+msgid "Removes only the old copy's launcher, menu entry and background service. Your look and settings stay."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:528
+msgid "Switch on"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:530
+msgid "Switch GNOME's extensions back on. Then press Apply to finish your look."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:540
+msgid "Copy details"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:589
+msgid "Turn glass back on"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:591
+msgid "Start the glass again. If it keeps failing, it pauses itself again."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:637
+msgid "Re-apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:640
+msgid "Write the Fedora Glass look again. Nothing else changes."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:714
+msgid "1 change not applied yet"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:715
+msgid "%1 changes not applied yet"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:716
+msgid "Unapplied changes"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:717
+msgid "1 part didn't change."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:718
+msgid "%1 parts didn't change."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:719
+msgid "Login screen needs Apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:719
+msgid "Needs re-apply"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:720
+msgid "Not applied yet"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:720
+msgid "Restart to finish"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:720
+msgid "Up to date"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:732
+msgid "Restart…"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:733
+msgid "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:744
+msgid "See what happened"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:745
+msgid "What applied, and what went wrong with the rest"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:756
+msgid "Undo"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:758
+msgid "Go back to the last look that applied fully (Ctrl+Z)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:759
+msgid "Go back to the look you applied last (Ctrl+Z)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:768
+msgid "Applying %1…"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:769
+msgid "Restoring your original look…"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:770
+msgid "Cleaning up the old copy…"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:771
+msgid "Working out the changes…"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:798
+msgid "See changes"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:802
+msgid "What you changed and haven't applied yet, and every file and setting Apply writes"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:816
+msgid "Save and apply the look everywhere (Ctrl+Enter)"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:842
+msgid "Closing once the login screen has your new look"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:854
+msgid "Your original look is back"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:889
+msgid "Restore your original look?"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:890
+msgid "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:909
+msgid "Apply your changes before closing?"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:910
+msgid "You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:915
+msgid "Close without applying"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:921
+msgid "Apply and close"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:937
+msgid "Fedora Glass is being removed"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:937
+msgid "Your look is being applied"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:938
+msgid "The login screen is being updated"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:938
+msgid "Your original look is coming back"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:939
+msgid "Closing now could stop it half way. Fedora Glass tells you when it's done."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:940
+msgid "It waits for your password. Closing now would stop it half way."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:941
+msgid "Closing now would stop it half way. It only takes a moment."
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:946
+msgid "Keep open"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:953
+msgid "Close when done"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:969
+msgid "Some things could not be restored"
+msgstr ""
+
+#: fedoraglass/gui/qml/Main.qml:970
+msgid "Everything else is back. These need a look:"
+msgstr ""
+
+#: fedoraglass/settings.py:684
+msgid "Your settings file was damaged, so its last good copy was used. The damaged file is kept as {path}."
+msgstr ""
+
+#: fedoraglass/settings.py:686
+msgid "Your settings file was damaged and there was no good copy, so these are the defaults. The damaged file is kept as {path}."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:126
+msgid "Installs Fedora Glass Dark and Light colour themes in VS Code and selects the one that fits."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:128
+msgid "Fedora Glass Dark and Light colour themes, installed as a local extension."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:130
+msgid "VS Code windows can't be translucent on Linux; the theme uses the glass colours on opaque surfaces."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:131
+msgid "If settings.json contains comments, Fedora Glass leaves it alone: pick Fedora Glass Dark/Light yourself under Preferences > Color Theme."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:169
+msgid "settings.json has comments, so it was not changed: select the theme manually."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:177
+msgid "Adds the Fedora Glass theme to each of your vaults and selects it."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:179
+msgid "Fedora Glass theme installed into every vault and selected."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:182
+msgid "Restart Obsidian (or reload with Ctrl+R) to see the theme. Obsidian's window is opaque."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:224
+msgid "Adds a Fedora Glass theme for qBittorrent and selects it in its settings."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:226
+msgid "Folder-based custom UI theme (colours and a rounded style sheet)."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:231
+msgid "Close qBittorrent before applying: it rewrites its settings file on exit and would undo this."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:232
+msgid "Colours and style sheet follow the GNOME dark or light style; restart qBittorrent after a switch."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:268
+msgid "Adds a Fedora Glass theme for Prism Launcher and selects it."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:270
+msgid "Custom Prism theme (palette and style sheet), selected as the application theme."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:272
+msgid "Close Prism Launcher before applying so it doesn't overwrite its settings."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:304
+msgid "Writes a theme in your colours for Brave and Helium. You load it once yourself; the note says how."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:306
+msgid "Chromium theme extension with the glass colours (loaded once by hand)."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:313
+msgid "Brave and Helium are not installed"
+msgstr ""
+
+#: fedoraglass/targets/apps.py:325
+msgid "Later changes need Reload on that extension's card. Chromium themes follow the scheme in use when you apply, and browser windows stay opaque."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:327
+msgid "Fedora Glass never edits browser profiles."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:389
+msgid "Fedora Glass colours for Firefox's toolbars, tabs and menus."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:390
+msgid "Adds a Fedora Glass style sheet to each Firefox profile and one line to its userChrome.css, userContent.css and user.js. Restore original takes them away."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:395
+msgid "Restart Firefox to see it (Firefox only reads these files when it starts)."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:396
+msgid "Keep Firefox's theme on System theme or Dark/Light (Add-ons > Themes): the colours follow the light or dark style Firefox uses. Windows stay solid."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:398
+msgid "Your own userChrome.css and userContent.css are kept; Fedora Glass only adds one import line, and Restore original takes it away again."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:400
+msgid "Firefox keeps the 'allow userChrome.css' switch in its own settings after Restore. Without the Fedora Glass files it changes nothing; reset it in about:config if you like."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:409
+msgid "No Firefox profile yet: start Firefox once, then come back"
+msgstr ""
+
+#: fedoraglass/targets/apps.py:453
+msgid "Left alone because its chrome folder or user.js is a link: {names}."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:481
+msgid "Slack has no theme file. Open Preferences > Themes, scroll to the bottom, choose 'Create a custom theme' and paste this string:"
+msgstr ""
+
+#: fedoraglass/targets/apps.py:490
+msgid "No theme file; a ready-made sidebar theme string is shown to paste."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:491
+msgid "Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:494
+msgid "Not themed: Steam draws its own UI."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:495
+msgid "Changes nothing: Steam draws its own look."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:496
+msgid "Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:498
+#: fedoraglass/targets/apps.py:503
+msgid "Not themed; follows the system dark mode."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:499
+msgid "Changes nothing: Zoom follows your light or dark setting by itself."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:500
+msgid "In Zoom: Settings > General > Theme > Use system setting."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:504
+msgid "Changes nothing: Claude follows your light or dark setting by itself."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:505
+msgid "In Claude: Settings > Appearance > Match system."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:508
+msgid "Follows the GTK 3 theme automatically."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:509
+msgid "Changes nothing here: LibreOffice picks up the GTK 3 look by itself."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:510
+msgid "LibreOffice's GTK 3 backend picks up the adw-gtk3 glass theme. If it looks flat, set Tools > Options > LibreOffice > View > Icon/Application colours to Automatic."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:75
+msgid "Adds a Fedora Glass theme to Vencord and turns it on, so Discord gets the glass colours."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:77
+msgid "Glass theme for Discord, installed as a Vencord theme."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:80
+msgid "Needs Vencord (vencord.dev). Restart Discord after applying."
+msgstr ""
+
+#: fedoraglass/targets/apps.py:81
+msgid "Discord's window is opaque unless Vencord's transparent-window option is on; without it you get glass-coloured surfaces but no see-through."
+msgstr ""
+
+#: fedoraglass/targets/cursor.py:16
+msgid "The pointer style and size picked on the Pointer and desktop page. Restore original brings your own pointer back."
+msgstr ""
+
+#: fedoraglass/targets/cursor.py:18
+msgid "Sets the mouse pointer style and size you picked. Restore original brings your own pointer back."
+msgstr ""
+
+#: fedoraglass/targets/cursor.py:26
+msgid "The pointer styles are not installed with this copy"
+msgstr ""
+
+#: fedoraglass/targets/cursor.py:46
+msgid "The pointer style you picked is not installed, so your own pointer stays. Reinstall Fedora Glass to get it back."
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:118
+msgid "GTK 3 apps"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:119
+msgid "Glass for older GTK 3 apps, on top of your GTK 3 theme. GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme."
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:121
+msgid "Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, unless adw-gtk3 is installed: then its light or dark version is picked."
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:128
+msgid "On your current GTK 3 theme"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:129
+msgid "adw-gtk3 found in {folder}"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:154
+msgid "Flatpak apps"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:155
+msgid "Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files."
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:156
+msgid "Lets Flatpak apps read the Fedora Glass style files, so they get the same look. They can read them, not change them."
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:158
+msgid "GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:17
+msgid "Some GTK 3 details need adw-gtk3: {how}"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:18
+msgid "Some GTK 3 details need the adw-gtk3 theme (github.com/lassekongo83/adw-gtk3)"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:24
+msgid "GTK 4 and libadwaita apps"
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:25
+msgid "Glass windows, header bars, sidebars, menus and controls in every GTK 4 app. Follows the system light/dark switch live."
+msgstr ""
+
+#: fedoraglass/targets/gtk.py:27
+msgid "Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, read when they open."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:41
+#: fedoraglass/targets/myapps.py:45
+msgid "Themed through GTK 4."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:42
+msgid "Changes nothing here: Clipperino gets the look from the GTK 4 part."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:43
+msgid "Clipperino uses libadwaita, so the GTK 4 target already themes it."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:46
+msgid "Changes nothing here: RGBeast gets the look from the GTK 4 part."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:47
+msgid "RGBeast uses libadwaita, so the GTK 4 target already themes it."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:50
+msgid "Follows Fedora Glass by itself: it reads the Fedora Glass colours and watches them for changes."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:51
+msgid "Changes nothing here: Wheelguard reads the Fedora Glass colours by itself."
+msgstr ""
+
+#: fedoraglass/targets/myapps.py:52
+msgid "Wheelguard's Qt Quick UI takes its colours from the token file Fedora Glass writes on every Apply. Its shell-extension popup is themed by the Shell target."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:35
+msgid "Qt apps (Kvantum)"
+msgstr ""
+
+#: fedoraglass/targets/qt.py:36
+msgid "Glass buttons, entries, tabs, lists, menus and scrollbars in Qt Widgets apps, drawn by a Kvantum theme built from your settings."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:38
+msgid "Adds a Kvantum theme in your colours and tells Qt apps to use it. Apps started after your next restart pick it up."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:41
+msgid "Native Qt apps pick the style up after you restart your PC (QT_STYLE_OVERRIDE is set in ~/.config/environment.d)."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:43
+msgid "Open Qt apps keep their old look until restarted; light/dark changes apply to apps started afterwards."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:44
+msgid "Flatpak Qt apps also need the Kvantum style extension matching the app's KDE runtime, e.g. flatpak install flathub org.kde.KStyle.Kvantum//6.9 (see the runtime branch with: flatpak info <app>)."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:47
+msgid "If you set QT_QPA_PLATFORMTHEME to qt6ct, pick 'kvantum' there too; QT_STYLE_OVERRIDE alone already wins for the widget style."
+msgstr ""
+
+#: fedoraglass/targets/qt.py:54
+msgid "Kvantum found"
+msgstr ""
+
+#: fedoraglass/targets/qt.py:56
+msgid "Install Kvantum (the kvantum package)"
+msgstr ""
+
+#: fedoraglass/targets/qt.py:56
+msgid "Install Kvantum: {how}"
+msgstr ""
+
+#: fedoraglass/targets/shell.py:158
+msgid "Restart your PC once so GNOME Shell starts the Fedora Glass extension. The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:171
+msgid "Restart your PC to finish the update. Until then the glass from the older version keeps running."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:175
+msgid "Extensions are switched off in GNOME, so the glass can't start."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:176
+msgid "This version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to get the glass back."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:178
+msgid "The glass effects hit an error and stopped. Your desktop works as usual."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:182
+msgid "Extensions are switched off in GNOME, so this part can't show. Switch them on, then Apply again."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:183
+msgid "Left as it is: this version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to fix it."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:185
+msgid "Left as it is: the glass effects hit an error, and this part needs them."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:27
+msgid "{name} is not installed ({package})"
+msgstr ""
+
+#: fedoraglass/targets/shell.py:38
+msgid "{name} is installed but switched off"
+msgstr ""
+
+#: fedoraglass/targets/shell.py:384
+msgid "Sets Dash to Panel's colours, border and hover effect so your panel looks like glass."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:387
+msgid "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:416
+msgid "Sets ArcMenu's colours and corners so the menu and its button look like glass."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:419
+#: fedoraglass/targets/shell.py:439
+msgid "Glass menu and menu button; colours, radius, search pill and hover washes."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:436
+msgid "Sets Spawn's colours and corners so the menu and its button look like glass."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:50
+msgid "Turns on the User Themes extension and selects the Fedora Glass theme for menus and pop-ups."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:53
+msgid "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:55
+msgid "Needs the User Themes extension (enabled automatically when installed)."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:56
+msgid "Surfaces are translucent; the glass behind them comes from Fedora Glass effects."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:61
+msgid "Install the User Themes extension: {how}"
+msgstr ""
+
+#: fedoraglass/targets/shell.py:90
+msgid "Fedora Glass effects"
+msgstr ""
+
+#: fedoraglass/targets/shell.py:91
+msgid "Installs the Fedora Glass extension for GNOME and turns it on. It draws the live glass behind your panel, menus and overview."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:94
+msgid "Real glass behind the panel or dock, menus, quick settings, app windows and the overview: live blur, a refracting rim, rim light and a rainbow edge."
+msgstr ""
+
+#: fedoraglass/targets/shell.py:97
+msgid "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:103
+msgid "Sets the colours and the see-through background on every GNOME Terminal profile."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:105
+msgid "Glass palette, colours and transparency on every profile."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:106
+msgid "GNOME Terminal has one colour set per profile, so it follows the scheme in use when you Apply."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:143
+msgid "Adds a Fedora Glass colour theme for btop and selects it, without btop's own background."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:145
+msgid "Glass colour theme; btop's own background is dropped so the terminal glass shows."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:146
+msgid "Restart btop to load the theme. Only color_theme and theme_background are set in btop.conf (made if btop hasn't written one yet)."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:170
+msgid "Adds a Fedora Glass colour scheme for micro and selects it."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:172
+msgid "Glass colour scheme with a transparent background."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:173
+msgid "Needs a true-colour terminal (Ptyxis is one)."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:40
+msgid "Makes Ptyxis windows see-through on every profile, and uses the Fedora Glass colours if you turned them on."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:43
+msgid "Window opacity on every profile, and the Fedora Glass colour palette if you turn it on."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:45
+msgid "Profiles keep their own colours unless you choose Fedora Glass terminal colours."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:46
+msgid "Profiles are changed in place; reverting restores each profile's old palette and opacity."
+msgstr ""
+
+#: fedoraglass/targets/terminal.py:47
+msgid "Ptyxis creates its first profile on first launch: open it once, then Apply again."
+msgstr ""

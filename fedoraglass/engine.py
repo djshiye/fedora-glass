@@ -29,6 +29,7 @@ from pathlib import Path
 
 from . import __version__, palette
 from .env import Env, RunResult
+from .i18n import _, N_, gettext as tr
 from .settings import Settings, config_dir
 from .targets import all_targets
 from .render.glass import UUID as GLASS_UUID
@@ -46,7 +47,7 @@ class Result:
 
 
 # Shown for a Shell part that waits for the glass extension (see Engine._apply).
-WAITING = ("Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, "
+WAITING = N_("Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, "
            "and this part needs the glass behind it.")
 
 
@@ -280,9 +281,9 @@ class Backup:
         return {k: dict(loaded.get(k, {})) for k in cls.SECTIONS}
 
     def _unreadable(self, err: Exception) -> str:
-        return (f"Fedora Glass can't read its backup of your original look ({self.manifest_path}: {err}). "
-                "Nothing was changed, so that backup stays as it is. If you don't need your original "
-                "look back, move that file somewhere else and try again.")
+        return _("Fedora Glass can't read its backup of your original look ({path}: {error}). "
+                 "Nothing was changed, so that backup stays as it is. If you don't need your original "
+                 "look back, move that file somewhere else and try again.").format(path=self.manifest_path, error=err)
 
     def save(self) -> None:
         if self.env.dry_run:
@@ -507,7 +508,7 @@ class Backup:
         entry: dict = {"target": target}
         if path.is_dir() and not path.is_symlink():
             # A folder is never ours to replace (and revert must never delete it).
-            raise IsADirectoryError(f"{path} is a folder")
+            raise IsADirectoryError(_("{path} is a folder").format(path=path))
         if path.is_symlink():
             entry.update(kind="symlink", link=os.readlink(path))
         elif old is None and (orphan := self._orphan_copy(key, path)) is not None:
@@ -657,7 +658,7 @@ class Backup:
                 _flatpak_undo(self.env, e)
                 del self.data["flatpak"][tid]
             except (OSError, ValueError, configparser.Error) as err:
-                problems.append(f"Flatpak overrides: {err}")
+                problems.append(_("Flatpak overrides: {error}").format(error=err))
         for key, e in list(self.data["commands"].items()):
             if not mine(e):
                 continue
@@ -681,7 +682,7 @@ class Backup:
             if p.is_dir() and not p.is_symlink():
                 # Not something we wrote: never delete a folder the user made there.
                 if e["kind"] != "missing":
-                    raise IsADirectoryError("is now a folder, left as it is")
+                    raise IsADirectoryError(_("is now a folder, left as it is"))
                 del self.data["files"][key]
                 return None
             # Read the copy first, so a lost backup never costs the current file.
@@ -692,8 +693,8 @@ class Backup:
                 # bring it back, so the record goes too: kept, it would fail every Restore
                 # for good. The file stays as it is.
                 del self.data["files"][key]
-                return (f"{p}: the saved copy of your original was lost, so this file was left "
-                        "as it is (it may still have the Fedora Glass look)")
+                return _("{path}: the saved copy of your original was lost, so this file was left "
+                         "as it is (it may still have the Fedora Glass look)").format(path=p)
             if e.get("edits") and e.get("wrote") and e["kind"] in ("file", "missing") and \
                     p.is_file() and not p.is_symlink() and \
                     (e.get("changed") or not self.is_ours(p, e)):
@@ -738,7 +739,7 @@ class Backup:
         if out is None:
             # Can't read it any more (VS Code allows comments): leave the user's file as
             # it is rather than wipe what they changed since.
-            return f"{p}: changed since Apply and can't be read, so it was left as it is"
+            return _("{path}: changed since Apply and can't be read, so it was left as it is").format(path=p)
         if out != current:
             atomic_write(p, out.encode("utf-8"), p.stat().st_mode & 0o777)
         return None
@@ -765,10 +766,11 @@ class Backup:
                         if not q.exists() and not q.is_symlink() and (src.exists() or src.is_symlink()):
                             q.symlink_to(src)
                     owner = Path(e["link"]).parent.name or e["link"]
-                    return (f"Kept your {p.name} folder because it has files you added "
-                            f"({', '.join(yours[:3])}{', ...' if len(yours) > 3 else ''}). It still uses "
-                            f"{owner}. To get your link to {owner} back, move those files out "
-                            f"and press Restore original again.")
+                    files = ", ".join(yours[:3]) + (", ..." if len(yours) > 3 else "")
+                    return _("Kept your {folder} folder because it has files you added "
+                             "({files}). It still uses {owner}. To get your link to {owner} back, "
+                             "move those files out and press Restore original again.").format(
+                                 folder=p.name, files=files, owner=owner)
                 for name in made:
                     (p / name).unlink()
                 p.rmdir()
@@ -777,9 +779,10 @@ class Backup:
         except OSError as err:
             owner = Path(e["link"]).parent.name or e["link"]
             if err.errno in (errno.ENOTEMPTY, errno.EEXIST):
-                return (f"Kept your {p.name} folder because it has files you added. "
-                        f"Your link to {owner} was not restored.")
-            return f"Couldn't restore your {p.name} link to {owner}: {err.strerror or err}."
+                return _("Kept your {folder} folder because it has files you added. "
+                         "Your link to {owner} was not restored.").format(folder=p.name, owner=owner)
+            return _("Couldn't restore your {folder} link to {owner}: {reason}.").format(
+                folder=p.name, owner=owner, reason=err.strerror or err)
         return None
 
     def only_folders_left(self) -> bool:
@@ -978,7 +981,7 @@ class Engine:
                 have = Backup(self.env).targets_with_changes()
             except BackupUnreadable as e:
                 # Changing anything now would record today's look as the "original".
-                return [Result("backup", "Backup", "failed", str(e))]
+                return [Result("backup", _("Backup"), "failed", str(e))]
             # Only an Apply of every part says the look is this version's (see _apply).
             full = only is None
             if applied_only:
@@ -998,7 +1001,7 @@ class Engine:
         except OSError as e:
             # A full disk, a folder that can't be read: say so like any failed part. Raised,
             # it would end the watcher, and its user service would start it again and again.
-            return [Result("apply", "Apply", "failed", f"Couldn't start: {e}")]
+            return [Result("apply", _("Apply"), "failed", _("Couldn't start: {error}").format(error=e))]
         results: list[Result] = []
         pending = read_pending()
         waiting = set(pending)
@@ -1017,12 +1020,12 @@ class Engine:
                     finally:
                         if parked:
                             unpark_arcmenu(self.env)
-                    results.append(Result(t.id, t.name, "failed" if probs else "reverted", "; ".join(probs)))
+                    results.append(Result(t.id, tr(t.name), "failed" if probs else "reverted", "; ".join(probs)))
                 continue
             det = t.detect(self.env)
             if not det.available:
                 waiting.discard(t.id)
-                results.append(Result(t.id, t.name, "skipped", det.detail))
+                results.append(Result(t.id, tr(t.name), "skipped", det.detail))
                 continue
             # A see-through panel or menu with no glass behind it looks broken, and changing
             # Dash to Panel and ArcMenu mid-session for nothing only risks them. So Shell parts
@@ -1030,7 +1033,7 @@ class Engine:
             # (`fedora-glass watch`) finishes them then.
             if t.waits_for_glass and not ctx.glass_running:
                 waiting.add(t.id)
-                results.append(Result(t.id, t.name, "info", WAITING))
+                results.append(Result(t.id, tr(t.name), "info", tr(WAITING)))
                 continue
             waiting.discard(t.id)
             actions: list[Action] = []
@@ -1043,17 +1046,17 @@ class Engine:
                 errs = [f"{type(e).__name__}: {e}"]
             backup.save()
             if errs:
-                results.append(Result(t.id, t.name, "failed", "; ".join(errs)))
+                results.append(Result(t.id, tr(t.name), "failed", "; ".join(errs)))
             elif not actions:
-                results.append(Result(t.id, t.name, "info", " ".join(t.live_notes(ctx)) or t.summary))
+                results.append(Result(t.id, tr(t.name), "info", " ".join(tr(n) for n in t.live_notes(ctx)) or tr(t.summary)))
             else:
-                results.append(Result(t.id, t.name, "applied"))
+                results.append(Result(t.id, tr(t.name), "applied"))
         try:
             if waiting != pending and not self.env.dry_run:
                 _write_pending(waiting)
             self._write_tokens(ctx)
         except OSError as e:
-            results.append(Result("tokens", "Colours for other apps", "failed", str(e)))
+            results.append(Result("tokens", _("Colours for other apps"), "failed", str(e)))
         # This Apply switched the glass extension back on (after Restore original, or after
         # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
         # it right away, so the parts that wait for the glass are finished now, not after a
@@ -1162,7 +1165,7 @@ class Engine:
             elif isinstance(a, GSet):
                 if a.key not in self.env.gsettings_keys(a.schema, a.path):
                     if not a.optional:
-                        errs.append(f"missing setting {a.schema} {a.key}")
+                        errs.append(_("missing setting {schema} {key}").format(schema=a.schema, key=a.key))
                     continue
                 gkey = f"{a.schema}|{a.path or ''}|{a.key}"
                 fresh = gkey not in backup.data["gsettings"]

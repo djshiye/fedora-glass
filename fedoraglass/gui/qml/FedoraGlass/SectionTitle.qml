@@ -13,7 +13,7 @@ Column {
     property string captionName: ""     // objectName for the caption, for tests
     property bool group: false
     property var resetKeys: []
-    property string resetTip: "Put this card back to its defaults"
+    property string resetTip: qsTr("Put this card back to its defaults")
     readonly property bool changed: resetKeys.length > 0
                                     && Backend.changedFromDefault.some((k) => resetKeys.indexOf(k) >= 0)
     width: parent ? parent.width : implicitWidth
@@ -38,8 +38,8 @@ Column {
             visible: root.changed
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: "Reset"
-            tip: root.resetTip + " (Apply to use them)"
+            text: qsTr("Reset")
+            tip: qsTr("%1 (Apply to use them)").arg(root.resetTip)
             onClicked: Backend.resetSettings(root.resetKeys)
         }
     }

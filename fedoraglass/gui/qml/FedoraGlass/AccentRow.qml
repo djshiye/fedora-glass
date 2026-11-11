@@ -21,7 +21,7 @@ Row {
         rovingGroup: swatches
         rovingStop: selected || !swatches.known
         selected: Backend.accent === "system"
-        tip: "System accent (follows GNOME Settings)"
+        tip: qsTr("System accent (follows GNOME Settings)")
         onClicked: Backend.accent = "system"
     }
     Repeater {
@@ -46,13 +46,13 @@ Row {
         swatch: isCustom ? Backend.accent : "#888888"
         rainbow: !isCustom
         selected: isCustom
-        tip: "Custom colour…"
+        tip: qsTr("Custom colour…")
         onClicked: accentPicker.open()
         ColorPicker {
             id: accentPicker
             y: parent.height + 8
             x: parent.width - width
-            title: "Custom accent"
+            title: qsTr("Custom accent")
             color: customAccent.isCustom ? Backend.accent : Theme.accent
             onPicked: (hex) => Backend.accent = hex
         }

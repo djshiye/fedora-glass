@@ -10,7 +10,7 @@ Item {
     property real from: 0
     property real to: 1
     property real stepSize: 0.01
-    property var format: (v) => Math.round(v * 100) + "%"
+    property var format: (v) => qsTr("%1%").arg(Math.round(v * 100))
     property string tip: ""
     property real defaultValue: NaN
     readonly property bool hasDefault: !isNaN(defaultValue)
@@ -41,7 +41,7 @@ Item {
         anchors.right: valueText.left
         anchors.rightMargin: root.inline ? 8 : 10
         anchors.verticalCenter: valueText.verticalCenter
-        tip: "Back to the default, " + root.format(root.defaultValue)
+        tip: qsTr("Back to the default, %1").arg(root.format(root.defaultValue))
         onClicked: root.moved(root.defaultValue)
     }
     Text {

@@ -14,23 +14,23 @@ Card {
     color: embedded ? "transparent" : Theme.surface
 
     readonly property var events: [
-        { ev: "open",     label: "Open",                 caption: "Windows appearing, from the taskbar or anywhere" },
-        { ev: "minimize", label: "Minimize and restore", caption: "Into and out of the taskbar icon" },
-        { ev: "close",    label: "Close",                caption: "" },
-        { ev: "launch",   label: "App starting",         caption: "The taskbar icon bounces until the window shows" },
-        { ev: "hover",    label: "Panel hover",          caption: "Taskbar icons, tray and clock" }
+        { ev: "open",     label: qsTr("Open"),                 caption: qsTr("Windows appearing, from the taskbar or anywhere") },
+        { ev: "minimize", label: qsTr("Minimize and restore"), caption: qsTr("Into and out of the taskbar icon") },
+        { ev: "close",    label: qsTr("Close"),                caption: "" },
+        { ev: "launch",   label: qsTr("App starting"),         caption: qsTr("The taskbar icon bounces until the window shows") },
+        { ev: "hover",    label: qsTr("Panel hover"),          caption: qsTr("Taskbar icons, tray and clock") }
     ]
     readonly property var presetLabels: ({
-        gnome: "GNOME default", spring: "Spring", bounce: "Bounce", jelly: "Jelly",
-        genie: "Genie", scalefade: "Scale and fade", off: "Off" })
+        gnome: qsTr("GNOME default"), spring: qsTr("Spring"), bounce: qsTr("Bounce"), jelly: qsTr("Jelly"),
+        genie: qsTr("Genie"), scalefade: qsTr("Scale and fade"), off: qsTr("Off") })
     readonly property var presetTips: ({
-        gnome: "GNOME's own animation for this",
-        spring: "Springs into place with one soft overshoot",
-        bounce: "Lands and hops two or three times, smaller each time",
-        jelly: "Squashes and stretches like jelly as it settles",
-        genie: "Pours into the taskbar icon and back out, like a genie",
-        scalefade: "A quick, calm zoom and fade",
-        off: "No animation: it happens at once" })
+        gnome: qsTr("GNOME's own animation for this"),
+        spring: qsTr("Springs into place with one soft overshoot"),
+        bounce: qsTr("Lands and hops two or three times, smaller each time"),
+        jelly: qsTr("Squashes and stretches like jelly as it settles"),
+        genie: qsTr("Pours into the taskbar icon and back out, like a genie"),
+        scalefade: qsTr("A quick, calm zoom and fade"),
+        off: qsTr("No animation: it happens at once") })
 
     property string expandedEv: ""
 
@@ -256,15 +256,15 @@ Card {
 
         SectionTitle {
             visible: !root.embedded
-            text: "Motion"
+            text: qsTr("Motion")
             resetKeys: ["motion", "hover_glide", "motion_dtp_hover_off"]
-            caption: "How windows open, minimize and close, and how the panel answers your pointer."
+            caption: qsTr("How windows open, minimize and close, and how the panel answers your pointer.")
         }
 
         Note {
             objectName: "motionReduceNote"
             visible: !Backend.systemAnimations
-            message: "Reduce animation is on in GNOME Settings, so none of these play. Turn it off in Settings › Accessibility to see them."
+            message: qsTr("Reduce animation is on in GNOME Settings, so none of these play. Turn it off in Settings › Accessibility to see them.")
         }
 
         // ---- preview ----
@@ -290,7 +290,7 @@ Card {
 
             Text {
                 x: 12; y: 10
-                text: root.pvEvent === "minimize" ? "Minimize and restore" : root.pvEvent === "launch" ? "App starting" : root.pvEvent === "hover" ? "Panel hover" : root.pvEvent === "close" ? "Close" : "Open"
+                text: root.pvEvent === "minimize" ? qsTr("Minimize and restore") : root.pvEvent === "launch" ? qsTr("App starting") : root.pvEvent === "hover" ? qsTr("Panel hover") : root.pvEvent === "close" ? qsTr("Close") : qsTr("Open")
                 color: Theme.textFaint
                 font.pixelSize: 11
                 font.weight: Font.Medium
@@ -413,7 +413,7 @@ Card {
                                 model: root.modelFor(row.ev)
                                 value: row.cfg.preset
                                 tip: root.presetTips[row.cfg.preset] || ""
-                                Accessible.name: row.modelData.label + " animation"
+                                Accessible.name: qsTr("%1 animation").arg(row.modelData.label)
                                 onActivated: (v) => {
                                     Backend.setMotion(row.ev, "preset", v)
                                     root.play(row.ev, v, row.cfg.intensity, row.cfg.speed)
@@ -426,8 +426,8 @@ Card {
                                 implicitHeight: 32
                                 leftPadding: 0; rightPadding: 0
                                 anchors.verticalCenter: parent.verticalCenter
-                                tip: "Play a preview"
-                                Accessible.name: "Play a preview of " + row.modelData.label
+                                tip: qsTr("Play a preview")
+                                Accessible.name: qsTr("Play a preview of %1").arg(row.modelData.label)
                                 onClicked: root.playEvent(row.ev)
                             }
                             LgButton {
@@ -437,8 +437,8 @@ Card {
                                 implicitHeight: 32
                                 leftPadding: 0; rightPadding: 0
                                 anchors.verticalCenter: parent.verticalCenter
-                                tip: "More settings"
-                                Accessible.name: "Intensity and speed for " + row.modelData.label
+                                tip: qsTr("More settings")
+                                Accessible.name: qsTr("Intensity and speed for %1").arg(row.modelData.label)
                                 onClicked: root.expandedEv = row.open ? "" : row.ev
                             }
                         }
@@ -471,19 +471,19 @@ Card {
                                     wrapMode: Text.WordWrap
                                     color: Theme.textFaint
                                     font.pixelSize: Theme.fsSmall
-                                    text: row.cfg.preset === "off" ? "Nothing plays, so there is nothing to adjust."
-                                                                   : "GNOME's own animation keeps its own timing."
+                                    text: row.cfg.preset === "off" ? qsTr("Nothing plays, so there is nothing to adjust.")
+                                                                   : qsTr("GNOME's own animation keeps its own timing.")
                                 }
                                 LabeledSlider {
                                     objectName: "motionIntensity-" + row.ev
                                     width: parent.width
-                                    label: "Intensity"
+                                    label: qsTr("Intensity")
                                     enabled: row.adjustable
                                     from: 0; to: 1; stepSize: 0.01
                                     value: row.cfg.intensity
                                     defaultValue: Backend.motionDefaults[row.ev].intensity
                                     onMoved: (v) => { Backend.setMotion(row.ev, "intensity", v); root._pendingEv = row.ev; settle.restart() }
-                                    tip: "How lively it is: how far it overshoots or bounces before settling. Left settles calmly; right is bouncier."
+                                    tip: qsTr("How lively it is: how far it overshoots or bounces before settling. Left settles calmly; right is bouncier.")
                                 }
                                 // Speed is log-scaled: the slider runs -1..1 as log2(speed), so 1.0x sits
                                 // at the centre and each half is a doubling (0.5x..1x, 1x..2x).
@@ -494,30 +494,30 @@ Card {
                                         id: speedSlider
                                         objectName: "motionSpeed-" + row.ev
                                         width: parent.width
-                                        label: "Speed"
+                                        label: qsTr("Speed")
                                         enabled: row.adjustable
                                         from: -1; to: 1; stepSize: 0.01
                                         value: Math.log(Math.max(0.5, Math.min(2, row.cfg.speed))) / Math.LN2
                                         defaultValue: Math.log(Backend.motionDefaults[row.ev].speed) / Math.LN2
-                                        format: (p) => Math.pow(2, p).toFixed(1) + "×"
+                                        format: (p) => qsTr("%1×").arg(Math.pow(2, p).toFixed(1))
                                         onMoved: (p) => {
                                             // snap to exactly 1.0x near the centre, store the real speed
                                             const sp = Math.abs(p) < 0.04 ? 1 : Math.max(0.5, Math.min(2, Math.pow(2, p)))
                                             Backend.setMotion(row.ev, "speed", Math.round(sp * 100) / 100)
                                             root._pendingEv = row.ev; settle.restart()
                                         }
-                                        tip: "How fast it plays. Left is slower, the middle is normal speed, right is faster."
+                                        tip: qsTr("How fast it plays. Left is slower, the middle is normal speed, right is faster.")
                                     }
                                     Text {
                                         y: speedSlider.height + 2
-                                        text: "Slower"
+                                        text: qsTr("Slower")
                                         color: row.adjustable ? Theme.textDim : Theme.textFaint
                                         font.pixelSize: Theme.fsSmall
                                     }
                                     Text {
                                         y: speedSlider.height + 2
                                         anchors.right: parent.right
-                                        text: "Faster"
+                                        text: qsTr("Faster")
                                         color: row.adjustable ? Theme.textDim : Theme.textFaint
                                         font.pixelSize: Theme.fsSmall
                                     }
@@ -539,9 +539,9 @@ Card {
         SwitchRow {
             objectName: root.embedded ? "" : "motionGlide"
             visible: Backend.hasDashToPanel && !root.embedded     // it glides along Dash to Panel's taskbar only
-            label: "Gliding highlight"
-            caption: "One highlight slides from icon to icon along the taskbar"
-            tip: "Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on."
+            label: qsTr("Gliding highlight")
+            caption: qsTr("One highlight slides from icon to icon along the taskbar")
+            tip: qsTr("Instead of a separate highlight blinking on each taskbar icon, one soft highlight follows your pointer along the taskbar. It jumps straight there when Reduce animation is on.")
             checked: Backend.hoverGlide
             onToggled: (on) => Backend.hoverGlide = on
         }
@@ -553,16 +553,16 @@ Card {
             visible: off || (Backend.dtpHoverAnimates && root.setting("hover").preset !== "off")
             iconName: off ? "check" : "info"
             iconColor: off ? Theme.good : Theme.accentText
-            message: off ? "Dash to Panel's own hover animation turns off when you Apply."
-                         : "Dash to Panel animates its own icons on hover, so taskbar icons use its animation. The tray and clock use this one."
+            message: off ? qsTr("Dash to Panel's own hover animation turns off when you Apply.")
+                         : qsTr("Dash to Panel animates its own icons on hover, so taskbar icons use its animation. The tray and clock use this one.")
             LgButton {
                 objectName: "motionDtpButton"
                 kind: parent.parent.parent.off ? "flat" : "secondary"
                 implicitHeight: 32
                 leftPadding: 14; rightPadding: 14
-                text: parent.parent.parent.off ? "Keep Dash to Panel's" : "Use Fedora Glass hover"
-                tip: parent.parent.parent.off ? "Leaves Dash to Panel's own hover animation on."
-                                              : "Turns Dash to Panel's own hover animation off when you Apply. Restore original turns it back on."
+                text: parent.parent.parent.off ? qsTr("Keep Dash to Panel's") : qsTr("Use Fedora Glass hover")
+                tip: parent.parent.parent.off ? qsTr("Leaves Dash to Panel's own hover animation on.")
+                                              : qsTr("Turns Dash to Panel's own hover animation off when you Apply. Restore original turns it back on.")
                 tipBelow: true
                 onClicked: Backend.motionDtpHoverOff = !parent.parent.parent.off
             }
@@ -574,10 +574,10 @@ Card {
             kind: "flat"
             implicitHeight: 32
             leftPadding: 14; rightPadding: 14
-            text: "Reset motion"
+            text: qsTr("Reset motion")
             iconName: "refresh"
             enabled: !Backend.motionIsDefault
-            tip: "Go back to the default animations"
+            tip: qsTr("Go back to the default animations")
             onClicked: Backend.resetMotion()
         }
     }

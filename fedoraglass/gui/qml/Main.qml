@@ -12,16 +12,16 @@ Window {
     id: win
     // The pages, in sidebar order. `bottom` ones sit at the foot of the sidebar.
     readonly property var pageList: [
-        { id: "home", label: "Home", icon: "home", sub: "Your look in one place", tip: "Presets, glass, colour and the big switches (Ctrl+1)" },
-        { id: "colour", label: "Colour", icon: "palette", sub: "", tip: "Light or dark, accent, tint and corners (Ctrl+2)" },
-        { id: "glass", label: "Glass", icon: "droplet", sub: "", tip: "How much glass, its effects, where it shows and speed (Ctrl+3)" },
-        { id: "windows", label: "Panel and windows", icon: "window", sub: "", tip: "The panel, header bars, terminal and Qt apps (Ctrl+4)" },
-        { id: "motion", label: "Motion", icon: "wave", sub: "", tip: "How windows, menus and the panel move (Ctrl+5)" },
-        { id: "pointer", label: "Pointer and desktop", icon: "pointer", sub: "", tip: "Mouse pointer, start on the desktop, the overview (Ctrl+6)" },
-        { id: "lock", label: "Lock and login", icon: "lock", sub: "", tip: "Lock screen glass, clock, widgets and the login screen (Ctrl+7)" },
-        { id: "apps", label: "Apps", icon: "apps", sub: "", tip: "Choose what gets themed (Ctrl+8)" },
-        { id: "advanced", label: "Advanced", icon: "sliders", sub: "For when you want full control", tip: "Part by part, fine-tune and start over (Ctrl+9)", bottom: true },
-        { id: "about", label: "About and restore", icon: "info", sub: "", tip: "Version, shortcuts, restore your original look or remove Fedora Glass", bottom: true }
+        { id: "home", label: qsTr("Home"), icon: "home", sub: qsTr("Your look in one place"), tip: qsTr("Presets, glass, colour and the big switches (Ctrl+1)") },
+        { id: "colour", label: qsTr("Colour"), icon: "palette", sub: "", tip: qsTr("Light or dark, accent, tint and corners (Ctrl+2)") },
+        { id: "glass", label: qsTr("Glass"), icon: "droplet", sub: "", tip: qsTr("How much glass, its effects, where it shows and speed (Ctrl+3)") },
+        { id: "windows", label: qsTr("Panel and windows"), icon: "window", sub: "", tip: qsTr("The panel, header bars, terminal and Qt apps (Ctrl+4)") },
+        { id: "motion", label: qsTr("Motion"), icon: "wave", sub: "", tip: qsTr("How windows, menus and the panel move (Ctrl+5)") },
+        { id: "pointer", label: qsTr("Pointer and desktop"), icon: "pointer", sub: "", tip: qsTr("Mouse pointer, start on the desktop, the overview (Ctrl+6)") },
+        { id: "lock", label: qsTr("Lock and login"), icon: "lock", sub: "", tip: qsTr("Lock screen glass, clock, widgets and the login screen (Ctrl+7)") },
+        { id: "apps", label: qsTr("Apps"), icon: "apps", sub: "", tip: qsTr("Choose what gets themed (Ctrl+8)") },
+        { id: "advanced", label: qsTr("Advanced"), icon: "sliders", sub: qsTr("For when you want full control"), tip: qsTr("Part by part, fine-tune and start over (Ctrl+9)"), bottom: true },
+        { id: "about", label: qsTr("About and restore"), icon: "info", sub: "", tip: qsTr("Version, shortcuts, restore your original look or remove Fedora Glass"), bottom: true }
     ]
     property string page: "home"
     // Pages are built the first time they are shown, then kept.
@@ -332,9 +332,9 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 10
                     Repeater {
-                        model: [{ icon: "minimize", act: "min", tip: "Minimize" },
-                                { icon: win.maximized ? "restore" : "maximize", act: "max", tip: win.maximized ? "Restore" : "Maximize" },
-                                { icon: "close", act: "close", tip: "Close" }]
+                        model: [{ icon: "minimize", act: "min", tip: qsTr("Minimize") },
+                                { icon: win.maximized ? "restore" : "maximize", act: "max", tip: win.maximized ? qsTr("Restore") : qsTr("Maximize") },
+                                { icon: "close", act: "close", tip: qsTr("Close") }]
                         delegate: C.AbstractButton {
                             id: wb
                             required property var modelData
@@ -452,7 +452,7 @@ Window {
                     x: 42
                     width: parent.width - x - cleanUp.width - 28
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "An old hand-installed copy of Fedora Glass still runs at login with its older look."
+                    text: qsTr("An old hand-installed copy of Fedora Glass still runs at login with its older look.")
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
                     elide: Text.ElideRight
@@ -466,10 +466,10 @@ Window {
                     kind: "primary"
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
-                    text: "Clean up old copy"
+                    text: qsTr("Clean up old copy")
                     iconName: "check"
                     enabled: !Backend.busy
-                    tip: "Removes only the old copy's launcher, menu entry and background service. Your look and settings stay."
+                    tip: qsTr("Removes only the old copy's launcher, menu entry and background service. Your look and settings stay.")
                     onClicked: Backend.cleanUpOldCopy()
                 }
             }
@@ -525,9 +525,9 @@ Window {
                         kind: "primary"
                         implicitHeight: 32
                         leftPadding: 14; rightPadding: 14
-                        text: "Switch on"
+                        text: qsTr("Switch on")
                         iconName: "check"
-                        tip: "Switch GNOME's extensions back on. Then press Apply to finish your look."
+                        tip: qsTr("Switch GNOME's extensions back on. Then press Apply to finish your look.")
                         onClicked: Backend.switchExtensionsOn()
                     }
                     LgButton {
@@ -537,7 +537,7 @@ Window {
                         kind: "secondary"
                         implicitHeight: 32
                         leftPadding: 14; rightPadding: 14
-                        text: "Copy details"
+                        text: qsTr("Copy details")
                         tip: Backend.glassProblemDetails
                         onClicked: Backend.copyGlassDetails()
                     }
@@ -586,9 +586,9 @@ Window {
                     kind: "primary"
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
-                    text: "Turn glass back on"
+                    text: qsTr("Turn glass back on")
                     iconName: "refresh"
-                    tip: "Start the glass again. If it keeps failing, it pauses itself again."
+                    tip: qsTr("Start the glass again. If it keeps failing, it pauses itself again.")
                     onClicked: Backend.resumeGlass()
                 }
             }
@@ -634,10 +634,10 @@ Window {
                     kind: "primary"
                     implicitHeight: 32
                     leftPadding: 14; rightPadding: 14
-                    text: "Re-apply"
+                    text: qsTr("Re-apply")
                     iconName: "refresh"
                     enabled: !Backend.busy
-                    tip: "Write the Fedora Glass look again. Nothing else changes."
+                    tip: qsTr("Write the Fedora Glass look again. Nothing else changes.")
                     onClicked: Backend.apply()
                 }
             }
@@ -711,13 +711,13 @@ Window {
                         objectName: "statusText"
                         visible: !Backend.busy
                         anchors.verticalCenter: parent.verticalCenter
-                        text: ({ dirty: Backend.changeCount === 1 ? "1 change not applied yet"
-                                        : Backend.changeCount > 1 ? Backend.changeCount + " changes not applied yet"
-                                        : "Unapplied changes",
-                                 partial: Backend.partlyApplied === 1 ? "1 part didn't change."
-                                          : Backend.partlyApplied + " parts didn't change.",
-                                 lost: "Needs re-apply", login: "Login screen needs Apply",
-                                 restart: "Restart to finish", done: "Up to date", none: "Not applied yet" })[footerStatus.phase]
+                        text: ({ dirty: Backend.changeCount === 1 ? qsTr("1 change not applied yet")
+                                        : Backend.changeCount > 1 ? qsTr("%1 changes not applied yet").arg(Backend.changeCount)
+                                        : qsTr("Unapplied changes"),
+                                 partial: Backend.partlyApplied === 1 ? qsTr("1 part didn't change.")
+                                          : qsTr("%1 parts didn't change.").arg(Backend.partlyApplied),
+                                 lost: qsTr("Needs re-apply"), login: qsTr("Login screen needs Apply"),
+                                 restart: qsTr("Restart to finish"), done: qsTr("Up to date"), none: qsTr("Not applied yet") })[footerStatus.phase]
                         color: Theme.textDim
                         font.pixelSize: 14
                     }
@@ -729,8 +729,8 @@ Window {
                         implicitHeight: 30
                         leftPadding: 12; rightPadding: 12
                         font.pixelSize: 13
-                        text: "Restart…"
-                        tip: "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
+                        text: qsTr("Restart…")
+                        tip: qsTr("The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts.")
                         onClicked: Backend.restartPC()
                     }
                     LgButton {
@@ -741,8 +741,8 @@ Window {
                         implicitHeight: 30
                         leftPadding: 10; rightPadding: 12
                         font.pixelSize: 14
-                        text: "See what happened"
-                        tip: "What applied, and what went wrong with the rest"
+                        text: qsTr("See what happened")
+                        tip: qsTr("What applied, and what went wrong with the rest")
                         onClicked: { resultsSheet.results = Backend.partialResults; resultsSheet.open() }
                     }
                     LgButton {
@@ -753,10 +753,10 @@ Window {
                         implicitHeight: 30
                         leftPadding: 10; rightPadding: 12
                         font.pixelSize: 14
-                        text: "Undo"
+                        text: qsTr("Undo")
                         iconName: "undo"
-                        tip: footerStatus.phase === "partial" ? "Go back to the last look that applied fully (Ctrl+Z)"
-                                                               : "Go back to the look you applied last (Ctrl+Z)"
+                        tip: footerStatus.phase === "partial" ? qsTr("Go back to the last look that applied fully (Ctrl+Z)")
+                                                               : qsTr("Go back to the look you applied last (Ctrl+Z)")
                         onClicked: Backend.discardChanges()
                     }
                     Item {
@@ -764,11 +764,11 @@ Window {
                         width: 260; height: 32
                         anchors.verticalCenter: parent.verticalCenter
                         Text {
-                            text: Backend.busyKind === "remove" ? "Removing Fedora Glass…"
-                                : Backend.busyKind === "apply" ? "Applying " + Backend.progressText + "…"
-                                : Backend.busyKind === "revert" ? "Restoring your original look…"
-                                : Backend.busyKind === "cleanup" ? "Cleaning up the old copy…"
-                                : "Working out the changes…"
+                            text: Backend.busyKind === "remove" ? qsTr("Removing Fedora Glass…")
+                                : Backend.busyKind === "apply" ? qsTr("Applying %1…").arg(Backend.progressText)
+                                : Backend.busyKind === "revert" ? qsTr("Restoring your original look…")
+                                : Backend.busyKind === "cleanup" ? qsTr("Cleaning up the old copy…")
+                                : qsTr("Working out the changes…")
                             color: Theme.textDim
                             font.pixelSize: 13
                             elide: Text.ElideRight
@@ -795,11 +795,11 @@ Window {
                     LgButton {
                         objectName: "showChanges"
                         kind: "secondary"
-                        text: "See changes"
+                        text: qsTr("See changes")
                         leftPadding: 18; rightPadding: 18
                         enabled: !Backend.busy
                         busy: Backend.busyKind === "plan"
-                        tip: "What you changed and haven't applied yet, and every file and setting Apply writes"
+                        tip: qsTr("What you changed and haven't applied yet, and every file and setting Apply writes")
                         onClicked: Backend.requestPlan()
                     }
                     LgButton {
@@ -807,13 +807,13 @@ Window {
                         objectName: "applyButton"
                         // While the Re-apply banner shows, it is the one call to action.
                         kind: lostBanner.shown ? "secondary" : "primary"
-                        text: "Apply"
+                        text: qsTr("Apply")
                         iconName: "check"
                         leftPadding: 18
                         rightPadding: 22
                         enabled: !Backend.busy
                         busy: Backend.busyKind === "apply"
-                        tip: "Save and apply the look everywhere (Ctrl+Enter)"
+                        tip: qsTr("Save and apply the look everywhere (Ctrl+Enter)")
                         onClicked: Backend.apply()
                     }
                 }
@@ -839,7 +839,7 @@ Window {
                     // The login screen step asks for the password: closing now would cut it off.
                     if (Backend.loginGlass === "busy") {
                         win.closeAfterLogin = true
-                        toast.show("Closing once the login screen has your new look", "info", Theme.accentText)
+                        toast.show(qsTr("Closing once the login screen has your new look"), "info", Theme.accentText)
                         return
                     }
                     win.closeAnyway = true
@@ -851,7 +851,7 @@ Window {
             resultsSheet.open()
         }
         function onRevertFinished(problems) {
-            if (problems.length === 0) toast.show("Your original look is back", "okCircle", Theme.good)
+            if (problems.length === 0) toast.show(qsTr("Your original look is back"), "okCircle", Theme.good)
             else { problemsSheet.problems = problems; problemsSheet.open() }
         }
         function onLoginGlassChanged() {
@@ -886,15 +886,15 @@ Window {
 
     Sheet {
         id: confirmSheet
-        title: "Restore your original look?"
-        subtitle: "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later."
+        title: qsTr("Restore your original look?")
+        subtitle: qsTr("Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later.")
         iconName: "undo"
         iconColor: Theme.bad
         width: Math.min(520, win.width - 64)
         buttons: [
-            LgButton { text: "Cancel"; kind: "secondary"; onClicked: confirmSheet.close() },
+            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: confirmSheet.close() },
             LgButton {
-                text: "Restore"
+                text: qsTr("Restore")
                 kind: "destructive"
                 iconName: "undo"
                 onClicked: { confirmSheet.close(); Backend.revert() }
@@ -906,19 +906,19 @@ Window {
     Sheet {
         id: leaveSheet
         objectName: "leaveSheet"
-        title: "Apply your changes before closing?"
-        subtitle: "You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last."
+        title: qsTr("Apply your changes before closing?")
+        subtitle: qsTr("You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last.")
         iconName: "info"
         width: Math.min(560, win.width - 64)
         buttons: [
             LgButton {
-                text: "Close without applying"
+                text: qsTr("Close without applying")
                 kind: "danger"
                 onClicked: { leaveSheet.close(); win.closeAnyway = true; win.close() }
             },
-            LgButton { text: "Cancel"; kind: "secondary"; onClicked: leaveSheet.close() },
+            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: leaveSheet.close() },
             LgButton {
-                text: "Apply and close"
+                text: qsTr("Apply and close")
                 kind: "primary"
                 iconName: "check"
                 enabled: !Backend.busy
@@ -934,23 +934,23 @@ Window {
         objectName: "waitSheet"
         property string what: ""
         readonly property bool removal: what === "remove"
-        title: ({ remove: "Fedora Glass is being removed", apply: "Your look is being applied",
-                  revert: "Your original look is coming back", login: "The login screen is being updated" })[what] || ""
-        subtitle: removal ? "Closing now could stop it half way. Fedora Glass tells you when it's done."
-                : what === "login" ? "It waits for your password. Closing now would stop it half way."
-                : "Closing now would stop it half way. It only takes a moment."
+        title: ({ remove: qsTr("Fedora Glass is being removed"), apply: qsTr("Your look is being applied"),
+                  revert: qsTr("Your original look is coming back"), login: qsTr("The login screen is being updated") })[what] || ""
+        subtitle: removal ? qsTr("Closing now could stop it half way. Fedora Glass tells you when it's done.")
+                : what === "login" ? qsTr("It waits for your password. Closing now would stop it half way.")
+                : qsTr("Closing now would stop it half way. It only takes a moment.")
         iconName: "info"
         width: Math.min(520, win.width - 64)
         buttons: [
             LgButton {
-                text: waitSheet.removal ? "OK" : "Keep open"
+                text: waitSheet.removal ? qsTr("OK") : qsTr("Keep open")
                 kind: waitSheet.removal ? "primary" : "secondary"
                 onClicked: waitSheet.close()
             },
             LgButton {
                 objectName: "closeWhenDone"
                 visible: !waitSheet.removal
-                text: "Close when done"
+                text: qsTr("Close when done")
                 kind: "primary"
                 onClicked: {
                     waitSheet.close()
@@ -966,11 +966,11 @@ Window {
     Sheet {
         id: problemsSheet
         property var problems: []
-        title: "Some things could not be restored"
-        subtitle: "Everything else is back. These need a look:"
+        title: qsTr("Some things could not be restored")
+        subtitle: qsTr("Everything else is back. These need a look:")
         iconName: "alert"
         iconColor: Theme.warn
-        buttons: [ LgButton { text: "Close"; kind: "primary"; onClicked: problemsSheet.close() } ]
+        buttons: [ LgButton { text: qsTr("Close"); kind: "primary"; onClicked: problemsSheet.close() } ]
         Column {
             width: parent.width
             spacing: 6

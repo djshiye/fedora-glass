@@ -52,7 +52,7 @@ FocusScope {
     // the chosen one is said with the group, as the arrow keys change it.
     function _segName(m) { return m ? (m.label || m.tip || "") : "" }
     Accessible.role: Accessible.Grouping
-    Accessible.description: currentIndex >= 0 ? _segName(model[currentIndex]) + ", selected" : ""
+    Accessible.description: currentIndex >= 0 ? qsTr("%1, selected").arg(_segName(model[currentIndex])) : ""
 
     Keys.onLeftPressed: { _byMouse = false; if (currentIndex > 0) activated(model[currentIndex - 1].value) }
     Keys.onRightPressed: { _byMouse = false; if (currentIndex < count - 1) activated(model[currentIndex + 1].value) }

@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import NamedTuple
 
+from .i18n import _
 from .cursors import SIZES as CURSOR_SIZES, STYLE_IDS as CURSOR_STYLE_IDS
 
 # GNOME's own accent colours (Settings > Appearance), so "system" matches the desktop.
@@ -680,10 +681,10 @@ def damage_notice(path: Path | None = None) -> str | None:
     except OSError:
         return None
     if recovered:
-        return (f"Your settings file was damaged, so its last good copy was used. The damaged "
-                f"file is kept as {damaged}.")
-    return (f"Your settings file was damaged and there was no good copy, so these are the "
-            f"defaults. The damaged file is kept as {damaged}.")
+        return _("Your settings file was damaged, so its last good copy was used. The damaged "
+                 "file is kept as {path}.").format(path=damaged)
+    return _("Your settings file was damaged and there was no good copy, so these are the "
+             "defaults. The damaged file is kept as {path}.").format(path=damaged)
 
 
 def _from_dict(raw: dict) -> Settings:

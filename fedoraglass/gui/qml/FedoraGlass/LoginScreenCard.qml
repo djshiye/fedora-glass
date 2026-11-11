@@ -20,11 +20,11 @@ Card {
                 id: heads
                 width: parent.width
                 spacing: 2
-                Text { text: "Glass login screen"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                Text { text: qsTr("Glass login screen"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: "Needs your password once. Apply keeps it up to date."
+                    text: qsTr("Needs your password once. Apply keeps it up to date.")
                     color: Theme.textFaint
                     font.pixelSize: Theme.fsSmall
                 }
@@ -33,7 +33,7 @@ Card {
             LgToolTip {
                 shown: headHover.hovered
                 below: true
-                text: "The login screen can't see your wallpaper, so it gets a soft glow in your tint colour with glass panes for your name and password. It changes a system file, so your password is needed, also when Apply updates it. GNOME updates put the normal login screen back by themselves."
+                text: qsTr("The login screen can't see your wallpaper, so it gets a soft glow in your tint colour with glass panes for your name and password. It changes a system file, so your password is needed, also when Apply updates it. GNOME updates put the normal login screen back by themselves.")
             }
         }
         Text {
@@ -43,11 +43,11 @@ Card {
             color: Theme.textDim
             font.pixelSize: Theme.fsSmall + 1
             text: root.state_ === "on" && Backend.loginGlassStale
-                  ? "The login screen still has an older look. Apply brings it up to date; it asks for your password."
-                : root.state_ === "on" ? "Glass is on the login screen, in your tint and accent colours. Apply keeps it up to date."
-                : root.state_ === "undone" ? "A GNOME update put the normal login screen back. Turn the glass on again to bring it back."
-                : root.busy ? "Waiting for your password…"
-                : "The login screen you see after a restart is GNOME's own."
+                  ? qsTr("The login screen still has an older look. Apply brings it up to date; it asks for your password.")
+                : root.state_ === "on" ? qsTr("Glass is on the login screen, in your tint and accent colours. Apply keeps it up to date.")
+                : root.state_ === "undone" ? qsTr("A GNOME update put the normal login screen back. Turn the glass on again to bring it back.")
+                : root.busy ? qsTr("Waiting for your password…")
+                : qsTr("The login screen you see after a restart is GNOME's own.")
         }
         Flow {
             width: parent.width
@@ -57,8 +57,8 @@ Card {
                 kind: root.state_ === "on" ? "secondary" : "primary"
                 enabled: !root.busy
                 busy: root.busy
-                text: root.state_ === "on" ? (Backend.loginGlassStale ? "Update it now" : "Update to my colours") : "Use glass on the login screen"
-                tip: "Asks for your password, then puts glass on the login screen in the colours you applied last."
+                text: root.state_ === "on" ? (Backend.loginGlassStale ? qsTr("Update it now") : qsTr("Update to my colours")) : qsTr("Use glass on the login screen")
+                tip: qsTr("Asks for your password, then puts glass on the login screen in the colours you applied last.")
                 tipBelow: true
                 onClicked: Backend.turnOnLoginGlass()
             }
@@ -67,8 +67,8 @@ Card {
                 visible: root.state_ === "on"
                 kind: "flat"
                 enabled: !root.busy
-                text: "Put the normal login screen back"
-                tip: "Asks for your password, then puts GNOME's own login screen back exactly as it was."
+                text: qsTr("Put the normal login screen back")
+                tip: qsTr("Asks for your password, then puts GNOME's own login screen back exactly as it was.")
                 tipBelow: true
                 onClicked: Backend.turnOffLoginGlass()
             }
@@ -81,7 +81,7 @@ Card {
             wrapMode: Text.WordWrap
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
-            text: "The login screen gets the look you applied last. Apply first to bring your newest colours along."
+            text: qsTr("The login screen gets the look you applied last. Apply first to bring your newest colours along.")
         }
         Text {
             objectName: "loginGlassNote"

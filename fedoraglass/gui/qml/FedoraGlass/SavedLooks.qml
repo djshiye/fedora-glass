@@ -24,7 +24,7 @@ Column {
     function importFile() { _openImport() }
 
     Text {
-        text: "Your looks"
+        text: qsTr("Your looks")
         color: Theme.textDim
         font.pixelSize: 13
         font.weight: Font.DemiBold
@@ -54,7 +54,7 @@ Column {
             accentHex: modelData.accent
             hasMenu: true
             selected: Backend.activeLook === modelData.id
-            tip: "Your look. Pick it to see it here; Apply puts it on your desktop."
+            tip: qsTr("Your look. Pick it to see it here; Apply puts it on your desktop.")
             rovingGroup: list
             rovingStop: selected || (index === 0 && Backend.activeLook === "")
             onClicked: Backend.useLook(modelData.id)
@@ -84,12 +84,12 @@ Column {
         contentItem: Column {
             MenuRow {
                 objectName: "lookRename"
-                iconName: "write"; text: "Rename…"
+                iconName: "write"; text: qsTr("Rename…")
                 onClicked: { menu.close(); nameSheet.lookId = menu.lookId; nameSheet.open() }
             }
             MenuRow {
                 objectName: "lookExport"
-                iconName: "download"; text: "Save as a file…"
+                iconName: "download"; text: qsTr("Save as a file…")
                 onClicked: {
                     menu.close()
                     root._openExport(menu.lookId)
@@ -97,7 +97,7 @@ Column {
             }
             MenuRow {
                 objectName: "lookDelete"
-                iconName: "trash"; text: "Delete…"; danger: true
+                iconName: "trash"; text: qsTr("Delete…"); danger: true
                 onClicked: { menu.close(); deleteSheet.lookId = menu.lookId; deleteSheet.lookName = menu.lookName; deleteSheet.open() }
             }
         }
@@ -130,9 +130,9 @@ Column {
         objectName: "lookNameSheet"
         property string lookId: ""          // "" for a new look
         readonly property bool renaming: lookId.length > 0
-        title: renaming ? "Rename your look" : "Save this look"
+        title: renaming ? qsTr("Rename your look") : qsTr("Save this look")
         subtitle: renaming ? ""
-            : "It joins the looks on Home, to pick again or share. A look keeps the colours, the glass, motion, the lock screen's look and the pointer. Your choice of apps and this PC's own settings stay out of it."
+            : qsTr("It joins the looks on Home, to pick again or share. A look keeps the colours, the glass, motion, the lock screen's look and the pointer. Your choice of apps and this PC's own settings stay out of it.")
         iconName: renaming ? "write" : "plus"
         width: Math.min(540, (parent ? parent.width : 800) - 64)
         initialFocusItem: nameField
@@ -148,11 +148,11 @@ Column {
             if (ok.length) nameSheet.close()
         }
         buttons: [
-            LgButton { text: "Cancel"; kind: "secondary"; onClicked: nameSheet.close() },
+            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: nameSheet.close() },
             LgButton {
                 id: saveButton
                 objectName: "lookNameSave"
-                text: nameSheet.renaming ? "Rename" : "Save"
+                text: nameSheet.renaming ? qsTr("Rename") : qsTr("Save")
                 kind: "primary"
                 iconName: "check"
                 enabled: nameField.text.trim().length > 0
@@ -162,7 +162,7 @@ Column {
         Column {
             width: parent.width
             spacing: 8
-            Text { text: "Name"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+            Text { text: qsTr("Name"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
             C.TextField {
                 id: nameField
                 objectName: "lookNameField"
@@ -171,13 +171,13 @@ Column {
                 leftPadding: 14
                 rightPadding: 14
                 color: Theme.text
-                placeholderText: "For example: Evening blue"
+                placeholderText: qsTr("For example: Evening blue")
                 placeholderTextColor: Theme.textFaint
                 selectionColor: Theme.alpha(Theme.accent, 0.4)
                 selectedTextColor: Theme.text
                 font.pixelSize: Theme.fsBody
                 maximumLength: 40
-                Accessible.name: "Look name"
+                Accessible.name: qsTr("Look name")
                 Keys.onReturnPressed: nameSheet.done()
                 Keys.onEnterPressed: nameSheet.done()
                 background: Rectangle {
@@ -196,16 +196,16 @@ Column {
         objectName: "lookDeleteSheet"
         property string lookId: ""
         property string lookName: ""
-        title: "Delete “" + lookName + "”?"
-        subtitle: "Only the saved look goes. Your desktop keeps the look you applied."
+        title: qsTr("Delete “%1”?").arg(lookName)
+        subtitle: qsTr("Only the saved look goes. Your desktop keeps the look you applied.")
         iconName: "trash"
         iconColor: Theme.bad
         width: Math.min(520, (parent ? parent.width : 800) - 64)
         buttons: [
-            LgButton { text: "Cancel"; kind: "secondary"; onClicked: deleteSheet.close() },
+            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: deleteSheet.close() },
             LgButton {
                 objectName: "lookDeleteConfirm"
-                text: "Delete"
+                text: qsTr("Delete")
                 kind: "destructive"
                 iconName: "trash"
                 onClicked: { deleteSheet.close(); Backend.deleteLook(deleteSheet.lookId) }
@@ -219,12 +219,12 @@ Column {
         id: problemSheet
         objectName: "lookProblemSheet"
         property string what: ""
-        title: ({ "import": "This look can't be added", "export": "The look wasn't saved as a file" })[what]
-               || "The look wasn't saved"
+        title: ({ "import": qsTr("This look can't be added"), "export": qsTr("The look wasn't saved as a file") })[what]
+               || qsTr("The look wasn't saved")
         iconName: "alert"
         iconColor: Theme.warn
         width: Math.min(520, (parent ? parent.width : 800) - 64)
-        buttons: [ LgButton { text: "OK"; kind: "primary"; onClicked: problemSheet.close() } ]
+        buttons: [ LgButton { text: qsTr("OK"); kind: "primary"; onClicked: problemSheet.close() } ]
         Item { width: 1; height: 1 }
     }
     property string _doing: ""
@@ -247,7 +247,7 @@ Column {
         source: "LookFileDialogs.qml"
         onStatusChanged: if (status === Loader.Error) {
             problemSheet.what = root._doing
-            problemSheet.subtitle = "Saving looks as files needs Qt's file dialogs, which aren't installed. On Ubuntu and Debian, install qml6-module-qtquick-dialogs."
+            problemSheet.subtitle = qsTr("Saving looks as files needs Qt's file dialogs, which aren't installed. On Ubuntu and Debian, install qml6-module-qtquick-dialogs.")
             problemSheet.open()
         }
     }

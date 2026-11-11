@@ -21,20 +21,20 @@ Sheet {
         // fixed by a restart: the note says what is.
         if (Backend.glassBlocked) return false
         return Backend.restartNeeded || (!Backend.glassLive && rs.some(r =>
-            (r.id === "glass" && r.status === "applied") || (r.status === "info" && r.message.indexOf("Finishes after you restart") === 0)))
+            (r.id === "glass" && r.status === "applied") || (r.status === "info" && r.restart === true)))
     }
     readonly property bool needsRestart: results.length > 0 && restartNeeded(results)
-    title: failedCount > 0 ? "Applied, with " + failedCount + " problem" + (failedCount === 1 ? "" : "s")
-         : results.length === 0 ? "Settings saved"
-         : needsRestart ? "Applied. Restart your PC to finish"
-         : Backend.glassBlocked ? "Applied, but the glass can't start"
-         : Backend.glassLive ? "Fedora Glass is on" : "Your new look is applied"
-    subtitle: results.length === 0 ? "Nothing to theme was found yet, so only your settings were saved."
-            : failedCount > 0 ? "Everything else was applied. The details are below."
+    title: failedCount > 0 ? (failedCount === 1 ? qsTr("Applied, with 1 problem") : qsTr("Applied, with %1 problems").arg(failedCount))
+         : results.length === 0 ? qsTr("Settings saved")
+         : needsRestart ? qsTr("Applied. Restart your PC to finish")
+         : Backend.glassBlocked ? qsTr("Applied, but the glass can't start")
+         : Backend.glassLive ? qsTr("Fedora Glass is on") : qsTr("Your new look is applied")
+    subtitle: results.length === 0 ? qsTr("Nothing to theme was found yet, so only your settings were saved.")
+            : failedCount > 0 ? qsTr("Everything else was applied. The details are below.")
             : needsRestart && Backend.glassProblem === "old" ? Backend.glassProblemNote
             : Backend.glassBlocked ? Backend.glassProblemNote
-            : needsRestart ? "GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them."
-            : "Open apps pick up the new look when you reopen them."
+            : needsRestart ? qsTr("GNOME starts the glass when your PC starts. Open apps pick up the new look when you reopen them.")
+            : qsTr("Open apps pick up the new look when you reopen them.")
     iconName: failedCount > 0 || Backend.glassBlocked ? "alert" : "okCircle"
     iconColor: failedCount > 0 || Backend.glassBlocked ? Theme.warn : Theme.good
     // A stray Enter must never start a restart: with one pending, the sheet opens on "Later".
@@ -44,17 +44,17 @@ Sheet {
             id: laterButton
             objectName: "restartLater"
             visible: sheet.needsRestart
-            text: "Later"
+            text: qsTr("Later")
             kind: "secondary"
             onClicked: sheet.close()
         },
         LgButton {
             // One main button: "Restart now…" when a restart finishes the job, else "Done".
             objectName: sheet.needsRestart ? "restartNow" : "resultsDone"
-            text: sheet.needsRestart ? "Restart now…" : "Done"
+            text: sheet.needsRestart ? qsTr("Restart now…") : qsTr("Done")
             iconName: sheet.needsRestart ? "power" : ""
             kind: "primary"
-            tip: sheet.needsRestart ? "GNOME asks before it restarts, so you can save your work first." : ""
+            tip: sheet.needsRestart ? qsTr("GNOME asks before it restarts, so you can save your work first.") : ""
             onClicked: {
                 const restart = sheet.needsRestart
                 sheet.close()
@@ -65,11 +65,11 @@ Sheet {
 
     function meta(st) {
         switch (st) {
-        case "applied": return { icon: "okCircle", color: Theme.good, label: "Applied" }
-        case "reverted": return { icon: "undo", color: Theme.textDim, label: "Restored" }
-        case "info": return { icon: "info", color: Theme.accentText, label: "Note" }
-        case "skipped": return { icon: "skipCircle", color: Theme.textFaint, label: "Skipped" }
-        default: return { icon: "xCircle", color: Theme.bad, label: "Failed" }
+        case "applied": return { icon: "okCircle", color: Theme.good, label: qsTr("Applied"), chip: qsTr("%1 applied") }
+        case "reverted": return { icon: "undo", color: Theme.textDim, label: qsTr("Restored"), chip: qsTr("%1 restored") }
+        case "info": return { icon: "info", color: Theme.accentText, label: qsTr("Note"), chip: qsTr("%1 note") }
+        case "skipped": return { icon: "skipCircle", color: Theme.textFaint, label: qsTr("Skipped"), chip: qsTr("%1 skipped") }
+        default: return { icon: "xCircle", color: Theme.bad, label: qsTr("Failed"), chip: qsTr("%1 failed") }
         }
     }
 
@@ -109,7 +109,7 @@ Sheet {
                         anchors.centerIn: parent
                         spacing: 6
                         Icon { name: m.icon; size: 14; color: m.color; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: sheet.count(modelData) + " " + m.label.toLowerCase(); color: m.color; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: m.chip.arg(sheet.count(modelData)); color: m.color; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                     }
                 }
             }
@@ -168,7 +168,7 @@ Sheet {
                                     x: 32
                                     width: parent.width - x - foldChevron.width - 12
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: sheet.skippedRows.length + " parts not installed here, skipped"
+                                    text: qsTr("%1 parts not installed here, skipped").arg(sheet.skippedRows.length)
                                     color: Theme.textDim
                                     font.pixelSize: Theme.fsBody
                                     elide: Text.ElideRight

@@ -39,7 +39,7 @@ Item {
         height: 44
         hoverEnabled: true
         focusPolicy: Qt.TabFocus
-        Accessible.name: "Fedora Glass: home"
+        Accessible.name: qsTr("Fedora Glass: home")
         onClicked: root.homeClicked()
         HoverHandler { cursorShape: Qt.PointingHandCursor }
         background: Rectangle {
@@ -73,7 +73,7 @@ Item {
     }
 
     // ---- search ---------------------------------------------------------------
-    // What shows on this PC: search only offers controls that are there (searchindex.js `when`).
+    // What shows on this PC: search only offers controls that are there (searchindex.js `needs`).
     readonly property var available: ({
         dtp: Backend.hasDashToPanel,
         dtpHover: Backend.hasDashToPanel && (Backend.motionDtpHoverOff
@@ -123,14 +123,14 @@ Item {
             height: parent.height
             verticalAlignment: TextInput.AlignVCenter
             leftPadding: 4; rightPadding: 4
-            placeholderText: "Search settings"
+            placeholderText: qsTr("Search settings")
             placeholderTextColor: Theme.textFaint
             color: Theme.text
             selectionColor: Theme.alpha(Theme.accent, 0.4)
             selectedTextColor: Theme.text
             font.pixelSize: 14
             background: Item {}
-            Accessible.name: "Search settings"
+            Accessible.name: qsTr("Search settings")
             Keys.onDownPressed: root.hit = Math.min(root.results.length - 1, root.hit + 1)
             Keys.onUpPressed: root.hit = Math.max(0, root.hit - 1)
             Keys.onReturnPressed: root.choose(root.hit)
@@ -145,7 +145,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: 24; height: 24
             focusPolicy: Qt.NoFocus
-            Accessible.name: "Clear search"
+            Accessible.name: qsTr("Clear search")
             onClicked: { field.text = ""; field.forceActiveFocus() }
             background: Rectangle { radius: 12; color: clearBtn.hovered ? Theme.hover : "transparent" }
             contentItem: Item { Icon { anchors.centerIn: parent; name: "close"; size: 14; strokeWidth: 2; color: Theme.textDim } }
@@ -164,7 +164,7 @@ Item {
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         Accessible.name: modelData.label
-        Accessible.description: Backend.changedPages.indexOf(modelData.id) >= 0 ? "Has changes not applied yet" : ""
+        Accessible.description: Backend.changedPages.indexOf(modelData.id) >= 0 ? qsTr("Has changes not applied yet") : ""
         Accessible.role: Accessible.PageTab
         Accessible.selected: selected
         onClicked: root.picked(modelData.id)
@@ -258,12 +258,12 @@ Item {
             x: 8; y: 8
             width: parent.width - 16
             Accessible.role: Accessible.List
-            Accessible.name: "Search results"
+            Accessible.name: qsTr("Search results")
             Text {
                 visible: root.results.length === 0
                 width: parent.width
                 padding: 12
-                text: "No setting matches \"" + field.text.trim() + "\""
+                text: qsTr("No setting matches \"%1\"").arg(field.text.trim())
                 color: Theme.textDim
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
@@ -279,14 +279,14 @@ Item {
                     radius: Theme.rS - 2
                     color: index === root.hit ? Theme.wellHi : resMouse.containsMouse ? Theme.hover : "transparent"
                     Accessible.role: Accessible.ListItem
-                    Accessible.name: modelData.label + ", " + (root.pageLabels[modelData.page] || "")
+                    Accessible.name: modelData.title + ", " + (root.pageLabels[modelData.page] || "")
                     Accessible.selected: index === root.hit
                     Accessible.onPressAction: root.choose(index)
                     Column {
                         x: 12
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
-                        Text { text: res.modelData.label; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                        Text { text: res.modelData.title; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
                         Text { text: root.pageLabels[res.modelData.page] || ""; color: Theme.textFaint; font.pixelSize: 12 }
                     }
                     MouseArea {
@@ -306,7 +306,7 @@ Item {
                 visible: more > 0
                 width: parent.width
                 leftPadding: 12; rightPadding: 12; topPadding: 6; bottomPadding: 6
-                text: (more === 1 ? "1 more setting matches." : more + " more settings match.") + " Type more to narrow it down."
+                text: (more === 1 ? qsTr("1 more setting matches. Type more to narrow it down.") : qsTr("%1 more settings match. Type more to narrow it down.").arg(more))
                 color: Theme.textFaint
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap

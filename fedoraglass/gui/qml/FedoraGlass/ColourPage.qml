@@ -15,33 +15,33 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 16
-            SectionTitle { text: "Style and accent"; resetKeys: ["scheme", "accent", "accent_from_wallpaper", "accent_own"] }
+            SectionTitle { text: qsTr("Style and accent"); resetKeys: ["scheme", "accent", "accent_from_wallpaper", "accent_own"] }
             Column {
                 width: parent.width
                 spacing: 8
-                Text { text: "Style"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                Text { text: qsTr("Style"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                 Segmented {
                     objectName: "schemeChoice"
                     width: parent.width
-                    model: [{ value: "auto", label: "Auto", icon: "auto", tip: "Follow GNOME's light/dark setting" },
-                            { value: "dark", label: "Dark", icon: "moon", tip: "Always use the dark style, whatever GNOME is set to" },
-                            { value: "light", label: "Light", icon: "sun", tip: "Always use the light style, whatever GNOME is set to" }]
+                    model: [{ value: "auto", label: qsTr("Auto"), icon: "auto", tip: qsTr("Follow GNOME's light/dark setting") },
+                            { value: "dark", label: qsTr("Dark"), icon: "moon", tip: qsTr("Always use the dark style, whatever GNOME is set to") },
+                            { value: "light", label: qsTr("Light"), icon: "sun", tip: qsTr("Always use the light style, whatever GNOME is set to") }]
                     value: Backend.scheme
                     onActivated: (v) => Backend.scheme = v
-                    Accessible.name: "Style"
+                    Accessible.name: qsTr("Style")
                 }
             }
             Column {
                 width: parent.width
                 spacing: 10
-                Text { text: "Accent colour"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                Text { text: qsTr("Accent colour"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                 AccentRow { width: parent.width }
             }
             SwitchRow {
                 objectName: "wallpaperAccent"
-                label: "Accent matches my wallpaper"
-                caption: "Buttons and highlights take a clear colour from your wallpaper when you press Apply"
-                tip: "Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. It looks again each time you press Apply. Picking an accent above turns this off."
+                label: qsTr("Accent matches my wallpaper")
+                caption: qsTr("Buttons and highlights take a clear colour from your wallpaper when you press Apply")
+                tip: qsTr("Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. It looks again each time you press Apply. Picking an accent above turns this off.")
                 checked: Backend.accentFromWallpaper
                 onToggled: (on) => Backend.accentFromWallpaper = on
             }
@@ -54,17 +54,17 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 16
-            SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius", "tint_from_wallpaper", "tint_own", "wallpaper_match"] }
+            SectionTitle { text: qsTr("Tint and corners"); resetKeys: ["tint", "tint_strength", "radius", "tint_from_wallpaper", "tint_own", "wallpaper_match"] }
             Item {
                 width: parent.width
                 height: 36
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
-                    Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                    Text { text: qsTr("Tint"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                     Text {
                         objectName: "tintCaption"
-                        text: Backend.tintFromWallpaper ? "Taken from your wallpaper" : "The colour the glass leans towards"
+                        text: Backend.tintFromWallpaper ? qsTr("Taken from your wallpaper") : qsTr("The colour the glass leans towards")
                         color: Theme.textFaint; font.pixelSize: Theme.fsSmall
                     }
                 }
@@ -78,9 +78,9 @@ SettingsPage {
                     hoverEnabled: true
                     focusPolicy: Qt.StrongFocus
                     onClicked: tintPicker.open()
-                    Accessible.name: "Tint colour"
+                    Accessible.name: qsTr("Tint colour")
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    LgToolTip { shown: tintButton.hovered; text: Backend.tintFromWallpaper ? "Choose your own tint colour instead" : "Choose the tint colour" }
+                    LgToolTip { shown: tintButton.hovered; text: Backend.tintFromWallpaper ? qsTr("Choose your own tint colour instead") : qsTr("Choose the tint colour") }
                     background: Rectangle {
                         radius: height / 2
                         color: tintButton.hovered ? Theme.surfaceHi : Theme.well
@@ -110,7 +110,7 @@ SettingsPage {
                         id: tintPicker
                         y: parent.height + 8
                         x: parent.width - width
-                        title: "Tint colour"
+                        title: qsTr("Tint colour")
                         color: Backend.tint
                         onPicked: (hex) => Backend.tint = hex
                     }
@@ -118,18 +118,18 @@ SettingsPage {
             }
             SwitchRow {
                 objectName: "wallpaperTint"
-                label: "Match my wallpaper"
-                caption: "The glass takes a soft colour from your wallpaper when you press Apply"
-                tip: "Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. It looks again each time you press Apply, not by itself. Picking a tint colour turns this off."
+                label: qsTr("Match my wallpaper")
+                caption: qsTr("The glass takes a soft colour from your wallpaper when you press Apply")
+                tip: qsTr("Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. It looks again each time you press Apply, not by itself. Picking a tint colour turns this off.")
                 checked: Backend.tintFromWallpaper
                 onToggled: (on) => Backend.tintFromWallpaper = on
             }
             // A word on the wallpaper match: looking, can't, or a new wallpaper since Apply.
             Row {
                 objectName: "wallpaperNote"
-                readonly property string note: Backend.wallpaperMatchBusy ? "Looking at your wallpaper…"
+                readonly property string note: Backend.wallpaperMatchBusy ? qsTr("Looking at your wallpaper…")
                     : Backend.wallpaperMatchNote !== "" ? Backend.wallpaperMatchNote
-                    : Backend.wallpaperChangedSince ? "Your wallpaper changed since the last Apply. Press Apply to take its colour again."
+                    : Backend.wallpaperChangedSince ? qsTr("Your wallpaper changed since the last Apply. Press Apply to take its colour again.")
                     : ""
                 visible: (Backend.tintFromWallpaper || Backend.accentFromWallpaper) && note !== ""
                 width: parent.width
@@ -150,21 +150,21 @@ SettingsPage {
             }
             LabeledSlider {
                 objectName: "tintStrength"
-            label: "Tint strength"
+            label: qsTr("Tint strength")
                 value: Backend.tintStrength
                 defaultValue: Backend.defaults.tint_strength
                 onMoved: (v) => Backend.tintStrength = v
-                tip: "How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane."
+                tip: qsTr("How much of the tint colour is mixed into the glass. Left is clear, colourless glass; right is a strongly coloured pane.")
             }
             LabeledSlider {
                 objectName: "cornerRoundness"
-            label: "Corner roundness"
+            label: qsTr("Corner roundness")
                 from: 0; to: 32; stepSize: 1
                 value: Backend.radius
                 defaultValue: Backend.defaults.radius
-                format: (v) => Math.round(v) + " px"
+                format: (v) => qsTr("%1 px").arg(Math.round(v))
                 onMoved: (v) => Backend.radius = v
-                tip: "How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners."
+                tip: qsTr("How round the corners of the panel, menus and windows are. Left is sharp, square corners; right is soft, pill-like corners.")
             }
         }
     }

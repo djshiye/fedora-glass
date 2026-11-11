@@ -28,8 +28,9 @@ C.AbstractButton {
     Keys.onPressed: (e) => { if (hasMenu && e.key === Qt.Key_F10 && (e.modifiers & Qt.ShiftModifier)) { tile.menuRequested(menuBtn); e.accepted = true } }
     implicitHeight: thumbHeight + 44
     hoverEnabled: true
-    text: name
-    Accessible.name: hasMenu ? name + ", your look" : name + " preset"
+    readonly property string shownName: hasMenu ? name : Theme.presetLabel(name)   // presets are keyed by their English name
+    text: shownName
+    Accessible.name: hasMenu ? qsTr("%1, your look").arg(name) : qsTr("%1 preset").arg(shownName)
     Accessible.role: Accessible.RadioButton
     Accessible.checked: selected
     HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -117,7 +118,7 @@ C.AbstractButton {
             x: tile.hasMenu ? 8 : 0
             width: tile.width - (tile.hasMenu ? 16 : 0)
             horizontalAlignment: Text.AlignHCenter
-            text: tile.name
+            text: tile.shownName
             elide: Text.ElideRight
             color: tile.selected ? Theme.text : Theme.textDim
             font.pixelSize: 13
@@ -138,7 +139,7 @@ C.AbstractButton {
         focusPolicy: Qt.NoFocus
         opacity: tile.hovered || tile.visualFocus || hovered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-        Accessible.name: "More for " + tile.name
+        Accessible.name: qsTr("More for %1").arg(tile.name)
         onClicked: tile.menuRequested(menuBtn)
         HoverHandler { cursorShape: Qt.PointingHandCursor }
         background: Rectangle {

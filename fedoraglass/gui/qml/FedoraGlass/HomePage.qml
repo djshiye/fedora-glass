@@ -16,14 +16,14 @@ SettingsPage {
 
     readonly property var presetFrost: Backend.presetFrost
     readonly property var presetTips: ({
-        "Liquid": "Clearest glass, brightest rim",
-        "Clear": "Clear glass with a little haze",
-        "Balanced": "The default: readable and still glassy",
-        "Frosted": "Milky, heavily blurred glass",
-        "Solid": "Almost opaque, for maximum readability"
+        "Liquid": qsTr("Clearest glass, brightest rim"),
+        "Clear": qsTr("Clear glass with a little haze"),
+        "Balanced": qsTr("The default: readable and still glassy"),
+        "Frosted": qsTr("Milky, heavily blurred glass"),
+        "Solid": qsTr("Almost opaque, for maximum readability")
     })
     // Named after the preset the slider sits nearest to (settings.PRESETS, through Backend).
-    function frostName(f) { return Backend.frostName(f) }
+    function frostName(f) { return Theme.presetLabel(Backend.frostName(f)) }
 
     // ---- left: the preview and the presets ------------------------------------------
     Item {
@@ -54,13 +54,13 @@ SettingsPage {
                 Row {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 10
-                    Text { id: lookTitle; text: "Look"; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
+                    Text { id: lookTitle; text: qsTr("Look"); color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
                     Text {
                         anchors.baseline: lookTitle.baseline
                         // Gives way to the buttons in a narrow window.
                         width: Math.min(implicitWidth, lookButtons.x - lookTitle.width - 10 - 16)
                         elide: Text.ElideRight
-                        text: "Pick one to start. Everything else follows it."
+                        text: qsTr("Pick one to start. Everything else follows it.")
                         color: Theme.textFaint
                         font.pixelSize: Theme.fsSmall + 1
                     }
@@ -76,9 +76,9 @@ SettingsPage {
                         kind: "flat"
                         implicitHeight: 30
                         leftPadding: 8; rightPadding: 10
-                        text: "Save look…"
+                        text: qsTr("Save look…")
                         iconName: "plus"
-                        tip: "Keep this look under a name, to pick again or share"
+                        tip: qsTr("Keep this look under a name, to pick again or share")
                         tipBelow: true
                         onClicked: savedLooks.saveNew()
                     }
@@ -87,9 +87,9 @@ SettingsPage {
                         kind: "flat"
                         implicitHeight: 30
                         leftPadding: 8; rightPadding: 10
-                        text: "Add from file…"
+                        text: qsTr("Add from file…")
                         iconName: "document"
-                        tip: "Add a look someone shared with you (a .json file)"
+                        tip: qsTr("Add a look someone shared with you (a .json file)")
                         tipBelow: true
                         onClicked: savedLooks.importFile()
                     }
@@ -138,7 +138,7 @@ SettingsPage {
                     height: 28
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Glass"; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold
+                        text: qsTr("Glass"); color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold
                     }
                     Rectangle {
                         objectName: "frostValue"
@@ -173,16 +173,16 @@ SettingsPage {
             Column {
                 width: parent.width
                 spacing: 14
-                Text { text: "Colour"; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
+                Text { text: qsTr("Colour"); color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
                 Segmented {
                     objectName: "homeScheme"
                     width: parent.width
-                    model: [{ value: "auto", label: "Auto", tip: "Follow GNOME's light/dark setting" },
-                            { value: "dark", label: "Dark", tip: "Always use the dark style" },
-                            { value: "light", label: "Light", tip: "Always use the light style" }]
+                    model: [{ value: "auto", label: qsTr("Auto"), tip: qsTr("Follow GNOME's light/dark setting") },
+                            { value: "dark", label: qsTr("Dark"), tip: qsTr("Always use the dark style") },
+                            { value: "light", label: qsTr("Light"), tip: qsTr("Always use the light style") }]
                     value: Backend.scheme
                     onActivated: (v) => Backend.scheme = v
-                    Accessible.name: "Style"
+                    Accessible.name: qsTr("Style")
                 }
                 AccentRow { width: parent.width; objectName: "homeAccent" }
             }
@@ -199,22 +199,22 @@ SettingsPage {
                 readonly property real tileW: (width - spacing) / 2
                 readonly property var pointerName: {
                     if (Backend.cursorTheme === "keep" || Backend.cursorTheme === "")
-                        return "Your own"
+                        return qsTr("Your own")
                     const s = Cursors.styles.find(c => c.id === Backend.cursorTheme)
                     return s ? s.name : Backend.cursorTheme
                 }
                 readonly property var motionName: {
                     const s = Backend.motionStyles.find(m => m.id === Backend.motionStyle)
-                    return s ? s.label : "Your own mix"
+                    return s ? s.label : qsTr("Your own mix")
                 }
                 QuickTile {
                     objectName: "tileWindows"
                     width: tiles.tileW
                     iconName: "window"
-                    title: "Windows"
-                    state_: Backend.blurAppWindows ? "On" : "Off"
+                    title: qsTr("Windows")
+                    state_: Backend.blurAppWindows ? qsTr("On") : qsTr("Off")
                     on: Backend.blurAppWindows
-                    tip: "Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass."
+                    tip: qsTr("Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass.")
                     onActivated: Backend.blurAppWindows = !Backend.blurAppWindows
                     onMore: Window.window.goTo("glass", "glassAppWindows")
                 }
@@ -222,10 +222,10 @@ SettingsPage {
                     objectName: "tileMotion"
                     width: tiles.tileW
                     iconName: "wave"
-                    title: "Motion"
+                    title: qsTr("Motion")
                     state_: tiles.motionName
                     on: Backend.motionStyle !== "off"
-                    tip: "How windows, menus and the panel move"
+                    tip: qsTr("How windows, menus and the panel move")
                     onActivated: Window.window.goTo("motion", "motionStyle")
                     onMore: Window.window.goTo("motion", "motionStyle")
                 }
@@ -233,10 +233,10 @@ SettingsPage {
                     objectName: "tileLock"
                     width: tiles.tileW
                     iconName: "lock"
-                    title: "Glass lock"
-                    state_: Backend.lockGlass ? "On" : "Off"
+                    title: qsTr("Glass lock")
+                    state_: Backend.lockGlass ? qsTr("On") : qsTr("Off")
                     on: Backend.lockGlass
-                    tip: "A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login."
+                    tip: qsTr("A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login.")
                     onActivated: Backend.lockGlass = !Backend.lockGlass
                     onMore: Window.window.goTo("lock", "lockGlass")
                 }
@@ -244,10 +244,10 @@ SettingsPage {
                     objectName: "tilePointer"
                     width: tiles.tileW
                     iconName: "pointer"
-                    title: "Pointer"
+                    title: qsTr("Pointer")
                     state_: tiles.pointerName
                     on: Backend.cursorTheme !== "keep" && Backend.cursorTheme !== ""
-                    tip: "Pick a mouse pointer that matches the glass"
+                    tip: qsTr("Pick a mouse pointer that matches the glass")
                     onActivated: Window.window.goTo("pointer", "cursorCard")
                     onMore: Window.window.goTo("pointer", "cursorCard")
                 }
@@ -269,7 +269,7 @@ SettingsPage {
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         onClicked: activated()
-        Accessible.name: title + ": " + state_
+        Accessible.name: qsTr("%1: %2").arg(title).arg(state_)
         HoverHandler { cursorShape: Qt.PointingHandCursor }
         LgToolTip { shown: qt.tip.length > 0 && (qt.hovered || qt.visualFocus) && !qt.pressed; text: qt.tip }
         background: Rectangle {
@@ -319,7 +319,7 @@ SettingsPage {
                 width: 26; height: 26
                 hoverEnabled: true
                 focusPolicy: Qt.NoFocus
-                Accessible.name: "Open " + qt.title + " settings"
+                Accessible.name: qsTr("Open %1 settings").arg(qt.title)
                 onClicked: qt.more()
                 background: Rectangle { radius: 13; color: moreBtn.hovered ? Theme.hover : "transparent" }
                 contentItem: Item {

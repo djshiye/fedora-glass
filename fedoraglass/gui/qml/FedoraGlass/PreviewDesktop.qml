@@ -395,7 +395,7 @@ Item {
                 Label {
                     x: 0; width: files.side; height: files.head
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                    text: "Files"; font.weight: Font.Bold
+                    text: qsTr("Files"); font.weight: Font.Bold
                 }
                 Sym { name: "menu"; x: files.side - root.u(34); y: (files.head - height) / 2 }
 
@@ -404,9 +404,9 @@ Item {
                     width: files.side - root.u(16)
                     spacing: root.u(2)
                     Repeater {
-                        model: [["clock", "Recent"], ["star", "Starred"], ["home", "Home"], ["document", "Documents"],
-                                ["download", "Downloads"], ["music", "Music"], ["picture", "Pictures"],
-                                ["video", "Videos"], ["trash", "Trash"]]
+                        model: [["clock", qsTr("Recent")], ["star", qsTr("Starred")], ["home", qsTr("Home")], ["document", qsTr("Documents")],
+                                ["download", qsTr("Downloads")], ["music", qsTr("Music")], ["picture", qsTr("Pictures")],
+                                ["video", qsTr("Videos")], ["trash", qsTr("Trash")]]
                         delegate: Rectangle {
                             required property var modelData
                             required property int index
@@ -447,7 +447,7 @@ Item {
                             x: root.u(12); anchors.verticalCenter: parent.verticalCenter
                             spacing: root.u(8)
                             Sym { name: "home"; size: root.u(15); anchors.verticalCenter: parent.verticalCenter }
-                            Label { text: "Home"; anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
+                            Label { text: qsTr("Home"); anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
                         }
                     }
                     Row {
@@ -470,8 +470,8 @@ Item {
                     columns: 6
                     columnSpacing: root.u(16); rowSpacing: root.u(18)
                     Repeater {
-                        model: ["Desktop", "Documents", "Downloads", "Music", "Pictures", "Projects",
-                                "Videos", "Public", "Templates", "linux-extensions", "Games", "notes.md"]
+                        model: [qsTr("Desktop"), qsTr("Documents"), qsTr("Downloads"), qsTr("Music"), qsTr("Pictures"), qsTr("Projects"),
+                                qsTr("Videos"), qsTr("Public"), qsTr("Templates"), "linux-extensions", qsTr("Games"), "notes.md"]
                         delegate: Column {
                             required property string modelData
                             required property int index
@@ -596,12 +596,15 @@ Item {
                 readonly property string dim: Qt.rgba(term.ink.r, term.ink.g, term.ink.b, 0.55).toString()
                 readonly property string yellow: String(root.termPal.yellow)
                 readonly property string prompt: "<font color='" + green + "'><b>" + Backend.userName + "@" + Backend.hostName + "</b></font>:<font color='" + blue + "'><b>~</b></font>$ "
+                function row(mark, sign, name, status) {     // the CLI's own output, English like the real thing
+                    return "<font color='" + mark + "'>" + sign + "</font> " + name + "<font color='" + dim + "'>" + status + "</font>"
+                }
                 Line { text: lines.prompt + "fedora-glass apply" }
-                Line { text: "<font color='" + lines.green + "'>✓</font> GNOME Shell           <font color='" + lines.dim + "'>applied</font>" }
-                Line { text: "<font color='" + lines.green + "'>✓</font> GTK 4 and libadwaita  <font color='" + lines.dim + "'>applied</font>" }
-                Line { text: "<font color='" + lines.green + "'>✓</font> " + (root.topBar ? "Glass effects  " : "Dash to Panel  ") + "       <font color='" + lines.dim + "'>applied</font>" }
-                Line { text: "<font color='" + lines.green + "'>✓</font> Ptyxis                <font color='" + lines.dim + "'>applied</font>" }
-                Line { text: "<font color='" + lines.yellow + "'>–</font> Steam                 <font color='" + lines.dim + "'>skipped</font>" }
+                Line { text: lines.row(lines.green, "✓", "GNOME Shell           ", "applied") }
+                Line { text: lines.row(lines.green, "✓", "GTK 4 and libadwaita  ", "applied") }
+                Line { text: lines.row(lines.green, "✓", (root.topBar ? "Glass effects  " : "Dash to Panel  ") + "       ", "applied") }
+                Line { text: lines.row(lines.green, "✓", "Ptyxis                ", "applied") }
+                Line { text: lines.row(lines.yellow, "–", "Steam                 ", "skipped") }
                 Line { text: " " }
                 Line { text: lines.prompt }
             }
@@ -886,13 +889,13 @@ Item {
                 x: root.u(14); anchors.verticalCenter: parent.verticalCenter
                 spacing: root.u(10)
                 Sym { name: "search"; color: root.fgDim; anchors.verticalCenter: parent.verticalCenter }
-                Label { text: "Search…"; color: root.fgFaint; anchors.verticalCenter: parent.verticalCenter }
+                Label { text: qsTr("Search…"); color: root.fgFaint; anchors.verticalCenter: parent.verticalCenter }
             }
         }
 
         Label {
             x: menu.pad + root.u(8); y: root.u(76)
-            text: "Pinned"; color: root.fgDim; font.weight: Font.DemiBold; font.pixelSize: root.u(14)
+            text: qsTr("Pinned"); color: root.fgDim; font.weight: Font.DemiBold; font.pixelSize: root.u(14)
         }
         Column {
             x: menu.pad; y: root.u(104)
@@ -900,10 +903,10 @@ Item {
             spacing: root.u(2)
             Repeater {
                 model: [
-                    { n: "Files", i: "org.gnome.Nautilus" }, { n: "Ptyxis", i: "org.gnome.Ptyxis" },
-                    { n: "Helium", i: "helium" }, { n: "Text Editor", i: "org.gnome.TextEditor" },
-                    { n: "Calculator", i: "org.gnome.Calculator" }, { n: "Lutris", i: "net.lutris.Lutris" },
-                    { n: "Settings", i: "org.gnome.Settings" }, { n: "Extensions", i: "org.gnome.Extensions" }
+                    { n: qsTr("Files"), i: "org.gnome.Nautilus" }, { n: "Ptyxis", i: "org.gnome.Ptyxis" },
+                    { n: "Helium", i: "helium" }, { n: qsTr("Text Editor"), i: "org.gnome.TextEditor" },
+                    { n: qsTr("Calculator"), i: "org.gnome.Calculator" }, { n: "Lutris", i: "net.lutris.Lutris" },
+                    { n: qsTr("Settings"), i: "org.gnome.Settings" }, { n: qsTr("Extensions"), i: "org.gnome.Extensions" }
                 ]
                 delegate: Rectangle {
                     required property var modelData
@@ -946,8 +949,8 @@ Item {
                 Label { text: Backend.userName; anchors.verticalCenter: parent.verticalCenter; font.weight: Font.DemiBold }
             }
             Repeater {
-                model: [["home", "Home"], ["document", "Documents"], ["download", "Downloads"],
-                        ["picture", "Pictures"], ["gear", "Settings"], ["apps", "Software"]]
+                model: [["home", qsTr("Home")], ["document", qsTr("Documents")], ["download", qsTr("Downloads")],
+                        ["picture", qsTr("Pictures")], ["gear", qsTr("Settings")], ["apps", qsTr("Software")]]
                 delegate: Item {
                     required property var modelData
                     width: parent.width; height: root.u(42)
@@ -1051,9 +1054,9 @@ Item {
             columns: 2
             columnSpacing: root.u(12); rowSpacing: root.u(12)
             Repeater {
-                model: [["wifi", "Wi-Fi", "Home", true], ["bluetooth", "Bluetooth", "Off", false],
-                        ["sparkle", "Power Mode", "Balanced", false], ["moon", "Night Light", "", true],
-                        ["auto", "Dark Style", "", root.dark], ["bell", "Do Not Disturb", "", false]]
+                model: [["wifi", qsTr("Wi-Fi"), qsTr("Home"), true], ["bluetooth", qsTr("Bluetooth"), qsTr("Off"), false],
+                        ["sparkle", qsTr("Power Mode"), qsTr("Balanced"), false], ["moon", qsTr("Night Light"), "", true],
+                        ["auto", qsTr("Dark Style"), "", root.dark], ["bell", qsTr("Do Not Disturb"), "", false]]
                 delegate: Rectangle {
                     required property var modelData
                     width: (qs.width - 2 * qs.pad - root.u(12)) / 2; height: root.u(58)
@@ -1105,8 +1108,8 @@ Item {
             width: cal.split - cal.pad - root.u(12)
             spacing: root.u(10)
             Repeater {
-                model: [["Files", "org.gnome.Nautilus", "Copied 12 photos to Pictures", "2 min"],
-                        ["Software", "org.gnome.Software", "3 updates are ready to install", "1 h"]]
+                model: [[qsTr("Files"), "org.gnome.Nautilus", qsTr("Copied 12 photos to Pictures"), qsTr("2 min")],
+                        [qsTr("Software"), "org.gnome.Software", qsTr("3 updates are ready to install"), qsTr("1 h")]]
                 delegate: Rectangle {
                     required property var modelData
                     width: parent.width; height: root.u(86)
@@ -1136,7 +1139,7 @@ Item {
             Rectangle {
                 width: root.u(150); height: root.u(36); radius: height / 2
                 color: cal.card
-                Label { anchors.centerIn: parent; text: "Do Not Disturb"; color: cal.fgC; font.pixelSize: root.u(13) }
+                Label { anchors.centerIn: parent; text: qsTr("Do Not Disturb"); color: cal.fgC; font.pixelSize: root.u(13) }
             }
         }
         Rectangle {
@@ -1222,7 +1225,7 @@ Item {
                 x: root.u(16); anchors.verticalCenter: parent.verticalCenter
                 spacing: root.u(10)
                 Sym { name: "search"; color: root.fgDim }
-                Label { text: "Type to search"; color: root.fgFaint }
+                Label { text: qsTr("Type to search"); color: root.fgFaint }
             }
         }
         Item {          // the workspace, with its windows
@@ -1247,7 +1250,7 @@ Item {
                 border.width: 1; border.color: root.withAlpha(root.fg, 0.15)
             }
             Repeater {      // Files and Ptyxis, small: live copies of the windows above
-                model: [[files, "Files"], [term, "Terminal"]]
+                model: [[files, qsTr("Files")], [term, qsTr("Terminal")]]
                 delegate: Item {
                     required property var modelData
                     readonly property real k: ws.width / root.width
@@ -1309,7 +1312,7 @@ Item {
                 Sym { name: "info"; size: root.u(24); color: root.t.accent_text || root.fg; anchors.verticalCenter: parent.verticalCenter }
                 Label {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Activities is off: no hot corner, Super key or swipe opens this"
+                    text: qsTr("Activities is off: no hot corner, Super key or swipe opens this")
                     font.pixelSize: root.u(20); font.weight: Font.DemiBold
                     elide: Text.ElideNone
                 }
@@ -1442,7 +1445,7 @@ Item {
                     Column {
                         x: 22; y: 18; spacing: 14
                         Repeater {
-                            model: ["Documents", "Downloads", "Pictures", "Projects"]
+                            model: [qsTr("Documents"), qsTr("Downloads"), qsTr("Pictures"), qsTr("Projects")]
                             delegate: Row {
                                 required property string modelData
                                 spacing: 12
@@ -1485,7 +1488,7 @@ Item {
             Text {
                 id: closeUpLabel
                 anchors.centerIn: parent
-                text: "Glass edge at full size"
+                text: qsTr("Glass edge at full size")
                 color: "white"
                 font.pixelSize: root.u(15)
                 font.weight: Font.DemiBold

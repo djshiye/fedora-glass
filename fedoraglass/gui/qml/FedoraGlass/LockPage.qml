@@ -11,8 +11,8 @@ SettingsPage {
     pageId: "lock"
     property alias previewMode: preview.mode
     readonly property bool weatherMissing: Backend.weatherState === "no-app" || Backend.weatherState === "no-place"
-    readonly property string weatherWhy: Backend.weatherState === "no-app" ? "Weather needs the GNOME Weather app, so nothing shows yet."
-                                       : Backend.weatherState === "no-place" ? "Choose a place in GNOME Weather, so weather has something to show."
+    readonly property string weatherWhy: Backend.weatherState === "no-app" ? qsTr("Weather needs the GNOME Weather app, so nothing shows yet.")
+                                       : Backend.weatherState === "no-place" ? qsTr("Choose a place in GNOME Weather, so weather has something to show.")
                                        : ""
 
     component Choice: Column {
@@ -72,15 +72,15 @@ SettingsPage {
                 objectName: "lockGlassReset"
                 visible: changed
                 height: visible ? implicitHeight + 8 : 0
-                text: "Lock screen"
+                text: qsTr("Lock screen")
                 resetKeys: ["lock_glass", "lock_blur", "lock_clock"]
             }
             SwitchRow {
                 objectName: "lockGlass"
-                label: "Glass lock screen"
-                caption: Backend.reduceTransparency ? "Off while Reduce transparency is on"
-                                                    : "Only your wallpaper shows through, never your windows"
-                tip: "Turns the lock screen into one sheet of frosted glass over your wallpaper. When you unlock, the sheet slides up and your desktop appears underneath. Off gives you GNOME's own lock screen; your widgets stay."
+                label: qsTr("Glass lock screen")
+                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on")
+                                                    : qsTr("Only your wallpaper shows through, never your windows")
+                tip: qsTr("Turns the lock screen into one sheet of frosted glass over your wallpaper. When you unlock, the sheet slides up and your desktop appears underneath. Off gives you GNOME's own lock screen; your widgets stay.")
                 implicitHeight: 60
                 checked: Backend.lockGlass
                 onToggled: (v) => Backend.lockGlass = v
@@ -94,13 +94,13 @@ SettingsPage {
                     objectName: "lockBlur"
                     y: 14
                     enabled: preview.glass
-                    label: "Frost"
+                    label: qsTr("Frost")
                     from: 10; to: 100; stepSize: 1
                     value: Backend.lockBlur
                     defaultValue: Backend.defaults.lock_blur
-                    format: (v) => Math.round(v) + " px"
+                    format: (v) => qsTr("%1 px").arg(Math.round(v))
                     onMoved: (v) => Backend.lockBlur = Math.round(v)
-                    tip: "How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture."
+                    tip: qsTr("How frosted the glass is. Left shows more of your wallpaper's shapes; right turns it into soft colour, which keeps the clock calm on a busy picture.")
                 }
             }
             Divider {}
@@ -112,11 +112,11 @@ SettingsPage {
                     objectName: "lockClock"
                     y: 14
                     enabled: preview.glass
-                    label: "Clock"
+                    label: qsTr("Clock")
                     value: Backend.lockClock
-                    model: [{ value: "gnome", label: "GNOME", tip: "GNOME's own clock" },
-                            { value: "bold", label: "Bold", tip: "Large, heavy numbers that stand out on the glass" },
-                            { value: "thin", label: "Thin", tip: "Large, light numbers for a quieter look" }]
+                    model: [{ value: "gnome", label: "GNOME", tip: qsTr("GNOME's own clock") },
+                            { value: "bold", label: qsTr("Bold"), tip: qsTr("Large, heavy numbers that stand out on the glass") },
+                            { value: "thin", label: qsTr("Thin"), tip: qsTr("Large, light numbers for a quieter look") }]
                     onPicked: (v) => { Backend.lockClock = v; preview.mode = "rest" }
                 }
             }
@@ -130,41 +130,42 @@ SettingsPage {
             width: parent.width
             spacing: 12
             SectionTitle {
-                text: "Under the clock"
-                caption: "Anyone can see these"
+                text: qsTr("Under the clock")
+                caption: qsTr("Anyone can see these")
                 resetKeys: ["lock_widget_battery", "lock_widget_weather", "lock_greeting", "lock_hide_notifications"]
-                resetTip: "Put these back to their defaults"
+                resetTip: qsTr("Put these back to their defaults")
             }
             Flow {
                 width: parent.width
                 spacing: 8
                 ToggleChip {
                     objectName: "lockWidgetBattery"
-                    text: "Battery"
+                    text: qsTr("Battery")
                     on: Backend.lockWidgetBattery
-                    tip: "Shows your battery level and a charging sign." + (Backend.hasBattery ? "" : " This PC has no battery, so nothing shows.")
+                    tip: Backend.hasBattery ? qsTr("Shows your battery level and a charging sign.")
+                                            : qsTr("Shows your battery level and a charging sign. This PC has no battery, so nothing shows.")
                     onSwitched: (v) => { Backend.lockWidgetBattery = v; preview.mode = "rest" }
                 }
                 ToggleChip {
                     objectName: "lockWidgetWeather"
-                    text: "Weather"
+                    text: qsTr("Weather")
                     on: Backend.lockWidgetWeather
-                    tip: (page.weatherMissing ? page.weatherWhy + " " : "")
-                         + "Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu)."
+                    tip: page.weatherMissing ? qsTr("%1 Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu).").arg(page.weatherWhy)
+                                             : qsTr("Shows the current temperature and sky for the place set in GNOME Weather (the same weather as in the calendar menu).")
                     onSwitched: (v) => { Backend.lockWidgetWeather = v; preview.mode = "rest" }
                 }
                 ToggleChip {
                     objectName: "lockGreeting"
-                    text: "Greeting"
+                    text: qsTr("Greeting")
                     on: Backend.lockGreeting
-                    tip: "“Good morning” above the clock, changing through the day. It never shows your name."
+                    tip: qsTr("“Good morning” above the clock, changing through the day. It never shows your name.")
                     onSwitched: (v) => { Backend.lockGreeting = v; preview.mode = "rest" }
                 }
                 ToggleChip {
                     objectName: "lockMessageChip"
-                    text: "Message"
+                    text: qsTr("Message")
                     on: Backend.lockMessage.length > 0
-                    tip: "A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it."
+                    tip: qsTr("A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it.")
                     onSwitched: (v) => {
                         if (v) {
                             more.expanded = true
@@ -178,9 +179,9 @@ SettingsPage {
                 }
                 ToggleChip {
                     objectName: "lockHideNotifications"
-                    text: "Hide notifications"
+                    text: qsTr("Hide notifications")
                     on: Backend.lockHideNotifications
-                    tip: "Hides GNOME's notifications and music controls while the screen is locked. They're all still there when you unlock. GNOME's own notification settings aren't changed."
+                    tip: qsTr("Hides GNOME's notifications and music controls while the screen is locked. They're all still there when you unlock. GNOME's own notification settings aren't changed.")
                     onSwitched: (v) => { Backend.lockHideNotifications = v; preview.mode = "rest" }
                 }
             }
@@ -199,67 +200,67 @@ SettingsPage {
     Fold {
         id: more
         objectName: "lockMore"
-        title: "More lock screen options"
-        summary: "Darken, tint, clock position, unlock animation"
+        title: qsTr("More lock screen options")
+        summary: qsTr("Darken, tint, clock position, unlock animation")
         Column {
             width: parent.width
             spacing: 16
 
             SectionTitle {
                 group: true
-                text: "Glass"
+                text: qsTr("Glass")
                 resetKeys: ["lock_dim", "lock_tint", "lock_card", "lock_clock_position"]
             }
             LabeledSlider {
                 objectName: "lockDim"
                 enabled: preview.glass
-                label: "Darken"
+                label: qsTr("Darken")
                 from: 0; to: 0.65
                 value: Backend.lockDim
                 defaultValue: Backend.defaults.lock_dim
                 onMoved: (v) => Backend.lockDim = v
-                tip: "How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable."
+                tip: qsTr("How much darker the glass is than your wallpaper. A bright wallpaper is always darkened enough to keep the white clock readable.")
             }
             LabeledSlider {
                 objectName: "lockTint"
                 enabled: preview.glass
-                label: "Tint"
+                label: qsTr("Tint")
                 value: Backend.lockTint
                 defaultValue: Backend.defaults.lock_tint
                 onMoved: (v) => Backend.lockTint = v
-                tip: "How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours."
+                tip: qsTr("How much of your glass tint colour washes over the lock screen. Left keeps your wallpaper's own colours.")
             }
             SwitchRow {
                 objectName: "lockCard"
                 enabled: preview.glass
-                label: "Glass card behind the password"
-                caption: "Your picture, name and password field sit on their own pane"
-                tip: "Puts a pane of glass behind your picture, name and password field when you start typing."
+                label: qsTr("Glass card behind the password")
+                caption: qsTr("Your picture, name and password field sit on their own pane")
+                tip: qsTr("Puts a pane of glass behind your picture, name and password field when you start typing.")
                 checked: Backend.lockCard
                 onToggled: (v) => { Backend.lockCard = v; preview.mode = "prompt" }
             }
             Choice {
                 objectName: "lockClockPosition"
                 enabled: preview.glass
-                label: "Clock position"
+                label: qsTr("Clock position")
                 value: Backend.lockClockPosition
-                model: [{ value: "gnome", label: "GNOME", tip: "Where GNOME puts it, about a third of the way down" },
-                        { value: "top", label: "Top", tip: "Near the top of the screen, with more wallpaper below. The password appears there too." },
-                        { value: "middle", label: "Middle", tip: "In the middle of the screen. The password appears there too." }]
+                model: [{ value: "gnome", label: "GNOME", tip: qsTr("Where GNOME puts it, about a third of the way down") },
+                        { value: "top", label: qsTr("Top"), tip: qsTr("Near the top of the screen, with more wallpaper below. The password appears there too.") },
+                        { value: "middle", label: qsTr("Middle"), tip: qsTr("In the middle of the screen. The password appears there too.") }]
                 onPicked: (v) => { Backend.lockClockPosition = v; preview.mode = "rest" }
             }
 
             SectionTitle {
                 group: true
-                text: "Weather and message"
+                text: qsTr("Weather and message")
                 resetKeys: ["lock_weather_place", "lock_message", "lock_widget_style"]
             }
             SwitchRow {
                 objectName: "lockWeatherPlace"
                 enabled: Backend.lockWidgetWeather
-                label: "Name the place for weather"
-                caption: "Shows your town next to the weather"
-                tip: "Adds the place name to the weather. Off keeps where you live off your lock screen."
+                label: qsTr("Name the place for weather")
+                caption: qsTr("Shows your town next to the weather")
+                tip: qsTr("Adds the place name to the weather. Off keeps where you live off your lock screen.")
                 checked: Backend.lockWeatherPlace
                 onToggled: (v) => { Backend.lockWeatherPlace = v; preview.mode = "rest" }
             }
@@ -269,11 +270,11 @@ SettingsPage {
                 Item {
                     width: parent.width
                     height: msgLabel.height
-                    Text { id: msgLabel; text: "Message"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                    Text { id: msgLabel; text: qsTr("Message"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                     Text {
                         anchors.right: parent.right
                         visible: msgField.activeFocus || msgField.text.length > Backend.lockMessageMax - 20
-                        text: msgField.text.length + " / " + Backend.lockMessageMax
+                        text: qsTr("%1 / %2").arg(msgField.text.length).arg(Backend.lockMessageMax)
                         color: Theme.textFaint
                         font.pixelSize: Theme.fsSmall
                         font.features: { "tnum": 1 }
@@ -287,13 +288,13 @@ SettingsPage {
                     leftPadding: 14
                     rightPadding: 14
                     color: Theme.text
-                    placeholderText: "For example: If found, please call 555 0100"
+                    placeholderText: qsTr("For example: If found, please call 555 0100")
                     placeholderTextColor: Theme.textFaint
                     selectionColor: Theme.alpha(Theme.accent, 0.4)
                     selectedTextColor: Theme.text
                     font.pixelSize: Theme.fsBody
                     maximumLength: Backend.lockMessageMax
-                    Accessible.name: "Lock screen message"
+                    Accessible.name: qsTr("Lock screen message")
                     background: Rectangle {
                         radius: Theme.rS
                         color: Theme.well
@@ -315,53 +316,53 @@ SettingsPage {
                     HoverHandler { id: msgHover }
                     LgToolTip {
                         shown: msgHover.hovered && !msgField.activeFocus
-                        text: "A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it."
+                        text: qsTr("A short line under the clock, such as how to return your laptop if it's lost. Anyone who sees your screen can read it.")
                     }
                 }
             }
             Choice {
                 objectName: "lockWidgetStyle"
-                label: "Look"
+                label: qsTr("Look")
                 value: Backend.lockWidgetStyle
-                model: [{ value: "chips", label: "Glass", tip: "Each widget sits on its own small pane of glass" },
-                        { value: "plain", label: "Text only", tip: "Just the icons and text, straight on the lock screen" }]
+                model: [{ value: "chips", label: qsTr("Glass"), tip: qsTr("Each widget sits on its own small pane of glass") },
+                        { value: "plain", label: qsTr("Text only"), tip: qsTr("Just the icons and text, straight on the lock screen") }]
                 onPicked: (v) => { Backend.lockWidgetStyle = v; preview.mode = "rest" }
             }
 
             SectionTitle {
                 group: true
-                text: "Unlock"
+                text: qsTr("Unlock")
                 resetKeys: ["lock_slide", "lock_slide_ms", "lock_bounce"]
             }
             Choice {
                 objectName: "lockSlide"
                 enabled: preview.glass
-                label: "Unlock animation"
+                label: qsTr("Unlock animation")
                 value: Backend.lockSlide
-                model: [{ value: "gnome", label: "GNOME", tip: "GNOME's own quick slide" },
-                        { value: "smooth", label: "Smooth", tip: "The glass glides up and slows as it leaves" },
-                        { value: "spring", label: "Spring", tip: "The glass gathers itself, then lifts away quickly" }]
+                model: [{ value: "gnome", label: "GNOME", tip: qsTr("GNOME's own quick slide") },
+                        { value: "smooth", label: qsTr("Smooth"), tip: qsTr("The glass glides up and slows as it leaves") },
+                        { value: "spring", label: qsTr("Spring"), tip: qsTr("The glass gathers itself, then lifts away quickly") }]
                 onPicked: (v) => Backend.lockSlide = v
             }
             LabeledSlider {
                 objectName: "lockSlideMs"
                 enabled: preview.glass && Backend.lockSlide !== "gnome"
-                label: "Slide time"
+                label: qsTr("Slide time")
                 from: 250; to: 1200; stepSize: 10
                 value: Backend.lockSlideMs
                 defaultValue: Backend.defaults.lock_slide_ms
-                format: (v) => (v / 1000).toFixed(2) + " s"
+                format: (v) => qsTr("%1 s").arg((v / 1000).toFixed(2))
                 onMoved: (v) => Backend.lockSlideMs = Math.round(v)
-                tip: "How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant."
+                tip: qsTr("How long the glass takes to slide away when you unlock. Reduce animation in GNOME's settings makes it instant.")
             }
             LabeledSlider {
                 objectName: "lockBounce"
                 enabled: preview.glass && Backend.lockSlide === "spring"
-                label: "Bounce"
+                label: qsTr("Bounce")
                 value: Backend.lockBounce
                 defaultValue: Backend.defaults.lock_bounce
                 onMoved: (v) => Backend.lockBounce = v
-                tip: "How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first."
+                tip: qsTr("How much the glass gathers itself before it lifts away, like a spring letting go. Left lifts straight off; right gives a small dip first.")
             }
         }
     }
@@ -425,11 +426,11 @@ SettingsPage {
                     width: 230
                     compact: true
                     onWallpaper: true
-                    model: [{ value: "rest", label: "Clock", tip: "The lock screen as it waits, with the clock and your widgets" },
-                            { value: "prompt", label: "Password", tip: "The lock screen once you start typing your password" }]
+                    model: [{ value: "rest", label: qsTr("Clock"), tip: qsTr("The lock screen as it waits, with the clock and your widgets") },
+                            { value: "prompt", label: qsTr("Password"), tip: qsTr("The lock screen once you start typing your password") }]
                     value: preview.mode
                     onActivated: (v) => preview.mode = v
-                    Accessible.name: "Preview"
+                    Accessible.name: qsTr("Preview")
                 }
             }
         },
@@ -438,22 +439,22 @@ SettingsPage {
             LgButton {
                 objectName: "playUnlock"
                 kind: "secondary"
-                text: "Play unlock"
+                text: qsTr("Play unlock")
                 iconName: "run"
                 leftPadding: 14
                 enabled: !unlockAnim.running
-                tip: "Shows the unlock animation on the preview, with the time and bounce you picked"
+                tip: qsTr("Shows the unlock animation on the preview, with the time and bounce you picked")
                 onClicked: { preview.mode = "rest"; unlockAnim.restart() }
             }
             LgButton {
                 objectName: "lockNow"
                 kind: "secondary"
-                text: Backend.dirty ? "Apply and lock" : "Lock now"
+                text: Backend.dirty ? qsTr("Apply and lock") : qsTr("Lock now")
                 iconName: "lock"
                 leftPadding: 14
                 enabled: !Backend.busy
-                tip: Backend.dirty ? "Applies your changes, then locks your screen so you can see them for real."
-                                   : "Locks your screen so you can see it for real. Your password unlocks it as usual."
+                tip: Backend.dirty ? qsTr("Applies your changes, then locks your screen so you can see them for real.")
+                                   : qsTr("Locks your screen so you can see it for real. Your password unlocks it as usual.")
                 onClicked: Backend.dirty ? Backend.applyAndLock() : Backend.lockScreenNow()
             }
         },
@@ -461,7 +462,7 @@ SettingsPage {
             objectName: "lockStatus"
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "Changes show after Apply, the next time you lock."
+            text: qsTr("Changes show after Apply, the next time you lock.")
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
         }

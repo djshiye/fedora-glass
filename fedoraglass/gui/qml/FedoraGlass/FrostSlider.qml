@@ -8,7 +8,7 @@ FocusScope {
     id: root
     property real value: 0.45
     property var ticks: []          // [{ value, label }] preset positions
-    property string tip: "The main control. Left is clear, bright liquid glass that bends what is behind it. Right is thick, milky frost that blurs it and keeps text easy to read."
+    property string tip: qsTr("The main control. Left is clear, bright liquid glass that bends what is behind it. Right is thick, milky frost that blurs it and keeps text easy to read.")
     signal moved(real value)
 
     implicitHeight: 72
@@ -50,7 +50,7 @@ FocusScope {
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         onMoved: root.moved(value)
-        Accessible.name: "Glass: liquid to frosted"
+        Accessible.name: qsTr("Glass: liquid to frosted")
 
         readonly property real restW: 46
         readonly property real restH: 30
@@ -173,14 +173,14 @@ FocusScope {
         y: slider.y + slider.height - 2
         height: 18
         Text {
-            text: "Liquid"
+            text: qsTr("Liquid")
             color: Theme.textDim
             font.pixelSize: Theme.fsSmall
             font.weight: Font.Medium
             anchors.left: parent.left
         }
         Text {
-            text: "Frosted"
+            text: qsTr("Frosted")
             color: Theme.textDim
             font.pixelSize: Theme.fsSmall
             font.weight: Font.Medium

@@ -14,6 +14,7 @@ from PySide6.QtQuick import QQuickImageProvider
 
 from .. import cursors
 from ..env import Env
+from ..i18n import gettext as tr
 
 
 def _image(env: Env, theme: str, shape: str, size: int) -> tuple[QImage, int, int] | None:
@@ -112,7 +113,7 @@ class CursorPicker(QObject):
 
     @Property("QVariantList", notify=changed)
     def styles(self) -> list[dict]:
-        return [{"id": s.id, "name": s.name, "blurb": s.blurb, "credit": s.credit,
+        return [{"id": s.id, "name": tr(s.name), "blurb": tr(s.blurb), "credit": s.credit,
                  "fun": s.fun, "installed": cursors.theme_dir(self._env, s.id) is not None}
                 for s in cursors.STYLES]
 
@@ -122,7 +123,7 @@ class CursorPicker(QObject):
         theme = cursors.current_theme(self._env)
         for s in cursors.STYLES:
             if s.id == theme:
-                return s.name
+                return tr(s.name)
         root = cursors.theme_dir(self._env, theme)
         if root is not None:
             cp = configparser.ConfigParser(interpolation=None, strict=False)

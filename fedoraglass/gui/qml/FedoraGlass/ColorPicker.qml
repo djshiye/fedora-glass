@@ -5,7 +5,7 @@ import QtQuick.Controls.Basic as C
 C.Popup {
     id: pop
     property color color: "#3584e4"
-    property string title: "Custom colour"
+    property string title: qsTr("Custom colour")
     signal picked(string hex)
 
     property real hue: 0
@@ -144,7 +144,7 @@ C.Popup {
                 font.pixelSize: 14
                 maximumLength: 7
                 validator: RegularExpressionValidator { regularExpression: /#?[0-9a-fA-F]{0,6}/ }
-                Accessible.name: "Hex colour"
+                Accessible.name: qsTr("Hex colour")
                 background: Rectangle {
                     radius: Theme.rS
                     color: Theme.well

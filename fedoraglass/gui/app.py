@@ -167,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     cursor_picker = CursorPicker(backend._env, parent=app)
     qmlRegisterSingletonInstance(CursorPicker, "FedoraGlass.Core", 1, 0, "Cursors", cursor_picker)
     engine = QQmlApplicationEngine()
+    engine.setUiLanguage(i18n.language() or "en")
     engine.addImageProvider("lgicon", IconProvider())
     engine.addImageProvider("lgcursor", CursorImages(backend._env))
     engine.addImportPath(str(QML_DIR))

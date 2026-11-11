@@ -41,7 +41,7 @@ SettingsPage {
                 Text { text: "Fedora Glass"; color: Theme.text; font.pixelSize: 20; font.weight: Font.DemiBold }
                 Text {
                     objectName: "aboutVersion"
-                    text: "Version " + Backend.version
+                    text: qsTr("Version %1").arg(Backend.version)
                     color: Theme.textDim
                     font.pixelSize: Theme.fsBody
                     font.features: { "tnum": 1 }
@@ -56,9 +56,9 @@ SettingsPage {
                     kind: "flat"
                     implicitHeight: 34
                     leftPadding: 12; rightPadding: 14
-                    text: "Keyboard shortcuts"
+                    text: qsTr("Keyboard shortcuts")
                     iconName: "keyboard"
-                    tip: "Every keyboard shortcut in the app (F1)"
+                    tip: qsTr("Every keyboard shortcut in the app (F1)")
                     onClicked: if (Window.window) Window.window.openAbout()
                 }
                 LgButton {
@@ -66,9 +66,9 @@ SettingsPage {
                     kind: "secondary"
                     implicitHeight: 34
                     leftPadding: 12; rightPadding: 14
-                    text: "What's new"
+                    text: qsTr("What's new")
                     iconName: "sparkle"
-                    tip: "Opens the release notes in your web browser"
+                    tip: qsTr("Opens the release notes in your web browser")
                     onClicked: Qt.openUrlExternally("https://github.com/djshiye/fedora-glass/releases")
                 }
             }
@@ -93,17 +93,19 @@ SettingsPage {
                     objectName: "previousTitle"
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: Backend.previousIsForward ? "Go forward to the look you went back from"
-                                                    : "Go back to the look before your last Apply"
+                    text: Backend.previousIsForward ? qsTr("Go forward to the look you went back from")
+                                                    : qsTr("Go back to the look before your last Apply")
                     color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold
                 }
                 Text {
                     objectName: "previousWhen"
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: (Backend.previousWhen ? "It was applied " + Backend.previousWhen + ". " : "")
-                          + (Backend.previousIsForward ? "One click applies it again."
-                                                       : "One click applies it again, and you can come forward after.")
+                    text: Backend.previousWhen
+                          ? (Backend.previousIsForward ? qsTr("It was applied %1. One click applies it again.").arg(Backend.previousWhen)
+                                                       : qsTr("It was applied %1. One click applies it again, and you can come forward after.").arg(Backend.previousWhen))
+                          : (Backend.previousIsForward ? qsTr("One click applies it again.")
+                                                       : qsTr("One click applies it again, and you can come forward after."))
                     color: Theme.textFaint
                     font.pixelSize: Theme.fsSmall
                 }
@@ -116,11 +118,11 @@ SettingsPage {
                 kind: "secondary"
                 implicitHeight: 36
                 leftPadding: 14; rightPadding: 16
-                text: Backend.previousIsForward ? "Go forward" : "Go back"
+                text: Backend.previousIsForward ? qsTr("Go forward") : qsTr("Go back")
                 iconName: Backend.previousIsForward ? "forward" : "back"
                 enabled: !Backend.busy
-                tip: Backend.previousIsForward ? "Apply the look you had before you went back"
-                                               : "Apply the look you had before your last Apply"
+                tip: Backend.previousIsForward ? qsTr("Apply the look you had before you went back")
+                                               : qsTr("Apply the look you had before your last Apply")
                 onClicked: Backend.dirty ? stepSheet.open() : Backend.goToPrevious()
             }
         }
@@ -128,15 +130,15 @@ SettingsPage {
     Sheet {
         id: stepSheet
         objectName: "previousSheet"
-        title: Backend.previousIsForward ? "Go forward and drop your changes?" : "Go back and drop your changes?"
-        subtitle: "You changed the look but haven't applied it. Going " + (Backend.previousIsForward ? "forward" : "back")
-                  + " applies the earlier look in their place, and those changes are lost."
+        title: Backend.previousIsForward ? qsTr("Go forward and drop your changes?") : qsTr("Go back and drop your changes?")
+        subtitle: Backend.previousIsForward ? qsTr("You changed the look but haven't applied it. Going forward applies the earlier look in their place, and those changes are lost.")
+                                           : qsTr("You changed the look but haven't applied it. Going back applies the earlier look in their place, and those changes are lost.")
         iconName: "info"
         width: Math.min(520, (parent ? parent.width : 800) - 64)
         buttons: [
-            LgButton { text: "Cancel"; kind: "secondary"; onClicked: stepSheet.close() },
+            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: stepSheet.close() },
             LgButton {
-                text: Backend.previousIsForward ? "Go forward" : "Go back"
+                text: Backend.previousIsForward ? qsTr("Go forward") : qsTr("Go back")
                 kind: "primary"
                 onClicked: { stepSheet.close(); Backend.goToPrevious() }
             }
@@ -156,13 +158,13 @@ SettingsPage {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - restore.width - 16
                 spacing: 3
-                Text { text: "Restore your original look"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+                Text { text: qsTr("Restore your original look"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: Backend.hasBackup
-                          ? "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept."
-                          : "Nothing to restore yet: Fedora Glass hasn't changed anything on your desktop."
+                          ? qsTr("Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept.")
+                          : qsTr("Nothing to restore yet: Fedora Glass hasn't changed anything on your desktop.")
                     color: Theme.textFaint
                     font.pixelSize: Theme.fsSmall
                 }
@@ -175,11 +177,11 @@ SettingsPage {
                 kind: "danger"
                 implicitHeight: 36
                 leftPadding: 14; rightPadding: 16
-                text: "Restore original…"
+                text: qsTr("Restore original…")
                 iconName: "undo"
                 enabled: !Backend.busy && Backend.hasBackup
-                tip: Backend.hasBackup ? "Put back every file and setting as it was before Fedora Glass"
-                                       : "Nothing to restore: Fedora Glass hasn't changed anything yet"
+                tip: Backend.hasBackup ? qsTr("Put back every file and setting as it was before Fedora Glass")
+                                       : qsTr("Nothing to restore: Fedora Glass hasn't changed anything yet")
                 onClicked: if (Window.window) Window.window.openRestore()
             }
         }

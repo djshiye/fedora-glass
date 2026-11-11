@@ -191,9 +191,11 @@ def install_qt(app) -> None:
 
     class _Words(QTranslator):
         def translate(self, context, source, disambiguation=None, n=-1):
+            # None (a null string) tells Qt "no translation here": an empty one would replace
+            # the English with nothing.
             if not source:
-                return ""
-            return lookup(source, disambiguation or None) or ""
+                return None
+            return lookup(source, disambiguation or None)
 
         def isEmpty(self):
             return False

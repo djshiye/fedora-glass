@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..i18n import _, N_
 from .. import distro
 from ..render import kvantum
 from .base import Action, Context, FlatpakOverride, Detection, Target, WriteFile
@@ -31,28 +32,28 @@ def environment(settings) -> str:
 class QtKvantum(Target):
     def __init__(self) -> None:
         super().__init__(
-            id="qt", name="Qt apps (Kvantum)", group="Apps",
-            summary="Glass buttons, entries, tabs, lists, menus and scrollbars in Qt Widgets apps, "
-                    "drawn by a Kvantum theme built from your settings.",
-            plain="Adds a Kvantum theme in your colours and tells Qt apps to use it. "
-                  "Apps started after your next restart pick it up.",
+            id="qt", name=N_("Qt apps (Kvantum)"), group="Apps",
+            summary=N_("Glass buttons, entries, tabs, lists, menus and scrollbars in Qt Widgets apps, "
+                    "drawn by a Kvantum theme built from your settings."),
+            plain=N_("Adds a Kvantum theme in your colours and tells Qt apps to use it. "
+                  "Apps started after your next restart pick it up."),
             notes=[
-                "Native Qt apps pick the style up after you restart your PC "
-                "(QT_STYLE_OVERRIDE is set in ~/.config/environment.d).",
-                "Open Qt apps keep their old look until restarted; light/dark changes apply to apps started afterwards.",
-                "Flatpak Qt apps also need the Kvantum style extension matching the app's KDE runtime, "
+                N_("Native Qt apps pick the style up after you restart your PC "
+                "(QT_STYLE_OVERRIDE is set in ~/.config/environment.d)."),
+                N_("Open Qt apps keep their old look until restarted; light/dark changes apply to apps started afterwards."),
+                N_("Flatpak Qt apps also need the Kvantum style extension matching the app's KDE runtime, "
                 "e.g. flatpak install flathub org.kde.KStyle.Kvantum//6.9 "
-                "(see the runtime branch with: flatpak info <app>).",
-                "If you set QT_QPA_PLATFORMTHEME to qt6ct, pick 'kvantum' there too; "
-                "QT_STYLE_OVERRIDE alone already wins for the widget style.",
+                "(see the runtime branch with: flatpak info <app>)."),
+                N_("If you set QT_QPA_PLATFORMTHEME to qt6ct, pick 'kvantum' there too; "
+                "QT_STYLE_OVERRIDE alone already wins for the widget style."),
             ],
         )
 
     def detect(self, env: Env) -> Detection:
         if any(Path(p).exists() for p in STYLE_PLUGINS) or env.which("kvantummanager"):
-            return Detection(True, "Kvantum found")
+            return Detection(True, _("Kvantum found"))
         how = distro.hint("kvantum")
-        return Detection(False, f"Install Kvantum: {how}" if how else "Install Kvantum (the kvantum package)")
+        return Detection(False, _("Install Kvantum: {how}").format(how=how) if how else _("Install Kvantum (the kvantum package)"))
 
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..i18n import _, N_
 from .. import distro
 from ..env import Env
 from ..render import gtk3, gtk4, headerbar
@@ -13,18 +14,18 @@ from .base import Action, Context, FlatpakOverride, Detection, GReset, GSet, Tar
 def gtk3_partial() -> str:
     """What to say when adw-gtk3 is missing, with this Linux's install command."""
     how = distro.hint("adw-gtk3")
-    return (f"Some GTK 3 details need adw-gtk3: {how}" if how else
-            "Some GTK 3 details need the adw-gtk3 theme (github.com/lassekongo83/adw-gtk3)")
+    return (_("Some GTK 3 details need adw-gtk3: {how}").format(how=how) if how else
+            _("Some GTK 3 details need the adw-gtk3 theme (github.com/lassekongo83/adw-gtk3)"))
 
 
 class Gtk4(Target):
     def __init__(self) -> None:
         super().__init__(
-            id="gtk4", name="GTK 4 and libadwaita apps", group="Desktop",
-            summary="Glass windows, header bars, sidebars, menus and controls in every "
-                    "GTK 4 app. Follows the system light/dark switch live.",
-            plain="Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, "
-                  "read when they open.",
+            id="gtk4", name=N_("GTK 4 and libadwaita apps"), group="Desktop",
+            summary=N_("Glass windows, header bars, sidebars, menus and controls in every "
+                    "GTK 4 app. Follows the system light/dark switch live."),
+            plain=N_("Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, "
+                  "read when they open."),
         )
 
     def plan(self, ctx: Context) -> list[Action]:
@@ -114,18 +115,18 @@ class Gtk3(Target):
 
     def __init__(self) -> None:
         super().__init__(
-            id="gtk3", name="GTK 3 apps", group="Desktop",
-            summary="Glass for older GTK 3 apps, on top of your GTK 3 theme. "
-                    "GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme.",
-            plain="Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, "
-                  "unless adw-gtk3 is installed: then its light or dark version is picked.",
+            id="gtk3", name=N_("GTK 3 apps"), group="Desktop",
+            summary=N_("Glass for older GTK 3 apps, on top of your GTK 3 theme. "
+                    "GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme."),
+            plain=N_("Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, "
+                  "unless adw-gtk3 is installed: then its light or dark version is picked."),
         )
 
     def detect(self, env: Env) -> Detection:
         found = find_adw_gtk3(env)
         if found is None:
-            return Detection(True, "On your current GTK 3 theme")
-        return Detection(True, f"adw-gtk3 found in {found.parent}")
+            return Detection(True, _("On your current GTK 3 theme"))
+        return Detection(True, _("adw-gtk3 found in {folder}").format(folder=found.parent))
 
     def live_notes(self, ctx: Context) -> list[str]:
         return [] if find_adw_gtk3(ctx.env) else [gtk3_partial()]
@@ -150,17 +151,17 @@ class Flatpak(Target):
 
     def __init__(self) -> None:
         super().__init__(
-            id="flatpak", name="Flatpak apps", group="Desktop",
-            summary="Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files.",
-            plain="Lets Flatpak apps read the Fedora Glass style files, so they get the same look. "
-                  "They can read them, not change them.",
-            notes=["GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: "
-                   "flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"],
+            id="flatpak", name=N_("Flatpak apps"), group="Desktop",
+            summary=N_("Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files."),
+            plain=N_("Lets Flatpak apps read the Fedora Glass style files, so they get the same look. "
+                  "They can read them, not change them."),
+            notes=[N_("GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: "
+                   "flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark")],
         )
 
     def detect(self, env: Env) -> Detection:
         if env.which("flatpak") is None:
-            return Detection(False, "Flatpak is not installed")
+            return Detection(False, _("{name} is not installed").format(name="Flatpak"))
         return Detection(True)
 
     # The GTK 3 files Flatpak apps read: the style sheet Apply writes (it only points at

@@ -22,11 +22,11 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - checkAgain.width - 20
             spacing: 4
-            Text { text: "Apps and surfaces"; color: Theme.text; font.pixelSize: Theme.fsHeading; font.weight: Font.Bold }
+            Text { text: qsTr("Apps and surfaces"); color: Theme.text; font.pixelSize: Theme.fsHeading; font.weight: Font.Bold }
             Text {
                 text: Backend.targetsReady
-                      ? Backend.activeTargetCount + " will be themed on Apply. Anything not installed is skipped, and Restore original undoes everything."
-                      : "Checking what's installed…"
+                      ? qsTr("%1 will be themed on Apply. Anything not installed is skipped, and Restore original undoes everything.").arg(Backend.activeTargetCount)
+                      : qsTr("Checking what's installed…")
                 width: parent.width
                 wrapMode: Text.WordWrap
                 color: Theme.textDim
@@ -38,10 +38,10 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             kind: "secondary"
-            text: "Check again"
+            text: qsTr("Check again")
             iconName: "refresh"
             enabled: Backend.targetsReady && !Backend.busy
-            tip: "Look for newly installed apps and extensions"
+            tip: qsTr("Look for newly installed apps and extensions")
             onClicked: Backend.refreshTargets()
         }
     }
@@ -52,7 +52,7 @@ Item {
         spacing: 12
         visible: !Backend.targetsReady
         Spinner { size: 28; color: Theme.textDim; anchors.horizontalCenter: parent.horizontalCenter }
-        Text { text: "Looking at your system…"; color: Theme.textDim; font.pixelSize: Theme.fsBody }
+        Text { text: qsTr("Looking at your system…"); color: Theme.textDim; font.pixelSize: Theme.fsBody }
     }
 
     Flickable {
@@ -88,7 +88,7 @@ Item {
                     anchors.centerIn: parent
                     spacing: 8
                     Icon { name: "apps"; size: 32; color: Theme.textFaint; anchors.horizontalCenter: parent.horizontalCenter }
-                    Text { text: "No themable apps were found"; color: Theme.textDim; font.pixelSize: Theme.fsBody; anchors.horizontalCenter: parent.horizontalCenter }
+                    Text { text: qsTr("No themable apps were found"); color: Theme.textDim; font.pixelSize: Theme.fsBody; anchors.horizontalCenter: parent.horizontalCenter }
                 }
             }
 
@@ -99,7 +99,7 @@ Item {
                     required property var modelData
                     width: groups.width
                     spacing: 8
-                    SectionTitle { group: true; text: group.modelData.group; leftPadding: 4 }
+                    SectionTitle { group: true; text: group.modelData.groupLabel || group.modelData.group; leftPadding: 4 }
                     Card {
                         width: parent.width
                         height: implicitHeight
@@ -143,7 +143,7 @@ Item {
                     Keys.onReturnPressed: page.toggleMissing()
                     Keys.onEnterPressed: page.toggleMissing()
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Not installed here, " + page.missing.length + (page.missingOpen ? ", shown" : ", hidden")
+                    Accessible.name: page.missingOpen ? qsTr("Not installed here, %1, shown").arg(page.missing.length) : qsTr("Not installed here, %1, hidden").arg(page.missing.length)
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     background: Rectangle {
                         radius: Theme.rM
@@ -171,7 +171,7 @@ Item {
                             spacing: 2
                             Text {
                                 objectName: "notInstalledTitle"
-                                text: "Not installed here (" + page.missing.length + ")"
+                                text: qsTr("Not installed here (%1)").arg(page.missing.length)
                                 color: Theme.textDim
                                 font.pixelSize: Theme.fsBody
                                 font.weight: Font.DemiBold
@@ -179,7 +179,7 @@ Item {
                             Text {
                                 width: parent.width
                                 elide: Text.ElideRight
-                                text: "Skipped on Apply. Install one, then choose Check again."
+                                text: qsTr("Skipped on Apply. Install one, then choose Check again.")
                                 color: Theme.textFaint
                                 font.pixelSize: Theme.fsSmall + 1
                             }

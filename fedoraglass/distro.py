@@ -10,6 +10,8 @@ import functools
 from dataclasses import dataclass
 from pathlib import Path
 
+from .i18n import _
+
 OS_RELEASE = (Path("/etc/os-release"), Path("/usr/lib/os-release"))
 
 
@@ -30,7 +32,7 @@ class Distro:
     def remove_command(self, package: str = "fedora-glass") -> str:
         return {"fedora": f"sudo dnf remove {package}",
                 "debian": f"sudo apt purge {package}",
-                "arch": f"sudo pacman -R {package}"}.get(self.family, f"remove the {package} package")
+                "arch": f"sudo pacman -R {package}"}.get(self.family) or _("remove the {package} package").format(package=package)
 
     @property
     def tool_name(self) -> str:

@@ -17,20 +17,20 @@ Item {
     }
     D.FileDialog {
         id: importDialog
-        title: "Add a look from a file"
+        title: qsTr("Add a look from a file")
         fileMode: D.FileDialog.OpenFile
         currentFolder: Backend.looksFolder
-        nameFilters: ["Fedora Glass looks (*.json)", "All files (*)"]
+        nameFilters: [qsTr("Fedora Glass looks (*.json)"), qsTr("All files (*)")]
         onAccepted: root.importPicked(selectedFile)
     }
     D.FileDialog {
         id: exportDialog
         property string lookId: ""
-        title: "Save the look as a file"
+        title: qsTr("Save the look as a file")
         fileMode: D.FileDialog.SaveFile
         currentFolder: Backend.looksFolder
         defaultSuffix: "json"
-        nameFilters: ["Fedora Glass looks (*.json)"]
+        nameFilters: [qsTr("Fedora Glass looks (*.json)")]
         onAccepted: root.exportPicked(lookId, selectedFile)
     }
 }

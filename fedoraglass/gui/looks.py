@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable
 
 from .. import settings as settings_mod
+from ..i18n import _
 from ..settings import Settings
 
 FORMAT = "fedora-glass-look"
@@ -151,28 +152,28 @@ def look_data(name: str, s: Settings) -> dict:
 def parse(raw: bytes) -> tuple[str, dict]:
     """(name, settings) from the bytes of a look file. Raises LookError with plain words."""
     if len(raw) > LOOK_MAX:
-        raise LookError(f"This file is too big to be a look (looks are under {LOOK_MAX // 1024} KB).")
+        raise LookError(_("This file is too big to be a look (looks are under {kb} KB).").format(kb=LOOK_MAX // 1024))
     try:
         data = json.loads(raw.decode("utf-8"))
     except UnicodeDecodeError:
-        raise LookError("This file isn't a look: it isn't text.") from None
+        raise LookError(_("This file isn't a look: it isn't text.")) from None
     except (ValueError, RecursionError):
-        raise LookError("This file isn't a look: it isn't readable JSON.") from None
+        raise LookError(_("This file isn't a look: it isn't readable JSON.")) from None
     if not isinstance(data, dict):
-        raise LookError("This file isn't a look: it holds no settings.")
+        raise LookError(_("This file isn't a look: it holds no settings."))
     if data.get("format") != FORMAT:
-        raise LookError("This file isn't a Fedora Glass look.")
+        raise LookError(_("This file isn't a Fedora Glass look."))
     version = data.get("version")
     if not isinstance(version, int) or isinstance(version, bool) or version < 1:
-        raise LookError("This look file has no version, so it can't be read safely.")
+        raise LookError(_("This look file has no version, so it can't be read safely."))
     values = data.get("settings")
     if not isinstance(values, dict):
-        raise LookError("This look file holds no settings.")
+        raise LookError(_("This look file holds no settings."))
     # Only known keys; a newer version's extra settings are left out.
     values = {k: values[k] for k in LOOK_KEYS if k in values}
     if not values:
-        raise LookError("This look file holds none of the settings this version knows.")
-    name = clean_name(data.get("name")) or "Imported look"
+        raise LookError(_("This look file holds none of the settings this version knows."))
+    name = clean_name(data.get("name")) or _("Imported look")
     return name, values
 
 
@@ -181,16 +182,16 @@ def read_file(path: Path) -> tuple[str, dict]:
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)     # a pipe must not hang the app
     except FileNotFoundError:
-        raise LookError("That file isn't there any more.") from None
+        raise LookError(_("That file isn't there any more.")) from None
     except OSError as e:
-        raise LookError(f"That file can't be opened ({e.strerror or e}).") from None
+        raise LookError(_("That file can't be opened ({reason}).").format(reason=e.strerror or e)) from None
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise LookError("That isn't a file a look can be read from.")
+            raise LookError(_("That isn't a file a look can be read from."))
         with os.fdopen(fd, "rb", closefd=False) as f:
             raw = f.read(LOOK_MAX + 1)
     except OSError as e:
-        raise LookError(f"That file can't be read ({e.strerror or e}).") from None
+        raise LookError(_("That file can't be read ({reason}).").format(reason=e.strerror or e)) from None
     finally:
         os.close(fd)
     return parse(raw)
@@ -249,7 +250,7 @@ class Library:
     def save(self, name: str, s: Settings) -> str:
         name = clean_name(name)
         if not name:
-            raise LookError("Give the look a name.")
+            raise LookError(_("Give the look a name."))
         look_id = self._free_id(name)
         self._write(look_id, name, pick(s))
         return look_id
@@ -258,16 +259,16 @@ class Library:
         """An imported look, with its values made safe: through normalized(), on the defaults."""
         clean = pick(apply_look(Settings(), values))
         look_id = self._free_id(name)
-        self._write(look_id, clean_name(name) or "Imported look", clean)
+        self._write(look_id, clean_name(name) or _("Imported look"), clean)
         return look_id
 
     def rename(self, look_id: str, name: str) -> str:
         name = clean_name(name)
         if not name:
-            raise LookError("Give the look a name.")
+            raise LookError(_("Give the look a name."))
         look = self.get(look_id)
         if look is None:
-            raise LookError("That look isn't there any more.")
+            raise LookError(_("That look isn't there any more."))
         new_id = self._free_id(name, keep=look_id)
         self._write(new_id, name, look["settings"])
         if new_id != look_id:
@@ -286,10 +287,10 @@ class Library:
     def export(self, look_id: str, dest: Path) -> None:
         look = self.get(look_id)
         if look is None:
-            raise LookError("That look isn't there any more.")
+            raise LookError(_("That look isn't there any more."))
         data = {"format": FORMAT, "version": VERSION, "name": look["name"], "settings": look["settings"]}
         try:
             settings_mod._write(dest, json.dumps(data, indent=2).encode("utf-8") + b"\n")
             os.chmod(dest, 0o644)    # a file to share: readable, like any document
         except OSError as e:
-            raise LookError(f"The look couldn't be saved there ({e.strerror or e}).") from None
+            raise LookError(_("The look couldn't be saved there ({reason}).").format(reason=e.strerror or e)) from None
