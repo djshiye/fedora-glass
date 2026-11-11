@@ -40,6 +40,7 @@ var entries = [
     { en: "Motion style", title: qsTr("Motion style"), ew: "animation motion calm lively playful off gnome", tw: qsTr("animation motion calm lively playful off gnome"), page: "motion", name: "motionStyle" },
     { en: "Animation speed", title: qsTr("Animation speed"), ew: "speed animation slower faster", tw: qsTr("speed animation slower faster"), page: "motion", name: "motionSpeed" },
     { en: "Liquid motion", title: qsTr("Liquid motion"), ew: "liquid spring press settle", tw: qsTr("liquid spring press settle"), page: "motion", name: "liquidMotion" },
+    { en: "How liquid", title: qsTr("How liquid"), ew: "liquid stretch press wobble soft taskbar", tw: qsTr("liquid stretch press wobble soft taskbar"), page: "motion", name: "liquidStrength" },
     { en: "Menus grow from their button", title: qsTr("Menus grow from their button"), ew: "menu grow open animation", tw: qsTr("menu grow open animation"), page: "motion", name: "menuGrow" },
     { en: "Gliding highlight", title: qsTr("Gliding highlight"), ew: "taskbar hover highlight glide", tw: qsTr("taskbar hover highlight glide"), page: "motion", name: "motionGlide", needs: "dtp" },
     { en: "Dash to Panel's own hover animation", title: qsTr("Dash to Panel's own hover animation"), ew: "dash to panel hover animation taskbar icons bounce", tw: qsTr("dash to panel hover animation taskbar icons bounce"), page: "motion", name: "motionDtpNote", needs: "dtpHover" },

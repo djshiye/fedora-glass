@@ -71,6 +71,9 @@ uniform float ptr_x;              // the pointer, in px on this pane
 uniform float ptr_y;
 uniform float ptr_k;              // 0..1, how strongly the rim near it lights up
 uniform float press;              // 0..1, held down at the pointer
+uniform float liquid;             // how far the glass gives under a press: 1 = the original feel
+uniform float pull_x;             // px the pointer runs ahead of the press point (a drag),
+uniform float pull_y;             // already scaled by how liquid the glass is: 0 at 1 and below
 uniform float env_reach;         // px, how far beyond the edge the rim sees
 uniform float cheap;             // 1 while something moves behind: fewer taps
 uniform float lite;              // 1 for lighter glass (speed.js): three wavelengths, one-tap mirror
@@ -206,7 +209,17 @@ vec2 parallax(vec2 toPtr, vec2 h) {
 // Pressed, the glass gives under the finger: around the press point the rim
 // rounds off wider and steeper, so it bends and mirrors more of the real
 // backdrop there. 0..1. A big pane gives over a wider area than a thin bar.
+// Dragged, a more liquid glass is drawn out after the pointer like a drop: the give
+// stretches from the press point towards where the pointer already is (pull).
 float touch(vec2 dp, float s) {
+    float pl = length(vec2(pull_x, pull_y));
+    if (pl > 0.5) {
+        vec2 u = vec2(pull_x, pull_y) / pl;
+        float along = dot(dp, u);
+        // Ahead of the press point (towards the pointer) the give reaches further.
+        float ahead = along / (1.0 + pl / s * step(0.0, along));
+        dp = u * ahead + (dp - u * along);
+    }
     return press * exp(-dot(dp, dp) / (2.0 * s * s));
 }
 
@@ -409,19 +422,22 @@ void main() {
     // in a wide band you can see, and more on a thin bar, which is nearly all
     // lens. refr_h (the app's lens width) sets the least it may be.
     vec2 dp = px - vec2(ptr_x, ptr_y);
-    float give = max(90.0, 0.6 * min(h.x, h.y));   // px, how wide a press reaches
+    float give = max(90.0, 0.6 * min(h.x, h.y)) * sqrt(max(liquid, 0.0));   // px, how wide a press reaches
+    // How deep it gives: as the original up to 1; past that it mostly spreads wider and
+    // draws out (give, pull) and only a little deeper, or the edge folds into zigzags.
+    float deep = min(liquid, 1.0) + 0.35 * max(liquid - 1.0, 0.0);
     float tch = touch(dp, give);
     float slope = 0.0;
     float shortSide = 2.0 * min(h.x, h.y);
     // How far the edge bends what is behind it. On the panel and menus it grows with
     // the glass, as Apple's does (Glisse reaches 0.45 of the short side), so a big
     // menu bends its backdrop in a band you can see, not only in its outer px.
-    float th = (lens_share > 0.5 ? max(refr_amt, min(LENS_REACH * shortSide, 72.0)) : refr_amt) * (1.0 + tch);
+    float th = (lens_share > 0.5 ? max(refr_amt, min(LENS_REACH * shortSide, 72.0)) : refr_amt) * (1.0 + deep * tch);
     float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
     float bevel = lens_share > 0.5
         ? min(clamp(share * shortSide, refr_h, 2.6 * refr_h), 0.45 * shortSide)
         : min(refr_h, 0.35 * min(h.x, h.y));
-    bevel *= 1.0 + 0.6 * tch;
+    bevel *= 1.0 + 0.6 * deep * tch;
     // The edge's direction rounds off over at least the whole bevel, so a wide
     // bevel shows no mitred seam running in from its corners.
     float gr = min(max(r * 1.5, lens_share > 0.5 ? bevel * 1.15 : 0.0), min(hh.x, hh.y));
@@ -437,7 +453,7 @@ void main() {
         slope = lens_share > 0.5 ? squircleSlope(x) * 1.6 : x / max(sqrt(max(1.0 - x * x, 0.0)), 0.06);
     }
     vec2 dome = depth * 0.25 * c / max(h.x, h.y);  // a gently domed top
-    vec3 N = normalize(vec3(n * slope + dome + dent(dp, give, tch) + jitter(px), 1.0));
+    vec3 N = normalize(vec3(n * slope + dome + dent(dp, give, deep * tch) + jitter(px), 1.0));
     float F = F0 + (1.0 - F0) * pow(1.0 - N.z, 5.0);
     float crest = 4.0 * x * (1.0 - x);              // peaks halfway down the rounded edge
 
@@ -1509,6 +1525,7 @@ export const DEFAULT_LOOK = Object.freeze({
     solid: 0,           // 1: fill the pane fully, for a full-screen sheet
     pointerLight: 0.5,  // 0..1, how far the light turns towards the pointer
     motion: 1,          // 0 or 1: press and open springs
+    liquid: 1,          // 0.25..2.5, how far the glass gives under a press (1: the original feel)
     adapt: 0.35,        // 0..1, how much the glass adjusts to what's behind it
     lift: 0,            // 0..1, light glass: its milk thickens over a dark backdrop
     milk: [0.96, 0.965, 0.98], // the light glass's own body colour, rgb 0..1
@@ -1852,7 +1869,7 @@ class FedoraGlassPane extends Clutter.Actor {
         this._cheap = false;
         this._lite = false;
         this._moving = false;
-        this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1};
+        this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1, pullX: 0, pullY: 0};
         this._applyLook();
         panes.add(this);
         followPainting(true);
@@ -2263,13 +2280,17 @@ class FedoraGlassPane extends Clutter.Actor {
     _applyMotion() {
         const L = this._look, m = this._motion;
         const [ox, oy] = this._stage ?? [0, 0];
+        const lq = Math.max(0.25, Math.min(2.5, L.liquid ?? 1));
+        const deep = Math.min(lq, 1) + 0.35 * Math.max(lq - 1, 0);   // as in the shader
         this._glass.setFloats({
             ptr_x: m.sx - ox, ptr_y: m.sy - oy, ptr_k: Math.max(0, Math.min(1, m.k)),
             press: Math.max(0, Math.min(1, m.press)),
+            liquid: lq,
+            pull_x: m.pullX ?? 0, pull_y: m.pullY ?? 0,
             refr_h: Math.max(0, L.refraction) * Math.max(0, m.open),
             // Pressed, the slab gives: a deeper bend and a fuller dome you can see.
-            refr_amt: Math.max(0, L.bend) * (1 + 0.3 * m.press),
-            depth: Math.max(0, Math.min(1, L.depth + 0.25 * m.press)),
+            refr_amt: Math.max(0, L.bend) * (1 + 0.3 * deep * m.press),
+            depth: Math.max(0, Math.min(1, L.depth + 0.25 * deep * m.press)),
         });
         // setFloats queued a repaint of the lens over all of the pane, so it shows the
         // new shape in one frame. Never queue_redraw() the pane here: that marks it

@@ -121,3 +121,36 @@ def test_scenes_show_the_part_being_edited(preview):
     assert closeup is not None
     pv.setProperty("closeUp", True)
     assert pv.property("closeUp")
+
+
+def test_how_liquid_slider_plays_a_press_on_the_preview_taskbar(preview):
+    """Moving How liquid plays a short press-and-drag along the preview's taskbar, and the
+    taskbar glass gives under it; the factor matches the extension's (render/glass.py)."""
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer
+    from PySide6.QtQuick import QQuickItem
+
+    from fedoraglass.render.glass import liquid_factor
+    pv, b = preview
+    saved = b.property("liquidStrength")
+    try:
+        for v in (0.0, 0.4, 1.0):
+            b.setProperty("liquidStrength", v)
+            assert abs(pv.property("liquid") - liquid_factor(v)) < 1e-6
+        panel = pv.findChild(QQuickItem, "liquidPanel")
+        assert panel is not None
+        assert panel.property("liquid") == pv.property("liquid")
+        t = QElapsedTimer()
+        t.start()
+        peak = 0.0
+        while t.elapsed() < 1500:
+            QCoreApplication.processEvents()
+            peak = max(peak, panel.property("press"))
+        assert peak > 0.8, peak                       # it pressed in
+        # Very liquid: drawn out towards the pointer while it moves.
+        assert pv.property("liquid") == 2.5
+        t.restart()
+        while t.elapsed() < 2500 and (pv.property("pressHeld") or panel.property("press") > 0.002):
+            QCoreApplication.processEvents()
+        assert panel.property("press") < 0.01          # and let go
+    finally:
+        b.setProperty("liquidStrength", saved)

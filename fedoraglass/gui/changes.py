@@ -98,6 +98,7 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     "bleed": (N_("Colour bleed"), "glass", "colourBleed", pct),
     "pointer_light": (N_("Light follows pointer"), "glass", "lightFollowsPointer", pct),
     "liquid_motion": (N_("Liquid motion"), "motion", "liquidMotion", onoff),
+    "liquid_strength": (N_("How liquid"), "motion", "liquidStrength", pct),
     "menu_grow": (N_("Menus grow from their button"), "motion", "menuGrow", onoff),
     "glass_panel": (N_("Glass on the panel"), "glass", "glassPanel", onoff),
     "glass_menus": (N_("Glass on menus"), "glass", "glassMenus", onoff),

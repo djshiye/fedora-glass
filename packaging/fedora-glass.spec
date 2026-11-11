@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.26
+Version:        1.5.27
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -251,6 +251,10 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.27-1
+- The taskbar no longer flickers when you press and drag along it over a maximized window
+- A new How liquid slider on the Motion page makes the taskbar press firmer or more liquid
+
 * Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.26-1
 - Apps on the Apps without glass list get a plain solid window instead of a see-through one
 - The app shows when the glass is paused from Quick Settings, with a Resume button

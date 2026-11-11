@@ -40,7 +40,7 @@ LIST_MAX = 200          # looks shown; a folder with more is someone else's mess
 LOOK_KEYS = (
     "frost", "scheme", "accent", "tint", "tint_strength", "radius", "highlight", "opacity", "blur",
     "reduce_transparency", "panel_style", "panel_margin", "blur_app_windows", "terminal_opacity",
-    "refraction", "dispersion", "vibrancy", "bleed", "pointer_light", "liquid_motion", "menu_grow",
+    "refraction", "dispersion", "vibrancy", "bleed", "pointer_light", "liquid_motion", "liquid_strength", "menu_grow",
     "glass_panel", "glass_menus", "glass_overview", "glass_see_windows", "parts",
     "header_height", "header_opacity", "motion", "hover_glide",
     "lock_glass", "lock_blur", "lock_dim", "lock_tint", "lock_card", "lock_clock", "lock_clock_position",
