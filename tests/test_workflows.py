@@ -123,8 +123,12 @@ def test_rpm_job_installs_upgrades_and_removes_the_package():
     assert "qa/package-smoke.sh" in script and "sha256sum --quiet -c" in script
     assert 'fetch_or_skip "$prev" fedora-glass.noarch.rpm' in script and "fetch_or_skip v1.4.4 liquid-glass.noarch.rpm" in script
     assert script.index("Clean install") < script.index("Upgrade from the previous release") < script.index("Move from Liquid Glass 1.4.4")
-    # Not the website: only the files built here and the old release assets.
-    assert "fedora-glass.enabled=0" in script
+    # Not the website: only the files built here and the old release assets. Our repositories
+    # are switched off only once their file exists: dnf 5 refuses an option for a repository
+    # it doesn't know, as on the clean image before the first install.
+    assert "--setopt=%s.enabled=0" in script and "for id in fedora-glass liquid-glass" in script
+    assert "/etc/yum.repos.d/*.repo" in script
+    assert "--setopt=fedora-glass.enabled=0" not in script
 
 
 def test_release_checks_build_the_base_image_with_a_cache_and_test_the_same_image():
