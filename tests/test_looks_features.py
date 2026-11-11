@@ -138,6 +138,15 @@ def test_holding_a_look_worked_out_once_says_what_same_look_says(editor, look):
         assert looks.holds(looks.look_values(look, has), editor) is want
 
 
+def test_each_own_colour_is_kept_by_its_own_wallpaper_switch():
+    mine = Settings(accent_from_wallpaper=True, accent_own="teal", tint_from_wallpaper=False, tint_own="#112233")
+    s = looks.apply_look(mine, {"frost": 0.3})
+    assert s.accent_own == "teal" and s.tint_own == ""
+    mine = Settings(tint_from_wallpaper=True, tint_own="#112233", accent_own="teal")
+    s = looks.apply_look(mine, {"frost": 0.3})
+    assert s.tint_own == "#112233" and s.accent_own == ""
+
+
 def test_reading_a_look_never_hangs_on_a_pipe_or_reads_a_device(tmp_path):
     fifo = tmp_path / "pipe.json"
     os.mkfifo(fifo)

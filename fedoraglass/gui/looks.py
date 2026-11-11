@@ -110,8 +110,11 @@ def _apply_keys(current: Settings, look: dict, cursor_installed: Callable[[str],
             continue
         s = trial
         taken.append(k)
+    # Each own colour is forgotten only when its own colour no longer follows the wallpaper.
     if not s.tint_from_wallpaper:
-        s.tint_own = s.accent_own = ""
+        s.tint_own = ""
+    if not s.accent_from_wallpaper:
+        s.accent_own = ""
     return s, taken
 
 
