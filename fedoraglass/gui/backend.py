@@ -395,6 +395,10 @@ class Backend(QObject):
         self._safe_timer = QTimer(self)
         self._safe_timer.setInterval(3000)
         self._safe_timer.timeout.connect(self._poll_safe_mode)
+        # The watcher (fedora-glass watch) takes a new wallpaper's colours into settings.json
+        # by itself: checked with the same timer, so the app shows them as applied.
+        self._saved_stamp = self._settings_stamp()
+        self._safe_timer.timeout.connect(self._poll_saved_colours)
         # Speed: what the extension reports, and the check the user can ask for.
         self._speed_status: dict = {}
         self._speed_state = "idle"
@@ -518,6 +522,50 @@ class Backend(QObject):
         """Ask the extension to turn the glass back on after safe mode (safety.js)."""
         self._ask_extension("safe-mode-reset.json")
 
+    # ---- colours the watcher took from a new wallpaper ---------------------------------
+    def _settings_stamp(self) -> int | None:
+        try:
+            return self._settings_file().stat().st_mtime_ns
+        except OSError:
+            return None
+
+    _WALL_KEYS = ("tint", "accent", "wallpaper_match")
+
+    def _poll_saved_colours(self) -> None:
+        """settings.json changed on disk: when the only change is the colours the watcher
+        took from a new wallpaper (fedora-glass watch), the applied look here takes them too,
+        and so does the editor where it still shows the old ones. So the app neither calls
+        them unapplied nor says the wallpaper changed since the last Apply. Any other change
+        is left alone: the app never loads a look under the user's hands."""
+        if self._task is not None or self._applying is not None:
+            return      # an Apply or Restore of its own writes the file now
+        stamp = self._settings_stamp()
+        if stamp is None or stamp == self._saved_stamp:
+            return
+        self._saved_stamp = stamp
+        old = self._saved
+        if not wallcolour.follows(old):
+            return
+        try:
+            loaded = settings_mod.load_checked(self._path)
+        except Exception:  # noqa: BLE001 - a file that can't be read now changes nothing here
+            return
+        new = loaded.settings
+        if not loaded.usable or all(getattr(new, k) == getattr(old, k) for k in self._WALL_KEYS):
+            return
+        same = {k: getattr(old, k) for k in self._WALL_KEYS}
+        if asdict(replace(new, **same).normalized()) != asdict(old.normalized()):
+            return
+        took = {k: getattr(new, k) for k in self._WALL_KEYS}
+        self._saved = replace(old, **took)
+        if self._good is old:
+            self._good = self._saved
+        editor = {k: v for k, v in took.items() if getattr(self._s, k) == getattr(old, k) or k == "wallpaper_match"}
+        self._replace_editor(replace(self._s, **editor))
+        self.savedChanged.emit()
+        self.settingsChanged.emit()
+        self.wallpaperMatchChanged.emit()
+
     # ---- paused from Quick Settings ----------------------------------------------
     def _read_paused(self) -> bool:
         """Whether the glass is paused from the Glass tile in Quick Settings, as the extension
@@ -562,12 +610,8 @@ class Backend(QObject):
     @staticmethod
     def _wallpaper_url(value: str | None) -> str:
         """A picture-uri value as gsettings prints it, as a file URL ("" for none or no file)."""
-        v = (value or "").strip().strip("'")
-        if not v.startswith("file://"):
-            return ""
-        from urllib.parse import unquote, urlparse
-        p = Path(unquote(urlparse(v).path))
-        return QUrl.fromLocalFile(str(p)).toString() if p.is_file() else ""
+        path = wallcolour.picture_path(value)
+        return QUrl.fromLocalFile(path).toString() if path else ""
 
     def _read_wallpapers(self) -> dict[str, str]:
         out = {}
