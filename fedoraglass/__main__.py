@@ -244,12 +244,19 @@ def update_after_upgrade(eng) -> bool:
     GlassEffects.running and finish_pending). Returns True when it applied."""
     if not eng.look_on():
         return False
+    stamped = None
+    if getattr(eng, "env", None) is not None:
+        from .engine import read_applied_version
+        stamped = read_applied_version(eng.env)
+    if stamped == __version__:
+        # An Apply of every part by this version already ran (Engine._stamp), even if the
+        # glass part failed in it twice: applying all again at every login would not help.
+        return False
     had = installed_glass_version(eng)
-    if had is None and getattr(eng, "env", None) is not None:
+    if had is None:
         # The glass part is off, so there is no extension to ask: the other parts still
         # need the new version's look (1.5.2 never updated them).
-        from .engine import read_applied_version
-        had = read_applied_version(eng.env)
+        had = stamped
     if had is None or had == __version__:
         return False
     if (s := _auto_settings()) is None:

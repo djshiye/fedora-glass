@@ -19,7 +19,11 @@ def _meta(env):
 
 
 def _age(env, version="1.4.3"):
-    """Pretend the applied extension came from an older release."""
+    """Pretend the applied look came from an older release (its extension, and the version
+    stamp an Apply of every part writes)."""
+    from fedoraglass.engine import applied_version_path
+    if applied_version_path(env).exists():
+        applied_version_path(env).write_text(f"{version}\n")
     m = _meta(env)
     data = json.loads(m.read_text())
     data["version-name"] = version

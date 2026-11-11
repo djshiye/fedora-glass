@@ -116,6 +116,26 @@ def read_applied_version(env: Env) -> str | None:
     return v or None
 
 
+def failed_parts_path(env: Env) -> Path:
+    """The parts that failed in the last Apply of every part that did not stamp the version
+    (see Engine._apply): a part that fails again in the next one doesn't hold the stamp back."""
+    return env.state / "liquid-glass/applied-failed"
+
+
+def _read_failed_parts(env: Env) -> set[str]:
+    p = failed_parts_path(env)
+    try:
+        if p.is_symlink() or p.stat().st_size > 4096:
+            return set()
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    # Noted by another version: its failures are no try of this one's.
+    if not isinstance(data, dict) or data.get("version") != __version__ or not isinstance(data.get("failed"), list):
+        return set()
+    return {x for x in data["failed"] if isinstance(x, str)}
+
+
 def _kept_mode(path: Path, mode: int) -> int:
     """The mode for rewriting `path`: never more open than the file is now. An app's own
     settings file kept private (qBittorrent.conf holds its web password hash) stays so."""
@@ -1043,13 +1063,26 @@ class Engine:
             later = self._apply(settings, set(waiting))
             done = {r.target for r in later}
             results = [r for r in results if r.target not in done] + later
-        if full and not self.env.dry_run and not any(r.status == "failed" for r in results):
-            # The look is this version's only when every part was made again and none failed:
-            # after `--only gtk4`, or a part that failed, the upgrade step must still update
-            # the others (see update_after_upgrade).
-            with contextlib.suppress(OSError):
-                write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+        if full and not self.env.dry_run:
+            self._stamp(results)
         return results
+
+    def _stamp(self, results: list[Result]) -> None:
+        """After an Apply of every part: say the look is this version's, so the upgrade step
+        (update_after_upgrade) leaves it alone from now on. Not after `--only gtk4`: the
+        other parts must still be updated. A part that fails gets one more try: the first
+        time it fails the stamp waits, and the parts that failed are noted; once a full
+        Apply fails only on parts noted so (they failed both times), the stamp is written
+        anyway. Otherwise one part that always fails (a broken theme folder, a file the
+        user locked) would have every login apply everything again, for nothing."""
+        failed = {r.target for r in results if r.status == "failed"}
+        note = failed_parts_path(self.env)
+        with contextlib.suppress(OSError):
+            if failed and not failed <= _read_failed_parts(self.env):
+                atomic_write(note, json.dumps({"version": __version__, "failed": sorted(failed)}).encode(), 0o600)
+                return
+            write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+            note.unlink(missing_ok=True)
 
     # Extension states (GNOME's ExtensionState): 1 running, 3 error, 4 out of date.
     _GLASS_STARTING = (2.0, 6.0, 7.0, 8.0)
@@ -1090,6 +1123,8 @@ class Engine:
                         (config_dir() / name).unlink()   # apps that read them go back to their own look
                 with contextlib.suppress(OSError):
                     applied_version_path(self.env).unlink()
+                with contextlib.suppress(OSError):
+                    failed_parts_path(self.env).unlink()
             return problems
 
     # ---- internals ------------------------------------------------------------
