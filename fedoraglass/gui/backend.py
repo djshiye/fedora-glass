@@ -2699,10 +2699,11 @@ class Backend(QObject):
         self.apply()
 
     # ---- colours from the wallpaper ----------------------------------------------------
-    def _match_path(self, s: Settings | None = None) -> str:
+    def _match_path(self, s: Settings | None = None, dark: bool | None = None) -> str:
         """The picture GNOME shows with this look's style (picture-uri-dark in dark)."""
         s = s or self._s
-        dark = self._system_dark if s.scheme == "auto" else s.scheme == "dark"
+        if dark is None:
+            dark = self._system_dark if s.scheme == "auto" else s.scheme == "dark"
         url = self._wallpaper_for(dark)
         return QUrl(url).toLocalFile() if url else ""
 
@@ -2794,9 +2795,14 @@ class Backend(QObject):
                 self._lock_after_apply = False
             return False
         self._use_colours(c)
-        if c["key"] != self._s.wallpaper_match:
-            self._s = replace(self._s, wallpaper_match=c["key"])
+        mark = c["key"] + ("|dark" if self._match_dark() else "|light")
+        if mark != self._s.wallpaper_match:
+            self._s = replace(self._s, wallpaper_match=mark)
         return True
+
+    def _match_dark(self, s: Settings | None = None) -> bool:
+        s = s or self._s
+        return self._system_dark if s.scheme == "auto" else s.scheme == "dark"
 
     def _get_tint_from_wallpaper(self) -> bool:
         return self._s.tint_from_wallpaper
@@ -2852,7 +2858,13 @@ class Backend(QObject):
         saved = self._saved
         if not (saved.tint_from_wallpaper or saved.accent_from_wallpaper) or not saved.wallpaper_match:
             return False
-        return wallcolour.picture_key(self._match_path(saved)) != saved.wallpaper_match
+        # The key notes which style's picture it was taken from ("|dark" / "|light"); 1.5.24
+        # saved none, and those are compared with the picture of the style showing now.
+        key, dark = saved.wallpaper_match, None
+        for tag in ("|dark", "|light"):
+            if key.endswith(tag):
+                key, dark = key[:-len(tag)], tag == "|dark"
+        return wallcolour.picture_key(self._match_path(saved, dark)) != key
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:
