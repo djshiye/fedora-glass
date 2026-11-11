@@ -124,6 +124,11 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     "cursor_size": ("Pointer size", "pointer", "cursorSize", lambda v: "Your own" if not v else px(v)),
     "tint_from_wallpaper": ("Tint matches the wallpaper", "colour", "wallpaperTint", onoff),
     "accent_from_wallpaper": ("Accent matches the wallpaper", "colour", "wallpaperAccent", onoff),
+    # Shell features
+    "lighter_on_battery": ("Lighter glass on battery", "glass", "lighterOnBattery", onoff),
+    "quick_toggle": ("Glass switch in Quick Settings", "glass", "quickToggle", onoff),
+    "no_glass_apps": ("Apps without glass", "windows", "noGlassCard",
+                      lambda v: "None" if not v else f"{len(v)} app" + ("" if len(v) == 1 else "s")),
 }
 # Not shown: saved the moment it is switched, or bookkeeping that follows another setting.
 HIDDEN = {"undo_on_remove", "tint_own", "accent_own", "wallpaper_match"}
