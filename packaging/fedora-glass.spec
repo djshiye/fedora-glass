@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.24
+Version:        1.5.25
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -251,6 +251,14 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.25-1
+- One restart is enough after an update, also when GNOME Software installs it while you restart
+- The Colour page no longer says your wallpaper changed when only light and dark switched
+- Saving a look to a USB stick works
+- Match my wallpaper reads .jxl pictures and slideshows that list sizes
+- App names in the app pickers show in your language
+- The Open button in the Extensions app reads right in French and Italian
+
 * Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.24-1
 - The app speaks German, French, Spanish, Italian and Brazilian Portuguese, following your system language (English otherwise)
 - So do the Quick Settings Glass tile, the lock screen greeting, the app's menu entry and the login screen password prompt
