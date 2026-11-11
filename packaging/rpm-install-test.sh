@@ -20,8 +20,16 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 # The package's own repository file is switched off: these checks are about the files in
 # $out and the old releases, not about what the website serves.
-dnf_install() { dnf install -y -q --setopt=install_weak_deps=False --setopt=fedora-glass.enabled=0 "$@" >/dev/null; }
-dnf_remove() { dnf remove -y -q --setopt=fedora-glass.enabled=0 "$@" >/dev/null; }
+# dnf refuses an option for a repository it doesn't know ("No matching repositories"), and on
+# a clean PC there is none until the first package brings its file: so only those that exist.
+own_repos_off() {
+    local id
+    for id in fedora-glass liquid-glass; do
+        if grep -qs "^\[$id\]" /etc/yum.repos.d/*.repo; then printf -- '--setopt=%s.enabled=0\n' "$id"; fi
+    done
+}
+dnf_install() { mapfile -t off < <(own_repos_off); dnf install -y -q --setopt=install_weak_deps=False "${off[@]}" "$@" >/dev/null; }
+dnf_remove() { mapfile -t off < <(own_repos_off); dnf remove -y -q "${off[@]}" "$@" >/dev/null; }
 
 say() { printf '\n== %s\n' "$*"; }
 
