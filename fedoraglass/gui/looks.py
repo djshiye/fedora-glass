@@ -86,7 +86,7 @@ def clean_name(raw: object) -> str:
     a name read as another one."""
     if not isinstance(raw, str):
         return ""
-    raw = "".join(c for c in raw if unicodedata.category(c) != "Cf")
+    raw = "".join(c for c in raw if unicodedata.category(c) not in ("Cf", "Cs"))
     return settings_mod.clean_message(raw)[:NAME_MAX].strip()
 
 

@@ -293,3 +293,8 @@ def test_export_works_where_chmod_is_refused(tmp_path, monkeypatch):
         lib.export(look_id, out)
     assert json.loads(out.read_text())["name"] == "Mint"
     assert [p.name for p in out.parent.iterdir()] == ["mint.json"]     # no temp file left
+
+
+def test_a_look_name_of_a_lone_surrogate_is_empty(tmp_path):
+    assert looks.clean_name("\ud800") == ""
+    assert looks.clean_name("Ni\udfffght") == "Night"
