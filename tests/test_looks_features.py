@@ -310,3 +310,44 @@ def test_a_slideshow_file_with_sizes_gives_the_largest_picture(tmp_path):
                     f'<size width="3840" height="2160">{big}</size>\n'
                     f'</file></static></background>')
     assert wallcolour.slideshow_picture(str(show)) == str(big)
+
+
+def test_a_picture_qt_cannot_read_is_read_through_gdkpixbuf(tmp_path, monkeypatch):
+    import sys
+    import types
+    pic = tmp_path / "wall.jxl"
+    pic.write_bytes(b"not a picture qt knows")
+    calls = {}
+
+    class Pb:
+        def get_width(self): return 2
+        def get_height(self): return 1
+        def get_rowstride(self): return 8
+        def get_n_channels(self): return 4
+        def get_pixels(self): return bytes([200, 40, 40, 255, 10, 20, 30, 255, 0, 0, 0, 0])
+
+    class GLibError(Exception):
+        pass
+
+    class Pixbuf:
+        @staticmethod
+        def get_file_info(path): return (object(), 4000, 2000)
+        @staticmethod
+        def new_from_file_at_scale(path, w, h, keep):
+            calls["scale"] = (w, h, keep)
+            return Pb()
+
+    gi = types.ModuleType("gi")
+    gi.require_version = lambda *a: None
+    repo = types.ModuleType("gi.repository")
+    repo.GdkPixbuf = types.SimpleNamespace(Pixbuf=Pixbuf)
+    repo.GLib = types.SimpleNamespace(Error=GLibError)
+    gi.repository = repo
+    with monkeypatch.context() as m:
+        m.setitem(sys.modules, "gi", gi)
+        m.setitem(sys.modules, "gi.repository", repo)
+        assert wallcolour.read_pixels(str(pic)) == [(200, 40, 40), (10, 20, 30)]
+    assert calls["scale"] == (64, 32, True)          # scaled down while decoding
+    with monkeypatch.context() as m:                   # no gi at all: unreadable, not a crash
+        m.setitem(sys.modules, "gi", None)
+        assert wallcolour.read_pixels(str(pic)) is None
