@@ -313,6 +313,7 @@ def test_a_slideshow_file_with_sizes_gives_the_largest_picture(tmp_path):
 
 
 def test_a_picture_qt_cannot_read_is_read_through_gdkpixbuf(tmp_path, monkeypatch):
+    import importlib.util
     import sys
     import types
     pic = tmp_path / "wall.jxl"
@@ -343,11 +344,13 @@ def test_a_picture_qt_cannot_read_is_read_through_gdkpixbuf(tmp_path, monkeypatc
     repo.GdkPixbuf = types.SimpleNamespace(Pixbuf=Pixbuf)
     repo.GLib = types.SimpleNamespace(Error=GLibError)
     gi.repository = repo
+    # read_pixels needs Qt (the quick tests run without it); the GdkPixbuf part doesn't.
+    read = wallcolour.read_pixels if importlib.util.find_spec("PySide6") else wallcolour._pixbuf_pixels
     with monkeypatch.context() as m:
         m.setitem(sys.modules, "gi", gi)
         m.setitem(sys.modules, "gi.repository", repo)
-        assert wallcolour.read_pixels(str(pic)) == [(200, 40, 40), (10, 20, 30)]
+        assert read(str(pic)) == [(200, 40, 40), (10, 20, 30)]
     assert calls["scale"] == (64, 32, True)          # scaled down while decoding
     with monkeypatch.context() as m:                   # no gi at all: unreadable, not a crash
         m.setitem(sys.modules, "gi", None)
-        assert wallcolour.read_pixels(str(pic)) is None
+        assert read(str(pic)) is None
