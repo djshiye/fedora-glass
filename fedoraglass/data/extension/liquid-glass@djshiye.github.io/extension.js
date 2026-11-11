@@ -74,12 +74,8 @@ export default class FedoraGlassExtension extends Extension {
             this._leaving?.destroy();
             this._leaving = null;
             this._lock?.destroy();
-            try {
-                this._lock = new LockGlass(cfg);
-            } catch (e) {
-                console.error(`Fedora Glass: no lock screen glass: ${e}`);
-                this._lock = null;
-            }
+            this._lock = null;
+            this._startLock(cfg);
             // Widgets come with or without the glass (GNOME's own lock screen gets them too).
             try {
                 this._leavingWidgets?.destroy();
@@ -141,6 +137,17 @@ export default class FedoraGlassExtension extends Extension {
                 console.error(`Fedora Glass: no ArcMenu restart helper: ${e}`);
                 this._rescue = null;
             }
+        }
+    }
+
+    _startLock(cfg) {
+        if (this._paused)
+            return;     // the Quick Settings tile promised all glass is paused, the lock screen's too
+        try {
+            this._lock = new LockGlass(cfg);
+        } catch (e) {
+            console.error(`Fedora Glass: no lock screen glass: ${e}`);
+            this._lock = null;
         }
     }
 
@@ -283,6 +290,8 @@ export default class FedoraGlassExtension extends Extension {
             this._safety?.glassStopped();
         } else if (this._locked === false && !this._manager) {
             this._startGlass(this._config.value);
+        } else if (this._locked === true && !this._lock) {
+            this._startLock(this._config.value);
         }
         this._showSwitch();
     }

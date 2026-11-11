@@ -106,6 +106,8 @@ test('the pause lasts through a lock; the next login starts with the glass on', 
     globalThis.fake.sessionMode.isLocked = true;
     ext._sync();
     assert.equal(shown().length, 0, 'no tile on the lock screen');
+    assert.ok(!live.has('lock'), 'no lock screen glass while paused: all glass is paused');
+    assert.ok(live.has('widgets'), 'the lock screen widgets are no glass');
     globalThis.fake.sessionMode.isLocked = false;
     ext._sync();
     assert.ok(!live.has('glass'), 'still paused after unlocking');
@@ -145,4 +147,21 @@ test('a tile that fails to show leaves the glass running', () => {
         globalThis.fakeMods['quicktoggle.js'].GlassSwitch = was;
         console.error = err;
     }
+});
+
+test('the lock screen glass is there when not paused, and comes back on resume while still locked', () => {
+    const ext = start();
+    globalThis.fake.sessionMode.isLocked = true;
+    ext._sync();
+    assert.ok(live.has('lock'));
+    globalThis.fake.sessionMode.isLocked = false;
+    ext._sync();
+    shown()[0].onPause(true);
+    globalThis.fake.sessionMode.isLocked = true;
+    ext._sync();
+    assert.ok(!live.has('lock'));
+    ext._setPaused(false);
+    assert.ok(live.has('lock'), 'resumed while locked: the lock screen glass is back');
+    assert.ok(!live.has('glass'), 'the desktop glass waits for the unlock');
+    ext.disable();
 });
