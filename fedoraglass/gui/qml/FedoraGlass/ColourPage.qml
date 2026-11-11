@@ -15,7 +15,7 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 16
-            SectionTitle { text: "Style and accent"; resetKeys: ["scheme", "accent"] }
+            SectionTitle { text: "Style and accent"; resetKeys: ["scheme", "accent", "accent_from_wallpaper", "accent_own"] }
             Column {
                 width: parent.width
                 spacing: 8
@@ -37,6 +37,14 @@ SettingsPage {
                 Text { text: "Accent colour"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                 AccentRow { width: parent.width }
             }
+            SwitchRow {
+                objectName: "wallpaperAccent"
+                label: "Accent matches my wallpaper"
+                caption: "Buttons and highlights take a clear colour from your wallpaper when you press Apply"
+                tip: "Fedora Glass picks the main colour of your wallpaper and makes it clear enough for buttons and switches. It looks again each time you press Apply. Picking an accent above turns this off."
+                checked: Backend.accentFromWallpaper
+                onToggled: (on) => Backend.accentFromWallpaper = on
+            }
         }
     }
 
@@ -46,7 +54,7 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 16
-            SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius"] }
+            SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius", "tint_from_wallpaper", "tint_own"] }
             Item {
                 width: parent.width
                 height: 36
@@ -54,7 +62,11 @@ SettingsPage {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
                     Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
-                    Text { text: "The colour the glass leans towards"; color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
+                    Text {
+                        objectName: "tintCaption"
+                        text: Backend.tintFromWallpaper ? "Taken from your wallpaper" : "The colour the glass leans towards"
+                        color: Theme.textFaint; font.pixelSize: Theme.fsSmall
+                    }
                 }
                 C.AbstractButton {
                     id: tintButton
@@ -68,7 +80,7 @@ SettingsPage {
                     onClicked: tintPicker.open()
                     Accessible.name: "Tint colour"
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    LgToolTip { shown: tintButton.hovered; text: "Choose the tint colour" }
+                    LgToolTip { shown: tintButton.hovered; text: Backend.tintFromWallpaper ? "Choose your own tint colour instead" : "Choose the tint colour" }
                     background: Rectangle {
                         radius: height / 2
                         color: tintButton.hovered ? Theme.surfaceHi : Theme.well
@@ -102,6 +114,38 @@ SettingsPage {
                         color: Backend.tint
                         onPicked: (hex) => Backend.tint = hex
                     }
+                }
+            }
+            SwitchRow {
+                objectName: "wallpaperTint"
+                label: "Match my wallpaper"
+                caption: "The glass takes a soft colour from your wallpaper when you press Apply"
+                tip: "Fedora Glass picks the main colour of your wallpaper, leaving out black, white and grey, and softens it into a tint. It looks again each time you press Apply, not by itself. Picking a tint colour turns this off."
+                checked: Backend.tintFromWallpaper
+                onToggled: (on) => Backend.tintFromWallpaper = on
+            }
+            // A word on the wallpaper match: looking, can't, or a new wallpaper since Apply.
+            Row {
+                objectName: "wallpaperNote"
+                readonly property string note: Backend.wallpaperMatchBusy ? "Looking at your wallpaper…"
+                    : Backend.wallpaperMatchNote !== "" ? Backend.wallpaperMatchNote
+                    : Backend.wallpaperChangedSince ? "Your wallpaper changed since the last Apply. Press Apply to take its colour again."
+                    : ""
+                visible: (Backend.tintFromWallpaper || Backend.accentFromWallpaper) && note !== ""
+                width: parent.width
+                spacing: 8
+                Icon {
+                    id: noteIcon
+                    name: "info"; size: 16
+                    color: Backend.wallpaperChangedSince && !Backend.wallpaperMatchBusy ? Theme.accentText : Theme.textDim
+                }
+                Text {
+                    objectName: "wallpaperNoteText"
+                    width: parent.width - noteIcon.width - 8
+                    text: parent.note
+                    wrapMode: Text.WordWrap
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fsSmall + 1
                 }
             }
             LabeledSlider {
