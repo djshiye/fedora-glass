@@ -106,8 +106,9 @@ test("a window drag's frame times go to the status once, when it ends", () => {
     assert.deepEqual(Object.keys(status().drag).sort(), ['at', 'frames', 'median_ms', 'p95_ms', 'refresh', 'windows']);
     const d = status().drag;
     assert.equal(d.frames, 100);
-    assert.equal(d.median_ms, 5);
-    assert.equal(d.p95_ms, 40);
+    // The time between frames: 7 ms before each one plus its own 5 (or 40) ms.
+    assert.equal(d.median_ms, 12);
+    assert.equal(d.p95_ms, 47);
     assert.equal(d.refresh, 144);
     assert.equal(d.windows, 3, 'minimized windows do not count');
     const n = writes;
@@ -126,4 +127,34 @@ test("a window drag's frame times go to the status once, when it ends", () => {
     clock.advance(0);
     assert.equal(status().drag.frames, 100);
     again.destroy();
+});
+
+// One frame on `v` that the CPU asks for in `paintMs`, `gapMs` after the last one ended.
+function frameAfter(gapMs, paintMs, v = view) {
+    usNow += (gapMs - paintMs) * 1000;
+    stage.emit('before-paint', v);
+    usNow += paintMs * 1000;
+    stage.emit('after-paint', v);
+}
+
+test('a drag held up by the GPU reads as few frames, though each asks the CPU for little', () => {
+    const s = new Speed({speed: 'full'}, () => {});
+    const v = {get_refresh_rate: () => 60};
+    frameAfter(10, 1, v);
+    clock.advance(0);
+    usNow += 5e6;                       // idle for a while before the drag
+    display.emit('grab-op-begin');
+    frameAfter(5000, 1, v);             // its gap reaches back to before the drag: left out
+    for (let i = 0; i < 40; i++)
+        frameAfter(i % 2 ? 50 : 34, 1, v);  // 1 ms of CPU, 20-30 frames a second on the screen
+    usNow += 2e6;                       // the pointer held still: no frames, no stutter
+    frameAfter(50, 1, v);
+    display.emit('grab-op-end');
+    clock.advance(0);
+    const d = status().drag;
+    assert.equal(d.frames, 42);
+    assert.equal(d.median_ms, 50, 'the time between frames, not the 1 ms of CPU');
+    assert.equal(d.p95_ms, 50, 'neither the first gap nor the pause counts');
+    assert.equal(d.refresh, 60);
+    s.destroy();
 });

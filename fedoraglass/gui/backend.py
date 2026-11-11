@@ -888,7 +888,9 @@ class Backend(QObject):
 
     def _get_speed_drag(self) -> str:
         """The last window drag the desktop timed (speed.js writes it at the end of a drag), in
-        words: how smooth dragging really is on this PC, with no check to run. "" when none yet."""
+        words: how smooth dragging really is on this PC, with no check to run. "" when none yet.
+        Its times are the gaps between frames, so 1000 / median is the frame rate (never more
+        than the screen's refresh rate)."""
         d = self._speed_status.get("drag")
         if not isinstance(d, dict):
             return ""

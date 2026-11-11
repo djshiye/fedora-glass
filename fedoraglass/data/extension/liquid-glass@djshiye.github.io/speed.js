@@ -35,6 +35,9 @@ const CHECK_LIMIT_MS = 30000;
 const DRAG_MIN_FRAMES = 10;
 // Frame times kept per screen during a drag (a minute at 120 Hz); longer drags keep counting.
 const DRAG_KEEP = 7200;
+// A longer wait between two frames of a drag is the pointer held still (nothing to draw),
+// not a frame that came late.
+const DRAG_IDLE_US = 250e3;
 
 function now() {
     return GLib.get_monotonic_time();
@@ -161,7 +164,7 @@ export class Speed {
         const drew = renders !== this._renders;
         this._renders = renders;
         if (this._drag)
-            this._dragFrame(v, paint);
+            this._dragFrame(v, gap);
 
         if (this._check) {
             this._checkFrame(v, gap, t);
@@ -214,7 +217,11 @@ export class Speed {
         this._drag = {start: now(), windows, views: new Map(), check: !!this._check};
     }
 
-    _dragFrame(v, paint) {
+    // What counts is the time from one frame to the next, as the eye sees it, not the
+    // time the CPU took to ask for the frame: a drag held up by the GPU asks quickly and
+    // still shows few frames. A screen's first frame of the drag is left out: its gap
+    // reaches back to a frame from before the drag.
+    _dragFrame(v, gap) {
         const d = this._drag;
         if (this._check)
             d.check = true;    // the check's frames redraw everything: not a real drag
@@ -222,13 +229,13 @@ export class Speed {
         if (!e)
             d.views.set(v, e = {n: 0, ms: []});
         e.n++;
-        if (e.ms.length < DRAG_KEEP)
-            e.ms.push(paint / 1000);
+        if (e.n > 1 && gap > 0 && gap <= DRAG_IDLE_US && e.ms.length < DRAG_KEEP)
+            e.ms.push(gap / 1000);
     }
 
     /**
-     * The drag ended: how long its frames took to draw on the screen that drew most of
-     * them, once per drag, to the status file (read by the app):
+     * The drag ended: the time between its frames on the screen that drew most of them
+     * (median and 95th percentile), once per drag, to the status file (read by the app):
      * {at, frames, median_ms, p95_ms, refresh, windows}.
      */
     _dragEnd() {
@@ -241,7 +248,7 @@ export class Speed {
             if (!best || e.n > best[1].n)
                 best = [v, e];
         }
-        if (!best || best[1].n < DRAG_MIN_FRAMES)
+        if (!best || best[1].n < DRAG_MIN_FRAMES || !best[1].ms.length)
             return;
         const [v, e] = best;
         const ms = e.ms.sort((a, b) => a - b);
