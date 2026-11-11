@@ -1896,8 +1896,14 @@ def check_upgrade(ctx: Ctx) -> Check:
     c.add(said, f"At the first login after the upgrade, the look was brought up to {new} by itself." if said else
           "At the first login after the upgrade, the look was not brought up to date"
           + (f": {watch.strip().splitlines()[-1][-160:]}" if watch.strip() else "."))
+    first = (OUT / "upgrade-first-login-glass.txt").read_text(errors="replace") if (OUT / "upgrade-first-login-glass.txt").exists() else ""
+    m = re.search(r'"([0-9][^"\\]*)', first)
+    first = m.group(1) if m else ""
+    c.add(first == new, f"GNOME Shell ran the {new} glass from the first login after the update (no second restart needed)."
+          if first == new else f"At the first login after the update GNOME Shell ran the {first or 'no'} glass, not {new}: "
+          "the new glass would need a second restart.")
     errs = _lg_errors("shell-upgrade.log")
-    c.add(not errs, f"The {old} glass kept working with {new}'s settings until the restart." if not errs else
+    c.add(not errs, "No Fedora Glass errors in the first session after the update." if not errs else
           f"{len(errs)} Fedora Glass errors in the session between the update and the restart: {errs[0][-140:]}")
     running = sh.json(f"return Main.extensionManager.lookup('{LG}')?.metadata?.['version-name'] ?? null;")
     c.add(running == new, f"After the next restart GNOME Shell runs the {new} glass." if running == new else

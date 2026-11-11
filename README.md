@@ -65,7 +65,8 @@ to accept the key, check that it shows that fingerprint (dnf writes it without s
 
 You don't need to press **Apply** after an update. The next time you log in (or restart), Fedora
 Glass puts your look in again with the new version's fixes, using the settings of your last
-Apply. If you used **Restore original**, an update leaves your desktop alone. Glass on the login
+Apply. One restart is enough, also when GNOME Software installs the update while you restart.
+If you used **Restore original**, an update leaves your desktop alone. Glass on the login
 screen is brought up to date by the update itself, without asking for your password.
 
 ## Works with

@@ -132,6 +132,25 @@ NoNewPrivileges=true
 [Install]
 WantedBy=graphical-session.target
 UNIT
+# Brings the glass up to date at the first login after an update installed while logged
+# out. Pulled in by GNOME's own session target (a link shipped here), so an upgrade turns it
+# on too: the unit has no [Install] section to enable.
+cat > %{buildroot}%{_userunitdir}/fedora-glass-before-login.service <<'UNIT'
+[Unit]
+Description=Fedora Glass: bring the glass up to date before GNOME Shell starts
+# An update installed while logged out would otherwise need a second restart (see
+# `fedora-glass before-login`). GNOME's session manager, and with it GNOME Shell, starts
+# after gnome-session-pre.target; outside GNOME nothing pulls this in.
+Before=gnome-session-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fedora-glass before-login
+TimeoutStartSec=20
+NoNewPrivileges=true
+UNIT
+install -d %{buildroot}%{_userunitdir}/gnome-session-pre.target.wants
+ln -s ../fedora-glass-before-login.service %{buildroot}%{_userunitdir}/gnome-session-pre.target.wants/fedora-glass-before-login.service
 # Turned on for every user's session at install (the preset is applied by %%post).
 install -Dm644 /dev/stdin %{buildroot}%{_userpresetdir}/80-liquid-glass.preset <<'PRESET'
 enable liquid-glass-watch.service
@@ -200,6 +219,9 @@ fi
 %{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 %{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
+%{_userunitdir}/fedora-glass-before-login.service
+%dir %{_userunitdir}/gnome-session-pre.target.wants
+%{_userunitdir}/gnome-session-pre.target.wants/fedora-glass-before-login.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
@@ -218,6 +240,9 @@ fi
 %{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 %{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
+%{_userunitdir}/fedora-glass-before-login.service
+%dir %{_userunitdir}/gnome-session-pre.target.wants
+%{_userunitdir}/gnome-session-pre.target.wants/fedora-glass-before-login.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users

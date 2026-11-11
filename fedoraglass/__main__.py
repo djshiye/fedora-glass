@@ -255,9 +255,11 @@ def update_after_upgrade(eng) -> bool:
         # glass part failed in it twice: applying all again at every login would not help.
         return False
     had = installed_glass_version(eng)
-    if had is None:
-        # The glass part is off, so there is no extension to ask: the other parts still
-        # need the new version's look (1.5.2 never updated them).
+    if had is None or had == __version__:
+        # The glass part is off, so there is no extension to ask, or the step before login
+        # (update_glass_before_login) already brought the extension up to this version:
+        # the other parts still need the new version's look (1.5.2 never updated them),
+        # and the stamp says which version they have.
         had = stamped
     if had is None or had == __version__:
         return False
@@ -266,6 +268,40 @@ def update_after_upgrade(eng) -> bool:
     print(f"fedora-glass watch: updating the applied look from {had} to {__version__}", file=sys.stderr)
     eng.apply(s, if_applied=True, applied_only=True)
     return True
+
+
+def update_glass_before_login(eng) -> bool:
+    """Run before GNOME Shell starts (the fedora-glass-before-login user service). An update
+    installed while nobody was logged in (GNOME Software's "Restart & Update", dnf
+    offline-upgrade, an update just before a restart) leaves the older glass extension in
+    the home folder, and GNOME Shell loads it at this login: the new glass would only run
+    after yet another restart. So the glass part alone is brought up to this version here,
+    with the user's own saved settings, before the Shell reads it. Files and GNOME settings
+    only: the Shell isn't there to ask, and the other parts follow from the watcher once the
+    session runs (update_after_upgrade). Nothing happens after Restore original, when the
+    glass part is off or not applied, or when the versions already match."""
+    if not eng.look_on():
+        return False
+    from .engine import Backup, BackupUnreadable
+    try:
+        if "glass" not in Backup(eng.env).targets_with_changes():
+            return False
+    except BackupUnreadable:
+        return False
+    had = installed_glass_version(eng)
+    if had is None or had == __version__:
+        return False
+    if (s := _auto_settings()) is None or not s.target_enabled("glass"):
+        return False
+    print(f"fedora-glass: bringing the glass from {had} up to {__version__} before GNOME Shell starts", file=sys.stderr)
+    eng.apply(s, only={"glass"}, if_applied=True, applied_only=True)
+    return installed_glass_version(eng) == __version__
+
+
+def cmd_before_login(args: argparse.Namespace) -> int:
+    """`fedora-glass before-login`: see update_glass_before_login. Never fails the login."""
+    _guarded("updating the glass before login", lambda: update_glass_before_login(_engine()))
+    return 0
 
 
 def disk_version() -> str | None:
@@ -510,6 +546,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("target", nargs="?")
     r.set_defaults(func=cmd_revert)
     sub.add_parser("watch", help="follow dark/light, High Contrast and accent colour switches").set_defaults(func=cmd_watch)
+    sub.add_parser("before-login", help="bring the glass up to date before GNOME Shell starts (run by the user service at login)").set_defaults(func=cmd_before_login)
     sub.add_parser("on-remove", help="restore the original look before the app is removed (run by dnf, apt or pacman)").set_defaults(func=cmd_on_remove)
     g = sub.add_parser("gui", help="open the customizer")
     g.add_argument("qt_args", nargs=argparse.REMAINDER)

@@ -104,10 +104,22 @@ if [ -d "/from/$OLD_PKG" ]; then
     # looks at those).
     python3 -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); d["glass_quality"] = "full"; json.dump(d, open(p, "w"))' \
         "$HOME/.config/liquid-glass/settings.json"
+    # Before GNOME Shell starts, the fedora-glass-before-login user service brings the glass
+    # extension up to the new version (an update installed while logged out, as GNOME
+    # Software does it, must not need a second restart).
+    (cd "$HOME/fedora-glass-src" && python3 -m fedoraglass before-login) > "$OUT/before-login.txt" 2>&1
     start_shell shell-upgrade.log
     (cd "$HOME/fedora-glass-src" && exec python3 -m fedoraglass watch) > "$OUT/watch-upgrade.txt" 2>&1 &
     WATCH_PID=$!
     for _ in $(seq 90); do grep -q "updating the applied look" "$OUT/watch-upgrade.txt" 2>/dev/null && break; sleep 1; done
+    # Which glass GNOME Shell runs at this first login after the update.
+    for _ in $(seq 30); do
+        gdbus call --session -d org.gnome.Shell -o /org/gnome/Shell -m org.gnome.Shell.Eval \
+            "Main.extensionManager.lookup('liquid-glass@djshiye.github.io')?.state === 1 ? Main.extensionManager.lookup('liquid-glass@djshiye.github.io').metadata['version-name'] : ''" \
+            > "$OUT/upgrade-first-login-glass.txt" 2>/dev/null
+        grep -q '"[0-9]' "$OUT/upgrade-first-login-glass.txt" && break
+        sleep 1
+    done
     sleep 20      # the update itself, and any Shell parts it leaves for the glass
     stop_session
     session_ran_long
