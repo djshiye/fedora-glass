@@ -22,6 +22,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {loadInterfaceXML} from 'resource:///org/gnome/shell/misc/fileUtils.js';
 
 import {Signals} from './common.js';
+import {_} from './strings.js';
 
 const TICK_S = 60;                 // the greeting follows the time of day (when GNOME's clock can't say)
 const WEATHER_EVERY_US = 30 * 60 * 1000000;   // ask GNOME's weather for fresh numbers every 30 minutes
@@ -60,12 +61,12 @@ const STYLES = {
 
 export function greetingFor(hour) {
     if (hour >= 5 && hour < 12)
-        return 'Good morning';
+        return _('Good morning');
     if (hour >= 12 && hour < 17)
-        return 'Good afternoon';
+        return _('Good afternoon');
     if (hour >= 17 && hour < 22)
-        return 'Good evening';
-    return 'Good night';
+        return _('Good evening');
+    return _('Good night');
 }
 
 /**

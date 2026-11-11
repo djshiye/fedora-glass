@@ -12,6 +12,7 @@ import GLib from 'gi://GLib';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {QuickToggle, SystemIndicator} from 'resource:///org/gnome/shell/ui/quickSettings.js';
+import {_} from './strings.js';
 
 export const ICON = 'glass-symbolic.svg';
 // GNOME's own icon, should the extension's be missing.
@@ -29,8 +30,8 @@ function icon(dir) {
 /** The subtitle under "Glass": why there is no glass, or nothing while it shows. */
 export function subtitleFor(paused, safeMode) {
     if (paused)
-        return 'Paused';
-    return safeMode ? 'Safe mode' : null;
+        return _('Paused');
+    return safeMode ? _('Safe mode') : null;
 }
 
 export class GlassSwitch {
@@ -43,8 +44,8 @@ export class GlassSwitch {
         this._paused = false;
         this._safe = false;
         this._indicator = new SystemIndicator();
-        this._toggle = new QuickToggle({title: 'Glass', toggleMode: true, ...icon(dir)});
-        this._toggle.accessible_name = 'Glass';
+        this._toggle = new QuickToggle({title: _('Glass'), toggleMode: true, ...icon(dir)});
+        this._toggle.accessible_name = _('Glass');
         // St.Button has flipped `checked` by the time it says clicked: on means glass.
         this._clickedId = this._toggle.connect('clicked', () => {
             const pause = !this._toggle.checked;

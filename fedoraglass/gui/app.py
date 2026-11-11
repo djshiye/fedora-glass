@@ -62,6 +62,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     shot.add_argument("--after-change-ms", type=int, help="take the picture this long after --change")
     shot.add_argument("--size", help="content size WxH (shadow margin is added); default 1280x820, smaller on small screens")
     shot.add_argument("--delay-ms", type=int, default=2500)
+    ap.add_argument("--lang", metavar="CODE", help="show the app in this language (de, es, fr, it, pt_BR, en)")
     return ap.parse_args(argv)
 
 
@@ -139,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
     QGuiApplication.setOrganizationDomain("djshiye.github.io")
     QGuiApplication.setDesktopFileName(APP_ID)
     app = QGuiApplication(sys.argv[:1])
+    from .. import i18n
+    if args.lang:
+        i18n.reset("" if args.lang.split("_")[0] == "en" else i18n.pick_language({"FEDORA_GLASS_LANG": args.lang}) or "")
+    i18n.install_qt(app)
     QQuickStyle.setStyle("Basic")
     _pick_font(app)
     if not QIcon.themeName():

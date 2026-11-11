@@ -9,6 +9,7 @@ const STUBS = {
         get_monotonic_time: () => globalThis.fake.now?.() ?? 0,
         PRIORITY_LOW: 300,
         timeout_add_seconds: (_p, s, fn) => globalThis.fake.timeouts.add(s * 1000, fn),
+        get_language_names: () => globalThis.fake?.languages ?? ['C'],
         get_user_cache_dir: () => '/home/u/.cache',
         get_user_config_dir: () => '/home/u/.config',
         get_user_runtime_dir: () => '/run/user/1000',
