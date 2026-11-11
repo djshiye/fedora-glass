@@ -10,13 +10,14 @@ A spec (WriteFile.edits) names the format and the keys:
     ("json", ("workbench.colorTheme", ...))     top-level keys of a JSON object
     ("ini", "Section", ("key", ...))            keys inside [Section] (QSettings style)
     ("conf", ("key", ...))                      `key = value` lines (btop.conf style)
+    ("block", "begin marker", "end marker")      our marked lines (Firefox's userChrome.css, user.js)
 """
 from __future__ import annotations
 
 import json
 import re
 
-from .render.apps import conf_set, ini_set
+from .render.apps import conf_set, ini_set, without_block
 
 
 def _ini_section(text: str, section: str) -> tuple[list[str], int | None, int]:
@@ -120,4 +121,8 @@ def unmerge(current: str, original: str | None, spec) -> str | None:
             keep = old is not None and not _names_us(old)
             out = conf_set(out, {k: old}) if keep else conf_del(out, k)
         return out
+    if kind == "block":
+        # Only our marked lines go: the original never had them, and every line the
+        # user wrote (before or since) stays as it is.
+        return without_block(current, spec[1], spec[2])
     return None

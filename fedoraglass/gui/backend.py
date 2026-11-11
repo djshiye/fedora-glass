@@ -183,7 +183,7 @@ def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     then set back to its default, doesn't count as an unapplied change. "Start on the desktop"
     not chosen yet (None) is what Apply decides for this desktop."""
     d = asdict(s)
-    d["targets"] = sorted(k for k, v in s.targets.items() if not v)
+    d["targets"] = sorted(k for k, v in s.targets.items() if v != settings_mod.target_default(k))
     d["motion"] = {ev: s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
     d["start_on_desktop"] = s.start_on_desktop_for(has_dash_to_panel)
     for k in _SAVED_AT_ONCE:
@@ -1416,8 +1416,10 @@ class Backend(QObject):
 
     @Property("QVariantMap", notify=targetStatesChanged)
     def targetStates(self) -> dict:
-        """Target id -> on, for the preview (a missing id is on)."""
-        return {k: bool(v) for k, v in self._s.targets.items()}
+        """Target id -> on, for the preview (a missing id is on). Parts that are off until
+        the user turns them on are always listed, so a missing id stays "on"."""
+        return {**{k: False for k in settings_mod.OPT_IN_TARGETS},
+                **{k: bool(v) for k, v in self._s.targets.items()}}
 
     @Slot()
     def refreshTargets(self) -> None:
@@ -1444,7 +1446,9 @@ class Backend(QObject):
                 out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
                             "summary": t.summary, "notes": notes,
                             "available": available, "detail": detail,
-                            "hideWhenMissing": bool(getattr(t, "hide_when_missing", False))})
+                            "hideWhenMissing": bool(getattr(t, "hide_when_missing", False)),
+                            # Off until the user turns it on: off is its normal state, not a warning.
+                            "optIn": t.id in settings_mod.OPT_IN_TARGETS})
             names = {t["id"]: t["name"] for t in out}
             lost = [names.get(tid, tid) for tid in self._overwritten(engine)]
             package = self._remove_package

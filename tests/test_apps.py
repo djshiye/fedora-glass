@@ -274,7 +274,7 @@ def test_target_ids_unique_and_groups():
     assert len(ids) == len(set(ids))
     assert {t.group for t in myapps.TARGETS} == {"My apps"}
     for want in ("discord", "vscode", "obsidian", "qbittorrent", "prism", "browsers", "slack", "steam",
-                 "zoom", "claude-desktop", "libreoffice", "firefox", "clipperino", "rgbeast", "wheelguard"):
+                 "zoom", "claude-desktop", "libreoffice", "firefox-theme", "clipperino", "rgbeast", "wheelguard"):
         assert want in ids
 
 
