@@ -163,6 +163,9 @@ def test_detect_without_profiles(fake_env, monkeypatch):
     d = ta.Firefox().detect(fake_env)
     assert not d.available and "start Firefox once" in d.detail
     monkeypatch.setattr(type(fake_env), "which", lambda self, n: None)
+    # The PC running the tests may have Firefox itself (GitHub's Ubuntu runners do).
+    monkeypatch.setattr(ta, "has_desktop_file", lambda env, d: False)
+    monkeypatch.setattr(type(fake_env), "flatpak_installed", lambda self, a: False)
     assert ta.Firefox().detect(fake_env).detail == "Firefox is not installed"
 
 
