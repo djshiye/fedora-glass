@@ -93,10 +93,10 @@ def test_earlier_write_through_the_link_is_repaired(fake_env, monkeypatch):
     theme's original file, so the next Apply puts it back before unlinking."""
     theme = orchis(fake_env)
     d = link_config(fake_env, "gtk-4.0", theme)
-    monkeypatch.setattr(Backup, "linked_folder", lambda self, path: None)   # the old behaviour
-    Engine(fake_env, targets=[gtk4()]).apply(Settings())
+    with monkeypatch.context() as m:
+        m.setattr(Backup, "linked_folder", lambda self, path: None)   # the old behaviour
+        Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert "Fedora Glass" in (theme / "gtk.css").read_text()               # the damage
-    monkeypatch.undo()
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert (theme / "gtk.css").read_text() == "/* orchis */"               # repaired
     assert (theme / "gtk-dark.css").read_text() == "/* orchis dark */"
@@ -108,9 +108,9 @@ def test_earlier_write_through_the_link_is_repaired(fake_env, monkeypatch):
 def test_revert_on_the_old_version_alone_still_repairs_the_theme(fake_env, monkeypatch):
     theme = orchis(fake_env)
     link_config(fake_env, "gtk-4.0", theme)
-    monkeypatch.setattr(Backup, "linked_folder", lambda self, path: None)
-    Engine(fake_env, targets=[gtk4()]).apply(Settings())
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Backup, "linked_folder", lambda self, path: None)
+        Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert Engine(fake_env, targets=[gtk4()]).revert() == []
     assert (theme / "gtk.css").read_text() == "/* orchis */"
 
@@ -152,9 +152,9 @@ def test_repair_leaves_a_theme_file_someone_else_changed(fake_env, monkeypatch):
     old backup must never go over the fresh file."""
     theme = orchis(fake_env)
     d = link_config(fake_env, "gtk-4.0", theme)
-    monkeypatch.setattr(Backup, "linked_folder", lambda self, path: None)
-    Engine(fake_env, targets=[gtk4()]).apply(Settings())
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(Backup, "linked_folder", lambda self, path: None)
+        Engine(fake_env, targets=[gtk4()]).apply(Settings())
     (theme / "gtk.css").write_text("/* orchis, updated */")          # the theme's update
     Engine(fake_env, targets=[gtk4()]).apply(Settings())
     assert (theme / "gtk.css").read_text() == "/* orchis, updated */"

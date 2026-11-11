@@ -6,8 +6,8 @@ pkgrel=1
 pkgdesc="Glass theme for GNOME, with a customizer"
 arch=('any')
 url="https://github.com/djshiye/fedora-glass"
-license=('MIT' 'Apache-2.0' 'GPL-3.0-or-later' 'GPL-2.0-only' 'CC-BY-SA-4.0')
-depends=('python' 'python-gobject' 'pyside6' 'qt6-declarative' 'gnome-shell' 'gnome-shell-extensions'
+license=('MIT' 'Apache-2.0' 'GPL-3.0-only' 'GPL-2.0-only' 'CC-BY-SA-4.0')
+depends=('python' 'python-gobject' 'pyside6' 'qt6-declarative' 'gnome-shell>=50' 'gnome-shell-extensions'
          'glib2' 'glib2-devel' 'polkit' 'util-linux' 'dbus')
 optdepends=('kvantum: glass for Qt Widgets apps'
             'adw-gtk-theme: every GTK 3 detail')

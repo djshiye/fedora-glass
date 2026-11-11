@@ -376,9 +376,9 @@ SettingsPage {
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: Backend.changedFromDefault.length > 0
-                          ? "Every setting back to its default. Applied after Apply, and Undo takes it back until then."
-                          : "Every setting is at its default."
+                    text: Backend.canResetAll
+                          ? "Every look setting back to its default. The apps you picked stay. Applied after Apply, and Undo takes it back until then."
+                          : "Every look setting is at its default."
                     color: Theme.textFaint
                     font.pixelSize: Theme.fsSmall
                 }
@@ -392,7 +392,7 @@ SettingsPage {
                 implicitHeight: 36
                 leftPadding: 16; rightPadding: 16
                 text: "Reset all"
-                enabled: Backend.changedFromDefault.length > 0
+                enabled: Backend.canResetAll
                 tip: "Back to the default look on every page (Apply to use it)"
                 onClicked: Backend.resetDefaults()
             }

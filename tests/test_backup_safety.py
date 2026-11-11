@@ -57,13 +57,13 @@ def kill_on_first_gsettings_set(monkeypatch, env):
 def test_killed_apply_keeps_the_originals(fake_env, monkeypatch):
     g4, g3 = user_files(fake_env)
     eng = gtk_engine(fake_env)
-    kill_on_first_gsettings_set(monkeypatch, fake_env)
-    with pytest.raises(Killed):
-        eng.apply(Settings())
+    with monkeypatch.context() as m:
+        kill_on_first_gsettings_set(m, fake_env)
+        with pytest.raises(Killed):
+            eng.apply(Settings())
     # The kill left the glass behind with no save after it.
     assert "Fedora Glass" in g4.read_text()
     assert fake_env.gs[(IFACE, None)]["gtk-theme"] == "'adw-gtk3-dark'"
-    monkeypatch.undo()
     # The next Apply must not take that glass for the user's own look.
     assert all(r.status == "applied" for r in eng.apply(Settings()))
     assert eng.revert() == []
@@ -80,10 +80,10 @@ def test_killed_list_edit_still_takes_its_item_away(fake_env, monkeypatch):
 
     fake_env.gs[(SHELL, None)] = {"enabled-extensions": "['mine@user']"}
     eng = Engine(fake_env, [Ext(id="e", name="Ext")])
-    kill_on_first_gsettings_set(monkeypatch, fake_env)
-    with pytest.raises(Killed):
-        eng.apply(Settings())
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        kill_on_first_gsettings_set(m, fake_env)
+        with pytest.raises(Killed):
+            eng.apply(Settings())
     eng.apply(Settings())
     assert eng.revert() == []
     assert fake_env.gs[(SHELL, None)]["enabled-extensions"] == "['mine@user']"

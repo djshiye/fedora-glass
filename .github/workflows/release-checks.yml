@@ -2,9 +2,11 @@
 # GNOME 51 side by side, plus short checks on a stock Ubuntu desktop and on stock GNOME
 # (alone and with Dash to Dock) on each.
 #
-# Runs before every release (release.yml calls it and only builds the RPM when it
-# passes), by hand from the Actions tab, and on a pull request only when it has the
-# "release-checks" label, so ordinary pushes cost nothing.
+# Runs before every release (release.yml calls it, next to the package builds, and only
+# publishes the release when it passes), by hand from the Actions tab, and on a pull
+# request only when it has the "release-checks" label, so ordinary pushes cost nothing.
+# The test desktop's base image is built once per job group with a layer cache kept by
+# GitHub (.github/actions/base-image), not from scratch in each of the eight jobs.
 name: Release checks
 
 on:
@@ -46,7 +48,13 @@ jobs:
           git archive "$last" | tar -x -C "$RUNNER_TEMP/last-release"
           echo "LGQA_FROM=$RUNNER_TEMP/last-release" >> "$GITHUB_ENV"
 
+      - uses: ./.github/actions/base-image
+        with:
+          gnome: ${{ matrix.gnome }}
+
       - name: Run the checks
+        env:
+          LGQA_BASE_PREBUILT: "1"
         run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" ${LGQA_FROM:+--from "$LGQA_FROM"} --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary
@@ -100,7 +108,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/base-image
+        with:
+          gnome: ${{ matrix.gnome }}
+
       - name: Run the Ubuntu checks
+        env:
+          LGQA_BASE_PREBUILT: "1"
         run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" --ubuntu-desktop --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary
@@ -152,7 +166,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/base-image
+        with:
+          gnome: ${{ matrix.gnome }}
+
       - name: Run the stock GNOME checks
+        env:
+          LGQA_BASE_PREBUILT: "1"
         run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" --stock-desktop ${{ matrix.dock && '--with-dock' || '' }} --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary

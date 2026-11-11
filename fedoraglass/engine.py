@@ -116,6 +116,26 @@ def read_applied_version(env: Env) -> str | None:
     return v or None
 
 
+def failed_parts_path(env: Env) -> Path:
+    """The parts that failed in the last Apply of every part that did not stamp the version
+    (see Engine._apply): a part that fails again in the next one doesn't hold the stamp back."""
+    return env.state / "liquid-glass/applied-failed"
+
+
+def _read_failed_parts(env: Env) -> set[str]:
+    p = failed_parts_path(env)
+    try:
+        if p.is_symlink() or p.stat().st_size > 4096:
+            return set()
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    # Noted by another version: its failures are no try of this one's.
+    if not isinstance(data, dict) or data.get("version") != __version__ or not isinstance(data.get("failed"), list):
+        return set()
+    return {x for x in data["failed"] if isinstance(x, str)}
+
+
 def _kept_mode(path: Path, mode: int) -> int:
     """The mode for rewriting `path`: never more open than the file is now. An app's own
     settings file kept private (qBittorrent.conf holds its web password hash) stays so."""
@@ -636,7 +656,7 @@ class Backup:
             try:
                 _flatpak_undo(self.env, e)
                 del self.data["flatpak"][tid]
-            except (OSError, configparser.Error) as err:
+            except (OSError, ValueError, configparser.Error) as err:
                 problems.append(f"Flatpak overrides: {err}")
         for key, e in list(self.data["commands"].items()):
             if not mine(e):
@@ -806,14 +826,16 @@ def _flatpak_read(path: Path) -> configparser.RawConfigParser:
     cp = configparser.RawConfigParser(delimiters=("=",), comment_prefixes=("#",), strict=False)
     cp.optionxform = str  # keys are case-sensitive
     if path.is_file():
-        cp.read_string(path.read_text(encoding="utf-8"))
+        # Bytes that aren't UTF-8 (a hand edit in another encoding) are carried through as
+        # they are: Restore must still take our own entries out of the file.
+        cp.read_string(path.read_text(encoding="utf-8", errors="surrogateescape"))
     return cp
 
 
 def _flatpak_write(path: Path, cp: configparser.RawConfigParser) -> None:
     buf = io.StringIO()
     cp.write(buf, space_around_delimiters=False)
-    atomic_write(path, buf.getvalue().encode(), 0o644)
+    atomic_write(path, buf.getvalue().encode("utf-8", "surrogateescape"), 0o644)
 
 
 def _fs_list(cp: configparser.RawConfigParser) -> list[str]:
@@ -957,6 +979,8 @@ class Engine:
             except BackupUnreadable as e:
                 # Changing anything now would record today's look as the "original".
                 return [Result("backup", "Backup", "failed", str(e))]
+            # Only an Apply of every part says the look is this version's (see _apply).
+            full = only is None
             if applied_only:
                 only = have if only is None else only & have
                 if not only:
@@ -964,12 +988,17 @@ class Engine:
             if not if_applied and not self.env.dry_run:
                 with contextlib.suppress(FileNotFoundError):
                     restored_path(self.env).unlink()
-            return self._apply(settings, only)
+            return self._apply(settings, only, full=full)
 
-    def _apply(self, settings: Settings, only: set[str] | None) -> list[Result]:
-        ctx = self.context(settings, check_glass=True)
-        backup = Backup(self.env)
-        backup.tidy_folders()
+    def _apply(self, settings: Settings, only: set[str] | None, full: bool = False) -> list[Result]:
+        try:
+            ctx = self.context(settings, check_glass=True)
+            backup = Backup(self.env)
+            backup.tidy_folders()
+        except OSError as e:
+            # A full disk, a folder that can't be read: say so like any failed part. Raised,
+            # it would end the watcher, and its user service would start it again and again.
+            return [Result("apply", "Apply", "failed", f"Couldn't start: {e}")]
         results: list[Result] = []
         pending = read_pending()
         waiting = set(pending)
@@ -1019,12 +1048,12 @@ class Engine:
                 results.append(Result(t.id, t.name, "info", " ".join(t.live_notes(ctx)) or t.summary))
             else:
                 results.append(Result(t.id, t.name, "applied"))
-        if waiting != pending and not self.env.dry_run:
-            _write_pending(waiting)
-        self._write_tokens(ctx)
-        if not self.env.dry_run:
-            with contextlib.suppress(OSError):
-                write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+        try:
+            if waiting != pending and not self.env.dry_run:
+                _write_pending(waiting)
+            self._write_tokens(ctx)
+        except OSError as e:
+            results.append(Result("tokens", "Colours for other apps", "failed", str(e)))
         # This Apply switched the glass extension back on (after Restore original, or after
         # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
         # it right away, so the parts that wait for the glass are finished now, not after a
@@ -1034,7 +1063,26 @@ class Engine:
             later = self._apply(settings, set(waiting))
             done = {r.target for r in later}
             results = [r for r in results if r.target not in done] + later
+        if full and not self.env.dry_run:
+            self._stamp(results)
         return results
+
+    def _stamp(self, results: list[Result]) -> None:
+        """After an Apply of every part: say the look is this version's, so the upgrade step
+        (update_after_upgrade) leaves it alone from now on. Not after `--only gtk4`: the
+        other parts must still be updated. A part that fails gets one more try: the first
+        time it fails the stamp waits, and the parts that failed are noted; once a full
+        Apply fails only on parts noted so (they failed both times), the stamp is written
+        anyway. Otherwise one part that always fails (a broken theme folder, a file the
+        user locked) would have every login apply everything again, for nothing."""
+        failed = {r.target for r in results if r.status == "failed"}
+        note = failed_parts_path(self.env)
+        with contextlib.suppress(OSError):
+            if failed and not failed <= _read_failed_parts(self.env):
+                atomic_write(note, json.dumps({"version": __version__, "failed": sorted(failed)}).encode(), 0o600)
+                return
+            write_if_changed(applied_version_path(self.env), f"{__version__}\n".encode(), 0o600)
+            note.unlink(missing_ok=True)
 
     # Extension states (GNOME's ExtensionState): 1 running, 3 error, 4 out of date.
     _GLASS_STARTING = (2.0, 6.0, 7.0, 8.0)
@@ -1075,6 +1123,8 @@ class Engine:
                         (config_dir() / name).unlink()   # apps that read them go back to their own look
                 with contextlib.suppress(OSError):
                     applied_version_path(self.env).unlink()
+                with contextlib.suppress(OSError):
+                    failed_parts_path(self.env).unlink()
             return problems
 
     # ---- internals ------------------------------------------------------------

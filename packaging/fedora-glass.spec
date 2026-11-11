@@ -1,15 +1,17 @@
 Name:           fedora-glass
-Version:        1.5.22
+Version:        1.5.23
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
 Summary:        Glass theme for Fedora GNOME, with a customizer
-License:        MIT AND Apache-2.0 AND GPL-3.0-or-later AND GPL-2.0-only AND CC-BY-SA-4.0
+License:        MIT AND Apache-2.0 AND GPL-3.0-only AND GPL-2.0-only AND CC-BY-SA-4.0
 URL:            https://github.com/djshiye/fedora-glass
 Source0:        %{url}/archive/v%{version}/fedora-glass-%{version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  systemd-rpm-macros
+# For %%py_byte_compile.
+BuildRequires:  python-rpm-macros
 # For the tests in %%check.
 BuildRequires:  python3
 BuildRequires:  python3-pytest
@@ -29,6 +31,8 @@ Requires:       polkit
 # with setsid keeping that apart from root's terminal.
 Requires:       util-linux-core
 Requires:       /usr/bin/setsid
+# dnf remove runs the undo as each person inside a private session bus (undo-for-users).
+Requires:       /usr/bin/dbus-run-session
 Recommends:     adw-gtk3-theme
 Recommends:     kvantum
 
@@ -61,6 +65,7 @@ Requires:       /usr/bin/glib-compile-resources
 Requires:       polkit
 Requires:       util-linux-core
 Requires:       /usr/bin/setsid
+Requires:       /usr/bin/dbus-run-session
 
 %description -n liquid-glass
 Liquid Glass is now called Fedora Glass. This is the same app under the old
@@ -76,7 +81,11 @@ package name, with the repository file for the new name, so the next
 %install
 install -d %{buildroot}%{_datadir}/fedora-glass
 cp -r fedoraglass %{buildroot}%{_datadir}/fedora-glass/
+# Stray byte code from a working copy is dropped, and ours is made fresh: nobody can write
+# next to the code under /usr/share, so without it every start would compile the app again
+# in memory. (Fedora byte-compiles only the system Python folders by itself.)
 find %{buildroot}%{_datadir}/fedora-glass -name '__pycache__' -prune -exec rm -rf {} +
+%py_byte_compile %{python3} %{buildroot}%{_datadir}/fedora-glass
 
 # -I keeps Python from importing anything from the current folder or PYTHONPATH.
 install -d %{buildroot}%{_bindir}
@@ -91,6 +100,7 @@ ln -s fedora-glass %{buildroot}%{_bindir}/liquid-glass
 install -Dm644 data/io.github.djshiye.LiquidGlass.desktop %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 sed -i 's|^Exec=.*|Exec=fedora-glass gui|' %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 install -Dm644 data/icons/io.github.djshiye.LiquidGlass.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+install -Dm644 data/io.github.djshiye.LiquidGlass.metainfo.xml %{buildroot}%{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 
 # The mouse pointer styles (built by packaging/cursors/build.py): checked against their
 # checksums, then unpacked where every app and the login screen can find them.
@@ -187,6 +197,7 @@ fi
 %{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 %{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
@@ -204,6 +215,7 @@ fi
 %{_datadir}/fedora-glass/
 %{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
 %{_datadir}/icons/hicolor/scalable/apps/io.github.djshiye.LiquidGlass.svg
+%{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 %{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
 %{_userpresetdir}/80-liquid-glass.preset
@@ -214,6 +226,26 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.23-1
+- Apply only counts as done when it is: a failed Apply keeps your changes unapplied, and a part that didn't change says so
+- A damaged settings file never turns into the default look; the last good copy is used and only Apply writes it again
+- Background helper: one process instead of four, and a disk problem no longer makes it restart every 5 seconds
+- Login screen glass can't get stuck on if its helper is interrupted; one helper run at a time
+- Dragging a big window over many windows takes about 40 % less time per frame; the Speed card tells how smooth your last drag was
+- App: closing or Apply wait for removal and the login screen step; presets, search, small screens, wallpaper preview and screen readers fixed; starts faster
+- Restore finishes with an unusual Flatpak file, and doesn't wait 15 s for a GNOME Shell that isn't running
+- After login, Dash to Panel and the Shell theme no longer stay unstyled for a minute when GNOME is slow to report the glass
+- New: save your own looks, share them as a file and add one from a file
+- New: See changes says what changed in plain words, page by page, with a dot on pages that changed
+- New: go back to the look before your last Apply, and forward again
+- New: the glass tint and accent can match your wallpaper
+- New: opt-in Fedora Glass colours for Firefox, taken away exactly by Restore original
+- New: lighter glass on battery or in Power Saver
+- New: your own list of apps whose windows get no glass
+- New: a Glass switch in Quick Settings pauses all the glass until the next login; menus stay readable while it is paused
+- Ubuntu: the light/dark follower comes back after a remove and install
+- Releases stay hidden until they are signed; the Fedora package is installed and upgraded in the checks; ships in GNOME Software listings
+
 * Tue Nov 10 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.22-1
 - A preview big enough to judge the glass: about half the page beside the settings, and Home's preview fills the room above the looks
 - Close up by default: the desktop at about half its real size, looking at the start menu, Quick Settings or the calendar; drag to look around, or switch to the whole screen

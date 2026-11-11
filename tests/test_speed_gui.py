@@ -113,3 +113,20 @@ def test_last_finished_check_shows_after_an_aborted_one(make_backend, home):
     b._start_speed_watch()
     assert b.property("speedState") == "done"
     assert b.property("speedResult")["id"] == "a" * 16
+
+
+def test_last_drag_in_words(make_backend, home):
+    """speed.js times each window drag (its `drag` object); the Speed card says how it went."""
+    b = make_backend()
+    assert b.property("speedDrag") == ""
+    status(home, drag={"at": 1, "frames": 56, "median_ms": 15, "p95_ms": 20, "refresh": 60, "windows": 4})
+    b._on_speed_file()
+    assert b.property("speedDrag") == "Last window drag with 4 windows open: about 60 frames a second, smooth."
+    status(home, drag={"at": 1, "frames": 56, "median_ms": 54, "p95_ms": 86.8, "refresh": 60, "windows": 1})
+    b._on_speed_file()
+    assert b.property("speedDrag") == "Last window drag: about 19 frames a second, slow."
+    for bad in ({"median_ms": "x", "p95_ms": 1}, {"median_ms": 0, "p95_ms": 5}, {"p95_ms": 5}, [1, 2],
+                {"median_ms": 10, "p95_ms": 20, "refresh": float("nan")}):
+        status(home, drag=bad)
+        b._on_speed_file()
+        assert b.property("speedDrag") == ""

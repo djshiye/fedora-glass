@@ -3,8 +3,8 @@
 const EXPORTS = {
     'animations.js': ['Animations'], 'arcrescue.js': ['ArcMenuRescue'], 'config.js': ['Config'],
     'desktop.js': ['DesktopBehaviour'], 'lock.js': ['LockGlass'], 'lockwidgets.js': ['LockWidgets'],
-    'popupstyle.js': ['PopupStyle'], 'safety.js': ['Safety', 'guarded'], 'speed.js': ['Speed'],
-    'surfaces.js': ['GlassManager'], 'themetidy.js': ['UserThemesTidy'], 'tuning.js': ['effectiveConfig'],
+    'popupstyle.js': ['PopupStyle'], 'paused.js': ['PausedStyle'], 'safety.js': ['Safety', 'guarded'], 'speed.js': ['Speed'],
+    'surfaces.js': ['GlassManager'], 'quicktoggle.js': ['GlassSwitch'], 'themetidy.js': ['UserThemesTidy'], 'tuning.js': ['effectiveConfig'],
     'Extension': ['Extension'],
 };
 

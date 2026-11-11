@@ -58,7 +58,7 @@ Card {
                 enabled: !root.busy
                 busy: root.busy
                 text: root.state_ === "on" ? (Backend.loginGlassStale ? "Update it now" : "Update to my colours") : "Use glass on the login screen"
-                tip: "Asks for your password, then puts glass on the login screen in the colours you have now."
+                tip: "Asks for your password, then puts glass on the login screen in the colours you applied last."
                 tipBelow: true
                 onClicked: Backend.turnOnLoginGlass()
             }
@@ -72,6 +72,16 @@ Card {
                 tipBelow: true
                 onClicked: Backend.turnOffLoginGlass()
             }
+        }
+        Text {
+            // The button uses the applied look, never unapplied slider values.
+            objectName: "loginGlassBehind"
+            visible: Backend.loginGlassBehind && !root.busy
+            width: parent.width
+            wrapMode: Text.WordWrap
+            color: Theme.textFaint
+            font.pixelSize: Theme.fsSmall
+            text: "The login screen gets the look you applied last. Apply first to bring your newest colours along."
         }
         Text {
             objectName: "loginGlassNote"

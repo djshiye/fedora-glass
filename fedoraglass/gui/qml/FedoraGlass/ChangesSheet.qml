@@ -2,20 +2,43 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
-// "Show changes": every action Apply would take, per target, before it runs.
+// "See changes": first what you changed and haven't applied yet, in plain words and by
+// page ("Frost: 45 % → 60 %"), each a click away from its control. Below, folded, every
+// file and setting Apply writes, per part of the desktop.
 Sheet {
     id: sheet
     objectName: "changesSheet"
     property var plan: []
+    property var pages: []              // the sidebar's pages: [{ id, label }]
+    signal jump(string page, string name)
     readonly property int total: {
         let n = 0
         for (const p of plan) n += p.actions.length
         return n
     }
+    readonly property var changes: Backend.changeList
+    // The changes by page, in sidebar order: [{ page, label, rows }].
+    readonly property var groups: {
+        const out = []
+        const order = pages.map(p => p.id)
+        for (const r of changes) {
+            let g = out.find(x => x.page === r.page)
+            if (!g) {
+                const info = pages.find(p => p.id === r.page)
+                g = { page: r.page, label: info ? info.label : r.page, rows: [] }
+                out.push(g)
+            }
+            g.rows.push(r)
+        }
+        out.sort((a, b) => order.indexOf(a.page) - order.indexOf(b.page))
+        return out
+    }
+    property bool detailsOpen: false
+    onAboutToShow: detailsOpen = changes.length === 0
     title: "What Apply will change"
-    subtitle: total === 0 ? "Nothing to change: none of the parts that are switched on are installed here."
-                          : total + " change" + (total === 1 ? "" : "s") + " in " + plan.length + " place" + (plan.length === 1 ? "" : "s")
-                            + ". Each one is backed up first, and Restore original undoes all of it."
+    subtitle: changes.length === 0
+        ? "You haven't changed anything since your last Apply. Apply puts the same look on your desktop again."
+        : (changes.length === 1 ? "1 change" : changes.length + " changes") + " not applied yet. Click one to go to it."
     iconName: "list"
     buttons: [
         LgButton { text: "Close"; kind: "secondary"; onClicked: sheet.close() },
@@ -40,7 +63,142 @@ Sheet {
             width: parent.width - 8
             spacing: 14
             Repeater {
-                model: sheet.plan
+                model: sheet.groups
+                delegate: Column {
+                    id: pg
+                    required property var modelData
+                    width: col.width
+                    spacing: 6
+                    Text {
+                        text: pg.modelData.label
+                        color: Theme.textDim
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 0.2
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: rowsCol.height + 8
+                        radius: Theme.rS
+                        color: Theme.well
+                        Column {
+                            id: rowsCol
+                            x: 4; y: 4
+                            width: parent.width - 8
+                            Repeater {
+                                model: pg.modelData.rows
+                                delegate: C.AbstractButton {
+                                    id: change
+                                    required property var modelData
+                                    objectName: "change_" + modelData.key
+                                    readonly property bool canJump: modelData.name.length > 0
+                                    width: rowsCol.width
+                                    height: Math.max(36, what.implicitHeight + 14)
+                                    enabled: canJump
+                                    hoverEnabled: true
+                                    focusPolicy: Qt.StrongFocus
+                                    Accessible.name: modelData.label + ": " + modelData.before + " to " + modelData.after
+                                    Accessible.description: canJump ? "Go to this setting" : ""
+                                    onClicked: { sheet.close(); sheet.jump(modelData.page, modelData.name) }
+                                    HoverHandler { cursorShape: change.canJump ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                                    background: Rectangle {
+                                        radius: Theme.rXs
+                                        color: change.down ? Theme.pressed : change.hovered ? Theme.hover : "transparent"
+                                        FocusRing { target: change; radius: Theme.rXs + 2; gap: 1 }
+                                    }
+                                    contentItem: Item {
+                                        Text {
+                                            id: what
+                                            x: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - x - values.width - 16
+                                            text: change.modelData.label
+                                            color: Theme.text
+                                            font.pixelSize: Theme.fsBody
+                                            wrapMode: Text.WordWrap
+                                        }
+                                        Row {
+                                            id: values
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 6
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            spacing: 8
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: Math.min(implicitWidth, 150)
+                                                elide: Text.ElideRight
+                                                text: change.modelData.before
+                                                color: Theme.textFaint
+                                                font.pixelSize: Theme.fsBody
+                                                font.features: { "tnum": 1 }
+                                            }
+                                            Text { anchors.verticalCenter: parent.verticalCenter; text: "→"; color: Theme.textFaint; font.pixelSize: Theme.fsBody }
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: Math.min(implicitWidth, 170)
+                                                elide: Text.ElideRight
+                                                text: change.modelData.after
+                                                color: Theme.text
+                                                font.pixelSize: Theme.fsBody
+                                                font.weight: Font.DemiBold
+                                                font.features: { "tnum": 1 }
+                                            }
+                                            Icon {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                visible: change.canJump
+                                                opacity: change.hovered || change.visualFocus ? 1 : 0.35
+                                                name: "chevronRight"; size: 15; strokeWidth: 2; color: Theme.textDim
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Every file and setting Apply writes: there to check, folded out of the way.
+            C.AbstractButton {
+                id: detailsHead
+                objectName: "changeDetails"
+                width: col.width
+                height: 34
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                onClicked: sheet.detailsOpen = !sheet.detailsOpen
+                Accessible.name: "Files and settings Apply writes"
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                background: Rectangle {
+                    radius: Theme.rXs
+                    color: detailsHead.hovered ? Theme.hover : "transparent"
+                    FocusRing { target: detailsHead; radius: Theme.rXs + 2; gap: 1 }
+                }
+                contentItem: Row {
+                    spacing: 6
+                    leftPadding: 2
+                    Icon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "chevronRight"; size: 16; color: Theme.textDim
+                        rotation: sheet.detailsOpen ? 90 : 0
+                        Behavior on rotation { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Files and settings Apply writes"
+                        color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: sheet.total === 0 ? "none: no part that is switched on is installed here"
+                            : sheet.total + " in " + sheet.plan.length + (sheet.plan.length === 1 ? " place" : " places")
+                              + ", each backed up first"
+                        color: Theme.textFaint
+                        font.pixelSize: 12
+                    }
+                }
+            }
+            Repeater {
+                model: sheet.detailsOpen ? sheet.plan : []
                 delegate: Column {
                     id: grp
                     required property var modelData

@@ -27,8 +27,8 @@ def test_glass_quality_is_normalized():
 def test_render_config_carries_speed_quality():
     s = Settings(glass_quality="lighter")
     cfg = rg.config(s, palette.build(s, dark=True))
-    assert cfg["speed"] == {"quality": "lighter"}
-    assert rg.config(Settings(), palette.build(Settings(), dark=True))["speed"] == {"quality": "auto"}
+    assert cfg["speed"]["quality"] == "lighter"
+    assert rg.config(Settings(), palette.build(Settings(), dark=True))["speed"]["quality"] == "auto"
 
 
 def test_env_cache_honours_xdg(monkeypatch, tmp_path):

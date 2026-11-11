@@ -74,6 +74,18 @@ class Clock {
     add(ms, fn) { const id = this._next++; this._due.set(id, {at: this.now + ms, fn}); return id; }
     remove(id) { this._due.delete(id); }
     get pending() { return this._due.size; }
+    advance(ms) {
+        const end = this.now + ms;
+        for (;;) {
+            const next = [...this._due.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+            if (!next)
+                break;
+            this._due.delete(next[0]);
+            this.now = next[1].at;
+            next[1].fn();
+        }
+        this.now = end;
+    }
 }
 
 // GObject's handler blocking, on the fake window manager.
@@ -208,6 +220,7 @@ test('starting while locked, then crashing, is not a crash loop', () => {
     for (let i = 0; i < RESTART_LIMIT + 1; i++) {
         // GNOME turned the extension off and on while locked; the PC slept; the Shell crashed on resume.
         new Safety(() => {});
+        fake.timeouts.advance(0);     // written on the next main-loop turn (safety.js)
         assert.equal(JSON.parse(fake.fs.get(SAFE).text).running, false, 'no glass on the lock screen');
         shutdown._handlers.clear();
     }

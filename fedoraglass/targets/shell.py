@@ -248,7 +248,14 @@ def glass_state(env: Env) -> GlassState:
     if state in (_ERROR, _OUT_OF_DATE) and env.extension_enabled(rg.UUID):
         if state == _OUT_OF_DATE:
             return GlassState("out-of-date", version)
-        return GlassState("error", version, _gvariant_str(r.out, "error") or "")
+        error = _gvariant_str(r.out, "error") or ""
+        if not error:
+            # GNOME marks an extension as failed while it is still loading it at login
+            # (loadExtension starts at ERROR and sets the real state once the code is
+            # imported), and every real failure comes with GNOME's text. Asked in that
+            # moment, the glass is starting, not failed: the Shell parts wait for it.
+            return GlassState("not-started", version)
+        return GlassState("error", version, error)
     return GlassState("not-started", version)
 
 
@@ -316,10 +323,23 @@ def _wait_state(env: Env, uuid: str, done, wait_s: float, step_s: float = 0.1) -
     return True
 
 
+# What a call says when no GNOME Shell is there to answer at all: nothing owns its name on
+# the bus (a logged-out user's own bus under dbus-run-session, when the package is removed),
+# or there is no session bus. A busy Shell times out instead, and is asked again.
+_NO_SHELL = ("org.freedesktop.DBus.Error.ServiceUnknown", "org.freedesktop.DBus.Error.NameHasNoOwner",
+             "Could not connect", "Cannot autolaunch", "Error connecting")
+
+
+def _no_shell(r) -> bool:
+    if any(s in r.err for s in _NO_SHELL):
+        return True
+    return r.code == 127 and "timed out" not in r.err     # no gdbus to ask with
+
+
 def _known_state(env: Env, uuid: str, wait_s: float = 15.0, step_s: float = 0.25) -> float | None:
     """The Shell's state for an extension, asking again while the Shell is too busy to answer
     (reloading the Shell theme on a slow PC can hold it for seconds). None when the Shell
-    doesn't know the extension, or never answers."""
+    doesn't know the extension, never answers, or isn't there at all (then at once)."""
     waited = 0.0
     while True:
         r = env.run(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
@@ -327,7 +347,7 @@ def _known_state(env: Env, uuid: str, wait_s: float = 15.0, step_s: float = 0.25
         if r.code == 0:
             m = re.search(r"'state': <([\d.]+)>", r.out)
             return float(m.group(1)) if m else None
-        if waited >= wait_s:
+        if _no_shell(r) or waited >= wait_s:
             return None
         env.sleep(step_s)
         waited += step_s

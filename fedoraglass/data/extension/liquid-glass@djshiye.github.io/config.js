@@ -155,9 +155,17 @@ export function parse(text) {
     cfg.glide = cleanGlide(raw.glide);
     // Menus grow out of the button that opened them (follower.js).
     cfg.grow = {enabled: !(raw.grow && typeof raw.grow === 'object' && raw.grow.enabled === false)};
-    // Glass quality: auto, full, lighter or lightest (speed.js).
-    cfg.speed = {quality: cleanQuality(raw.speed)};
+    // Glass quality: auto, full, lighter or lightest (speed.js), and at most lighter on
+    // battery or in Power Saver unless the app's switch for that is off.
+    const speed = raw.speed && typeof raw.speed === 'object' ? raw.speed : {};
+    cfg.speed = {quality: cleanQuality(raw.speed), lighterOnBattery: speed.lighterOnBattery !== false};
+    // The "Glass" tile in Quick Settings that pauses the glass (quicktoggle.js); on unless it says off.
+    cfg.quickToggle = {enabled: !(raw.quickToggle && typeof raw.quickToggle === 'object' && raw.quickToggle.enabled === false)};
     cfg.popupCss = cleanPopupCss(raw.popupCss);
+    // While paused or in safe mode: the theme's surfaces nearly solid (paused.js), with the
+    // same checks as the pop-up rules; how solid Dash to Panel's panel gets then.
+    cfg.pausedCss = cleanPopupCss(raw.pausedCss);
+    cfg.pausedAlpha = num(raw.pausedAlpha, 0.96, 0, 1);
     // Each part of the Shell can have its own look; missing parts follow the panel or menus.
     cfg.parts = {};
     const parts = raw.parts && typeof raw.parts === 'object' ? raw.parts : {};

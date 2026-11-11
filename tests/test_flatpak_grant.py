@@ -18,7 +18,7 @@ OLD = "xdg-config/gtk-3.0:ro"
 
 def _fs(env):
     f = env.data / "flatpak/overrides/global"
-    text = f.read_text() if f.exists() else ""
+    text = f.read_text(errors="replace") if f.exists() else ""
     line = next((l for l in text.splitlines() if l.startswith("filesystems=")), "filesystems=")
     return [x for x in line.split("=", 1)[1].split(";") if x]
 
@@ -73,3 +73,16 @@ def test_a_wide_grant_the_user_made_themselves_stays(fake_env):
     assert OLD in _fs(fake_env)
     eng.revert()
     assert _fs(fake_env) == [OLD]
+
+
+def test_restore_finishes_with_an_override_file_that_is_not_utf8(fake_env):
+    """1.5.22: a byte that isn't UTF-8 in Flatpak's global override file (another tool, a
+    hand edit in Latin-1) stopped Restore with a UnicodeDecodeError."""
+    eng = Engine(fake_env, [Gtk3(), Flatpak()])
+    eng.apply(Settings())
+    f = fake_env.data / "flatpak/overrides/global"
+    f.write_bytes(f.read_bytes() + b"[Environment]\nGREETING=caf\xe9\n")
+    assert eng.revert() == []
+    assert _fs(fake_env) == []
+    assert b"GREETING=caf\xe9" in f.read_bytes(), "the user's own bytes stay as they were"
+    assert not eng.is_applied()

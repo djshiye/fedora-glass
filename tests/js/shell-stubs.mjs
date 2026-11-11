@@ -14,9 +14,11 @@ const STUBS = {
         get_user_runtime_dir: () => '/run/user/1000',
         build_filenamev: parts => parts.join('/'),
         mkdir_with_parents: () => 0,
-        FileSetContentsFlags: {CONSISTENT: 1},
-        file_set_contents_full: (path, bytes, _flags, mode) => {
-            globalThis.fake.fs.set(path, {text: new TextDecoder().decode(bytes), mode});
+        FileSetContentsFlags: {NONE: 0, CONSISTENT: 1},
+        FileTest: {EXISTS: 16},
+        file_test: path => globalThis.fake.fs?.has(path) ?? false,
+        file_set_contents_full: (path, bytes, flags, mode) => {
+            globalThis.fake.fs.set(path, {text: new TextDecoder().decode(bytes), mode, flags});
             return true;
         },
     };`,
@@ -30,7 +32,7 @@ const STUBS = {
         ActorBox: class { constructor(b) { Object.assign(this, b); } },
         Actor: globalThis.fake?.Actor ?? class {}, ShaderEffect: class {},
         BindCoordinate: {X: 0, Y: 1, WIDTH: 2, HEIGHT: 3, ALL: 4}, RotateAxis: {Z_AXIS: 2},
-        Clone: globalThis.fake?.Actor ?? class {},
+        Clone: globalThis.fake?.Actor ?? class {}, Effect: class {},
         BindConstraint: class { constructor(p = {}) { Object.assign(this, {offset: 0}, p); } }};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},
@@ -65,6 +67,13 @@ const STUBS = {
                 return true;
             }
             equal(other) { return other?.path === this.path; }
+            move(dest) {
+                const f = fs().get(this.path);
+                if (!f) throw new Error('No such file');
+                fs().delete(this.path);
+                fs().set(dest.path, {...f, moved: true});
+                return true;
+            }
             monitor_directory() {
                 const m = {handlers: [], connect(_s, fn) { this.handlers.push(fn); return this.handlers.length; },
                     disconnect() { this.handlers = []; }, cancel() { this.cancelled = true; }};
@@ -75,8 +84,20 @@ const STUBS = {
         export default {
             File: {new_for_path: p => new File(p)},
             FileQueryInfoFlags: {NOFOLLOW_SYMLINKS: 1}, FileType: {REGULAR: 1}, FileMonitorFlags: {WATCH_MOVES: 8},
-            FileCreateFlags: {PRIVATE: 1, REPLACE_DESTINATION: 2},
+            FileCreateFlags: {PRIVATE: 1, REPLACE_DESTINATION: 2}, FileCopyFlags: {OVERWRITE: 1},
             Settings: globalThis.fake?.Settings ?? class {},
+            // D-Bus proxies: a test that needs them sets globalThis.fake.dbus (see power.test.mjs);
+            // without it no service answers, as on a PC without them.
+            BusType: {SYSTEM: 1, SESSION: 2}, DBusProxyFlags: {NONE: 0, DO_NOT_AUTO_START: 4},
+            DBusProxy: {
+                new_for_bus: (...a) => globalThis.fake.dbus?.new_for_bus(...a),
+                new_for_bus_finish: res => {
+                    if (res?.error) throw res.error;
+                    return res.proxy;
+                },
+            },
+            FileIcon: class { constructor(p) { this.file = p.file; } },
+            Cancellable: class { cancel() { this._c = true; } is_cancelled() { return !!this._c; } },
         };`,
     'resource/signalTracker.js': 'export const debugGetSignalTrackers = () => globalThis.fake.signalTrackers;',
     'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},
@@ -87,10 +108,14 @@ const STUBS = {
             {uiGroup: globalThis.fake.ui, findMonitorForActor: () => null};
         export const messageTray = null;
         export const wm = globalThis.fake.wm;
-        export const panel = {statusArea: {}};
+        export const panel = globalThis.fake.panel ?? {statusArea: {}};
         export const extensionManager = globalThis.fake.extensionManager;
         export const overview = globalThis.fake.overview;
-        export const sessionMode = globalThis.fake.sessionMode;`,
+        export const sessionMode = globalThis.fake.sessionMode;
+        export const uiGroup = globalThis.fake.uiGroup;
+        export const screenshotUI = globalThis.fake.screenshotUI;`,
+    'resource/quickSettings.js': `export const QuickToggle = globalThis.fake.QuickToggle ?? class {};
+        export const SystemIndicator = globalThis.fake.SystemIndicator ?? class {};`,
     'resource/background.js': 'export const BackgroundManager = globalThis.fake.BackgroundManager ?? class {};',
     'resource/fileUtils.js': 'export const loadInterfaceXML = () => "";',
     'resource/overviewControls.js': 'export const ControlsState = {HIDDEN: 0, WINDOW_PICKER: 1, APP_GRID: 2};',
@@ -100,10 +125,11 @@ const STUBS = {
     'glass': `export class GlassPane extends globalThis.fake.Actor {
         constructor(name) { super(); this.name = name; this.pad = 0; }
         setLook() { if (globalThis.fake.glassFails) throw new Error('forced test failure'); }
-        setSources() {} setEdges() {} place() {} setMotion() {}
+        setSources() {} setEdges() {} place() {} setMotion() {} setKeep() {} setPart() {}
     }
     export const DEFAULT_LOOK = {};
     export function windowLanded() {}
+    export const copying = {pane: null};
     export function holdPanes(key) { globalThis.fake.holds?.push(['hold', key]); }
     export function releasePanes(key) { globalThis.fake.holds?.push(['release', key]); }
     export function freezeSource() {} export function thawSource() {}

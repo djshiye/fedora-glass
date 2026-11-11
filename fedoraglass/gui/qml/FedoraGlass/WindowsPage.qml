@@ -1,8 +1,8 @@
 import QtQuick
 import FedoraGlass.Core
 
-// Panel and windows: Dash to Panel's shape, window header bars, and (folded) the
-// terminal and Qt apps.
+// Panel and windows: Dash to Panel's shape, window header bars, (folded) the terminal and
+// Qt apps, and the apps whose windows get no glass.
 SettingsPage {
     id: page
     objectName: "windowsPage"
@@ -48,6 +48,8 @@ SettingsPage {
     }
 
     HeaderBarCard { width: parent.width }
+
+    NoGlassCard { width: parent.width }
 
     side: [
         Item { id: slot; objectName: "windowsPreviewSlot"; width: parent.width; height: page.previewH },

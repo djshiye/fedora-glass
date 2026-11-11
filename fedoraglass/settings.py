@@ -1,18 +1,23 @@
 """User settings: what the customizer edits and every renderer reads.
 
-Stored as JSON in ~/.config/liquid-glass/settings.json. Unknown keys are
-ignored and missing keys fall back to defaults, so old files keep working.
+Stored as JSON in ~/.config/liquid-glass/settings.json. Missing keys fall back to
+defaults, so old files keep working. Keys a newer version wrote don't change what this
+version does, and are written back on save, so going back a version loses nothing.
 """
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import math
 import os
 import re
 import tempfile
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+from typing import NamedTuple
 
 from .cursors import SIZES as CURSOR_SIZES, STYLE_IDS as CURSOR_STYLE_IDS
 
@@ -133,7 +138,7 @@ class Settings:
     # frost (0..1), refraction (0..1), bleed (0..1), reflections (0..1, edge reflections).
     parts: dict[str, dict] = field(default_factory=dict)
 
-    # Target id -> enabled. Missing ids default to enabled.
+    # Target id -> enabled. Missing ids default to enabled, except OPT_IN_TARGETS.
     targets: dict[str, bool] = field(default_factory=dict)
 
     # Window header bars in GTK 3, GTK 4 and libadwaita apps.
@@ -190,11 +195,33 @@ class Settings:
     cursor_theme: str = "keep"
     cursor_size: int = 0
 
+    # ---- Shell features: lighter glass on battery, apps without glass, the Quick Settings switch ----
+    # On battery or in Power Saver, the glass draws at most at the lighter level (never
+    # heavier than glass_quality or auto picked); back on mains it goes back.
+    lighter_on_battery: bool = True
+    # The user's own apps whose windows get no glass, as the ids the extension matches a
+    # window by (desktop id without ".desktop", WM class, app id). The built-in ones
+    # (render/glass.py WINDOW_SKIP and windows.js NO_GLASS) always apply on top.
+    no_glass_apps: list[str] = field(default_factory=list)
+    # A "Glass" tile in GNOME's Quick Settings that pauses all the glass until the next login.
+    quick_toggle: bool = True
+    # ---- feature stream "looks": the glass tint (and accent) from the wallpaper ----------
+    # The app works the colour out of the wallpaper when Apply is pressed and writes it into
+    # `tint` (and `accent`), so the engine, the command line and the watcher need no image
+    # code. These say to do so, and what the user had picked before, to put back when off.
+    tint_from_wallpaper: bool = False
+    accent_from_wallpaper: bool = False
+    tint_own: str = ""                      # "#rrggbb" or "" (nothing to put back)
+    accent_own: str = ""                    # an accent value, or ""
+    # Which picture the colours were last taken from ("<path>|<mtime_ns>|<size>"), so the
+    # app can say when the wallpaper changed since.
+    wallpaper_match: str = ""
+
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
 
     def target_enabled(self, target_id: str) -> bool:
-        return self.targets.get(target_id, True)
+        return self.targets.get(target_id, target_default(target_id))
 
     # ---- validation ---------------------------------------------------
     def start_on_desktop_for(self, has_dash_to_panel: bool) -> bool:
@@ -261,12 +288,46 @@ class Settings:
                 setattr(s, k, getattr(Settings, k))
         if s.cursor_theme != "keep" and s.cursor_theme not in CURSOR_STYLE_IDS:
             s.cursor_theme = "keep"
-        if s.cursor_size not in CURSOR_SIZES or isinstance(s.cursor_size, bool):
-            s.cursor_size = 0
+        # 24.0 (a hand edit, another tool's JSON) equals 24 but would reach gsettings as
+        # "24.0", which an int key refuses on every Apply.
+        size = s.cursor_size
+        if isinstance(size, float) and size.is_integer():
+            size = int(size)
+        s.cursor_size = size if type(size) is int and size in CURSOR_SIZES else 0
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
+        # ---- Firefox theme (opt-in parts) ----
+        # Only a real true turns an opt-in part on: "yes" typed by hand, or a damaged
+        # value, must not change files in another app's profile.
+        raw = dict(self.targets) if isinstance(self.targets, dict) else {}
+        for k in OPT_IN_TARGETS & set(s.targets):
+            s.targets[k] = raw.get(k) is True
+        # ---- Shell features (lighter glass on battery, apps without glass, Quick Settings switch) ----
+        for k in ("lighter_on_battery", "quick_toggle"):
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
+        s.no_glass_apps = clean_app_ids(s.no_glass_apps)
+        # ---- feature stream "looks": colours from the wallpaper ----
+        for k in ("tint_from_wallpaper", "accent_from_wallpaper"):
+            setattr(s, k, _bool(getattr(s, k), False))
+        s.tint_own = s.tint_own if _is_hex(s.tint_own) else ""
+        if not (s.accent_own in ("", "system") or s.accent_own in GNOME_ACCENTS or _is_hex(s.accent_own)):
+            s.accent_own = ""
+        s.wallpaper_match = _CONTROL.sub("", s.wallpaper_match)[:4096] if isinstance(s.wallpaper_match, str) else ""
         return s
+
+
+# ---- Firefox theme (opt-in parts) ----------------------------------------------------
+# Parts that are off until the user turns them on in the Apps page: they change files in
+# another app's own profile folders, which nobody should find changed without asking.
+# A new id, not Firefox's old "firefox" row: an older version stored that one as on when
+# it was switched off and on again, and that must not count as asking for this.
+OPT_IN_TARGETS = frozenset({"firefox-theme"})
+
+
+def target_default(target_id: str) -> bool:
+    """Whether a part is on when the user hasn't switched it either way."""
+    return target_id not in OPT_IN_TARGETS
 
 
 LOCK_CHOICES = {"lock_clock": ("gnome", "bold", "thin"), "lock_clock_position": ("gnome", "top", "middle"),
@@ -282,6 +343,30 @@ def clean_message(raw: object) -> str:
         return ""
     text = " ".join(_CONTROL.sub(" ", raw).split())
     return text[:LOCK_MESSAGE_MAX].strip()
+
+
+# The user's apps without window glass: how many ids, and how long each may be. The
+# extension (config.js) takes at most 200 ids of under 200 characters, built-in ones included.
+NO_GLASS_APPS_MAX = 150
+APP_ID_MAX = 199
+
+
+def clean_app_ids(raw: object) -> list[str]:
+    """App ids as the extension compares them with a window's (whole ids, any case): strings with no
+    control characters, trimmed, 1..APP_ID_MAX long, each once, at most NO_GLASS_APPS_MAX."""
+    if not isinstance(raw, (list, tuple)):
+        return []
+    out: list[str] = []
+    for v in raw:
+        if not isinstance(v, str):
+            continue
+        v = v.strip()
+        if not v or len(v) > APP_ID_MAX or _CONTROL.search(v) or v in out:
+            continue
+        out.append(v)
+        if len(out) >= NO_GLASS_APPS_MAX:
+            break
+    return out
 
 
 def _clean_parts(raw: object) -> dict[str, dict]:
@@ -411,14 +496,197 @@ def settings_path() -> Path:
     return config_dir() / "settings.json"
 
 
-def load(path: Path | None = None) -> Settings:
-    path = path or settings_path()
+def _sibling(path: Path, suffix: str) -> Path:
+    return path.with_name(path.name + suffix)
+
+
+class Loaded(NamedTuple):
+    """What load_checked() found. `problem`: why the file could not be used, for the user,
+    or None. `usable`: whether these settings are the user's own (their file, its last good
+    copy, or no file at all); False means only defaults stand in for a file that is damaged,
+    and nothing should be applied by itself from them."""
+    settings: Settings
+    problem: str | None
+    usable: bool
+
+
+def _parse(raw: bytes) -> dict:
+    data = json.loads(raw.decode("utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("not a Fedora Glass settings file")
+    return data
+
+
+def _read(path: Path) -> dict | None:
+    """The file's settings, or None when there is no file. Raises OSError or ValueError
+    when it is there but can't be read or isn't settings."""
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return None
+    return _parse(raw)
+
+
+@contextlib.contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """One writer of settings.json at a time: save() and the step that moves a damaged file
+    aside (the app and the watcher both do that). Plain reads don't take it."""
+    fd = os.open(path.with_name(f".{path.name}.lock"), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def load_checked(path: Path | None = None, *, fix: bool = True, _tries: int = 3) -> Loaded:
+    """Load the settings and say whether they can be trusted.
+
+    A missing file is the defaults (a first start). A file that is there but damaged (a
+    power cut mid-write, a bad hand edit) is never quietly taken for the defaults: the
+    watcher would then apply them over the user's look. It is moved aside as
+    settings.json.damaged (only the latest is kept) and the last good copy that save()
+    keeps (settings.json.bak) takes its place, when that one reads.
+    `fix=False` only reads (the last good copy, when there is one) and moves or writes
+    nothing: for commands that just look (status, plan) and for the package removal."""
+    path = path or settings_path()
+    damaged = _sibling(path, ".damaged")
+    blob = None
+    try:
+        blob = path.read_bytes()
+        raw = _parse(blob)
+    except FileNotFoundError:
+        if damaged.exists():
+            # Damaged earlier and nothing saved since: still no file of the user's to go on.
+            return Loaded(_stand_in(path), damage_notice(path), False)
+        return Loaded(Settings(), None, True)
+    except (OSError, ValueError) as err:
+        problem: Exception = err
+    else:
+        return Loaded(_from_dict(raw), None, True)
+    if fix and isinstance(problem, ValueError):
+        # Readable but not settings: set it aside, so a later save can't lose it and a
+        # copy is there to look at. A read error (EIO, no permission) moves nothing.
+        try:
+            with _locked(path):
+                try:
+                    now = path.read_bytes()
+                except OSError:
+                    now = None
+                if now != blob:
+                    # The app saved a good file since it was read: that one must not go.
+                    raise _ReadAgain
+                os.replace(path, damaged)
+                os.utime(damaged)       # when it was found, for damage_notice()
+                good = _good_copy(path)
+                if good is not None:
+                    _write(path, json.dumps(good, indent=2).encode() + b"\n")
+                    os.utime(damaged)   # newer than the copy put back: the notice stays until a save
+        except _ReadAgain:
+            if _tries > 0:
+                return load_checked(path, fix=fix, _tries=_tries - 1)
+        except OSError:
+            pass
+    good = _good_copy(path)
+    if good is not None:
+        return Loaded(_from_dict(good), f"Your settings file {path} could not be read ({problem}), so the last good "
+                                        "copy of it is used." + _kept(damaged), True)
+    return Loaded(_stand_in(path), f"Your settings file {path} could not be read ({problem}), and there is "
+                              "no good copy of it. Fedora Glass shows its defaults and changes nothing by "
+                              "itself until you press Apply." + _kept(damaged), False)
+
+
+class _ReadAgain(Exception):
+    pass
+
+
+def _good_copy(path: Path) -> dict | None:
+    try:
+        return _read(_sibling(path, ".bak"))
     except (OSError, ValueError):
-        return Settings()
-    if not isinstance(raw, dict):
-        return Settings()
+        return None
+
+
+def _on_remove_path(path: Path) -> Path:
+    return _sibling(path, ".on-remove")
+
+
+def _stand_in(path: Path) -> Settings:
+    """The defaults that stand in for a damaged file, with the one choice the app saves
+    on its own meanwhile: "Remove only" (see save_undo_on_remove)."""
+    try:
+        raw = json.loads(_on_remove_path(path).read_bytes().decode("utf-8"))
+    except (OSError, ValueError):
+        raw = None
+    on = raw.get("undo_on_remove") if isinstance(raw, dict) else None
+    return Settings(undo_on_remove=on) if isinstance(on, bool) else Settings()
+
+
+def save_undo_on_remove(on: bool, path: Path | None = None) -> None:
+    """Keep "Remove only" while settings.json is damaged with no good copy. Only an Apply
+    may write settings.json then: anything else would write the defaults that stand in for
+    it, and the watcher would take those for the user's own and apply them. Removing the
+    package still finds the choice: load_checked() reads it back for as long as the file
+    stays unusable, and an Apply saves it in settings.json with the rest."""
+    path = path or settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write(_on_remove_path(path), json.dumps({"undo_on_remove": bool(on)}).encode() + b"\n")
+
+
+def read_raw(path: Path | None = None) -> bytes | None:
+    """settings.json as it is now, or None when there is none (for put_back)."""
+    try:
+        return (path or settings_path()).read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def put_back(before: bytes | None, path: Path | None = None) -> None:
+    """settings.json as read_raw() found it (none: no file), after an Apply that stopped.
+    Unlike save(), the last good copy (.bak) is left alone: it must never become the look
+    that failed."""
+    path = path or settings_path()
+    with _locked(path):
+        if before is None:
+            path.unlink(missing_ok=True)
+        else:
+            _write(path, before)
+
+
+def _kept(damaged: Path) -> str:
+    return f" The damaged file is kept as {damaged}." if damaged.exists() else ""
+
+
+def load(path: Path | None = None, *, fix: bool = True) -> Settings:
+    return load_checked(path, fix=fix).settings
+
+
+def damage_notice(path: Path | None = None) -> str | None:
+    """For the app: a line to show while the settings were found damaged and nothing has
+    been saved since (the damaged copy is newer than settings.json, or there is no
+    settings.json), else None."""
+    path = path or settings_path()
+    damaged = _sibling(path, ".damaged")
+    try:
+        found = damaged.stat().st_mtime_ns
+    except OSError:
+        return None
+    try:
+        if path.stat().st_mtime_ns > found:
+            return None     # saved again since: the user has their settings back
+        recovered = True    # the last good copy was put back in its place
+    except FileNotFoundError:
+        recovered = False
+    except OSError:
+        return None
+    if recovered:
+        return (f"Your settings file was damaged, so its last good copy was used. The damaged "
+                f"file is kept as {damaged}.")
+    return (f"Your settings file was damaged and there was no good copy, so these are the "
+            f"defaults. The damaged file is kept as {damaged}.")
+
+
+def _from_dict(raw: dict) -> Settings:
     known = {f.name for f in fields(Settings)}
     data = {k: v for k, v in raw.items() if k in known}
     try:
@@ -437,14 +705,63 @@ def load(path: Path | None = None) -> Settings:
     return Settings(**good).normalized()
 
 
-def save(s: Settings, path: Path | None = None) -> Path:
-    path = path or settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # A fresh, exclusively created temp file: a planted symlink can't redirect the write.
-    fd, tmp = tempfile.mkstemp(prefix=".settings.", dir=path.parent)
+# Choices a newer version may have more of. A value this version doesn't know reads as the
+# setting's default (see normalized), and while the user leaves it at that default, save()
+# writes the newer version's value back, so going back to an older version and forward
+# again doesn't lose it.
+CHOICE_KEYS = ("scheme", "glass_quality", "panel_style", "accent", "cursor_theme", "cursor_size", *LOCK_CHOICES)
+
+
+def _keep_newer(out: dict, before: dict) -> dict:
+    """`out` (what this version saves) with what `before` (the file on disk) holds that
+    this version doesn't know: settings added by a newer version, and their new choices."""
+    known = {f.name for f in fields(Settings)}
+    for k, v in before.items():
+        if k not in known:
+            out[k] = v
+    for k in CHOICE_KEYS:
+        if k not in before:
+            continue
+        raw, default = before[k], getattr(Settings, k)
+        try:
+            read_as = getattr(Settings(**{k: raw}).normalized(), k)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if isinstance(raw, (str, int)) and not isinstance(raw, bool) and raw != default and \
+                read_as == default and out.get(k) == default:
+            out[k] = raw
+    for k, names, subkeys in (("parts", PARTS, PART_KEYS), ("motion", MOTION_EVENTS, ("preset", "intensity", "speed"))):
+        old = before.get(k)
+        if not isinstance(old, dict):
+            continue
+        new = out.setdefault(k, {})
+        for name, sub in old.items():
+            if name not in names:
+                new[name] = sub             # a part or an event this version doesn't have
+                continue
+            if not isinstance(sub, dict):
+                continue
+            mine = new.get(name, {})
+            extra = {sk: sv for sk, sv in sub.items() if sk not in subkeys}
+            if k == "motion" and "preset" in sub and "preset" not in mine and \
+                    sub["preset"] not in MOTION_PRESETS[name]:
+                extra["preset"] = sub["preset"]   # a newer animation, still unchosen here
+            if extra:
+                new[name] = {**mine, **extra}
+    return out
+
+
+def _write(path: Path, data: bytes) -> None:
+    """Write via a fresh, exclusively created temp file (a planted symlink can't redirect
+    the write), private, flushed to disk before and after the rename: a power cut must
+    never leave an empty settings file."""
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(json.dumps(asdict(s.normalized()), indent=2) + "\n")
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
         os.replace(tmp, path)
     except BaseException:
         try:
@@ -452,4 +769,78 @@ def save(s: Settings, path: Path | None = None) -> Path:
         except OSError:
             pass
         raise
+    try:
+        dfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return
+    try:
+        os.fsync(dfd)
+    except OSError:
+        pass
+    finally:
+        os.close(dfd)
+
+
+def save(s: Settings, path: Path | None = None, *, backup: bool = True) -> Path:
+    """`backup`: keep the file as it was as settings.json.bak. False while an Apply runs or
+    after it stopped: the file then holds a look that isn't applied yet (or failed), and
+    .bak must stay the last one that was."""
+    path = path or settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _locked(path):
+        try:
+            before = path.read_bytes()
+            old = _parse(before)
+        except (OSError, ValueError):
+            before, old = None, {}
+        out = _keep_newer(asdict(s.normalized()), old)
+        if before is not None and backup:
+            # The file as it was, good, kept for the day settings.json itself is found damaged.
+            _write(_sibling(path, ".bak"), before)
+        _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")
     return path
+
+
+# ---- feature stream "looks": the look before the last Apply ---------------------------
+# Before each Apply that changes the look, the look applied until then is kept as
+# settings.previous.json, so About and restore can go back one Apply (and forward again:
+# going back is an Apply too, which keeps the look it replaced). Written like
+# settings.json (private, atomic), and never touches settings.json, .bak or .damaged.
+PREVIOUS_MAX = 256 * 1024
+
+
+class Previous(NamedTuple):
+    settings: Settings
+    applied_at: float     # when that look was applied (seconds since the epoch), 0 if not known
+    forward: bool         # True: it is the look the user went back from
+
+
+def previous_path(path: Path | None = None) -> Path:
+    return (path or settings_path()).with_name("settings.previous.json")
+
+
+def save_previous(s: Settings, applied_at: float, forward: bool = False, path: Path | None = None) -> Path:
+    out = previous_path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    data = {"version": 1, "applied_at": float(applied_at) if math.isfinite(applied_at) else 0.0,
+            "forward": bool(forward), "settings": asdict(s.normalized())}
+    _write(out, json.dumps(data, indent=2).encode("utf-8") + b"\n")
+    return out
+
+
+def load_previous(path: Path | None = None) -> Previous | None:
+    """The look before the last Apply, or None when there is none (or it can't be read)."""
+    p = previous_path(path)
+    try:
+        if p.is_symlink() or not p.is_file() or p.stat().st_size > PREVIOUS_MAX:
+            return None
+        data = _parse(p.read_bytes())
+    except (OSError, ValueError, RecursionError):
+        return None
+    raw = data.get("settings")
+    if not isinstance(raw, dict):
+        return None
+    when = data.get("applied_at")
+    when = float(when) if isinstance(when, (int, float)) and not isinstance(when, bool) and \
+        math.isfinite(float(when)) and when > 0 else 0.0
+    return Previous(_from_dict(raw), when, data.get("forward") is True)

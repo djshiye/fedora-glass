@@ -8,13 +8,8 @@ SettingsPage {
     pageId: "glass"
     previewSlot: slot
 
-    function frostName(f) {
-        if (f < 0.12) return "Liquid"
-        if (f < 0.35) return "Clear"
-        if (f < 0.62) return "Balanced"
-        if (f < 0.9) return "Frosted"
-        return "Solid"
-    }
+    // Named after the preset the slider sits nearest to (settings.PRESETS, through Backend).
+    function frostName(f) { return Backend.frostName(f) }
     function peek() { if (Theme.preview) Theme.preview.peekEdge("") }
 
     Card {
@@ -54,7 +49,7 @@ SettingsPage {
                 objectName: "glassFrost"
                 width: parent.width
                 value: Backend.frost
-                ticks: [{ value: 0.0 }, { value: 0.25 }, { value: 0.45 }, { value: 0.8 }, { value: 1.0 }]
+                ticks: Backend.frostTicks
                 onMoved: (v) => Backend.frost = v
             }
             Fold {
@@ -152,7 +147,7 @@ SettingsPage {
             SectionTitle {
                 text: "Where the glass shows"
                 caption: "Each one costs some graphics power. Turn it off where you don't need it."
-                resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows"]
+                resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows", "quick_toggle"]
             }
             Flow {
                 width: parent.width
@@ -193,6 +188,43 @@ SettingsPage {
                     on: Backend.glassSeeWindows
                     tip: "On, the panel and menus show the windows behind them as well as the wallpaper. Off shows only the wallpaper, which is lighter on the graphics card."
                     onSwitched: (v) => Backend.glassSeeWindows = v
+                }
+            }
+            Rectangle { width: parent.width; height: 1; color: Theme.divider }
+            // The Glass tile in GNOME's Quick Settings, drawn as GNOME draws it (an accent pill
+            // when on), next to the switch that puts it there.
+            Item {
+                width: parent.width
+                height: Math.max(tile.height, qsRow.implicitHeight)
+                Rectangle {
+                    id: tile
+                    objectName: "quickTogglePreview"
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 132; height: 44
+                    radius: height / 2
+                    color: Theme.accent
+                    opacity: Backend.quickToggle ? 1 : 0.35
+                    Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+                    Accessible.ignored: true
+                    Row {
+                        x: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 10
+                        Icon { name: "glassPane"; size: 18; strokeWidth: 2; color: Theme.accentFg; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: "Glass"; color: Theme.accentFg; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                }
+                SwitchRow {
+                    id: qsRow
+                    objectName: "quickToggle"
+                    x: tile.width + 16
+                    width: parent.width - x
+                    anchors.verticalCenter: parent.verticalCenter
+                    label: "Glass switch in Quick Settings"
+                    caption: "Pause all the glass from Quick Settings, and turn it on again there. It is back on at your next login."
+                    checked: Backend.quickToggle
+                    tip: "Handy for a game or a screen share. The tile says Paused while the glass is off."
+                    onToggled: (on) => Backend.quickToggle = on
                 }
             }
         }

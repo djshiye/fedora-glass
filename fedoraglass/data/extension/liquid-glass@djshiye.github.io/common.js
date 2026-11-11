@@ -77,20 +77,24 @@ export class WindowWatch {
         this.listeners = new Set();
         this._signals = new Signals();
         this._windows = new Map();    // window actor -> its Signals
-        const changed = () => this.listeners.forEach(fn => fn());
-        this._changed = changed;
+        // With the window that moved, changed size or was minimized or hidden, so a
+        // listener can redo only what that window touches; without one, anything may
+        // have changed (a restack, another workspace).
+        const changed = (win = null) => this.listeners.forEach(fn => fn(win));
         this._signals.on(global.display, 'restacked', () => {
             this._watchAll();
             changed();
         });
-        this._signals.on(global.workspace_manager, 'active-workspace-changed', changed);
+        this._signals.on(global.workspace_manager, 'active-workspace-changed', () => changed());
         this._signals.on(global.display, 'window-created', () => this._watchAll());
+        this._changed = changed;
         this._watchAll();
     }
 
     // Connects to windows not watched yet. Restacks come with every focus change, so
     // windows already watched keep their connections (1.5.3 remade them all each time).
     _watchAll() {
+        const changed = this._changed;
         for (const actor of global.get_window_actors()) {
             const win = actor.meta_window;
             if (!win || this._windows.has(actor))
@@ -98,8 +102,8 @@ export class WindowWatch {
             const sigs = new Signals();
             this._windows.set(actor, sigs);
             for (const sig of ['position-changed', 'size-changed', 'notify::minimized'])
-                sigs.on(win, sig, this._changed);
-            sigs.on(actor, 'notify::visible', this._changed);
+                sigs.on(win, sig, () => changed(win));
+            sigs.on(actor, 'notify::visible', () => changed(win));
             // Minimized windows keep their old place, so this is where the effect was.
             sigs.on(actor, 'effects-completed', () => windowLanded(win.get_buffer_rect()));
             // A closed window's actor is disposed: never touch it or its window again.

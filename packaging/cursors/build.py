@@ -10,18 +10,18 @@ needs no network and no browser. This script exists so anyone can see exactly wh
 files come from and rebuild them.
 
 Sources (free licences, see THIRD-PARTY-NOTICES.md):
-  * Bibata Cursor by Abdulkaiz Khatri (GPL-3.0-or-later): the shapes for Fedora Glass
+  * Bibata Cursor by Abdulkaiz Khatri (GPL-3.0-only): the shapes for Fedora Glass
     Light/Dark (recoloured), Bibata Modern Ice/Classic and Original Ice/Classic (its own colours) and
     Amber (its orange with a dark rim, so it reads on white too). Rendered from its SVGs with
     Chromium (as Bibata's own build does), packed into Xcursor files here, with its hotspots
     and alias names from configs/normal/x.build.toml.
-  * Banana Cursor by Abdulkaiz Khatri (GPL-3.0-or-later): built the same way.
+  * Banana Cursor by Abdulkaiz Khatri (GPL-3.0-only): built the same way.
   * Phinger Cursors by Philipp Schaffrath (CC-BY-SA-4.0): light and dark, from its 24 and
     32 px SVGs; hotspots from each SVG's hotspot marker; the busy spinner turned per frame.
   * Catppuccin Cursors (GPL-2.0): Mocha Mauve and Mocha Sky, coloured as its own build does.
   * Oreo Cursors by Alexey Varfolomeev (GPL-2.0): Pink and Teal, coloured as its own generator does,
     with the hotspots from its config files.
-  * WhiteSur cursors by Vince Liuice (GPL-3.0-or-later): its prebuilt theme, copied as it is.
+  * WhiteSur cursors by Vince Liuice (GPL-3.0-only): its prebuilt theme, copied as it is.
 
 Each source is cloned at a pinned commit and the commit is checked before anything is read.
 Needs: git, node with Playwright (Chromium), python3 with Pillow (previews only).

@@ -9,6 +9,13 @@
 // all the glass on screen every frame for a few seconds at each level and scores
 // the frame rate. What the glass draws now, and the check's result, go to
 // ~/.cache/liquid-glass/speed.json (only this user can read it), for the app.
+// So does how smoothly the last window drag drew (see _dragEnd), the real thing on
+// this PC rather than the check's redraw-everything test.
+//
+// On battery or in Power Saver (power.js), and with the app's "use lighter glass" switch
+// on, the glass draws at most at the lighter level: never heavier than the setting or
+// auto picked, and back to that once the PC is on mains again. The status then says
+// why ("battery"), so the app can tell the user.
 //
 // Nothing here runs while the screen is locked: the extension destroys it then.
 
@@ -18,6 +25,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {setQuality, glassRenders, redrawAllPanes, shownPanes} from './glass.js';
+import {PowerWatch} from './power.js';
 import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
 
 const REQUEST = 'speed-check.json';
@@ -29,6 +37,15 @@ const WARMUP_MS = 800;
 const PHASE_MS = [6000, 5000, 5000];
 const SKIP_US = 500e3;
 const CHECK_LIMIT_MS = 30000;
+// A drag shorter than this many frames (a click on a title bar) is not worth keeping.
+const DRAG_MIN_FRAMES = 10;
+// Frame times kept per screen during a drag (a minute at 120 Hz); longer drags keep counting.
+const DRAG_KEEP = 7200;
+// A longer wait between two frames of a drag is the pointer held still (nothing to draw),
+// not a frame that came late.
+const DRAG_IDLE_US = 250e3;
+// The level the glass draws at most on battery or in Power Saver.
+const BATTERY_LEVEL = LEVELS.indexOf('lighter');
 
 function now() {
     return GLib.get_monotonic_time();
@@ -40,12 +57,18 @@ export class Speed {
         this._onLevel = onLevel;
         this._tuner = new Tuner();
         this._quality = cleanQuality(cfg?.speed);
+        this._lighterOnBattery = cfg?.speed?.lighterOnBattery !== false;
+        this._power = {battery: false, saver: false};
+        this._powerWatch = null;
         this._level = this._fixedLevel();
         this._since = Math.floor(Date.now() / 1000);
         this._views = new Map();   // view -> {start, last}
         this._renders = glassRenders();
         this._retry = 0;
         this._check = null;        // the running check
+        this._drag = null;         // the window drag going on: {start, windows, views}
+        this._writeId = 0;         // the status write waiting for a quiet moment
+        this._writeReason = undefined;
         setQuality(this._level);
 
         this._cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'liquid-glass']);
@@ -54,6 +77,8 @@ export class Speed {
         // One from before a restart stays.
         this._done = this._lastResult();
         this._result = this._done;
+        this._lastDrag = this._lastDragOf(this._lastStatus);
+        this._lastStatus = null;
         // A PC the check found smooth never drops to the lightest glass (tuning.js).
         this._tuner.deepest = deepestFor(this._done);
         this._configDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_config_dir(), 'liquid-glass']));
@@ -65,6 +90,9 @@ export class Speed {
         // Mutter makes new views when screens change (plugged in, unplugged, a new
         // refresh rate): forget the old ones, and read the new refresh rates.
         this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._views.clear());
+        // A window dragged or resized with the pointer or the keyboard (see surfaces.js).
+        this._grabIds = [global.display.connect('grab-op-begin', () => this._dragBegin()),
+            global.display.connect('grab-op-end', () => this._dragEnd())];
         try {
             this._monitor = this._configDir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
             this._monitorId = this._monitor.connect('changed', (_m, file, other) => {
@@ -75,6 +103,7 @@ export class Speed {
             console.warn(`Fedora Glass: no speed check: ${e}`);
             this._monitor = null;
         }
+        this._watchPower();
         this._writeStatus();
     }
 
@@ -87,15 +116,53 @@ export class Speed {
         return this._quality === 'auto' ? this._tuner.level : LEVELS.indexOf(this._quality);
     }
 
+    // ---- battery and Power Saver ---------------------------------------------------------
+    /** The lightest the glass must be now for the power state: 0 (no limit) or BATTERY_LEVEL. */
+    _powerLevel() {
+        return this._lighterOnBattery && (this._power.battery || this._power.saver) ? BATTERY_LEVEL : 0;
+    }
+
+    /** What the glass draws at: the setting's (or auto's) level, lighter on battery. */
+    _wanted() {
+        return Math.max(this._fixedLevel(), this._powerLevel());
+    }
+
+    _watchPower() {
+        if (this._lighterOnBattery && !this._powerWatch) {
+            try {
+                this._powerWatch = new PowerWatch(state => this._powerChanged(state));
+            } catch (e) {
+                console.warn(`Fedora Glass: no lighter glass on battery: ${e}`);
+                this._powerWatch = null;
+            }
+        } else if (!this._lighterOnBattery && this._powerWatch) {
+            this._powerWatch.destroy();
+            this._powerWatch = null;
+            this._power = {battery: false, saver: false};
+        }
+    }
+
+    _powerChanged(state) {
+        this._power = {battery: !!state?.battery, saver: !!state?.saver};
+        if (!this._check)
+            this._setLevel(this._wanted());
+        this._writeStatus();
+    }
+
     update(cfg) {
         const q = cleanQuality(cfg?.speed);
-        if (q === this._quality)
+        const battery = cfg?.speed?.lighterOnBattery !== false;
+        if (q === this._quality && battery === this._lighterOnBattery)
             return;
-        this._quality = q;
-        this._tuner.reset();
-        this._stopRetry();
+        if (q !== this._quality) {
+            this._quality = q;
+            this._tuner.reset();
+            this._stopRetry();
+        }
+        this._lighterOnBattery = battery;
+        this._watchPower();
         if (!this._check)
-            this._setLevel(this._fixedLevel());
+            this._setLevel(this._wanted());
         this._writeStatus();
     }
 
@@ -146,17 +213,21 @@ export class Speed {
         const renders = glassRenders();
         const drew = renders !== this._renders;
         this._renders = renders;
+        if (this._drag)
+            this._dragFrame(v, gap);
 
         if (this._check) {
             this._checkFrame(v, gap, t);
             return;
         }
-        if (this._quality !== 'auto' || !drew)
+        // Auto judges only frames drawn at its own level: held at the lighter level on
+        // battery, a full-glass auto would read lighter glass's frames as its own.
+        if (this._quality !== 'auto' || !drew || this._tuner.level < this._powerLevel())
             return;
         const level = this._tuner.frame(t, frameLate(gap, paint, v.interval));
         if (level === null)
             return;
-        this._setLevel(level);
+        this._setLevel(this._wanted());
         this._scheduleRetry();
         this._writeStatus();
     }
@@ -175,7 +246,7 @@ export class Speed {
             }
             const level = this._tuner.tick(now());
             if (level !== null) {
-                this._setLevel(level);
+                this._setLevel(this._wanted());
                 this._writeStatus();
             }
             this._scheduleRetry();
@@ -187,6 +258,65 @@ export class Speed {
         if (this._retry)
             GLib.source_remove(this._retry);
         this._retry = 0;
+    }
+
+    // ---- window drags ---------------------------------------------------------------------
+    _dragBegin() {
+        let windows = 0;
+        try {
+            windows = global.get_window_actors().filter(a => a.visible && a.meta_window && !a.meta_window.minimized).length;
+        } catch {}
+        this._drag = {start: now(), windows, views: new Map(), check: !!this._check};
+    }
+
+    // What counts is the time from one frame to the next, as the eye sees it, not the
+    // time the CPU took to ask for the frame: a drag held up by the GPU asks quickly and
+    // still shows few frames. A screen's first frame of the drag is left out: its gap
+    // reaches back to a frame from before the drag.
+    _dragFrame(v, gap) {
+        const d = this._drag;
+        if (this._check)
+            d.check = true;    // the check's frames redraw everything: not a real drag
+        let e = d.views.get(v);
+        if (!e)
+            d.views.set(v, e = {n: 0, ms: []});
+        e.n++;
+        if (e.n > 1 && gap > 0 && gap <= DRAG_IDLE_US && e.ms.length < DRAG_KEEP)
+            e.ms.push(gap / 1000);
+    }
+
+    /**
+     * The drag ended: the time between its frames on the screen that drew most of them
+     * (median and 95th percentile), once per drag, to the status file (read by the app):
+     * {at, frames, median_ms, p95_ms, refresh, windows}.
+     */
+    _dragEnd() {
+        const d = this._drag;
+        this._drag = null;
+        if (!d || d.check)
+            return;
+        let best = null;
+        for (const [v, e] of d.views) {
+            if (!best || e.n > best[1].n)
+                best = [v, e];
+        }
+        if (!best || best[1].n < DRAG_MIN_FRAMES || !best[1].ms.length)
+            return;
+        const [v, e] = best;
+        const ms = e.ms.sort((a, b) => a - b);
+        const at = q => Math.round(ms[Math.min(ms.length - 1, Math.floor(ms.length * q))] * 10) / 10;
+        this._lastDrag = {at: Math.floor(Date.now() / 1000), frames: e.n, median_ms: at(0.5), p95_ms: at(0.95),
+            refresh: Math.round(1e7 / (v.interval || 1e6 / 60)) / 10, windows: d.windows};
+        this._writeStatus();
+    }
+
+    _lastDragOf(status) {
+        const d = status?.drag;
+        if (!d || typeof d !== 'object')
+            return null;
+        const num = x => (Number.isFinite(x) && x >= 0 ? x : 0);
+        return {at: Math.floor(num(d.at)), frames: Math.floor(num(d.frames)), median_ms: num(d.median_ms),
+            p95_ms: num(d.p95_ms), refresh: num(d.refresh), windows: Math.floor(num(d.windows))};
     }
 
     // ---- the speed check -----------------------------------------------------------------
@@ -298,7 +428,8 @@ export class Speed {
             this._done = this._result;
             this._tuner.limit(deepestFor(this._done), now());
         }
-        this._setLevel(this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel());
+        this._setLevel(Math.max(this._powerLevel(),
+            this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel()));
         this._scheduleRetry();
         this._writeStatus();
     }
@@ -311,6 +442,7 @@ export class Speed {
                 return null;
             const [, bytes] = f.load_contents(null);
             const status = JSON.parse(new TextDecoder().decode(bytes));
+            this._lastStatus = status;
             // 'lastDone'; an older status file has only 'check', which an aborted check replaced.
             const c = status?.lastDone?.state === 'done' ? status.lastDone : status?.check;
             if (!c || c.state !== 'done' || typeof c.id !== 'string' || !ID.test(c.id) || !Array.isArray(c.phases))
@@ -326,21 +458,49 @@ export class Speed {
     }
 
     // ---- status for the app -------------------------------------------------------------------
+    /**
+     * Written when the Shell has a quiet moment, not right away: it is asked for just as
+     * frames come late (the glass steps down, a drag ends), and writing takes a while on a
+     * slow disk. Several asked for before then make one write.
+     */
     _writeStatus(reason) {
+        this._writeReason = reason;
+        if (this._writeId)
+            return;
+        this._writeId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+            this._writeId = 0;
+            this._writeNow();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _writeNow() {
+        const reason = this._writeReason;
+        this._writeReason = undefined;
+        // Lighter than the setting or auto would draw, because of the battery or Power Saver.
+        const power = !this._check && this._level > this._fixedLevel() && this._powerLevel() > this._fixedLevel()
+            ? (this._power.battery ? 'battery' : 'saver') : '';
         const status = {
             version: 1,
             quality: this._quality,
             level: LEVELS[this._level],
-            reason: reason ?? (this._quality === 'auto' ? this._tuner.reason : 'setting'),
+            reason: reason ?? (power ? 'battery' : this._quality === 'auto' ? this._tuner.reason : 'setting'),
+            power,
             since: this._since,
             check: this._result,
             lastDone: this._done,
+            drag: this._lastDrag,
         };
         try {
             GLib.mkdir_with_parents(this._cacheDir, 0o700);
+            // A status the app reads again on the next change: no need to wait for the disk
+            // (fsync) as safe mode's state does. Written beside it and moved over it, so the
+            // app never reads half of it.
             const path = GLib.build_filenamev([this._cacheDir, 'speed.json']);
-            GLib.file_set_contents_full(path, new TextEncoder().encode(JSON.stringify(status)),
-                GLib.FileSetContentsFlags.CONSISTENT, 0o600);
+            const tmp = `${path}.new`;
+            GLib.file_set_contents_full(tmp, new TextEncoder().encode(JSON.stringify(status)),
+                GLib.FileSetContentsFlags.NONE, 0o600);
+            Gio.File.new_for_path(tmp).move(Gio.File.new_for_path(path), Gio.FileCopyFlags.OVERWRITE, null, null);
         } catch (e) {
             console.warn(`Fedora Glass: could not write the speed status: ${e}`);
         }
@@ -357,6 +517,15 @@ export class Speed {
             this._result = {id: c.id, state: 'failed', error: 'locked', refresh: 0, phases: [], pick: ''};
             this._writeStatus();
         }
+        // Going away (the screen locks): what is waiting is written now.
+        if (this._writeId) {
+            GLib.source_remove(this._writeId);
+            this._writeId = 0;
+            this._writeNow();
+        }
+        this._drag = null;
+        this._grabIds?.forEach(id => global.display.disconnect(id));
+        this._grabIds = null;
         this._stopRetry();
         if (this._before)
             global.stage.disconnect(this._before);
@@ -371,6 +540,8 @@ export class Speed {
             this._monitor.cancel();
             this._monitor = null;
         }
+        this._powerWatch?.destroy();
+        this._powerWatch = null;
         this._views.clear();
         setQuality(0);
         this._onLevel = null;

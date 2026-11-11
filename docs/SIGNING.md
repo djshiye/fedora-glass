@@ -8,16 +8,21 @@ is never on GitHub, in GitHub Actions, or anywhere online.
 GitHub Actions           Dino's PC                      GitHub Actions          Your PC
 Release workflow    ->   fedora-glass-sign         ->   DNF repository     ->   sudo dnf upgrade
 builds the packages      checks where they came         checks every            checks every
-(unsigned) and signs     from, signs them and the       signature, publishes    signature
-a provenance record      index, uploads
+(unsigned) as a DRAFT    from, signs them and the       signature, publishes    signature
+and signs a provenance   index, uploads, then
+record                   publishes the release
 ```
 
 - **Release** (`release.yml`) runs only for a commit that is on `main` (a pushed `v*` tag that
   points anywhere else is refused, and a run from the Actions tab must run on `main`). It builds
-  the RPMs, the `.deb` and the Arch package, attaches them to the GitHub release with their
-  `SHA256SUMS`, and records a **build provenance attestation** for each package: a statement,
-  signed through GitHub's Sigstore service with a certificate that only this workflow run can
-  get, saying "release.yml built this file from commit X".
+  the RPMs, the `.deb` and the Arch package (side by side with the release checks; the last job
+  waits for all of them), attaches them to a **draft** GitHub release with their `SHA256SUMS`,
+  and records a **build provenance attestation** for each package: a statement, signed through
+  GitHub's Sigstore service with a certificate that only this workflow run can get, saying
+  "release.yml built this file from commit X". The release is a draft so that nobody can
+  install the unsigned packages from the release page: it is public only once they are signed.
+  The tag is made by the workflow before the draft, so publishing the draft later starts no
+  second workflow run.
 - **`fedora-glass-sign`** (`packaging/fedora-glass-sign`), run on Dino's PC, checks before it
   signs anything that:
   1. the release's tag points at a commit that is on `main`;
@@ -29,7 +34,10 @@ a provenance record      index, uploads
   notification that the release was **not** signed and why. Otherwise it signs the new release's
   packages, builds and signs the indexes (`repomd.xml.asc`, apt `InRelease`, the pacman database),
   checks everything the way dnf, apt and pacman will, uploads the result to the release as
-  `dnf-repo.tar.gz` and starts the DNF repository workflow.
+  `dnf-repo.tar.gz`, **publishes the draft release** (`gh release edit --draft=false`, only now,
+  after every check passed) and starts the DNF repository workflow. A release that is public
+  already (made before drafts) is signed the same way and simply not edited. If the signer
+  stops after the upload and before publishing, the next run finds the draft again and finishes.
 - **The two releases before it** stay in the repository, so `dnf downgrade` can go back. They are
   not signed again: their packages are taken from the earlier signed repository, and each one is
   kept only if Dino's signature on it (for Ubuntu: on the index that lists its checksum) still
@@ -57,7 +65,9 @@ Only then do they trust it and install `fedora-glass` from the signed repository
 - **Ubuntu**: the key goes to `/usr/share/keyrings/fedora-glass.asc` (the same file the package
   ships), a temporary `fedora-glass-setup.sources` with `Signed-By` installs the package, and is
   removed again.
-- **Arch**: `pacman-key --lsign-key` trusts only the key with that fingerprint.
+- **Arch**: the key goes to a private temporary file and is added with `pacman-key --add` only
+  after its fingerprint is checked; `pacman-key --lsign-key` then trusts only the key with that
+  fingerprint.
 
 If dnf asks `Is this ok [y/N]` about the key, check that it shows the fingerprint above, then
 answer `y`.
@@ -107,15 +117,19 @@ want), checks that it can sign, and saves the public key to
 `~/.config/fedora-glass-signing/RPM-GPG-KEY-fedora-glass`. That public key goes into
 `packaging/RPM-GPG-KEY-fedora-glass` on `main`.
 
-## Update the signer (once, for the provenance checks)
+## Update the signer (once, before the next release)
 
-The signer from before this change does not check where a release came from. Replace it once.
-Automatic signing keeps working (the timer runs the same file), nothing else changes:
+The Release workflow now makes each release as a **draft**, and `fedora-glass-sign` publishes it
+after signing. The signer you have now knows nothing about drafts: it never sees one, so the
+release would stay a draft, unsigned and unpublished, until you replace it. Replace it once
+before the next release. Automatic signing keeps working (the timer runs the same file),
+nothing else changes:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/djshiye/fedora-glass/main/packaging/fedora-glass-sign -o ~/.local/bin/fedora-glass-sign.new &&
 bash -n ~/.local/bin/fedora-glass-sign.new &&
 grep -q 'gh attestation verify' ~/.local/bin/fedora-glass-sign.new &&
+grep -q -e '--draft=false' ~/.local/bin/fedora-glass-sign.new &&
 gh attestation verify --help >/dev/null &&
 chmod +x ~/.local/bin/fedora-glass-sign.new &&
 mv ~/.local/bin/fedora-glass-sign.new ~/.local/bin/fedora-glass-sign &&
@@ -125,6 +139,10 @@ sha256sum ~/.local/bin/fedora-glass-sign
 Compare the printed checksum with the one given when this change was merged. If
 `gh attestation verify --help` fails, your `gh` is too old: `sudo dnf upgrade gh`, then run the
 block again.
+
+The new signer also still signs a release that is public already, so it is safe to update at any
+time. If a release is a draft and you have not updated yet, sign it by hand after updating:
+`fedora-glass-sign vX.Y.Z` (the timer does the same by itself within 10 minutes).
 
 ## Protect the v* tags (once, in GitHub's settings)
 
@@ -175,6 +193,9 @@ really serves the new version.
 If the website stays behind (the publish workflow sometimes times out), the timer starts the
 publish workflow again, at most 3 times and at least 20 minutes apart, and says so each time. After
 that it stops and shows **"signed but NOT published"**, with a link to the workflow runs.
+
+A new release is a draft until then (only you can see it on the releases page); it goes public
+at the moment you get **"signed, publishing it now"**.
 
 If a release fails a check, it shows **"was NOT signed"** and why. If something else goes wrong (for
 example the password window was closed) it shows why. Either way it tries again an hour later. The

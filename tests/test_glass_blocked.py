@@ -32,14 +32,47 @@ def test_extensions_switched_off(fake_env):
     assert ts.glass_problem(fake_env, wanted=False) == ("", "", ""), "glass part off: nothing to say about it"
 
 
-@pytest.mark.parametrize("state, kind", [("4.0", "out-of-date"), ("3.0", "error")])
-def test_out_of_date_and_error_count_only_for_the_wanted_glass(fake_env, state, kind):
-    fake_env.ext_info[rg.UUID] = (state, "")
+@pytest.mark.parametrize("state, error, kind", [("4.0", "", "out-of-date"), ("3.0", "TypeError: boom", "error")])
+def test_out_of_date_and_error_count_only_for_the_wanted_glass(fake_env, state, error, kind):
+    fake_env.ext_info[rg.UUID] = (state, error)
     assert ts.glass_state(fake_env).kind == "not-started", "GNOME marks a switched-off one too"
     assert ts.glass_blocked(fake_env) == ""
     _glass_on(fake_env)
     assert ts.glass_state(fake_env).kind == kind
     assert ts.glass_blocked(fake_env) == kind
+
+
+def test_failed_with_no_text_is_gnome_still_loading_it(fake_env):
+    """At login GNOME marks an extension as failed while it imports the code, with no text
+    (loadExtension starts at ERROR). Asked in that moment, the glass is starting."""
+    _glass_on(fake_env)
+    fake_env.ext_info[rg.UUID] = ("3.0", "")
+    assert ts.glass_state(fake_env).kind == "not-started"
+    assert ts.glass_blocked(fake_env) == ""
+    assert ts.glass_problem(fake_env) == ("", "", "")
+
+
+def test_the_watcher_at_login_waits_through_gnome_loading_the_glass(fake_env):
+    """GNOME 51 release checks: the watcher asked while GNOME was still loading the glass,
+    took it for a failure ("failed to start (no details)") and left Dash to Panel and the
+    Shell theme waiting."""
+    engine = desktop(fake_env)
+    fake_env.glass_loaded = False
+    engine.apply(Settings())
+    assert read_pending()
+    _glass_on(fake_env)
+    fake_env.ext_info[rg.UUID] = ("3.0", "")          # being imported
+    naps = []
+
+    def nap(s):
+        naps.append(s)
+        fake_env.ext_info[rg.UUID] = ("1.0", "")      # loaded and running
+
+    assert cli.finish_pending(engine, wait_s=120, step_s=2, sleep=nap) is True
+    assert naps == [2]
+    assert not read_pending()
+    assert fake_env.gs[(DTP, None)]["trans-use-custom-bg"] == "true"
+    assert fake_env.gs[("org.gnome.shell.extensions.user-theme", None)]["name"] == f"'{ts.THEME_NAME}'"
 
 
 def test_the_error_text_is_kept_for_details(fake_env):

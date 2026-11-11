@@ -73,5 +73,7 @@ def test_glass_stays_for_window_previews():
         assert hook in src
     why = body("_whyNot")
     assert why.index("if (this.owner.previewing)") < why.index("located_on_workspace")
-    # A focused maximized window shows the windows behind it through its glass.
-    assert "!seesWindows(w)" in src
+    # The focused window shows the windows behind it through its glass: it hides none of them.
+    covers = body("covers")
+    assert "this.owner.seesWindows(this.win)" in covers and "return [];" in covers
+    assert "glassOf(a)?.covers()" in src

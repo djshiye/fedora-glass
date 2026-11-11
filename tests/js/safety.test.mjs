@@ -191,3 +191,29 @@ test('safe mode stays on across a clean restart', () => {
     s.destroy();
     assert.equal(shutdown.size, 0, 'the shutdown handler is let go on disable');
 });
+
+test('the state is written once as the glass starts, waited for on the disk, and not again unchanged', () => {
+    let writes = 0;
+    const fs = globalThis.fake.fs;
+    const set = fs.set.bind(fs);
+    fs.set = (k, v) => {
+        if (k === STATE)
+            writes++;
+        return set(k, v);
+    };
+    const s = make();
+    globalThis.fake.timeouts.advance(0);
+    assert.equal(writes, 1, 'starting up and the glass starting: one write');
+    assert.equal(state().running, true);
+    assert.equal(fs.get(STATE).flags, 1, 'CONSISTENT: there after a crash or a power cut');
+    s.glassStopped();      // the screen locks
+    assert.equal(writes, 2);
+    s.destroy();           // then the extension is turned off: nothing new to say
+    assert.equal(writes, 2);
+    assert.equal(state().running, false);
+    // A session spent on the lock screen still says it is not running.
+    const t = new Safety(() => {});
+    globalThis.fake.timeouts.advance(0);
+    assert.equal(state().running, false);
+    t.destroy();
+});

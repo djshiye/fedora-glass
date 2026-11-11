@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- What software centres show about Fedora Glass. Installed to /usr/share/metainfo by the
+     Fedora, Ubuntu and Arch packages. The id is the name of the .desktop file without
+     ".desktop". Add the new version at the top of <releases> with each release. -->
+<component type="desktop-application">
+  <id>io.github.djshiye.LiquidGlass</id>
+  <name>Fedora Glass</name>
+  <summary>A glass look for GNOME and your apps, from clear to frosted</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT AND Apache-2.0 AND GPL-3.0-only AND GPL-2.0-only AND CC-BY-SA-4.0</project_license>
+  <developer id="io.github.djshiye">
+    <name>Dino Klisura</name>
+  </developer>
+  <description>
+    <p>
+      Fedora Glass gives GNOME Shell, GTK and Qt apps a glass look, drawn by its own GNOME Shell
+      extension: the top bar, menus, the overview, the lock screen and the windows. A customizer
+      app tunes it from clear liquid glass to calm frost.
+    </p>
+    <p>
+      It changes only your own user settings, can put your original look back at any time, and
+      works with Dash to Panel, Dash to Dock, ArcMenu and Spawn, or on stock GNOME with none of
+      them.
+    </p>
+    <ul>
+      <li>Looks, colours, accent and dark or light, with a live preview</li>
+      <li>Motion styles for opening, closing and minimizing windows</li>
+      <li>Mouse pointer styles, including glass ones</li>
+      <li>Optional glass on the login screen</li>
+      <li>Restore original and Remove in one click</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.djshiye.LiquidGlass.desktop</launchable>
+  <provides>
+    <binary>fedora-glass</binary>
+  </provides>
+  <url type="homepage">https://github.com/djshiye/fedora-glass</url>
+  <url type="bugtracker">https://github.com/djshiye/fedora-glass/issues</url>
+  <url type="vcs-browser">https://github.com/djshiye/fedora-glass</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The customizer, with a live preview of the glass</caption>
+      <image type="source" width="1645" height="1070">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/app.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Glass on the top bar, menus and windows</caption>
+      <image type="source" width="1920" height="1080">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/glass-desktop.jpg</image>
+    </screenshot>
+    <screenshot>
+      <caption>The edge of a glass pane, close up</caption>
+      <image type="source" width="900" height="560">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/glass-edge.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <categories>
+    <category>Settings</category>
+    <category>DesktopSettings</category>
+  </categories>
+  <keywords>
+    <keyword>theme</keyword>
+    <keyword>glass</keyword>
+    <keyword>blur</keyword>
+    <keyword>transparency</keyword>
+    <keyword>appearance</keyword>
+  </keywords>
+  <releases>
+    <release version="1.5.23" date="2026-11-11">
+      <description>
+        <p>Sturdier: a failed Apply or a damaged settings file never changes your look, a lighter background helper, faster window drags, and many app fixes.</p>
+        <p>New: saved and shared looks, plain-language changes, one step back, wallpaper colours, Firefox colours, lighter glass on battery, apps without glass, and a Glass switch in Quick Settings.</p>
+      </description>
+    </release>
+    <release version="1.5.22" date="2026-11-10">
+      <description>
+        <p>A preview big enough to judge the glass, close up by default, and a little less memory.</p>
+      </description>
+    </release>
+    <release version="1.5.21" date="2026-11-10">
+      <description>
+        <p>A simpler app: a sidebar of pages, search for settings, and a faster start.</p>
+      </description>
+    </release>
+    <release version="1.5.20" date="2026-11-10">
+      <description>
+        <p>Mouse pointer styles, clearer app, safer backups, and signing that checks where a release was built.</p>
+      </description>
+    </release>
+    <release version="1.5.19" date="2026-11-10">
+      <description>
+        <p>Less memory, cheaper glass, lighter window drags and less idle CPU.</p>
+      </description>
+    </release>
+    <release version="1.5.18" date="2026-11-09">
+      <description>
+        <p>Full-screen games get direct display again, and hidden window glass frees its memory.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -9,6 +9,7 @@ from the tokens, and follows changes to that file live.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from ..color import Color, lerp
@@ -22,13 +23,39 @@ SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
          "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "grabhover.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
-         "speed.js", "tuning.js", "popupstyle.js", "stackclip.js", "prefs.js")
+         "speed.js", "tuning.js", "popupstyle.js", "paused.js", "stackclip.js", "prefs.js", "power.js",
+         "quicktoggle.js", "glass-symbolic.svg")
 
 # Apps that paint opaque windows (Electron, games, launchers): glass behind
 # them costs GPU time and shows nothing.
 WINDOW_SKIP = ("Plank", "Conky", "steam", "Steam", "discord", "Code", "code", "obsidian", "Slack",
                "brave-browser", "brave-origin", "helium", "zoom", "Claude", "firefox", "libreoffice",
                "org.prismlauncher.PrismLauncher")
+# The games and video players windows.js never gives glass (its NO_GLASS, the same pattern),
+# so the app can show them as always without glass.
+WINDOW_NO_GLASS = re.compile(
+    r"^(steam_app_\d+|steam_proton|gamescope|mpv|vlc|celluloid|io\.github\.celluloid_player\.celluloid|totem|"
+    r"org\.gnome\.totem|org\.gnome\.showtime|com\.github\.rafostar\.clapper|io\.mpv\.mpv|org\.videolan\.vlc|"
+    r"retroarch|org\.libretro\.retroarch)$", re.IGNORECASE)
+
+
+_WINDOW_SKIP_ANY_CASE = frozenset(i.casefold() for i in WINDOW_SKIP)
+
+
+def always_without_glass(app_id: str) -> bool:
+    """Whether the extension keeps glass off this app's windows whatever the user picks
+    (windows.js compares the skip ids without regard to case)."""
+    return app_id.casefold() in _WINDOW_SKIP_ANY_CASE or bool(WINDOW_NO_GLASS.match(app_id))
+
+
+# config.js keeps at most this many skip ids (built-in and the user's together).
+SKIP_MAX = 200
+
+
+def window_skip(s: Settings) -> list[str]:
+    """The apps whose windows get no glass: the built-in ones first, so the user's own can
+    never push them out of the extension's limit, then the user's, each once."""
+    return list(dict.fromkeys([*WINDOW_SKIP, *s.no_glass_apps]))[:SKIP_MAX]
 
 
 def extension_files() -> dict[str, str]:
@@ -226,14 +253,16 @@ def config(s: Settings, t: Tokens) -> dict:
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
         "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": scale(t.window_radius)["l"],   # the same as the GTK window corners
-                    "skip": list(WINDOW_SKIP), "look": _window_look(t, "windows"),
+                    "skip": window_skip(s), "look": _window_look(t, "windows"),
                     "terminalLook": _window_look(t, "terminal")},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,
         "lock": _lock_config(s, off),
         "grow": {"enabled": s.menu_grow},
-        "speed": {"quality": s.glass_quality},
+        "speed": {"quality": s.glass_quality, "lighterOnBattery": s.lighter_on_battery},
+        # The "Glass" tile in Quick Settings that pauses the glass until the next login.
+        "quickToggle": {"enabled": s.quick_toggle},
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": bool(s.start_on_desktop) or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
@@ -243,6 +272,11 @@ def config(s: Settings, t: Tokens) -> dict:
         # The theme's pop-up rules (OSD, Alt+Tab) again, loaded by the extension as its own
         # stylesheet so they win over other extensions' sheets (popupstyle.js).
         "popupCss": shell.render_extension_css(t),
+        # While the glass is paused (Quick Settings) or in safe mode: the panel, menus and
+        # pop-ups nearly solid in the theme's colours, as nothing blurs what is under them
+        # (paused.js). pausedAlpha is how solid Dash to Panel's panel gets then.
+        "pausedCss": shell.render_paused_css(t),
+        "pausedAlpha": shell.PAUSED_ALPHA,
     }
 
 

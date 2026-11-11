@@ -75,6 +75,75 @@ SettingsPage {
         }
     }
 
+    // One Apply back (and forward again): the look applied before the last Apply.
+    Card {
+        objectName: "previousCard"
+        visible: Backend.hasPrevious
+        width: parent.width
+        height: visible ? implicitHeight : 0
+        Item {
+            width: parent.width
+            height: Math.max(previousText.height, previousButton.height)
+            Column {
+                id: previousText
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - previousButton.width - 16
+                spacing: 3
+                Text {
+                    objectName: "previousTitle"
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: Backend.previousIsForward ? "Go forward to the look you went back from"
+                                                    : "Go back to the look before your last Apply"
+                    color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold
+                }
+                Text {
+                    objectName: "previousWhen"
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: (Backend.previousWhen ? "It was applied " + Backend.previousWhen + ". " : "")
+                          + (Backend.previousIsForward ? "One click applies it again."
+                                                       : "One click applies it again, and you can come forward after.")
+                    color: Theme.textFaint
+                    font.pixelSize: Theme.fsSmall
+                }
+            }
+            LgButton {
+                id: previousButton
+                objectName: "goToPrevious"
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                kind: "secondary"
+                implicitHeight: 36
+                leftPadding: 14; rightPadding: 16
+                text: Backend.previousIsForward ? "Go forward" : "Go back"
+                iconName: Backend.previousIsForward ? "forward" : "back"
+                enabled: !Backend.busy
+                tip: Backend.previousIsForward ? "Apply the look you had before you went back"
+                                               : "Apply the look you had before your last Apply"
+                onClicked: Backend.dirty ? stepSheet.open() : Backend.goToPrevious()
+            }
+        }
+    }
+    Sheet {
+        id: stepSheet
+        objectName: "previousSheet"
+        title: Backend.previousIsForward ? "Go forward and drop your changes?" : "Go back and drop your changes?"
+        subtitle: "You changed the look but haven't applied it. Going " + (Backend.previousIsForward ? "forward" : "back")
+                  + " applies the earlier look in their place, and those changes are lost."
+        iconName: "info"
+        width: Math.min(520, (parent ? parent.width : 800) - 64)
+        buttons: [
+            LgButton { text: "Cancel"; kind: "secondary"; onClicked: stepSheet.close() },
+            LgButton {
+                text: Backend.previousIsForward ? "Go forward" : "Go back"
+                kind: "primary"
+                onClicked: { stepSheet.close(); Backend.goToPrevious() }
+            }
+        ]
+        Item { width: 1; height: 1 }
+    }
+
     Card {
         objectName: "restoreCard"
         width: parent.width

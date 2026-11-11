@@ -14,7 +14,7 @@ SettingsPage {
     previewInSide: false
     property alias frostHeld: frost.held
 
-    readonly property var presetFrost: ({ Liquid: 0.0, Clear: 0.25, Balanced: 0.45, Frosted: 0.8, Solid: 1.0 })
+    readonly property var presetFrost: Backend.presetFrost
     readonly property var presetTips: ({
         "Liquid": "Clearest glass, brightest rim",
         "Clear": "Clear glass with a little haze",
@@ -22,13 +22,8 @@ SettingsPage {
         "Frosted": "Milky, heavily blurred glass",
         "Solid": "Almost opaque, for maximum readability"
     })
-    function frostName(f) {
-        if (f < 0.12) return "Liquid"
-        if (f < 0.35) return "Clear"
-        if (f < 0.62) return "Balanced"
-        if (f < 0.9) return "Frosted"
-        return "Solid"
-    }
+    // Named after the preset the slider sits nearest to (settings.PRESETS, through Backend).
+    function frostName(f) { return Backend.frostName(f) }
 
     // ---- left: the preview and the presets ------------------------------------------
     Item {
@@ -53,14 +48,51 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 12
-            Row {
-                spacing: 10
-                Text { text: "Look"; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
-                Text {
-                    anchors.baseline: parent.children[0].baseline
-                    text: "Pick one to start. Everything else follows it."
-                    color: Theme.textFaint
-                    font.pixelSize: Theme.fsSmall + 1
+            Item {
+                width: parent.width
+                height: 30
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    Text { id: lookTitle; text: "Look"; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
+                    Text {
+                        anchors.baseline: lookTitle.baseline
+                        // Gives way to the buttons in a narrow window.
+                        width: Math.min(implicitWidth, lookButtons.x - lookTitle.width - 10 - 16)
+                        elide: Text.ElideRight
+                        text: "Pick one to start. Everything else follows it."
+                        color: Theme.textFaint
+                        font.pixelSize: Theme.fsSmall + 1
+                    }
+                }
+                Row {
+                    id: lookButtons
+                    anchors.right: parent.right
+                    anchors.rightMargin: -8
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 4
+                    LgButton {
+                        objectName: "saveLook"
+                        kind: "flat"
+                        implicitHeight: 30
+                        leftPadding: 8; rightPadding: 10
+                        text: "Save look…"
+                        iconName: "plus"
+                        tip: "Keep this look under a name, to pick again or share"
+                        tipBelow: true
+                        onClicked: savedLooks.saveNew()
+                    }
+                    LgButton {
+                        objectName: "importLook"
+                        kind: "flat"
+                        implicitHeight: 30
+                        leftPadding: 8; rightPadding: 10
+                        text: "Add from file…"
+                        iconName: "document"
+                        tip: "Add a look someone shared with you (a .json file)"
+                        tipBelow: true
+                        onClicked: savedLooks.importFile()
+                    }
                 }
             }
             Row {
@@ -71,7 +103,7 @@ SettingsPage {
                 readonly property real tileW: (width - spacing * (Backend.presets.length - 1)) / Math.max(1, Backend.presets.length)
                 Repeater {
                     model: Backend.presets
-                    delegate: PresetTile {
+                    delegate: LookTile {
                         required property string modelData
                         required property int index
                         width: presetRow.tileW
@@ -84,6 +116,11 @@ SettingsPage {
                         onClicked: Backend.applyPreset(modelData)
                     }
                 }
+            }
+            SavedLooks {
+                id: savedLooks
+                width: parent.width
+                tileW: presetRow.tileW
             }
         }
     }
@@ -125,7 +162,7 @@ SettingsPage {
                     objectName: "homeFrost"
                     width: parent.width
                     value: Backend.frost
-                    ticks: [{ value: 0.0 }, { value: 0.25 }, { value: 0.45 }, { value: 0.8 }, { value: 1.0 }]
+                    ticks: Backend.frostTicks
                     onMoved: (v) => Backend.frost = v
                 }
             }
@@ -217,108 +254,6 @@ SettingsPage {
             }
         }
     ]
-
-    // ---- a preset as a little picture of its glass --------------------------------------
-    component PresetTile: C.AbstractButton {
-        id: tile
-        property string name: ""
-        property real frost: 0.45
-        property bool selected: false
-        property string tip: ""
-        property Item rovingGroup: null
-        property bool rovingStop: selected
-        readonly property bool _groupFocused: Window.activeFocusItem !== null && Window.activeFocusItem.rovingGroup === rovingGroup
-        focusPolicy: activeFocus || (rovingStop && !_groupFocused) ? Qt.StrongFocus : Qt.ClickFocus
-        Keys.onLeftPressed: { const p = tile.nextItemInFocusChain(false); if (p && p.rovingGroup === tile.rovingGroup) p.forceActiveFocus(Qt.TabFocusReason) }
-        Keys.onRightPressed: { const n = tile.nextItemInFocusChain(true); if (n && n.rovingGroup === tile.rovingGroup) n.forceActiveFocus(Qt.TabFocusReason) }
-        implicitHeight: 104
-        hoverEnabled: true
-        text: name
-        Accessible.name: name + " preset"
-        Accessible.role: Accessible.RadioButton
-        Accessible.checked: selected
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
-        LgToolTip { shown: tile.tip.length > 0 && (tile.hovered || tile.visualFocus) && !tile.pressed; text: tile.tip }
-
-        background: Rectangle {
-            radius: Theme.rM - 2
-            color: tile.selected ? Theme.alpha(Theme.accent, Theme.dark ? 0.16 : 0.1)
-                   : tile.down ? Theme.wellHi : tile.hovered ? Theme.surfaceHi : Theme.surface
-            border.width: tile.selected ? 1.5 : 1
-            border.color: tile.selected ? Theme.alpha(Theme.accent, 0.85) : Theme.border
-            Behavior on color { ColorAnimation { duration: Theme.fast } }
-            FocusRing { target: tile; radius: Theme.rM }
-        }
-        contentItem: Column {
-            spacing: 7
-            topPadding: 8
-            Item {
-                id: thumb
-                x: 8
-                width: tile.width - 16
-                height: 60
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    maskEnabled: true
-                    maskSource: thumbMask
-                    maskThresholdMin: 0.5
-                    maskSpreadAtMin: 1.0
-                }
-                Image {
-                    id: wall
-                    anchors.fill: parent
-                    source: Backend.wallpaper
-                    sourceSize.width: 200
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    smooth: true
-                }
-                Rectangle {     // without a wallpaper picture: a soft night sky
-                    anchors.fill: parent
-                    visible: wall.status !== Image.Ready
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0; color: "#33296f" }
-                        GradientStop { position: 0.55; color: "#161a35" }
-                        GradientStop { position: 1; color: "#43215a" }
-                    }
-                }
-                // The pane of glass, as frosted as the preset.
-                Item {
-                    id: pane
-                    x: parent.width * 0.16; y: parent.height * 0.2
-                    width: parent.width * 0.68; height: parent.height * 0.6
-                    clip: true
-                    MultiEffect {
-                        x: -pane.x; y: -pane.y
-                        width: thumb.width; height: thumb.height
-                        source: wall
-                        visible: wall.status === Image.Ready
-                        blurEnabled: true
-                        blurMax: 24
-                        blur: 0.1 + 0.9 * tile.frost
-                        autoPaddingEnabled: false
-                    }
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 7
-                        color: Qt.rgba(1, 1, 1, Theme.dark ? 0.04 + 0.22 * tile.frost : 0.12 + 0.5 * tile.frost)
-                        border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, 0.55 - 0.25 * tile.frost)
-                    }
-                }
-            }
-            Text {
-                width: tile.width
-                horizontalAlignment: Text.AlignHCenter
-                text: tile.name
-                color: tile.selected ? Theme.text : Theme.textDim
-                font.pixelSize: 13
-                font.weight: tile.selected ? Font.DemiBold : Font.Normal
-            }
-        }
-        Rectangle { id: thumbMask; visible: false; layer.enabled: true; width: thumb.width; height: thumb.height; radius: 9 }
-    }
 
     // ---- a big switch or shortcut, like a Quick Settings tile ---------------------------
     component QuickTile: C.AbstractButton {

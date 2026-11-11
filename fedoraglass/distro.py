@@ -49,7 +49,7 @@ DEBIAN = Distro(
     ("dpkg-query", "-S"),
     # Ubuntu splits PySide6 per Qt module and QML per module.
     {"pyside6": "python3-pyside6.qtquick python3-pyside6.qtquickcontrols2 qml6-module-qtquick-controls "
-                "qml6-module-qtquick-effects qml6-module-qtquick-shapes qml6-module-qtquick-window",
+                "qml6-module-qtquick-effects qml6-module-qtquick-shapes qml6-module-qtquick-window qml6-module-qtquick-dialogs",
      "kvantum": "qt6-style-kvantum", "adw-gtk3": "",
      "user-theme": "gnome-shell-extension-user-theme", "gnome-shell": "gnome-shell"})
 ARCH = Distro(

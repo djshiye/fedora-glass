@@ -1,5 +1,5 @@
 """The install blocks in the README: each one pins the signing key's fingerprint and installs
-from the signed repository. The Fedora and Ubuntu blocks are run here with fake sudo, curl,
+from the signed repository. The three blocks are run here with fake sudo, curl,
 wget, dnf and apt and the real gpg, against the real key and against swapped keys."""
 from __future__ import annotations
 
@@ -45,6 +45,10 @@ def test_every_install_block_pins_the_key_and_uses_the_signed_repository():
     assert "/etc/yum.repos.d/fedora-glass-setup.repo" in fedora and "/etc/yum.repos.d/fedora-glass.repo" not in fedora
     assert "/etc/apt/sources.list.d/fedora-glass-setup.sources" in ubuntu
     assert "--lsign-key D49A308168257FDBF9D5AE14BD1AC1C6F56A7252" in arch
+    # The key goes to a private temporary file (not a fixed name in /tmp that someone else
+    # could have made first), and is added to pacman only after its fingerprint is checked.
+    assert arch.startswith('k=$(mktemp) && curl -fsSLo "$k" ') and "/tmp/" not in arch
+    assert arch.index("Stopped: not the Fedora Glass key.") < arch.index('pacman-key --add "$k"') < arch.index("--lsign-key")
     assert "SigLevel = Required DatabaseRequired" in arch
     assert "grep -q '^\\[fedora-glass\\]' /etc/pacman.conf ||" in arch   # pasting it twice adds it once
     # The site serves what the blocks fetch (dnf-repo.yml builds the site).
@@ -80,7 +84,7 @@ def box(tmp_path):
         "wget": 'while [ $# -gt 1 ]; do case "$1" in -*O) out="$2"; shift ;; esac; shift; done; cp "$KEYSRC" "$out"',
         "tee": 'echo "tee $*" >> "$LOG"; cat >> "$LOG"',
     }
-    for cmd in ("install", "rpm", "dnf", "apt", "rm"):
+    for cmd in ("install", "rpm", "dnf", "apt", "rm", "pacman", "pacman-key"):
         fakes[cmd] = f'echo "{cmd} $*" >> "$LOG"'
     for name, body in fakes.items():
         (bin_ / name).write_text(f"#!/bin/bash\n{body}\n")
@@ -100,16 +104,20 @@ def box(tmp_path):
 
 
 @pytest.mark.parametrize("distro, installer", [("Fedora", "dnf install fedora-glass"),
-                                               ("Ubuntu", "apt install fedora-glass")])
+                                               ("Ubuntu", "apt install fedora-glass"),
+                                               ("Arch Linux", "pacman -Syu fedora-glass")])
 def test_install_block_runs_with_the_real_key(box, distro, installer):
     _, run = box
     r, log = run(distro, KEY.read_bytes())
     assert installer in log, r.stderr
     assert "Stopped" not in r.stdout
-    assert "\nrm -f " in log      # the setup file is removed again
+    if distro != "Arch Linux":
+        assert "\nrm -f " in log      # the setup file is removed again
+    else:
+        assert "pacman-key --add " in log and f"pacman-key --lsign-key {FPR}" in log
 
 
-@pytest.mark.parametrize("distro, installer", [("Fedora", "dnf install"), ("Ubuntu", "apt ")])
+@pytest.mark.parametrize("distro, installer", [("Fedora", "dnf install"), ("Ubuntu", "apt "), ("Arch Linux", "pacman")])
 def test_install_block_stops_on_a_swapped_key(box, distro, installer):
     tmp, run = box
     other = _gpg_key(tmp / "other", "Someone Else <x@example.com>")
@@ -117,4 +125,4 @@ def test_install_block_stops_on_a_swapped_key(box, distro, installer):
         r, log = run(distro, key)
         assert "Stopped: not the Fedora Glass key." in r.stdout
         assert installer not in log and "install -Dm644" not in log and "tee " not in log
-        assert "rpm --import" not in log
+        assert "rpm --import" not in log and "pacman-key" not in log

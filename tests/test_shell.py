@@ -134,6 +134,42 @@ def test_extension_stylesheet_carries_the_popup_rules_behind_ui_group(frost, dar
     assert f"background-color: {fill};" in css
 
 
+@pytest.mark.parametrize("frost,dark", GRID)
+def test_paused_stylesheet_makes_the_theme_surfaces_solid_in_its_own_colours(frost, dark):
+    """Paused from Quick Settings or in safe mode, the glass under the panel, menus and pop-ups
+    is gone but the theme still painted them about 30 % see-through: text behind showed sharp
+    through them. The paused sheet gives them the theme's own colours, light or dark, nearly
+    solid, each selector behind #uiGroup so other extensions' sheets do not win."""
+    t = tokens(frost, dark)
+    css = rs.render_paused_css(t)
+    assert css.count("{") == css.count("}") >= 8 and "$" not in css
+    rules = dict(re.findall(r"([^{}]+)\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", css, flags=re.S)))
+    sels = {s.strip(): body for r, body in rules.items() for s in r.split(",")}
+    assert all(s.startswith("#uiGroup ") for s in sels), sels
+    surf = rs.surfaces(t)
+    want = {"#panel": surf["chrome"], ".quick-settings": surf["popover"], ".popup-menu-content": surf["popover"],
+            ".switcher-list": surf["osd"], ".osd-window": surf["osd"], ".modal-dialog": surf["dialog"]}
+    for sel, color in want.items():
+        body = sels[f"#uiGroup {sel}"]
+        fill = re.search(r"background-color: ([^;!]+)", body).group(1).strip()
+        # A surface the theme paints near solid already (full frost, light) stays as it is.
+        assert fill == (color if color.a >= rs.PAUSED_ALPHA else color.with_alpha(rs.PAUSED_ALPHA)).css, (sel, fill)
+        if frost == 0.5:
+            assert color.a < 0.9, "the theme paints it see-through, which is the point"
+    assert "!important" in sels["#uiGroup #panel"], "the theme's own #panel rule is !important"
+    assert "transparent" in sels["#uiGroup #panel:overview"]
+    # Every fill is nearly solid.
+    for m in re.finditer(r"rgba\(\d+,\d+,\d+,([\d.]+)\)", css):
+        assert float(m.group(1)) >= rs.PAUSED_ALPHA
+
+
+def test_paused_stylesheet_follows_light_and_dark():
+    dark, light = rs.render_paused_css(tokens(0.5, True)), rs.render_paused_css(tokens(0.5, False))
+    assert dark != light
+    panel = lambda css: re.search(r"#uiGroup #panel \{\s*background-color: rgba\((\d+),", css).group(1)
+    assert int(panel(dark)) < 128 < int(panel(light))
+
+
 def test_glass_target_sends_the_popup_stylesheet_in_the_config(fake_env):
     """The pop-up rules go in shell-glass.json, never as the extension's stylesheet.css:
     GNOME re-reads that file whenever the theme reloads, so Restore original deleting it
@@ -146,6 +182,11 @@ def test_glass_target_sends_the_popup_stylesheet_in_the_config(fake_env):
     cfg = json.loads(writes[ts.GlassEffects().config_path(fake_env)])
     assert "#uiGroup .switcher-list" in cfg["popupCss"]
     assert len(cfg["popupCss"].encode()) < 16 * 1024   # popupstyle.js refuses anything bigger
+    # And the solid sheet for a paused glass, with the same limits (config.js cleanPopupCss).
+    assert "#uiGroup .quick-settings" in cfg["pausedCss"]
+    assert len(cfg["pausedCss"].encode()) < 16 * 1024 and not re.search(r"@|url\s*\(|\\\\", cfg["pausedCss"])
+    assert cfg["pausedAlpha"] == rs.PAUSED_ALPHA
+    assert "paused.js" in {p.name for p in writes}
 
 
 def test_frost_changes_the_css():
@@ -572,7 +613,7 @@ def test_veil_is_light_and_text_stays_readable():
 
 def test_every_extension_module_is_installed():
     # A module left out of FILES would be missing from the installed extension, and it would not load.
-    assert {p.name for p in rg.SOURCE.iterdir() if p.suffix in (".js", ".json", ".css")} == set(rg.FILES)
+    assert {p.name for p in rg.SOURCE.iterdir() if p.suffix in (".js", ".json", ".css", ".svg")} == set(rg.FILES)
 
 
 def test_menus_never_wait_long_for_their_glass():
