@@ -121,7 +121,7 @@ def test_rpm_job_installs_upgrades_and_removes_the_package():
     # The new package on a clean system, with the smoke check, then the previous release's
     # package checked against its SHA256SUMS and upgraded, then Liquid Glass 1.4.4.
     assert "qa/package-smoke.sh" in script and "sha256sum --quiet -c" in script
-    assert 'fetch "$prev" fedora-glass.noarch.rpm' in script and "fetch v1.4.4 liquid-glass.noarch.rpm" in script
+    assert 'fetch_or_skip "$prev" fedora-glass.noarch.rpm' in script and "fetch_or_skip v1.4.4 liquid-glass.noarch.rpm" in script
     assert script.index("Clean install") < script.index("Upgrade from the previous release") < script.index("Move from Liquid Glass 1.4.4")
     # Not the website: only the files built here and the old release assets.
     assert "fedora-glass.enabled=0" in script
