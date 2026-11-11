@@ -464,7 +464,7 @@ def load_checked(path: Path | None = None) -> Loaded:
     else:
         if raw is None and _sibling(path, ".damaged").exists():
             # Damaged earlier and nothing saved since: still no file of the user's to go on.
-            return Loaded(Settings(), damage_notice(path), False)
+            return Loaded(_stand_in(path), damage_notice(path), False)
         return Loaded(_from_dict(raw or {}), None, True)
     damaged = _sibling(path, ".damaged")
     if isinstance(problem, ValueError):
@@ -489,9 +489,54 @@ def load_checked(path: Path | None = None) -> Loaded:
                 pass
         return Loaded(s, f"Your settings file {path} could not be read ({problem}), so the last good "
                          "copy of it is used." + _kept(damaged), True)
-    return Loaded(Settings(), f"Your settings file {path} could not be read ({problem}), and there is "
+    return Loaded(_stand_in(path), f"Your settings file {path} could not be read ({problem}), and there is "
                               "no good copy of it. Fedora Glass shows its defaults and changes nothing by "
                               "itself until you press Apply." + _kept(damaged), False)
+
+
+def _on_remove_path(path: Path) -> Path:
+    return _sibling(path, ".on-remove")
+
+
+def _stand_in(path: Path) -> Settings:
+    """The defaults that stand in for a damaged file, with the one choice the app saves
+    on its own meanwhile: "Remove only" (see save_undo_on_remove)."""
+    try:
+        raw = json.loads(_on_remove_path(path).read_bytes().decode("utf-8"))
+    except (OSError, ValueError):
+        raw = None
+    on = raw.get("undo_on_remove") if isinstance(raw, dict) else None
+    return Settings(undo_on_remove=on) if isinstance(on, bool) else Settings()
+
+
+def save_undo_on_remove(on: bool, path: Path | None = None) -> None:
+    """Keep "Remove only" while settings.json is damaged with no good copy. Only an Apply
+    may write settings.json then: anything else would write the defaults that stand in for
+    it, and the watcher would take those for the user's own and apply them. Removing the
+    package still finds the choice: load_checked() reads it back for as long as the file
+    stays unusable, and an Apply saves it in settings.json with the rest."""
+    path = path or settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write(_on_remove_path(path), json.dumps({"undo_on_remove": bool(on)}).encode() + b"\n")
+
+
+def read_raw(path: Path | None = None) -> bytes | None:
+    """settings.json as it is now, or None when there is none (for put_back)."""
+    try:
+        return (path or settings_path()).read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def put_back(before: bytes | None, path: Path | None = None) -> None:
+    """settings.json as read_raw() found it (none: no file), after an Apply that stopped.
+    Unlike save(), the last good copy (.bak) is left alone: it must never become the look
+    that failed."""
+    path = path or settings_path()
+    if before is None:
+        path.unlink(missing_ok=True)
+    else:
+        _write(path, before)
 
 
 def _kept(damaged: Path) -> str:
@@ -622,7 +667,10 @@ def _write(path: Path, data: bytes) -> None:
         os.close(dfd)
 
 
-def save(s: Settings, path: Path | None = None) -> Path:
+def save(s: Settings, path: Path | None = None, *, backup: bool = True) -> Path:
+    """`backup`: keep the file as it was as settings.json.bak. False while an Apply runs or
+    after it stopped: the file then holds a look that isn't applied yet (or failed), and
+    .bak must stay the last one that was."""
     path = path or settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -631,7 +679,7 @@ def save(s: Settings, path: Path | None = None) -> Path:
     except (OSError, ValueError):
         before, old = None, {}
     out = _keep_newer(asdict(s.normalized()), old)
-    if before is not None:
+    if before is not None and backup:
         # The file as it was, good, kept for the day settings.json itself is found damaged.
         _write(_sibling(path, ".bak"), before)
     _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")

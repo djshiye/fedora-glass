@@ -247,7 +247,13 @@ class Backend(QObject):
         self._engine_factory = engine_factory or self._default_engine
         self._engine: Any = None
         self._path = settings_path
-        self._saved = settings_mod.load(settings_path)
+        loaded = settings_mod.load_checked(settings_path)
+        self._saved = loaded.settings
+        # False: settings.json is damaged with no good copy, and _saved is only the defaults
+        # standing in for it. Then nothing but an Apply that runs to the end writes
+        # settings.json: a file of defaults would read as the user's own again, and the
+        # watcher would apply it at the next dark/light switch, without anyone pressing Apply.
+        self._usable = loaded.usable
         # First run: no saved settings and the welcome never dismissed. Asked once, at start.
         self._first_run = not self._settings_file().exists() and not self._welcome_marker().exists()
         self._s = replace(self._saved, targets=dict(self._saved.targets))
@@ -1743,6 +1749,10 @@ class Backend(QObject):
         # Saved first, so a settings folder that can't be written stops Apply before the
         # desktop changes. The look counts as applied (_saved) only once Apply ends.
         try:
+            before = settings_mod.read_raw(self._path)
+        except OSError:
+            before = False      # can't be read: an Apply that stops leaves the file as it is then
+        try:
             settings_mod.save(s, self._path)
         except OSError as e:
             self._lock_after_apply = False
@@ -1776,8 +1786,14 @@ class Backend(QObject):
                 # Stopped part way: the changes stay unapplied (dirty, Undo, the close guard),
                 # and settings.json goes back to the look applied last, since the watcher
                 # applies that file again whenever GNOME flips between dark and light.
+                # Not a save: that would make .bak the look that just failed. While the
+                # file was damaged (_usable False) it goes back to exactly what it was, so the
+                # defaults never land in it.
                 try:
-                    settings_mod.save(self._saved, self._path)
+                    if self._usable:
+                        settings_mod.save(self._saved, self._path, backup=False)
+                    elif before is not False:
+                        settings_mod.put_back(before, self._path)
                 except OSError:
                     pass
                 self._refresh_damage()
@@ -1785,6 +1801,7 @@ class Backend(QObject):
                 return
             results, self._has_backup, (self._glass_live, restart) = out
             self._saved = replace(s, undo_on_remove=uor)
+            self._usable = True         # settings.json is the look the user applied now
             rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message} for r in results]
             # Some parts failed: the rest is applied, and settings.json is that look (the
             # watcher keeps it), but Undo goes back to the last look that applied fully.
@@ -2036,10 +2053,16 @@ class Backend(QObject):
         if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
             return
         saved = replace(self._saved, undo_on_remove=on)
-        # While Apply runs, settings.json holds the look it applies: keep that one.
+        # While Apply runs, settings.json holds the look it applies: keep that one, and keep
+        # .bak the look applied before it (the Apply may still fail).
         on_disk = replace(self._applying, undo_on_remove=on) if self._applying is not None else saved
         try:
-            settings_mod.save(on_disk, self._path)
+            if self._usable or self._applying is not None:
+                settings_mod.save(on_disk, self._path, backup=self._applying is None)
+            if not self._usable:
+                # Damaged settings.json: only Apply writes it (see _usable). The choice is
+                # kept beside it, where removing the package reads it.
+                settings_mod.save_undo_on_remove(on, self._path)
         except OSError as e:
             self.failed.emit(f"Could not save settings: {e}")
             return

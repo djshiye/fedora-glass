@@ -182,3 +182,44 @@ def test_finish_pending_waits_for_a_good_file(fake_env, monkeypatch):
     sm.settings_path().write_text("{")
     assert cli.finish_pending(eng, sleep=lambda s: None) is False
     assert eng.applies == 0
+
+
+# ---- while the file is damaged, only Apply writes it -------------------------------------
+def test_remove_only_is_kept_beside_a_damaged_file_and_it_stays_unusable(tmp_path):
+    p = _path(tmp_path)
+    p.parent.mkdir(parents=True)
+    p.write_text('{"frost": 0.9, "scheme": "dark"')     # truncated, no good copy
+    assert not sm.load_checked(p).usable
+    sm.save_undo_on_remove(False, p)
+    got = sm.load_checked(p)
+    assert not got.usable, "the watcher must still apply nothing by itself"
+    assert got.settings == Settings(undo_on_remove=False)
+    assert not p.exists() and sm.damage_notice(p)
+    sm.save(Settings(frost=0.4, undo_on_remove=False), p)      # an Apply
+    assert sm.load_checked(p) == (Settings(frost=0.4, undo_on_remove=False), None, True)
+
+
+def test_on_remove_reads_the_choice_kept_beside_a_damaged_file(fake_env, monkeypatch, capsys):
+    from fedoraglass import __main__ as cli
+    p = sm.settings_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("{")
+    sm.load_checked()
+    sm.save_undo_on_remove(False)
+    monkeypatch.setattr(cli, "_engine", lambda: (_ for _ in ()).throw(AssertionError("restored")))
+    assert cli.cmd_on_remove(None) == 0
+    assert "your look stays" in capsys.readouterr().out
+
+
+def test_save_without_backup_and_put_back_leave_the_bak_alone(tmp_path):
+    p = _path(tmp_path)
+    sm.save(Settings(frost=0.2), p)
+    sm.save(Settings(frost=0.3), p)
+    bak = p.with_name("settings.json.bak")
+    before = sm.read_raw(p)
+    sm.save(Settings(frost=0.9), p, backup=False)
+    assert json.loads(bak.read_text())["frost"] == 0.2
+    sm.put_back(before, p)
+    assert sm.load(p).frost == 0.3 and json.loads(bak.read_text())["frost"] == 0.2
+    sm.put_back(None, tmp_path / "liquid-glass/none.json")     # no file before: none after
+    assert sm.read_raw(tmp_path / "liquid-glass/none.json") is None

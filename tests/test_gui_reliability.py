@@ -727,3 +727,59 @@ def test_search_results_float_above_the_page(qml):
         assert _find(win, "sidebar").z() > _find(win, "pages").parentItem().z()
     finally:
         win.close()
+
+
+def _damaged(tmp_path):
+    p = tmp_path / "cfg/liquid-glass/settings.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('{"frost": 0.9, "scheme": "dark"')     # truncated, and no good copy
+    return p
+
+
+def test_damaged_settings_are_written_only_by_an_apply(qml, fake_env, tmp_path):
+    """The defaults that stand in for a damaged file must never land in settings.json by
+    anything but Apply: the watcher would then take them for the user's own."""
+    p = _damaged(tmp_path)
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("undoOnRemove", False)
+    assert not p.exists()
+    got = settings_mod.load_checked(p)
+    assert not got.usable and got.settings.undo_on_remove is False, "removing the package still reads it"
+    assert _backend(fake_env, tmp_path).property("undoOnRemove") is False, "the app shows it again"
+    b.setProperty("frost", 0.5)
+    b._test_engine.crash = True
+    assert _apply(b) is None
+    assert not p.exists() and not p.with_name("settings.json.bak").exists()
+    assert not settings_mod.load_checked(p).usable
+    b._test_engine.crash = False
+    assert _apply(b) is not None
+    assert _on_disk(tmp_path)["frost"] == 0.5 and _on_disk(tmp_path)["undo_on_remove"] is False
+    assert settings_mod.load_checked(p).usable
+    b.setProperty("undoOnRemove", True)                 # usable again: saved as before
+    assert _on_disk(tmp_path)["undo_on_remove"] is True
+
+
+def test_remove_only_during_an_apply_over_a_damaged_file(qml, fake_env, tmp_path):
+    p = _damaged(tmp_path)
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.6)
+    b._test_engine.crash = True
+    b.apply()
+    b.setProperty("undoOnRemove", False)
+    assert b.waitIdle()
+    assert not p.exists() and settings_mod.load_checked(p).settings.undo_on_remove is False
+
+
+def test_a_failed_apply_keeps_the_bak_the_last_applied_look(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.2)
+    _apply(b)
+    b.setProperty("frost", 0.3)
+    _apply(b)
+    bak = tmp_path / "cfg/liquid-glass/settings.json.bak"
+    assert json.loads(bak.read_text())["frost"] == 0.2
+    b.setProperty("frost", 0.9)
+    b._test_engine.crash = True
+    assert _apply(b) is None
+    assert _on_disk(tmp_path)["frost"] == 0.3
+    assert json.loads(bak.read_text())["frost"] != 0.9, "the look that failed is no good copy"
