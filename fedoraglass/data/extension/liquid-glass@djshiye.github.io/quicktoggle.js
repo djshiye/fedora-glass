@@ -34,6 +34,11 @@ export function subtitleFor(paused, safeMode) {
     return safeMode ? _('Safe mode') : null;
 }
 
+/** Whether the tile shows as on: only while the glass really shows. */
+export function isOn(paused, safeMode) {
+    return !paused && !safeMode;
+}
+
 export class GlassSwitch {
     /**
      * dir: the extension's folder (for its icon). onPause(paused) is called when the user
@@ -78,7 +83,10 @@ export class GlassSwitch {
     _show() {
         if (!this._toggle)
             return;
-        this._toggle.checked = !this._paused;
+        // In safe mode there is no glass to show: the tile says so, off, and has nothing to
+        // pause (the glass comes back from the Fedora Glass app). A pause can still be ended.
+        this._toggle.checked = isOn(this._paused, this._safe);
+        this._toggle.reactive = this._paused || !this._safe;
         this._toggle.subtitle = subtitleFor(this._paused, this._safe);
     }
 

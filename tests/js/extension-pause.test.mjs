@@ -1,5 +1,6 @@
 // Pausing the glass from Quick Settings (extension.js): the glass and the animations come
-// down as in safe mode, nothing is written, the pause lasts through a lock, and the next
+// down as in safe mode, the pause is said for the app (pausestate.js, which can also ask for
+// the glass back), the pause lasts through a lock, and the next
 // login (a fresh enable) starts with the glass on. The tile is there only while the
 // setting says so.
 import assert from 'node:assert/strict';
@@ -17,6 +18,7 @@ const part = name => function () {
 };
 let switches = [];
 let safety;
+let pauseState;
 let config;
 globalThis.fakeMods = {
     'animations.js': {Animations: part('animations')},
@@ -29,6 +31,10 @@ globalThis.fakeMods = {
     'lock.js': {LockGlass: part('lock')},
     'lockwidgets.js': {LockWidgets: part('widgets')},
     'popupstyle.js': {PopupStyle: part('popups')},
+    'pausestate.js': {PauseState: onResume => {
+        pauseState = {onResume, said: [], gone: false, set(p) { this.said.push(p); }, destroy() { this.gone = true; }};
+        return pauseState;
+    }},
     'safety.js': {Safety: onChange => {
         safety = {tripped: false, onChange, calls: [], glassStarted() { this.calls.push('started'); },
             glassStopped() { this.calls.push('stopped'); }, startFailed() {}, destroy() {}};
@@ -164,4 +170,45 @@ test('the lock screen glass is there when not paused, and comes back on resume w
     assert.ok(live.has('lock'), 'resumed while locked: the lock screen glass is back');
     assert.ok(!live.has('glass'), 'the desktop glass waits for the unlock');
     ext.disable();
+});
+
+test('the pause is said for the app, and its Resume brings the glass back', () => {
+    const ext = start();
+    assert.deepEqual(pauseState.said, [], 'nothing said while the glass simply runs');
+    shown()[0].onPause(true);
+    assert.deepEqual(pauseState.said, [true]);
+    pauseState.onResume();
+    assert.deepEqual(pauseState.said, [true, false]);
+    assert.ok(live.has('glass') && live.has('animations') && live.has('popups'), 'the glass is back');
+    assert.deepEqual(shown()[0].state, {paused: false, safe: false}, 'the tile shows it on again');
+    ext.disable();
+    assert.equal(pauseState.gone, true, 'turning off says no pause carries on');
+});
+
+test('the setting turning the tile off ends the pause for the app too', () => {
+    const ext = start();
+    shown()[0].onPause(true);
+    config.onChange({desktop: {}, quickToggle: {enabled: false}});
+    assert.deepEqual(pauseState.said, [true, false]);
+    ext.disable();
+});
+
+test('a pause state that fails to start leaves the tile and the glass working', () => {
+    const was = globalThis.fakeMods['pausestate.js'].PauseState;
+    const err = console.error;
+    console.error = () => {};
+    globalThis.fakeMods['pausestate.js'].PauseState = () => {
+        throw new Error('forced test failure');
+    };
+    try {
+        const ext = start();
+        shown()[0].onPause(true);
+        assert.ok(!live.has('glass'));
+        shown()[0].onPause(false);
+        assert.ok(live.has('glass'));
+        ext.disable();
+    } finally {
+        globalThis.fakeMods['pausestate.js'].PauseState = was;
+        console.error = err;
+    }
 });

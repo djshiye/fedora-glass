@@ -23,6 +23,7 @@ globalThis.fakeMods = {
     'lockwidgets.js': {LockWidgets: part('widgets')},
     'popupstyle.js': {PopupStyle: part('popups')},
     'paused.js': {PausedStyle: part('paused')},
+    'pausestate.js': {PauseState: () => ({set() {}, destroy() {}})},
     'safety.js': {Safety: () => ({tripped: false, glassStarted() {}, glassStopped() {}, startFailed() {}, destroy() {}}),
         guarded: (_w, fn) => fn},
     'speed.js': {Speed: part('speed')},

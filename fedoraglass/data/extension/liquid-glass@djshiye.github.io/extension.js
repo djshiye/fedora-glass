@@ -10,6 +10,8 @@
 //
 // The "Glass" tile in Quick Settings (quicktoggle.js) pauses the glass for the rest of
 // the session: it comes down as in safe mode, and the next login starts with it on again.
+// The pause is said in ~/.cache/liquid-glass/paused.json for the Fedora Glass app, which
+// can ask for the glass back (pausestate.js).
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -21,6 +23,7 @@ import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
 import {LockWidgets} from './lockwidgets.js';
 import {PausedStyle} from './paused.js';
+import {PauseState} from './pausestate.js';
 import {PopupStyle} from './popupstyle.js';
 import {GlassSwitch} from './quicktoggle.js';
 import {Safety, guarded} from './safety.js';
@@ -32,9 +35,15 @@ import {effectiveConfig} from './tuning.js';
 export default class FedoraGlassExtension extends Extension {
     enable() {
         this._locked = null;
-        // Paused from Quick Settings: held here only, never written anywhere, so it lasts
-        // through locking the screen and is gone at the next login.
+        // Paused from Quick Settings: held here, so it lasts through locking the screen and
+        // is gone at the next login. Only said for the app (pausestate.js), never read back.
         this._paused = false;
+        try {
+            this._pauseState = new PauseState(() => this._setPaused(false));
+        } catch (e) {
+            console.error(`Fedora Glass: the app can't see a pause: ${e}`);
+            this._pauseState = null;
+        }
         // Safe mode: if the glass keeps failing it is turned off (plain panels and
         // menus) until the Fedora Glass app turns it back on.
         this._safety = new Safety(tripped => this._safeMode(tripped));
@@ -322,6 +331,11 @@ export default class FedoraGlassExtension extends Extension {
         if (paused === this._paused)
             return;
         this._paused = paused;
+        try {
+            this._pauseState?.set(paused);
+        } catch (e) {
+            logError(e, 'Fedora Glass: saying the glass is paused');
+        }
         if (paused) {
             this._stopGlass();
             // A Shell that stops while paused is no crash of the glass (safety.js).
@@ -376,6 +390,13 @@ export default class FedoraGlassExtension extends Extension {
         this._config = null;
         this._safety?.destroy();
         this._safety = null;
+        try {
+            this._pauseState?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: saying the glass is no longer paused');
+        }
+        this._pauseState = null;
+        this._paused = false;
         this._locked = null;
     }
 }

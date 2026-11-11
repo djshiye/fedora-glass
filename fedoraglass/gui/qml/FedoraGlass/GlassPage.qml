@@ -72,7 +72,9 @@ SettingsPage {
                             wrapMode: Text.WordWrap
                             color: Theme.textFaint
                             font.pixelSize: Theme.fsSmall
-                            text: Backend.glassLive
+                            text: Backend.glassLive && Backend.glassPaused
+                                  ? qsTr("The preview shows these as you change them. Your desktop shows them once you resume the glass.")
+                                  : Backend.glassLive
                                   ? qsTr("The preview shows these as you change them.")
                                   : Backend.glassProblemNote !== "" ? Backend.glassProblemNote
                                   : qsTr("Drawn by Fedora Glass's own Shell extension. Apply, then restart your PC once to start it.")
