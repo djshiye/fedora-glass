@@ -24,8 +24,11 @@ from typing import Any
 from PySide6.QtCore import Property, QFileSystemWatcher, QObject, QProcess, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
-from .. import APP_ID, distro, login_screen, palette
+from .. import APP_ID, cursors, distro, login_screen, palette
 from .. import settings as settings_mod
+from . import changes as changes_mod
+from . import looks as looks_mod
+from . import wallcolour
 from ..color import Color
 from ..env import Env
 from ..settings import GNOME_ACCENTS, PRESETS, Settings
@@ -176,6 +179,8 @@ def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
 
 # Saved the moment it is switched (removing the package reads it), so never "not applied yet".
 _SAVED_AT_ONCE = ("undo_on_remove",)
+# Bookkeeping that follows other settings (the wallpaper match): never a change of its own.
+_BOOKKEEPING = ("tint_own", "accent_own", "wallpaper_match")
 
 
 def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
@@ -186,7 +191,7 @@ def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     d["targets"] = sorted(k for k, v in s.targets.items() if not v)
     d["motion"] = {ev: s.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
     d["start_on_desktop"] = s.start_on_desktop_for(has_dash_to_panel)
-    for k in _SAVED_AT_ONCE:
+    for k in (*_SAVED_AT_ONCE, *_BOOKKEEPING):
         d.pop(k, None)
     return d
 
@@ -238,6 +243,11 @@ class Backend(QObject):
     noticed = Signal(str)       # a short "done" message for a toast
     restartNeededChanged = Signal()
     partialChanged = Signal()
+    # Feature stream "looks": saved looks, the look before the last Apply, wallpaper colours.
+    looksChanged = Signal()
+    lookProblem = Signal(str)       # a look that couldn't be saved, read or written, in plain words
+    previousChanged = Signal()
+    wallpaperMatchChanged = Signal()
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -330,6 +340,7 @@ class Backend(QObject):
         self._luma_tasks: dict[str, _Task] = {}
         self._power_supply = Path("/sys/class/power_supply")
         self._dock = self._find_dock()
+        self._init_looks()
         self._rebuild_tokens()
         self.targetsChanged.connect(self.targetStatesChanged)
         # The preview's Light/Dark pill and GNOME's own style pick the wallpaper.
@@ -537,8 +548,9 @@ class Backend(QObject):
     def _set(self, name: str, value: Any) -> None:
         if getattr(self._s, name) == value:
             return
+        extra = self._hand_picked(name)
         try:
-            s = replace(self._s, **{name: value}).normalized()
+            s = replace(self._s, **{name: value, **extra}).normalized()
         except (TypeError, ValueError):
             return
         if s == self._s:
@@ -548,6 +560,8 @@ class Backend(QObject):
             self._preview_dark = self._effective_dark()   # show the style just picked
             self.previewChanged.emit()
         self._changed()
+        if name == "scheme":
+            self._match_wallpaper()     # light and dark can have their own pictures
 
     def _watch_scheme(self) -> None:
         """Follow GNOME's dark/light switch while the app is open."""
@@ -936,17 +950,8 @@ class Backend(QObject):
     @Property(int, notify=settingsChanged)
     def changeCount(self) -> int:
         """How many settings differ from the look applied last (the footer says "3 changes
-        not applied yet"). A part or a motion counts once per part or animation changed."""
-        dtp = self.hasDashToPanel
-        now, was = _effective(self._s, dtp), _effective(self._saved.normalized(), dtp)
-        n = 0
-        for k in now:
-            a, b = now[k], was[k]
-            if k in ("parts", "motion") and isinstance(a, dict) and isinstance(b, dict):
-                n += sum(1 for key in set(a) | set(b) if a.get(key) != b.get(key))
-            elif a != b:
-                n += 1
-        return n
+        not applied yet"): as many as See changes lists, so the two never disagree."""
+        return len(self._change_rows()) if self.dirty else 0
 
     @Property(str, notify=settingsChanged)
     def activePreset(self) -> str:
@@ -1738,8 +1743,15 @@ class Backend(QObject):
             self._pending_action = "apply"
             self.busyChanged.emit()
             return
+        # "Match my wallpaper": the colour is taken again now, from the picture shown now.
+        # Not known yet: worked out on a worker thread first, then Apply goes on.
+        if not self._take_wallpaper_colours():
+            return
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
+        # The look applied until now, kept as the one to go back to once this Apply ends.
+        before, before_at, step = self._saved, self._saved_at, self._apply_step
+        self._apply_step = ""
         # Saved first, so a settings folder that can't be written stops Apply before the
         # desktop changes. The look counts as applied (_saved) only once Apply ends.
         try:
@@ -1785,6 +1797,7 @@ class Backend(QObject):
                 return
             results, self._has_backup, (self._glass_live, restart) = out
             self._saved = replace(s, undo_on_remove=uor)
+            self._keep_previous(before, before_at, step)
             rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message} for r in results]
             # Some parts failed: the rest is applied, and settings.json is that look (the
             # watcher keeps it), but Undo goes back to the last look that applied fully.
@@ -2148,6 +2161,432 @@ class Backend(QObject):
             last = err.splitlines()[-1] if err else f"{distro.current().tool_name} did not finish"
             self.failed.emit(f"Your original look is back, but removing Fedora Glass failed: {last}")
         self.removeFinished.emit(False)
+
+    # =================================================================================
+    # Feature stream "looks": saved looks, plain-language changes, one Apply back, and
+    # colours from the wallpaper. Kept together here so merges stay easy.
+    # =================================================================================
+    def _init_looks(self) -> None:
+        self._library = looks_mod.Library(looks_mod.looks_dir(self._path))
+        self._looks: list[dict] | None = None       # read when first asked for, then kept
+        # When the look applied last was applied: settings.json's time, or 0 for none yet.
+        try:
+            self._saved_at = self._settings_file().stat().st_mtime
+        except OSError:
+            self._saved_at = 0.0
+        self._previous = settings_mod.load_previous(self._path)
+        self._apply_step = ""          # "back" or "forward" while that Apply is on its way
+        # Wallpaper colours: picture path -> {"key", "tint", "accent"}, worked out off the UI thread.
+        self._wall_colours: dict[str, dict] = {}
+        self._wall_tasks: dict[str, _Task] = {}
+        self._matching = False         # the app itself is setting the tint or accent
+        self.wallpaperChanged.connect(self.wallpaperMatchChanged)
+        self.savedChanged.connect(self.wallpaperMatchChanged)
+
+    # ---- saved looks ------------------------------------------------------------------
+    def _look_list(self) -> list[dict]:
+        if self._looks is None:
+            self._looks = self._library.list()
+        return self._looks
+
+    def _looks_changed(self) -> None:
+        self._looks = None
+        self.looksChanged.emit()
+
+    @Property("QVariantList", notify=looksChanged)
+    def savedLooks(self) -> list[dict]:
+        """The user's own looks, by name: {"id", "name", "tint", "accent", "frost"}, the
+        colours as they show on the tile."""
+        out = []
+        for look in self._look_list():
+            s = looks_mod.apply_look(Settings(), look["settings"])
+            out.append({"id": look["id"], "name": look["name"], "tint": s.tint, "frost": s.frost,
+                        "accent": qcolor(palette.resolve_accent(s, self._system_accent)).name()})
+        return out
+
+    def _get_active_look(self) -> str:
+        for look in self._look_list():
+            if looks_mod.same_look(self._s, self._with_look(look["settings"])):
+                return look["id"]
+        return ""
+
+    activeLook = Property(str, _get_active_look, notify=settingsChanged)
+
+    def _with_look(self, values: dict) -> Settings:
+        def installed(style: str) -> bool:
+            try:
+                return cursors.theme_dir(self._env, style) is not None
+            except Exception:
+                return False
+        s = looks_mod.apply_look(self._s, values, installed)
+        if s.tint_from_wallpaper and not self._s.tint_from_wallpaper:
+            s.tint_own = self._s.tint
+        if s.accent_from_wallpaper and not self._s.accent_from_wallpaper:
+            s.accent_own = self._s.accent
+        if not s.tint_from_wallpaper:
+            s.tint_own = ""
+        if not s.accent_from_wallpaper:
+            s.accent_own = ""
+        return s
+
+    @Slot(str)
+    def useLook(self, look_id: str) -> None:
+        """Put a saved look in the editor (Apply then uses it), as a preset tile does."""
+        look = next((x for x in self._look_list() if x["id"] == look_id), None)
+        if look is None:
+            self._looks_changed()
+            return
+        self._replace_editor(self._with_look(look["settings"]))
+        self._match_wallpaper()
+        # Selected even when the look is what the editor holds already.
+        self.settingsChanged.emit()
+
+    def _replace_editor(self, s: Settings) -> None:
+        if s == self._s:
+            return
+        was_dark = self._effective_dark()
+        self._s = s
+        if self._effective_dark() != was_dark:
+            self._preview_dark = self._effective_dark()
+            self.previewChanged.emit()
+        self._changed()
+        self.targetStatesChanged.emit()
+
+    @Slot(result=str)
+    def suggestLookName(self) -> str:
+        names = {x["name"].casefold() for x in self._look_list()}
+        n = 1
+        while (f"My look {n}" if n > 1 else "My look").casefold() in names:
+            n += 1
+        return f"My look {n}" if n > 1 else "My look"
+
+    @Slot(str, result=str)
+    def saveLook(self, name: str) -> str:
+        """Keep the editor's look under this name; its id, or "" (lookProblem says why)."""
+        try:
+            look_id = self._library.save(name, self._s)
+        except looks_mod.LookError as e:
+            self.lookProblem.emit(str(e))
+            return ""
+        except OSError as e:
+            self.lookProblem.emit(f"The look couldn't be saved: {e.strerror or e}")
+            return ""
+        self._looks_changed()
+        self.settingsChanged.emit()     # it is the active look now
+        self.noticed.emit(f"Saved “{looks_mod.clean_name(name)}”")
+        return look_id
+
+    @Slot(str, str, result=str)
+    def renameLook(self, look_id: str, name: str) -> str:
+        try:
+            new_id = self._library.rename(look_id, name)
+        except looks_mod.LookError as e:
+            self.lookProblem.emit(str(e))
+            return ""
+        except OSError as e:
+            self.lookProblem.emit(f"The look couldn't be renamed: {e.strerror or e}")
+            return ""
+        self._looks_changed()
+        self.settingsChanged.emit()
+        return new_id
+
+    @Slot(str)
+    def deleteLook(self, look_id: str) -> None:
+        look = next((x for x in self._look_list() if x["id"] == look_id), None)
+        try:
+            self._library.delete(look_id)
+        except OSError as e:
+            self.lookProblem.emit(f"The look couldn't be deleted: {e.strerror or e}")
+            return
+        self._looks_changed()
+        self.settingsChanged.emit()
+        if look is not None:
+            self.noticed.emit(f"Deleted “{look['name']}”")
+
+    @Slot(str, result=str)
+    def lookFileName(self, look_id: str) -> str:
+        return f"{look_id or 'look'}.json"
+
+    @Property(str, constant=True)
+    def looksFolder(self) -> str:
+        """Where the file dialogs start: Documents when there is one, else the home folder."""
+        docs = self._env.home / "Documents"
+        return QUrl.fromLocalFile(str(docs if docs.is_dir() else self._env.home)).toString()
+
+    @staticmethod
+    def _local(url: Any) -> Path | None:
+        u = url if isinstance(url, QUrl) else QUrl(str(url))
+        if not u.isValid() or not u.isLocalFile():
+            text = str(url)
+            return Path(text) if text.startswith("/") else None
+        return Path(u.toLocalFile())
+
+    @Slot(str, "QVariant", result=bool)
+    def exportLook(self, look_id: str, url: Any) -> bool:
+        dest = self._local(url)
+        if dest is None:
+            self.lookProblem.emit("Pick a file on this PC to save the look in.")
+            return False
+        if dest.suffix.lower() != ".json":
+            dest = dest.with_name(dest.name + ".json")
+        try:
+            self._library.export(look_id, dest)
+        except looks_mod.LookError as e:
+            self.lookProblem.emit(str(e))
+            return False
+        self.noticed.emit(f"Saved as {_tilde(str(dest), str(self._env.home))}")
+        return True
+
+    @Slot("QVariant", result=str)
+    def importLook(self, url: Any) -> str:
+        """Add a look from a file (someone else's, perhaps): it only becomes a tile; picking
+        it puts it in the editor. Its id, or "" (lookProblem says why)."""
+        src = self._local(url)
+        if src is None:
+            self.lookProblem.emit("Pick a look file on this PC.")
+            return ""
+        try:
+            name, values = looks_mod.read_file(src)
+            look_id = self._library.add(name, values)
+        except looks_mod.LookError as e:
+            self.lookProblem.emit(str(e))
+            return ""
+        except OSError as e:
+            self.lookProblem.emit(f"The look couldn't be added: {e.strerror or e}")
+            return ""
+        self._looks_changed()
+        added = next((x["name"] for x in self._look_list() if x["id"] == look_id), name)
+        self.noticed.emit(f"Added “{added}”. Pick it to try it.")
+        return look_id
+
+    # ---- unapplied changes in plain words -------------------------------------------------
+    def _change_rows(self) -> list[dict]:
+        names = {t["id"]: t["name"] for t in self._targets}
+        return changes_mod.change_rows(self._s, self._saved, has_dash_to_panel=self.hasDashToPanel,
+                                       target_names=names, system_accent=self._system_accent or "blue")
+
+    @Property("QVariantList", notify=settingsChanged)
+    def changeList(self) -> list[dict]:
+        """Every unapplied change: {"page", "name", "label", "before", "after", "key"}, in
+        page order. "name" is the control to go to on that page ("" for none)."""
+        return self._change_rows() if self.dirty else []
+
+    @Property("QStringList", notify=settingsChanged)
+    def changedPages(self) -> list[str]:
+        """The pages that have unapplied changes (the sidebar puts a dot on each)."""
+        out: list[str] = []
+        for r in self.changeList:
+            if r["page"] not in out:
+                out.append(r["page"])
+        return out
+
+    # ---- one Apply back ----------------------------------------------------------------
+    def _keep_previous(self, before: Settings, before_at: float, step: str) -> None:
+        """After an Apply: the look applied until then becomes the one to go back to. Only a
+        look that was applied counts (not the defaults of a first start), and only when
+        this Apply changed it, so pressing Apply twice doesn't lose the way back."""
+        now = time.time()
+        applied_before = before_at > 0
+        self._saved_at = now
+        if not applied_before or _effective(before) == _effective(self._saved):
+            return
+        try:
+            settings_mod.save_previous(before, before_at, forward=(step == "back"), path=self._path)
+        except OSError:
+            return      # the way back is a nicety: never a reason for Apply to fail
+        self._previous = settings_mod.load_previous(self._path)
+        self.previousChanged.emit()
+
+    @Property(bool, notify=previousChanged)
+    def hasPrevious(self) -> bool:
+        return self._previous is not None
+
+    @Property(bool, notify=previousChanged)
+    def previousIsForward(self) -> bool:
+        """The kept look is the one the user went back from: the button goes forward again."""
+        return bool(self._previous and self._previous.forward)
+
+    @Property(str, notify=previousChanged)
+    def previousWhen(self) -> str:
+        """When the kept look was applied, as people say it ("today at 14:05")."""
+        if self._previous is None or self._previous.applied_at <= 0:
+            return ""
+        t = time.localtime(self._previous.applied_at)
+        today = time.localtime()
+        clock = time.strftime("%H:%M", t)
+        if (t.tm_year, t.tm_yday) == (today.tm_year, today.tm_yday):
+            return f"today at {clock}"
+        yesterday = time.localtime(time.time() - 86400)
+        if (t.tm_year, t.tm_yday) == (yesterday.tm_year, yesterday.tm_yday):
+            return f"yesterday at {clock}"
+        day = time.strftime("%d %B" if t.tm_year == today.tm_year else "%d %B %Y", t).lstrip("0")
+        return f"on {day} at {clock}"
+
+    @Slot()
+    def goToPrevious(self) -> None:
+        """Put the kept look in the editor and apply it: one click, then the usual results.
+        That Apply keeps the look it replaces, so the button then offers the way forward."""
+        p = self._previous
+        if p is None or self._removing or self._task is not None:
+            return
+        s = replace(p.settings, targets=dict(p.settings.targets), undo_on_remove=self._saved.undo_on_remove)
+        self._apply_step = "forward" if p.forward else "back"
+        self._replace_editor(s)
+        self.apply()
+
+    # ---- colours from the wallpaper ----------------------------------------------------
+    def _match_path(self, s: Settings | None = None) -> str:
+        """The picture GNOME shows with this look's style (picture-uri-dark in dark)."""
+        s = s or self._s
+        dark = self._system_dark if s.scheme == "auto" else s.scheme == "dark"
+        url = self._wallpaper_for(dark)
+        return QUrl(url).toLocalFile() if url else ""
+
+    def _known_colours(self, path: str) -> dict | None:
+        c = self._wall_colours.get(path)
+        return c if c is not None and c["key"] == wallcolour.picture_key(path) else None
+
+    def _hand_picked(self, name: str) -> dict:
+        """A tint or accent picked by hand while it matched the wallpaper: it stops matching."""
+        if self._matching:
+            return {}
+        if name == "tint" and self._s.tint_from_wallpaper:
+            return {"tint_from_wallpaper": False, "tint_own": ""}
+        if name == "accent" and self._s.accent_from_wallpaper:
+            return {"accent_from_wallpaper": False, "accent_own": ""}
+        return {}
+
+    def _use_colours(self, c: dict) -> None:
+        """Put the wallpaper's colours in the editor, for the switches that are on."""
+        values = {}
+        if self._s.tint_from_wallpaper and c.get("tint"):
+            values["tint"] = c["tint"]
+        if self._s.accent_from_wallpaper and c.get("accent"):
+            values["accent"] = c["accent"]
+        if values:
+            self._matching = True
+            try:
+                for k, v in values.items():
+                    self._set(k, v)
+            finally:
+                self._matching = False
+
+    def _match_wallpaper(self) -> None:
+        """For the preview: take the wallpaper's colours now, or once they are worked out."""
+        if not (self._s.tint_from_wallpaper or self._s.accent_from_wallpaper):
+            return
+        path = self._match_path()
+        if not path:
+            self.wallpaperMatchChanged.emit()
+            return
+        c = self._known_colours(path)
+        if c is not None:
+            self._use_colours(c)
+            return
+        if path in self._wall_tasks:
+            return
+        task = _Task(lambda _report: wallcolour.colours_of(path), self)
+        task.finishedWith.connect(self._wall_colours_done)
+        self._wall_tasks[path] = task
+        self.wallpaperMatchChanged.emit()
+        task.start()
+
+    @Slot(object)
+    def _wall_colours_done(self, out: Any) -> None:
+        task = self.sender()
+        path = next((p for p, t in self._wall_tasks.items() if t is task), None)
+        if path is None:
+            return
+        del self._wall_tasks[path]
+        task.wait()
+        task.deleteLater()
+        self._wall_colours[path] = out if isinstance(out, dict) else \
+            {"key": wallcolour.picture_key(path), "tint": "", "accent": ""}
+        if path == self._match_path():
+            self._use_colours(self._wall_colours[path])
+        self.wallpaperMatchChanged.emit()
+
+    def _take_wallpaper_colours(self) -> bool:
+        """Before Apply: the colours of the picture shown now go into the look (and the
+        picture is noted, to tell when it changes). False: they are being worked out, and
+        Apply starts again once they are."""
+        if not (self._s.tint_from_wallpaper or self._s.accent_from_wallpaper):
+            return True
+        path = self._match_path()
+        if not path:
+            return True     # no picture (a plain colour background): the colours stay as they are
+        c = self._known_colours(path)
+        if c is None:
+            def done(out: Any) -> None:
+                self._wall_colours[path] = out if isinstance(out, dict) else \
+                    {"key": wallcolour.picture_key(path), "tint": "", "accent": ""}
+                self.wallpaperMatchChanged.emit()
+                self.apply()
+
+            def job(report):
+                report(0.02, "your wallpaper's colour")
+                return wallcolour.colours_of(path)
+            if not self._run("apply", job, done):
+                self._lock_after_apply = False
+            return False
+        self._use_colours(c)
+        if c["key"] != self._s.wallpaper_match:
+            self._s = replace(self._s, wallpaper_match=c["key"])
+        return True
+
+    def _get_tint_from_wallpaper(self) -> bool:
+        return self._s.tint_from_wallpaper
+
+    def _set_tint_from_wallpaper(self, on: bool) -> None:
+        self._set_matching("tint", bool(on))
+
+    def _get_accent_from_wallpaper(self) -> bool:
+        return self._s.accent_from_wallpaper
+
+    def _set_accent_from_wallpaper(self, on: bool) -> None:
+        self._set_matching("accent", bool(on))
+
+    def _set_matching(self, what: str, on: bool) -> None:
+        flag, own = f"{what}_from_wallpaper", f"{what}_own"
+        if getattr(self._s, flag) == on:
+            return
+        if on:
+            # What the user had, to put back when the switch goes off again.
+            s = replace(self._s, **{flag: True, own: getattr(self._s, what)})
+        else:
+            back = getattr(self._s, own) or getattr(self._s, what)
+            s = replace(self._s, **{flag: False, own: "", what: back})
+        self._replace_editor(s.normalized())
+        self._match_wallpaper()
+
+    tintFromWallpaper = Property(bool, _get_tint_from_wallpaper, _set_tint_from_wallpaper, notify=settingsChanged)
+    accentFromWallpaper = Property(bool, _get_accent_from_wallpaper, _set_accent_from_wallpaper, notify=settingsChanged)
+
+    @Property(bool, notify=wallpaperMatchChanged)
+    def wallpaperMatchBusy(self) -> bool:
+        return self._match_path() in self._wall_tasks
+
+    @Property(str, notify=wallpaperMatchChanged)
+    def wallpaperMatchNote(self) -> str:
+        """Why the colour can't follow the wallpaper here, or "" when it can."""
+        if not (self._s.tint_from_wallpaper or self._s.accent_from_wallpaper):
+            return ""
+        path = self._match_path()
+        if not path:
+            return "There's no wallpaper picture to take a colour from, so the colour stays as it is."
+        c = self._known_colours(path)
+        if c is not None and not c["tint"]:
+            return "Your wallpaper has hardly any colour in it, so the colour stays as it is."
+        return ""
+
+    @Property(bool, notify=wallpaperMatchChanged)
+    def wallpaperChangedSince(self) -> bool:
+        """The applied look follows the wallpaper, and the picture is not the one its
+        colours came from: Apply takes them again."""
+        saved = self._saved
+        if not (saved.tint_from_wallpaper or saved.accent_from_wallpaper) or not saved.wallpaper_match:
+            return False
+        return wallcolour.picture_key(self._match_path(saved)) != saved.wallpaper_match
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:

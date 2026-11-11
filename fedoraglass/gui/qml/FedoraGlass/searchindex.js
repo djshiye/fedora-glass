@@ -80,7 +80,14 @@ var entries = [
     { label: "Remove Fedora Glass", words: "remove uninstall delete", page: "about", name: "removeApp", when: "removable" },
     { label: "Put my original look back on removal", words: "remove uninstall original look back restore keep", page: "about", name: "undoOnRemove" },
     { label: "Keyboard shortcuts", words: "keyboard shortcuts keys help", page: "about", name: "shortcutsButton" },
-    { label: "Version and what's new", words: "version about what's new changelog update", page: "about", name: "aboutVersion" }
+    { label: "Version and what's new", words: "version about what's new changelog update", page: "about", name: "aboutVersion" },
+    // Feature stream "looks"
+    { label: "Save this look", words: "save my look name keep favourite", page: "home", name: "saveLook" },
+    { label: "Add a look from a file", words: "import open share look file json", page: "home", name: "importLook" },
+    { label: "Your saved looks", words: "my looks saved rename delete export share file", page: "home", name: "savedLooks", when: "looks" },
+    { label: "Tint matches my wallpaper", words: "wallpaper background match tint colour automatic picture", page: "colour", name: "wallpaperTint" },
+    { label: "Accent matches my wallpaper", words: "wallpaper background match accent colour automatic picture", page: "colour", name: "wallpaperAccent" },
+    { label: "Go back one Apply", words: "previous last apply undo back forward before earlier look", page: "about", name: "goToPrevious", when: "previous" }
 ]
 
 function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, " ") }

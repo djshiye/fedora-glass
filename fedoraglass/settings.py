@@ -192,6 +192,18 @@ class Settings:
     cursor_theme: str = "keep"
     cursor_size: int = 0
 
+    # ---- feature stream "looks": the glass tint (and accent) from the wallpaper ----------
+    # The app works the colour out of the wallpaper when Apply is pressed and writes it into
+    # `tint` (and `accent`), so the engine, the command line and the watcher need no image
+    # code. These say to do so, and what the user had picked before, to put back when off.
+    tint_from_wallpaper: bool = False
+    accent_from_wallpaper: bool = False
+    tint_own: str = ""                      # "#rrggbb" or "" (nothing to put back)
+    accent_own: str = ""                    # an accent value, or ""
+    # Which picture the colours were last taken from ("<path>|<mtime_ns>|<size>"), so the
+    # app can say when the wallpaper changed since.
+    wallpaper_match: str = ""
+
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
 
@@ -272,6 +284,13 @@ class Settings:
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
+        # ---- feature stream "looks": colours from the wallpaper ----
+        for k in ("tint_from_wallpaper", "accent_from_wallpaper"):
+            setattr(s, k, _bool(getattr(s, k), False))
+        s.tint_own = s.tint_own if _is_hex(s.tint_own) else ""
+        if not (s.accent_own in ("", "system") or s.accent_own in GNOME_ACCENTS or _is_hex(s.accent_own)):
+            s.accent_own = ""
+        s.wallpaper_match = _CONTROL.sub("", s.wallpaper_match)[:4096] if isinstance(s.wallpaper_match, str) else ""
         return s
 
 
@@ -636,3 +655,48 @@ def save(s: Settings, path: Path | None = None) -> Path:
         _write(_sibling(path, ".bak"), before)
     _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")
     return path
+
+
+# ---- feature stream "looks": the look before the last Apply ---------------------------
+# Before each Apply that changes the look, the look applied until then is kept as
+# settings.previous.json, so About and restore can go back one Apply (and forward again:
+# going back is an Apply too, which keeps the look it replaced). Written like
+# settings.json (private, atomic), and never touches settings.json, .bak or .damaged.
+PREVIOUS_MAX = 256 * 1024
+
+
+class Previous(NamedTuple):
+    settings: Settings
+    applied_at: float     # when that look was applied (seconds since the epoch), 0 if not known
+    forward: bool         # True: it is the look the user went back from
+
+
+def previous_path(path: Path | None = None) -> Path:
+    return (path or settings_path()).with_name("settings.previous.json")
+
+
+def save_previous(s: Settings, applied_at: float, forward: bool = False, path: Path | None = None) -> Path:
+    out = previous_path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    data = {"version": 1, "applied_at": float(applied_at) if math.isfinite(applied_at) else 0.0,
+            "forward": bool(forward), "settings": asdict(s.normalized())}
+    _write(out, json.dumps(data, indent=2).encode("utf-8") + b"\n")
+    return out
+
+
+def load_previous(path: Path | None = None) -> Previous | None:
+    """The look before the last Apply, or None when there is none (or it can't be read)."""
+    p = previous_path(path)
+    try:
+        if p.is_symlink() or not p.is_file() or p.stat().st_size > PREVIOUS_MAX:
+            return None
+        data = _parse(p.read_bytes())
+    except (OSError, ValueError, RecursionError):
+        return None
+    raw = data.get("settings")
+    if not isinstance(raw, dict):
+        return None
+    when = data.get("applied_at")
+    when = float(when) if isinstance(when, (int, float)) and not isinstance(when, bool) and \
+        math.isfinite(float(when)) and when > 0 else 0.0
+    return Previous(_from_dict(raw), when, data.get("forward") is True)
