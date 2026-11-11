@@ -298,3 +298,15 @@ def test_export_works_where_chmod_is_refused(tmp_path, monkeypatch):
 def test_a_look_name_of_a_lone_surrogate_is_empty(tmp_path):
     assert looks.clean_name("\ud800") == ""
     assert looks.clean_name("Ni\udfffght") == "Night"
+
+
+def test_a_slideshow_file_with_sizes_gives_the_largest_picture(tmp_path):
+    small, big = tmp_path / "s.png", tmp_path / "b.png"
+    small.write_bytes(b"x")
+    big.write_bytes(b"x")
+    show = tmp_path / "show.xml"
+    show.write_text(f'<background><static><duration>5</duration><file>\n'
+                    f'<size width="800" height="600">{small}</size>\n'
+                    f'<size width="3840" height="2160">{big}</size>\n'
+                    f'</file></static></background>')
+    assert wallcolour.slideshow_picture(str(show)) == str(big)

@@ -88,7 +88,22 @@ def slideshow_picture(path: str) -> str:
         root = ET.fromstring(data)
     except (OSError, ET.ParseError, ValueError):
         return ""
+    def area(el) -> int:
+        try:
+            return int(el.get("width", 0)) * int(el.get("height", 0))
+        except ValueError:
+            return 0
+
     for el in root.iter():
+        if el.tag == "file" and el.find("size") is not None:
+            # <file><size width=.. height=..>/path</size>…</file>: the largest one
+            sizes = [s for s in el.findall("size") if s.text and s.text.strip()]
+            if not sizes:
+                return ""
+            pic = max(sizes, key=area).text.strip()
+            if os.path.isabs(pic) and not pic.lower().endswith(".xml") and Path(pic).is_file():
+                return pic
+            return ""
         if el.tag in ("file", "from") and el.text:
             pic = el.text.strip()
             if os.path.isabs(pic) and not pic.lower().endswith(".xml") and Path(pic).is_file():
