@@ -71,6 +71,11 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.5.27" date="2026-11-11">
+      <description>
+        <p>The taskbar no longer flickers when you drag along it, and a new How liquid slider makes the press effect firmer or more liquid.</p>
+      </description>
+    </release>
     <release version="1.5.26" date="2026-11-11">
       <description>
         <p>Apps without glass get a solid window, the app shows when the glass is paused and can resume it, and a wallpaper-matched look follows a new wallpaper by itself.</p>
