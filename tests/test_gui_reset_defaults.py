@@ -72,8 +72,10 @@ def test_every_setting_can_be_put_back(make_backend):
     """resetSettings takes every look setting back, one at a time."""
     b = make_backend()
     for f in fields(Settings):
-        # Not look settings: the apps that get the look, and the remove switch (saved at once).
-        if f.name in ("targets", "undo_on_remove"):
+        # Not look settings: the apps that get the look, the remove switch (saved at once), and
+        # bookkeeping that follows another setting (what the wallpaper match put back or used).
+        from fedoraglass.gui.backend import _BOOKKEEPING
+        if f.name in ("targets", "undo_on_remove", *_BOOKKEEPING):
             continue
         b.resetDefaults()
         changed = {"parts": {"panel": {"radius": 0}}, "motion": {"open": {"preset": "off"}}}.get(f.name)

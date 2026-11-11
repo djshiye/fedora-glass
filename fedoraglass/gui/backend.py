@@ -2427,8 +2427,8 @@ class Backend(QObject):
         """Put the kept look in the editor and apply it: one click, then the usual results.
         That Apply keeps the look it replaces, so the button then offers the way forward."""
         p = self._previous
-        if p is None or self._removing or self._task is not None:
-            return
+        if p is None or self._removing or self.busy:
+            return      # (a background check still running is fine: Apply waits for it)
         s = replace(p.settings, targets=dict(p.settings.targets), undo_on_remove=self._saved.undo_on_remove)
         self._apply_step = "forward" if p.forward else "back"
         self._replace_editor(s)

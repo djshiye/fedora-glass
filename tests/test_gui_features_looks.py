@@ -429,3 +429,17 @@ def test_colour_page_has_the_wallpaper_switches_and_note(qml):
         b.setProperty("tintFromWallpaper", False)
         b.discardChanges()
         win.close()
+
+
+def test_going_back_while_the_app_still_checks_the_system_waits_for_it(qml, fake_env, tmp_path):
+    settings_mod.save(Settings(frost=0.3), _cfg(tmp_path))
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.6)
+    _apply(b)
+    b.refreshTargets()                  # the check that runs after a start or an Apply
+    assert b._task is not None
+    b.goToPrevious()
+    for _ in range(6):
+        b.waitIdle()
+        _spin(20)
+    assert _on_disk(tmp_path)["frost"] == 0.3

@@ -54,7 +54,7 @@ SettingsPage {
         Column {
             width: parent.width
             spacing: 16
-            SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius", "tint_from_wallpaper", "tint_own"] }
+            SectionTitle { text: "Tint and corners"; resetKeys: ["tint", "tint_strength", "radius", "tint_from_wallpaper", "tint_own", "wallpaper_match"] }
             Item {
                 width: parent.width
                 height: 36
