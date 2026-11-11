@@ -2378,6 +2378,8 @@ class Backend(QObject):
     def _init_looks(self) -> None:
         self._library = looks_mod.Library(looks_mod.looks_dir(self._path))
         self._looks: list[dict] | None = None       # read when first asked for, then kept
+        self._look_values: dict[str, dict] = {}     # each look's values, normalized once
+        self._cursors_here: dict[str, bool] = {}    # pointer style -> installed here
         # When the look applied last was applied: settings.json's time, or 0 for none yet.
         try:
             self._saved_at = self._settings_file().stat().st_mtime
@@ -2396,11 +2398,23 @@ class Backend(QObject):
     def _look_list(self) -> list[dict]:
         if self._looks is None:
             self._looks = self._library.list()
+            # Normalized once here: activeLook is read on every slider tick.
+            self._look_values = {x["id"]: looks_mod.look_values(x["settings"], self._cursor_installed)
+                                 for x in self._looks}
         return self._looks
 
     def _looks_changed(self) -> None:
         self._looks = None
+        self._cursors_here = {}      # a pointer style may have been installed since
         self.looksChanged.emit()
+
+    def _cursor_installed(self, style: str) -> bool:
+        if style not in self._cursors_here:
+            try:
+                self._cursors_here[style] = cursors.theme_dir(self._env, style) is not None
+            except Exception:
+                self._cursors_here[style] = False
+        return self._cursors_here[style]
 
     @Property("QVariantList", notify=looksChanged)
     def savedLooks(self) -> list[dict]:
@@ -2415,19 +2429,14 @@ class Backend(QObject):
 
     def _get_active_look(self) -> str:
         for look in self._look_list():
-            if looks_mod.same_look(self._s, self._with_look(look["settings"])):
+            if looks_mod.holds(self._look_values[look["id"]], self._s):
                 return look["id"]
         return ""
 
     activeLook = Property(str, _get_active_look, notify=settingsChanged)
 
     def _with_look(self, values: dict) -> Settings:
-        def installed(style: str) -> bool:
-            try:
-                return cursors.theme_dir(self._env, style) is not None
-            except Exception:
-                return False
-        s = looks_mod.apply_look(self._s, values, installed)
+        s = looks_mod.apply_look(self._s, values, self._cursor_installed)
         if s.tint_from_wallpaper and not self._s.tint_from_wallpaper:
             s.tint_own = self._s.tint
         if s.accent_from_wallpaper and not self._s.accent_from_wallpaper:

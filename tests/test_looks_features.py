@@ -122,6 +122,22 @@ def test_a_pointer_style_this_pc_does_not_have_keeps_the_users_own():
     assert s.cursor_theme == "fedora-glass-banana"
 
 
+@pytest.mark.parametrize("editor", [
+    Settings(), Settings(frost=0.3), Settings(frost=0.3004, scheme="dark"), Settings(frost=0.31),
+    Settings(frost=0.3, cursor_theme="fedora-glass-dark"), Settings(frost=0.3, motion={"open": {"speed": 2.0}}),
+])
+@pytest.mark.parametrize("look", [
+    {"frost": 0.3}, {"frost": "0.3", "scheme": "bogus", "radius": "x"}, {"frost": 0.3, "motion": {"open": {"speed": 2.0}}},
+    {"frost": 0.3, "cursor_theme": "fedora-glass-banana"}, {},
+])
+def test_holding_a_look_worked_out_once_says_what_same_look_says(editor, look):
+    for installed in (True, False):
+        def has(_id, installed=installed):
+            return installed
+        want = looks.same_look(editor, looks.apply_look(editor, look, has))
+        assert looks.holds(looks.look_values(look, has), editor) is want
+
+
 def test_reading_a_look_never_hangs_on_a_pipe_or_reads_a_device(tmp_path):
     fifo = tmp_path / "pipe.json"
     os.mkfifo(fifo)

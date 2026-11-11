@@ -121,6 +121,33 @@ def test_save_pick_rename_and_delete_a_look(qml, fake_env, tmp_path):
     assert b.property("savedLooks") == [] and b.property("activeLook") == ""
 
 
+def test_moving_a_slider_does_not_work_every_saved_look_out_again(qml, fake_env, tmp_path, monkeypatch):
+    """activeLook is read on every slider tick: each saved look is worked out once, when the
+    list is read, and the pointer check once, not once per look per tick."""
+    from fedoraglass import cursors
+    from fedoraglass.gui import looks as looks_mod
+    b = _backend(fake_env, tmp_path)
+    for i in range(5):
+        b.setProperty("frost", 0.1 * i)
+        b.setProperty("cursorTheme", "fedora-glass-dark")
+        b.saveLook(f"Look {i}")
+    b.setProperty("frost", 0.3 + 0.0001)       # a slider's rounding still counts as the look
+    assert b.property("activeLook") == "look-3"
+    applied: list = []
+    checked: list = []
+    real_apply, real_dir = looks_mod.apply_look, cursors.theme_dir
+    monkeypatch.setattr(looks_mod, "apply_look", lambda *a, **k: applied.append(1) or real_apply(*a, **k))
+    monkeypatch.setattr(cursors, "theme_dir", lambda *a, **k: checked.append(1) or real_dir(*a, **k))
+    for i in range(20):
+        b.setProperty("frost", 0.5 + i / 100)
+        b.property("activeLook")
+    assert applied == [] and checked == []
+    b.setProperty("frost", 0.4)
+    assert b.property("activeLook") == "look-4"
+    b.setProperty("frost", 0.4006)            # beyond same_look's tolerance
+    assert b.property("activeLook") == ""
+
+
 def test_export_and_import_a_look_file(qml, fake_env, tmp_path):
     b = _backend(fake_env, tmp_path)
     (fake_env.home / "Documents").mkdir()

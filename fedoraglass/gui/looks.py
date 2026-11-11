@@ -76,29 +76,28 @@ def pick(s: Settings) -> dict:
     return {k: d[k] for k in LOOK_KEYS}
 
 
-def same_look(a: Settings, b: Settings) -> bool:
-    na, nb = a.normalized(), b.normalized()
-    da = pick(na)
-    db = pick(nb)
+def _close(x, y) -> bool:
+    if isinstance(x, float) or isinstance(y, float):
+        return x is not None and y is not None and abs(float(x) - float(y)) <= 0.0005
+    return x == y
+
+
+def _compared(n: Settings) -> dict:
+    d = pick(n)
     # Motion as it plays: a missing event is its default.
-    da["motion"] = {ev: na.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
-    db["motion"] = {ev: nb.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
-    for k in da:
-        x, y = da[k], db[k]
-        if isinstance(x, float) or isinstance(y, float):
-            if x is None or y is None or abs(float(x) - float(y)) > 0.0005:
-                return False
-        elif x != y:
-            return False
-    return True
+    d["motion"] = {ev: n.motion_for(ev) for ev in settings_mod.MOTION_EVENTS}
+    return d
 
 
-def apply_look(current: Settings, look: dict, cursor_installed: Callable[[str], bool] = lambda _id: True) -> Settings:
-    """`current` with the look's settings. Every value goes through Settings.normalized(),
-    one at a time, so a bad value costs only that setting (it stays as it is). A pointer
-    style this PC doesn't have keeps the user's own pointer."""
+def same_look(a: Settings, b: Settings) -> bool:
+    da, db = _compared(a.normalized()), _compared(b.normalized())
+    return all(_close(da[k], db[k]) for k in da)
+
+
+def _apply_keys(current: Settings, look: dict, cursor_installed: Callable[[str], bool]) -> tuple[Settings, list[str]]:
     known = {f.name for f in fields(Settings)}
     s = replace(current.normalized(), targets=dict(current.targets))
+    taken = []
     for k in LOOK_KEYS:
         if k not in look or k not in known:
             continue
@@ -110,9 +109,33 @@ def apply_look(current: Settings, look: dict, cursor_installed: Callable[[str], 
         except (TypeError, ValueError, OverflowError, RecursionError):
             continue
         s = trial
+        taken.append(k)
     if not s.tint_from_wallpaper:
         s.tint_own = s.accent_own = ""
-    return s
+    return s, taken
+
+
+def apply_look(current: Settings, look: dict, cursor_installed: Callable[[str], bool] = lambda _id: True) -> Settings:
+    """`current` with the look's settings. Every value goes through Settings.normalized(),
+    one at a time, so a bad value costs only that setting (it stays as it is). A pointer
+    style this PC doesn't have keeps the user's own pointer."""
+    return _apply_keys(current, look, cursor_installed)[0]
+
+
+def look_values(look: dict, cursor_installed: Callable[[str], bool] = lambda _id: True) -> dict:
+    """The values a look sets, normalized once, to hold editor settings against with
+    `holds` (worked out once per look, not on every slider tick). Keys the look leaves out,
+    or can't set here, are not in it: the editor keeps its own for those."""
+    s, taken = _apply_keys(Settings(), look, cursor_installed)
+    d = _compared(s)
+    return {k: d[k] for k in taken}
+
+
+def holds(values: dict, s: Settings) -> bool:
+    """Whether the editor settings `s` already are the look with these `look_values`
+    (as same_look(s, apply_look(s, look)) says, but cheap)."""
+    d = _compared(s.normalized())
+    return all(_close(d[k], v) for k, v in values.items())
 
 
 def look_data(name: str, s: Settings) -> dict:
