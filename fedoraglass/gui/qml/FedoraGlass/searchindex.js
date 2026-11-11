@@ -86,7 +86,14 @@ var entries = [
     // Shell features: lighter glass on battery, apps without glass, the Quick Settings switch
     { label: "Lighter glass on battery", words: "battery power saver laptop energy lighter speed quality", page: "glass", name: "lighterOnBattery" },
     { label: "Apps without glass", words: "apps windows no glass skip exclude games video steam list", page: "windows", name: "noGlassCard" },
-    { label: "Glass switch in Quick Settings", words: "quick settings tile pause turn off glass toggle switch menu", page: "glass", name: "quickToggle" }
+    { label: "Glass switch in Quick Settings", words: "quick settings tile pause turn off glass toggle switch menu", page: "glass", name: "quickToggle" },
+    // Feature stream "looks"
+    { label: "Save this look", words: "save my look name keep favourite", page: "home", name: "saveLook" },
+    { label: "Add a look from a file", words: "import open share look file json", page: "home", name: "importLook" },
+    { label: "Your saved looks", words: "my looks saved rename delete export share file", page: "home", name: "savedLooks", when: "looks" },
+    { label: "Tint matches my wallpaper", words: "wallpaper background match tint colour automatic picture", page: "colour", name: "wallpaperTint" },
+    { label: "Accent matches my wallpaper", words: "wallpaper background match accent colour automatic picture", page: "colour", name: "wallpaperAccent" },
+    { label: "Go back one Apply", words: "previous last apply undo back forward before earlier look", page: "about", name: "goToPrevious", when: "previous" }
 ]
 
 function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, " ") }

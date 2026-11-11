@@ -799,7 +799,7 @@ Window {
                         leftPadding: 18; rightPadding: 18
                         enabled: !Backend.busy
                         busy: Backend.busyKind === "plan"
-                        tip: "List every file and setting Apply would change"
+                        tip: "What you changed and haven't applied yet, and every file and setting Apply writes"
                         onClicked: Backend.requestPlan()
                     }
                     LgButton {
@@ -875,7 +875,11 @@ Window {
         function onNoticed(message) { toast.show(message, "okCircle", Theme.good) }
     }
 
-    ChangesSheet { id: changesSheet }
+    ChangesSheet {
+        id: changesSheet
+        pages: win.pageList
+        onJump: (pg, name) => win.goTo(pg, name)
+    }
     WelcomeSheet { id: welcomeSheet }
     ResultsSheet { id: resultsSheet }
     AboutSheet { id: aboutSheet }

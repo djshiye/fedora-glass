@@ -79,7 +79,9 @@ Item {
         dtpHover: Backend.hasDashToPanel && (Backend.motionDtpHoverOff
                   || (Backend.dtpHoverAnimates && Backend.motion.hover.preset !== "off")),
         removable: Backend.canRemoveApp,
-        login: Backend.loginGlass !== "unavailable"
+        login: Backend.loginGlass !== "unavailable",
+        previous: Backend.hasPrevious,
+        looks: Backend.savedLooks.length > 0
     })
     readonly property int maxResults: 7
     readonly property var allResults: Index.matches(field.text, pageLabels, available)
@@ -162,6 +164,7 @@ Item {
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         Accessible.name: modelData.label
+        Accessible.description: Backend.changedPages.indexOf(modelData.id) >= 0 ? "Has changes not applied yet" : ""
         Accessible.role: Accessible.PageTab
         Accessible.selected: selected
         onClicked: root.picked(modelData.id)
@@ -185,13 +188,25 @@ Item {
             Text {
                 anchors.left: navIcon.right
                 anchors.leftMargin: 12
-                anchors.right: parent.right
+                anchors.right: changedDot.visible ? changedDot.left : parent.right
+                anchors.rightMargin: changedDot.visible ? 8 : 0
                 anchors.verticalCenter: parent.verticalCenter
                 text: nav.modelData.label
                 elide: Text.ElideRight
                 color: nav.selected ? Theme.text : Theme.textDim
                 font.pixelSize: Theme.fsBody
                 font.weight: nav.selected ? Font.DemiBold : Font.Normal
+            }
+            // This page has changes that aren't applied yet.
+            Rectangle {
+                id: changedDot
+                objectName: "changedDot_" + nav.modelData.id
+                visible: Backend.changedPages.indexOf(nav.modelData.id) >= 0
+                anchors.right: parent.right
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                width: 7; height: 7; radius: 3.5
+                color: Theme.accent
             }
         }
     }
