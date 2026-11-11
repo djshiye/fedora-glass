@@ -24,10 +24,10 @@ Card {
                 id: title
                 width: parent.width - addBtn.width - 16
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Apps without glass"
-                caption: "Their windows get no glass behind them. Handy for apps that draw their own solid windows."
+                text: qsTr("Apps without glass")
+                caption: qsTr("Their windows get no glass behind them. Handy for apps that draw their own solid windows.")
                 resetKeys: ["no_glass_apps"]
-                resetTip: "Take every app off this list"
+                resetTip: qsTr("Take every app off this list")
             }
             LgButton {
                 id: addBtn
@@ -36,11 +36,11 @@ Card {
                 anchors.top: parent.top
                 kind: "secondary"
                 iconName: "plus"
-                text: "Add app"
+                text: qsTr("Add app")
                 leftPadding: 14; rightPadding: 16
-                tip: "Pick an installed app"
+                tip: qsTr("Pick an installed app")
                 onClicked: { picker.openedByKeyboard = visualFocus; picker.open() }
-                Accessible.name: "Add an app without glass"
+                Accessible.name: qsTr("Add an app without glass")
             }
         }
 
@@ -62,7 +62,7 @@ Card {
                     wrapMode: Text.WordWrap
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
-                    text: "Glass behind app windows is off on the Glass page, so no app gets it right now."
+                    text: qsTr("Glass behind app windows is off on the Glass page, so no app gets it right now.")
                 }
             }
         }
@@ -84,7 +84,7 @@ Card {
                 wrapMode: Text.WordWrap
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsSmall
-                text: "No apps added. Every window gets glass, except the ones below."
+                text: qsTr("No apps added. Every window gets glass, except the ones below.")
             }
             Column {
                 id: list
@@ -129,11 +129,11 @@ Card {
                             anchors.verticalCenter: parent.verticalCenter
                             implicitHeight: 32
                             kind: "flat"
-                            text: "Remove"
+                            text: qsTr("Remove")
                             leftPadding: 12; rightPadding: 12
-                            tip: "Give " + row.modelData.name + " glass again (Apply to use it)"
+                            tip: qsTr("Give %1 glass again (Apply to use it)").arg(row.modelData.name)
                             onClicked: Backend.removeNoGlassApp(row.modelData.key)
-                            Accessible.name: "Remove " + row.modelData.name
+                            Accessible.name: qsTr("Remove %1").arg(row.modelData.name)
                         }
                     }
                 }
@@ -152,7 +152,7 @@ Card {
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsSmall
                 lineHeight: 1.1
-                text: "Always without glass: " + Backend.noGlassBuiltIn
+                text: qsTr("Always without glass: %1").arg(Backend.noGlassBuiltIn)
             }
         }
     }

@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.23
+Version:        1.5.24
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -226,6 +226,12 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.24-1
+- The app speaks German, French, Spanish, Italian and Brazilian Portuguese, following your system language (English otherwise)
+- So do the Quick Settings Glass tile, the lock screen greeting, the app's menu entry and the login screen password prompt
+- Search finds settings by their translated words as well as the English ones
+- Longer words fit: the Look buttons show just their icons when space is short, and long labels shrink before they are cut
+
 * Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.23-1
 - Apply only counts as done when it is: a failed Apply keeps your changes unapplied, and a part that didn't change says so
 - A damaged settings file never turns into the default look; the last good copy is used and only Apply writes it again

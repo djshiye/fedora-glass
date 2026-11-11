@@ -11,11 +11,11 @@ Item {
     property real from: 0
     property real to: 1
     property real stepSize: 0.01
-    property var format: (v) => Math.round(v * 100) + "%"
+    property var format: (v) => qsTr("%1%").arg(Math.round(v * 100))
     property string tip: ""
-    property string autoText: "Auto"    // the chip's label ("Global" for per-part values)
-    property string autoTip: "Follows How much glass on the Glass page"
-    property string resetTip: "Go back to following How much glass"
+    property string autoText: qsTr("Auto")    // the chip's label ("Global" for per-part values)
+    property string autoTip: qsTr("Follows How much glass on the Glass page")
+    property string resetTip: qsTr("Go back to following How much glass")
     // One row: label on the left, slider in the middle, value and chip on the right.
     property bool inline: false
     readonly property bool _row: inline && width >= 520      // stacked when narrow
@@ -62,7 +62,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             implicitHeight: 28
-            text: root._row && !root.isAuto ? "Reset" : root.autoText
+            text: root._row && !root.isAuto ? qsTr("Reset") : root.autoText
             selected: root.isAuto
             tip: root.isAuto ? root.autoTip : root.resetTip
             onClicked: root.changed(root.isAuto ? root.autoValue : -1)

@@ -8,7 +8,17 @@
   <vendor_url>https://github.com/djshiye/fedora-glass</vendor_url>
   <action id="io.github.djshiye.LiquidGlass.login-screen">
     <description>Change the look of the login screen</description>
+    <description xml:lang="de">Das Aussehen des Anmeldebildschirms ändern</description>
+    <description xml:lang="es">Cambiar el aspecto de la pantalla de inicio de sesión</description>
+    <description xml:lang="fr">Modifier l’apparence de l’écran de connexion</description>
+    <description xml:lang="it">Cambia l’aspetto della schermata di accesso</description>
+    <description xml:lang="pt_BR">Alterar a aparência da tela de login</description>
     <message>Fedora Glass needs your password to change the look of the login screen</message>
+    <message xml:lang="de">Fedora Glass benötigt Ihr Passwort, um das Aussehen des Anmeldebildschirms zu ändern</message>
+    <message xml:lang="es">Fedora Glass necesita tu contraseña para cambiar el aspecto de la pantalla de inicio de sesión</message>
+    <message xml:lang="fr">Fedora Glass a besoin de votre mot de passe pour modifier l’apparence de l’écran de connexion</message>
+    <message xml:lang="it">Fedora Glass ha bisogno della tua password per cambiare l’aspetto della schermata di accesso</message>
+    <message xml:lang="pt_BR">O Fedora Glass precisa da sua senha para alterar a aparência da tela de login</message>
     <icon_name>io.github.djshiye.LiquidGlass</icon_name>
     <defaults>
       <allow_any>no</allow_any>

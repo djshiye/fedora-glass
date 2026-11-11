@@ -228,7 +228,7 @@ def test_results_sheet_offers_restart_now_or_later(qml):
         assert later.property("visible") and later.property("text") == "Later"
         assert later.property("kind") == "secondary"
         b._set_restart_needed(False)
-        waiting = {"id": "shell", "name": "GNOME Shell", "status": "info", "message": WAITING}
+        waiting = {"id": "shell", "name": "GNOME Shell", "status": "info", "message": WAITING, "restart": True}
         sheet.setProperty("results", [gtk, waiting])      # the results alone still say so
         assert sheet.property("needsRestart") is True
     finally:

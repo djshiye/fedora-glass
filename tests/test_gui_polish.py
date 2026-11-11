@@ -194,7 +194,7 @@ def test_results_sheet_asks_for_a_restart_only_when_needed(qml):
     assert "Restart" not in sheet.property("subtitle")
     glass = {"id": "glass", "name": "Fedora Glass effects", "status": "applied", "message": ""}
     assert title([gtk, glass]) == "Applied. Restart your PC to finish"
-    waiting = {"id": "shell", "name": "GNOME Shell", "status": "info", "message": WAITING}
+    waiting = {"id": "shell", "name": "GNOME Shell", "status": "info", "message": WAITING, "restart": True}
     assert title([gtk, waiting]) == "Applied. Restart your PC to finish"
     skipped = {"id": "glass", "name": "Fedora Glass effects", "status": "skipped", "message": "GNOME Shell is not installed"}
     assert title([gtk, skipped]) == "Your new look is applied"

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .i18n import N_
+
 if TYPE_CHECKING:
     from .env import Env
 
@@ -33,32 +35,32 @@ class CursorStyle:
 
 _BIBATA = "Bibata by Abdulkaiz Khatri · GPL-3.0"
 STYLES: tuple[CursorStyle, ...] = (
-    CursorStyle("fedora-glass-light", "Glass Light", "Frosted glass, dark rim",
+    CursorStyle("fedora-glass-light", N_("Glass Light"), N_("Frosted glass, dark rim"),
                 "Fedora Glass, from Bibata by Abdulkaiz Khatri · GPL-3.0"),
-    CursorStyle("fedora-glass-dark", "Glass Dark", "Smoked glass, light rim",
+    CursorStyle("fedora-glass-dark", N_("Glass Dark"), N_("Smoked glass, light rim"),
                 "Fedora Glass, from Bibata by Abdulkaiz Khatri · GPL-3.0"),
-    CursorStyle("fedora-glass-bibata-ice", "Bibata Ice", "Rounded, white", _BIBATA),
-    CursorStyle("fedora-glass-bibata-classic", "Bibata Classic", "Rounded, black", _BIBATA),
-    CursorStyle("fedora-glass-bibata-original", "Bibata Sharp Ice", "Sharp corners, white", _BIBATA),
-    CursorStyle("fedora-glass-bibata-original-classic", "Bibata Sharp Classic", "Sharp corners, black",
+    CursorStyle("fedora-glass-bibata-ice", "Bibata Ice", N_("Rounded, white"), _BIBATA),
+    CursorStyle("fedora-glass-bibata-classic", "Bibata Classic", N_("Rounded, black"), _BIBATA),
+    CursorStyle("fedora-glass-bibata-original", "Bibata Sharp Ice", N_("Sharp corners, white"), _BIBATA),
+    CursorStyle("fedora-glass-bibata-original-classic", "Bibata Sharp Classic", N_("Sharp corners, black"),
                 _BIBATA),
-    CursorStyle("fedora-glass-phinger-light", "Phinger Light", "Crisp, white",
+    CursorStyle("fedora-glass-phinger-light", "Phinger Light", N_("Crisp, white"),
                 "Phinger by Philipp Schaffrath · CC BY-SA 4.0"),
-    CursorStyle("fedora-glass-phinger-dark", "Phinger Dark", "Crisp, black",
+    CursorStyle("fedora-glass-phinger-dark", "Phinger Dark", N_("Crisp, black"),
                 "Phinger by Philipp Schaffrath · CC BY-SA 4.0"),
-    CursorStyle("fedora-glass-whitesur", "WhiteSur", "Like macOS",
+    CursorStyle("fedora-glass-whitesur", "WhiteSur", N_("Like macOS"),
                 "WhiteSur by Vince Liuice · GPL-3.0"),
-    CursorStyle("fedora-glass-banana", "Banana", "Yes, a banana",
+    CursorStyle("fedora-glass-banana", "Banana", N_("Yes, a banana"),
                 "Banana by Abdulkaiz Khatri · GPL-3.0", fun=True),
-    CursorStyle("fedora-glass-amber", "Amber", "Bright orange",
+    CursorStyle("fedora-glass-amber", "Amber", N_("Bright orange"),
                 "Fedora Glass, from Bibata Amber by Abdulkaiz Khatri · GPL-3.0", fun=True),
-    CursorStyle("fedora-glass-catppuccin-mauve", "Catppuccin Mauve", "Soft purple",
+    CursorStyle("fedora-glass-catppuccin-mauve", "Catppuccin Mauve", N_("Soft purple"),
                 "Catppuccin Cursors, from Volantes by Alexey Varfolomeev · GPL-2.0", fun=True),
-    CursorStyle("fedora-glass-catppuccin-sky", "Catppuccin Sky", "Soft blue",
+    CursorStyle("fedora-glass-catppuccin-sky", "Catppuccin Sky", N_("Soft blue"),
                 "Catppuccin Cursors, from Volantes by Alexey Varfolomeev · GPL-2.0", fun=True),
-    CursorStyle("fedora-glass-oreo-pink", "Oreo Pink", "Bold and round",
+    CursorStyle("fedora-glass-oreo-pink", "Oreo Pink", N_("Bold and round"),
                 "Oreo by Alexey Varfolomeev · GPL-2.0", fun=True),
-    CursorStyle("fedora-glass-oreo-teal", "Oreo Teal", "Bold and round",
+    CursorStyle("fedora-glass-oreo-teal", "Oreo Teal", N_("Bold and round"),
                 "Oreo by Alexey Varfolomeev · GPL-2.0", fun=True),
 )
 STYLE_IDS = tuple(s.id for s in STYLES)

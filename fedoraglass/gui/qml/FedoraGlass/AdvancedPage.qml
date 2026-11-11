@@ -36,13 +36,13 @@ SettingsPage {
         width: parent.width
         height: implicitHeight
         readonly property var partList: [
-            { id: "panel", label: "Panel", tip: "Look of the top bar or Dash to Panel, a dock and the dash in Activities only" },
-            { id: "arcmenu", label: "Start menu", tip: "Look of the ArcMenu or Spawn application menu only" },
-            { id: "quicksettings", label: "Quick settings", tip: "Look of quick settings, menus, volume pop-ups and dialogs" },
-            { id: "calendar", label: "Calendar", tip: "Look of the calendar and notification pop-ups" },
-            { id: "overview", label: "Overview", tip: "Look of the dash and the app grid in Activities" },
-            { id: "windows", label: "Windows", tip: "Look of app windows, their sidebars and header bars" },
-            { id: "terminal", label: "Terminal", tip: "Look of terminal windows" }
+            { id: "panel", label: qsTr("Panel"), tip: qsTr("Look of the top bar or Dash to Panel, a dock and the dash in Activities only") },
+            { id: "arcmenu", label: qsTr("Start menu"), tip: qsTr("Look of the ArcMenu or Spawn application menu only") },
+            { id: "quicksettings", label: qsTr("Quick settings"), tip: qsTr("Look of quick settings, menus, volume pop-ups and dialogs") },
+            { id: "calendar", label: qsTr("Calendar"), tip: qsTr("Look of the calendar and notification pop-ups") },
+            { id: "overview", label: qsTr("Overview"), tip: qsTr("Look of the dash and the app grid in Activities") },
+            { id: "windows", label: qsTr("Windows"), tip: qsTr("Look of app windows, their sidebars and header bars") },
+            { id: "terminal", label: qsTr("Terminal"), tip: qsTr("Look of terminal windows") }
         ].filter(p => p.id !== "arcmenu" || Backend.hasStartMenu)   // no start menu, no chip for it
         property string part: "panel"
         // Bring the part being edited into view in the preview, and outline it.
@@ -72,10 +72,10 @@ SettingsPage {
             width: parent.width
             spacing: 12
             SectionTitle {
-                text: "Part by part"
+                text: qsTr("Part by part")
                 resetKeys: ["parts"]
-                resetTip: "Every part looks like the rest of the desktop again"
-                caption: "Give one part its own look. Click a part in the preview or pick it here."
+                resetTip: qsTr("Every part looks like the rest of the desktop again")
+                caption: qsTr("Give one part its own look. Click a part in the preview or pick it here.")
             }
             Flow {
                 id: partRow
@@ -88,12 +88,12 @@ SettingsPage {
                         required property var modelData
                         objectName: "part_" + modelData.id
                         readonly property bool own: partsCard.hasOwn(modelData.id)
-                        text: modelData.label + (own && selected ? " \u00b7 own look" : "")
+                        text: own && selected ? qsTr("%1 \u00b7 own look").arg(modelData.label) : modelData.label
                         // Tabs: one Tab stop, and the arrow keys pick the part.
                         rovingGroup: partRow
                         rovingSelects: true
                         selected: partsCard.part === modelData.id
-                        tip: modelData.tip + (own ? ". Has its own look." : "")
+                        tip: own ? qsTr("%1. Has its own look.").arg(modelData.tip) : modelData.tip
                         Rectangle {      // a dot marks the other parts that have their own look
                             visible: parent.own && !parent.selected
                             width: 6; height: 6; radius: 3
@@ -111,11 +111,11 @@ SettingsPage {
                 OverrideSlider {
                     objectName: "partTintStrength"
                     inline: true
-                    label: "Tint strength"
-                    autoText: "Same as everywhere"
-                    autoTip: "Follows the tint strength on the Colour page"
-                    resetTip: "Go back to the tint strength used everywhere"
-                    tip: "How much of the tint colour is mixed into this part. Left is clear, colourless glass; right is strongly coloured."
+                    label: qsTr("Tint strength")
+                    autoText: qsTr("Same as everywhere")
+                    autoTip: qsTr("Follows the tint strength on the Colour page")
+                    resetTip: qsTr("Go back to the tint strength used everywhere")
+                    tip: qsTr("How much of the tint colour is mixed into this part. Left is clear, colourless glass; right is strongly coloured.")
                     value: partsCard.val("tint_strength")
                     autoValue: Backend.tintStrength
                     onChanged: (v) => partsCard.setOrClear("tint_strength", v)
@@ -124,11 +124,11 @@ SettingsPage {
                 OverrideSlider {
                     objectName: "partFrost"
                     inline: true
-                    label: "Frost"
-                    autoText: "Same as everywhere"
-                    autoTip: "Follows How much glass on the Glass page"
-                    resetTip: "Go back to the glass used everywhere"
-                    tip: "How frosted this part is. Left is clear glass with a light blur; right is milky, heavily blurred and easier to read."
+                    label: qsTr("Frost")
+                    autoText: qsTr("Same as everywhere")
+                    autoTip: qsTr("Follows How much glass on the Glass page")
+                    resetTip: qsTr("Go back to the glass used everywhere")
+                    tip: qsTr("How frosted this part is. Left is clear glass with a light blur; right is milky, heavily blurred and easier to read.")
                     value: partsCard.val("frost")
                     autoValue: Backend.frost
                     onChanged: (v) => partsCard.setOrClear("frost", v)
@@ -138,15 +138,15 @@ SettingsPage {
                     objectName: "partCorners"
                     visible: partsCard.hasRadius
                     inline: true
-                    label: "Corners"
-                    autoText: "Same as everywhere"
-                    autoTip: "Follows Corner roundness on the Colour page"
-                    resetTip: "Go back to the corners used everywhere"
-                    tip: "How round this part's corners are. Left is sharp, square corners; right is soft, pill-like corners."
+                    label: qsTr("Corners")
+                    autoText: qsTr("Same as everywhere")
+                    autoTip: qsTr("Follows Corner roundness on the Colour page")
+                    resetTip: qsTr("Go back to the corners used everywhere")
+                    tip: qsTr("How round this part's corners are. Left is sharp, square corners; right is soft, pill-like corners.")
                     from: 0; to: 32; stepSize: 1
                     value: partsCard.val("radius")
                     autoValue: Backend.radius
-                    format: (v) => Math.round(v) + " px"
+                    format: (v) => qsTr("%1 px").arg(Math.round(v))
                     onChanged: (v) => partsCard.setOrClear("radius", v < 0 ? v : Math.round(v))
                 }
             }
@@ -155,8 +155,8 @@ SettingsPage {
                 objectName: "partMore"
                 card: false
                 divider: true
-                title: partsCard.moreCount + " more for this part"
-                summary: partsCard.hasLens ? "Tint colour, bend, reflections" : "Tint colour"
+                title: qsTr("%1 more for this part").arg(partsCard.moreCount)
+                summary: partsCard.hasLens ? qsTr("Tint colour, bend, reflections") : qsTr("Tint colour")
                 Column {
                     width: parent.width
                     spacing: 0
@@ -166,9 +166,9 @@ SettingsPage {
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 2
-                            Text { text: "Tint"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+                            Text { text: qsTr("Tint"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                             Text {
-                                text: partsCard.own.tint !== undefined ? "Its own colour" : "Same as everywhere"
+                                text: partsCard.own.tint !== undefined ? qsTr("Its own colour") : qsTr("Same as everywhere")
                                 color: Theme.textFaint; font.pixelSize: Theme.fsSmall
                             }
                         }
@@ -179,9 +179,9 @@ SettingsPage {
                             Chip {
                                 anchors.verticalCenter: parent.verticalCenter
                                 implicitHeight: 28
-                                text: "Same as everywhere"
+                                text: qsTr("Same as everywhere")
                                 selected: partsCard.own.tint === undefined
-                                tip: selected ? "Follows the tint colour on the Colour page" : "Go back to the tint colour used everywhere"
+                                tip: selected ? qsTr("Follows the tint colour on the Colour page") : qsTr("Go back to the tint colour used everywhere")
                                 onClicked: partsCard.own.tint === undefined ? Backend.setPart(partsCard.part, "tint", Backend.tint)
                                                                             : Backend.clearPart(partsCard.part, "tint")
                             }
@@ -194,9 +194,9 @@ SettingsPage {
                                 focusPolicy: Qt.StrongFocus
                                 readonly property string shown: partsCard.own.tint !== undefined ? partsCard.own.tint : Backend.tint
                                 onClicked: partTintPicker.open()
-                                Accessible.name: "Tint colour for this part"
+                                Accessible.name: qsTr("Tint colour for this part")
                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                LgToolTip { shown: partTint.hovered; text: "Choose a tint colour for this part only" }
+                                LgToolTip { shown: partTint.hovered; text: qsTr("Choose a tint colour for this part only") }
                                 background: Rectangle {
                                     radius: height / 2
                                     color: partTint.hovered ? Theme.surfaceHi : Theme.well
@@ -226,7 +226,7 @@ SettingsPage {
                                     id: partTintPicker
                                     y: parent.height + 8
                                     x: parent.width - width
-                                    title: "Tint colour"
+                                    title: qsTr("Tint colour")
                                     color: partTint.shown
                                     onPicked: (hex) => Backend.setPart(partsCard.part, "tint", hex)
                                 }
@@ -237,11 +237,11 @@ SettingsPage {
                         objectName: "partBend"
                         visible: partsCard.hasLens
                         inline: true
-                        label: "Bend"
-                        autoText: "Same as everywhere"
-                        autoTip: "Follows Bend under Glass effects on the Glass page"
-                        resetTip: "Go back to the bend used everywhere"
-                        tip: "How strongly this part's rounded edge bends what's behind it. Left is flat glass; right is a thick lens."
+                        label: qsTr("Bend")
+                        autoText: qsTr("Same as everywhere")
+                        autoTip: qsTr("Follows Bend under Glass effects on the Glass page")
+                        resetTip: qsTr("Go back to the bend used everywhere")
+                        tip: qsTr("How strongly this part's rounded edge bends what's behind it. Left is flat glass; right is a thick lens.")
                         value: partsCard.val("refraction")
                         autoValue: Backend.refraction
                         onChanged: (v) => { partsCard.setOrClear("refraction", v); partsCard.peek() }
@@ -250,11 +250,11 @@ SettingsPage {
                         objectName: "partBleed"
                         visible: partsCard.hasBleed
                         inline: true
-                        label: "Colour bleed"
-                        autoText: "Same as everywhere"
-                        autoTip: "Follows Colour bleed under Glass effects on the Glass page"
-                        resetTip: "Go back to the colour bleed used everywhere"
-                        tip: "How much the colours of icons and text light up the glass of this part. Left keeps it neutral; right gives them a coloured glow."
+                        label: qsTr("Colour bleed")
+                        autoText: qsTr("Same as everywhere")
+                        autoTip: qsTr("Follows Colour bleed under Glass effects on the Glass page")
+                        resetTip: qsTr("Go back to the colour bleed used everywhere")
+                        tip: qsTr("How much the colours of icons and text light up the glass of this part. Left keeps it neutral; right gives them a coloured glow.")
                         value: partsCard.val("bleed")
                         autoValue: Backend.bleed
                         onChanged: (v) => partsCard.setOrClear("bleed", v)
@@ -263,11 +263,11 @@ SettingsPage {
                         objectName: "partReflections"
                         visible: partsCard.hasLens
                         inline: true
-                        label: "Edge reflections"
-                        autoText: "Same as everywhere"
-                        autoTip: "Follows the default edge reflections"
-                        resetTip: "Go back to the default edge reflections"
-                        tip: "How strongly the edge of this part catches reflections of its surroundings. Left shows none; right gives bright, mirror-like edges."
+                        label: qsTr("Edge reflections")
+                        autoText: qsTr("Same as everywhere")
+                        autoTip: qsTr("Follows the default edge reflections")
+                        resetTip: qsTr("Go back to the default edge reflections")
+                        tip: qsTr("How strongly the edge of this part catches reflections of its surroundings. Left shows none; right gives bright, mirror-like edges.")
                         value: partsCard.val("reflections")
                         autoValue: Backend.highlight
                         onChanged: (v) => { partsCard.setOrClear("reflections", v); partsCard.peek() }
@@ -282,10 +282,10 @@ SettingsPage {
                             kind: "flat"
                             implicitHeight: 32
                             leftPadding: 12; rightPadding: 12
-                            text: "Reset " + partsCard.info.label.toLowerCase()
+                            text: qsTr("Reset %1").arg(Qt.uiLanguage === "de" ? partsCard.info.label : partsCard.info.label.toLocaleLowerCase())  // German nouns keep their capital
                             iconName: "undo"
                             enabled: partsCard.any
-                            tip: "Make this part look like the rest of the desktop again"
+                            tip: qsTr("Make this part look like the rest of the desktop again")
                             onClicked: Backend.resetPart(partsCard.part)
                         }
                     }
@@ -297,51 +297,51 @@ SettingsPage {
     Fold {
         id: fine
         objectName: "fineTune"
-        title: "Fine-tune"
-        summary: "Transparency, blur, terminal opacity, reduce transparency"
+        title: qsTr("Fine-tune")
+        summary: qsTr("Transparency, blur, terminal opacity, reduce transparency")
         Column {
             width: parent.width
             spacing: 18
             OverrideSlider {
                 objectName: "fineOpacity"
-                label: "Transparency"
-                caption: "How solid panels and header bars look"
+                label: qsTr("Transparency")
+                caption: qsTr("How solid panels and header bars look")
                 value: Backend.opacity
                 autoValue: Backend.autoValues.opacity
                 onChanged: (v) => Backend.opacity = v
-                autoTip: "Follows How much glass on the Glass page"
-                resetTip: "Go back to following How much glass"
-                tip: "How solid panels and header bars look. Left is see-through; right is nearly solid."
-                format: (v) => Math.round(v * 100) + "% solid"
+                autoTip: qsTr("Follows How much glass on the Glass page")
+                resetTip: qsTr("Go back to following How much glass")
+                tip: qsTr("How solid panels and header bars look. Left is see-through; right is nearly solid.")
+                format: (v) => qsTr("%1% solid").arg(Math.round(v * 100))
             }
             OverrideSlider {
                 objectName: "fineBlur"
-                label: "Blur"
+                label: qsTr("Blur")
                 value: Backend.blur
                 autoValue: Backend.autoValues.blur
                 from: 0; to: 100; stepSize: 1
-                format: (v) => Math.round(v) + " px"
-                autoTip: "Follows How much glass on the Glass page"
-                resetTip: "Go back to following How much glass"
-                tip: "How much the background behind glass is blurred. Left shows it sharp; right melts it into soft colour."
+                format: (v) => qsTr("%1 px").arg(Math.round(v))
+                autoTip: qsTr("Follows How much glass on the Glass page")
+                resetTip: qsTr("Go back to following How much glass")
+                tip: qsTr("How much the background behind glass is blurred. Left shows it sharp; right melts it into soft colour.")
                 onChanged: (v) => Backend.blur = v
             }
             OverrideSlider {
                 objectName: "fineTerminalOpacity"
-                label: "Terminal opacity"
+                label: qsTr("Terminal opacity")
                 value: Backend.terminalOpacity
                 autoValue: Backend.autoValues.terminal_opacity
                 from: 0.3; to: 1
-                autoTip: "Follows How much glass on the Glass page"
-                resetTip: "Go back to following How much glass"
-                tip: "How see-through terminal windows are. Left lets the desktop show through; right is a solid background."
+                autoTip: qsTr("Follows How much glass on the Glass page")
+                resetTip: qsTr("Go back to following How much glass")
+                tip: qsTr("How see-through terminal windows are. Left lets the desktop show through; right is a solid background.")
                 onChanged: (v) => Backend.terminalOpacity = v
             }
             SwitchRow {
                 objectName: "reduceTransparency"
-                label: "Reduce transparency"
-                caption: "Nearly opaque surfaces and no blur, for readability"
-                tip: "Makes every surface nearly solid and turns the blur off. Easier to read, but no longer see-through."
+                label: qsTr("Reduce transparency")
+                caption: qsTr("Nearly opaque surfaces and no blur, for readability")
+                tip: qsTr("Makes every surface nearly solid and turns the blur off. Easier to read, but no longer see-through.")
                 checked: Backend.reduceTransparency
                 onToggled: (on) => Backend.reduceTransparency = on
             }
@@ -351,10 +351,10 @@ SettingsPage {
                 visible: Backend.changedFromDefault.some((k) => keys.indexOf(k) >= 0)
                 kind: "flat"
                 implicitHeight: 32
-                text: "Reset fine-tune"
+                text: qsTr("Reset fine-tune")
                 iconName: "undo"
                 leftPadding: 12
-                tip: "Let How much glass decide these again (Apply to use it)"
+                tip: qsTr("Let How much glass decide these again (Apply to use it)")
                 onClicked: Backend.resetSettings(keys)
             }
         }
@@ -372,13 +372,13 @@ SettingsPage {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - resetAll.width - 16
                 spacing: 3
-                Text { text: "Start over"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+                Text { text: qsTr("Start over"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: Backend.canResetAll
-                          ? "Every look setting back to its default. The apps you picked stay. Applied after Apply, and Undo takes it back until then."
-                          : "Every look setting is at its default."
+                          ? qsTr("Every look setting back to its default. The apps you picked stay. Applied after Apply, and Undo takes it back until then.")
+                          : qsTr("Every look setting is at its default.")
                     color: Theme.textFaint
                     font.pixelSize: Theme.fsSmall
                 }
@@ -391,9 +391,9 @@ SettingsPage {
                 kind: "secondary"
                 implicitHeight: 36
                 leftPadding: 16; rightPadding: 16
-                text: "Reset all"
+                text: qsTr("Reset all")
                 enabled: Backend.canResetAll
-                tip: "Back to the default look on every page (Apply to use it)"
+                tip: qsTr("Back to the default look on every page (Apply to use it)")
                 onClicked: Backend.resetDefaults()
             }
         }
@@ -401,6 +401,6 @@ SettingsPage {
 
     side: [
         Item { id: slot; objectName: "advancedPreviewSlot"; width: parent.width; height: page.previewH },
-        PreviewNote { text: "Click a part of the preview to give it its own look." }
+        PreviewNote { text: qsTr("Click a part of the preview to give it its own look.") }
     ]
 }

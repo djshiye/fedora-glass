@@ -171,13 +171,13 @@ Item {
             width: 160
             compact: true
             iconOnly: true
-            model: [{ value: "desktop", icon: "screen", tip: preview.hasMenu ? "Show the desktop with the start menu" : "Show the desktop" },
-                    { value: "quicksettings", icon: "sliders", tip: "Show Quick Settings" },
-                    { value: "calendar", icon: "clock", tip: "Show the calendar and notifications" },
-                    { value: "overview", icon: "grid", tip: "Show Activities (the overview)" }]
+            model: [{ value: "desktop", icon: "screen", tip: preview.hasMenu ? qsTr("Show the desktop with the start menu") : qsTr("Show the desktop") },
+                    { value: "quicksettings", icon: "sliders", tip: qsTr("Show Quick Settings") },
+                    { value: "calendar", icon: "clock", tip: qsTr("Show the calendar and notifications") },
+                    { value: "overview", icon: "grid", tip: qsTr("Show Activities (the overview)") }]
             value: preview.scene
             onActivated: (v) => { preview.scene = v; if (v === "desktop") preview.showMenu = true }
-            Accessible.name: "Preview shows"
+            Accessible.name: qsTr("Preview shows")
         }
     }
 
@@ -198,11 +198,11 @@ Item {
             width: 80
             compact: true
             iconOnly: true
-            model: [{ value: true, icon: "zoom-in", tip: "Close up: glass at about half its real size. Drag to look around." },
-                    { value: false, icon: "zoom-out", tip: "Show the whole screen" }]
+            model: [{ value: true, icon: "zoom-in", tip: qsTr("Close up: glass at about half its real size. Drag to look around.") },
+                    { value: false, icon: "zoom-out", tip: qsTr("Show the whole screen") }]
             value: pane.closeUp
             onActivated: (v) => pane.closeUp = v
-            Accessible.name: "Preview size"
+            Accessible.name: qsTr("Preview size")
         }
     }
 
@@ -219,11 +219,11 @@ Item {
             width: 80
             compact: true
             iconOnly: true
-            model: [{ value: true, icon: "moon", tip: "Preview the dark style" },
-                    { value: false, icon: "sun", tip: "Preview the light style" }]
+            model: [{ value: true, icon: "moon", tip: qsTr("Preview the dark style") },
+                    { value: false, icon: "sun", tip: qsTr("Preview the light style") }]
             value: Backend.previewDark
             onActivated: (v) => Backend.previewDark = v
-            Accessible.name: "Preview style"
+            Accessible.name: qsTr("Preview style")
         }
     }
 

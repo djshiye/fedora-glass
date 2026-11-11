@@ -7,38 +7,38 @@ Sheet {
     id: sheet
     objectName: "aboutSheet"
     title: "Fedora Glass"
-    subtitle: "Version " + Backend.version
+    subtitle: qsTr("Version %1").arg(Backend.version)
     iconSource: typeof appIconUrl !== "undefined" ? appIconUrl : ""
     iconName: "info"
     width: Math.min(540, (parent ? parent.width : 800) - 64)
 
     readonly property url releasesUrl: "https://github.com/djshiye/fedora-glass/releases"
     readonly property var shortcuts: [
-        { keys: ["Ctrl+Enter"], what: "Apply" },
-        { keys: ["Ctrl+Z"], what: "Undo changes" },
-        { keys: ["Ctrl+F", "/"], what: "Search settings" },
-        { keys: ["Ctrl+1 … 9"], what: "Go to a page, in sidebar order" },
-        { keys: ["Tab", "Shift+Tab"], what: "Move to the next or previous control" },
-        { keys: ["Arrow keys"], what: "Change a slider, or pick in a group" },
-        { keys: ["Space", "Enter"], what: "Press the focused button" },
-        { keys: ["Esc"], what: "Close a sheet like this one" },
-        { keys: ["F1"], what: "Show this sheet" },
-        { keys: ["Ctrl+W", "Ctrl+Q"], what: "Close Fedora Glass" }
+        { keys: ["Ctrl+Enter"], what: qsTr("Apply") },
+        { keys: ["Ctrl+Z"], what: qsTr("Undo changes") },
+        { keys: ["Ctrl+F", "/"], what: qsTr("Search settings") },
+        { keys: ["Ctrl+1 … 9"], what: qsTr("Go to a page, in sidebar order") },
+        { keys: ["Tab", "Shift+Tab"], what: qsTr("Move to the next or previous control") },
+        { keys: [qsTr("Arrow keys")], what: qsTr("Change a slider, or pick in a group") },
+        { keys: ["Space", "Enter"], what: qsTr("Press the focused button") },
+        { keys: ["Esc"], what: qsTr("Close a sheet like this one") },
+        { keys: ["F1"], what: qsTr("Show this sheet") },
+        { keys: ["Ctrl+W", "Ctrl+Q"], what: qsTr("Close Fedora Glass") }
     ]
 
     buttons: [
         LgButton {
             objectName: "aboutWhatsNew"
-            text: "What's new"
+            text: qsTr("What's new")
             kind: "secondary"
             iconName: "sparkle"
             leftPadding: 16
-            tip: "Opens the release notes in your web browser"
+            tip: qsTr("Opens the release notes in your web browser")
             onClicked: Qt.openUrlExternally(sheet.releasesUrl)
         },
         LgButton {
             objectName: "aboutClose"
-            text: "Close"
+            text: qsTr("Close")
             kind: "primary"
             onClicked: sheet.close()
         }
@@ -49,7 +49,7 @@ Sheet {
         spacing: 12
 
         Text {
-            text: "Keyboard shortcuts"
+            text: qsTr("Keyboard shortcuts")
             color: Theme.text
             font.pixelSize: Theme.fsBody
             font.weight: Font.DemiBold
@@ -76,7 +76,7 @@ Sheet {
                         width: list.width
                         height: 36
                         Accessible.role: Accessible.StaticText
-                        Accessible.name: modelData.keys.join(" or ") + ": " + modelData.what
+                        Accessible.name: qsTr("%1: %2").arg(modelData.keys.length > 1 ? qsTr("%1 or %2").arg(modelData.keys[0]).arg(modelData.keys[1]) : modelData.keys[0]).arg(modelData.what)
                         Rectangle {
                             visible: line.index > 0
                             width: parent.width; height: 1

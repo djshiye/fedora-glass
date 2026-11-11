@@ -31,12 +31,20 @@ from . import looks as looks_mod
 from . import wallcolour
 from ..color import Color
 from ..env import Env
+from ..i18n import _, N_, gettext as tr
 from ..settings import GNOME_ACCENTS, PRESETS, Settings
 
-GROUP_ORDER = ("Desktop", "Panel", "Apps", "Terminal", "My apps")
+GROUP_ORDER = (N_("Desktop"), N_("Panel"), N_("Apps"), N_("Terminal"), N_("My apps"))   # also the groups the targets are in
 
 # A detection detail that holds one command that installs the missing part.
 _INSTALL_CMD = re.compile(r"\b(?:sudo \S+ install|flatpak install|pacman -S)\b")
+
+
+def _join_names(names: list[str]) -> str:
+    """"A", "A and B", "A, B and C", in the language of the app."""
+    if len(names) == 1:
+        return names[0]
+    return _("{start} and {last}").format(start=", ".join(names[:-1]), last=names[-1])
 
 
 def _group_rank(group: str) -> tuple[int, str]:
@@ -52,11 +60,11 @@ def _missing_text(t: dict) -> dict:
     detail = (t.get("detail") or "").strip()
     if _INSTALL_CMD.search(detail):
         return {"reason": "", "install": detail}
-    lead = f"{t['name']} is not installed"
+    lead = _("{name} is not installed").format(name=t["name"])
     if not detail or detail == lead:
-        return {"reason": "Not installed", "install": ""}
+        return {"reason": _("Not installed"), "install": ""}
     if detail.startswith(lead + " "):
-        return {"reason": "Not installed" + detail[len(lead):], "install": ""}
+        return {"reason": _("Not installed") + detail[len(lead):], "install": ""}
     return {"reason": detail, "install": ""}
 
 # The windows the preview opens, so their dock icons get a "running" dot.
@@ -466,10 +474,12 @@ class Backend(QObject):
 
     @Property(str, notify=safeModeChanged)
     def safeModeNote(self) -> str:
-        why = {"restarts": "GNOME Shell restarted twice right after starting it",
-               "start": "it could not start",
-               "errors": "it hit errors"}.get(self._safe.get("reason", ""), "it hit errors")
-        return f"Glass is paused because {why}. Your desktop works as usual."
+        reason = self._safe.get("reason", "")
+        if reason == "restarts":
+            return _("Glass is paused because GNOME Shell restarted twice right after starting it. Your desktop works as usual.")
+        if reason == "start":
+            return _("Glass is paused because it could not start. Your desktop works as usual.")
+        return _("Glass is paused because it hit errors. Your desktop works as usual.")
 
     @Slot()
     def resumeGlass(self) -> None:
@@ -774,11 +784,11 @@ class Backend(QObject):
     @Property("QVariantList", constant=True)
     def motionStyles(self) -> list[dict]:
         return [
-            {"id": "off", "label": "Off", "tip": "No animations: everything happens at once"},
-            {"id": "calm", "label": "Calm", "tip": "Quick, gentle zooms and fades. Nothing bounces."},
-            {"id": "gnome", "label": "GNOME", "tip": "GNOME's own animations, as they come"},
-            {"id": "lively", "label": "Lively", "tip": "Springy windows, a genie into the taskbar and a bouncing app icon (the default)"},
-            {"id": "playful", "label": "Playful", "tip": "Bouncy, jelly-like and fun"},
+            {"id": "off", "label": _("Off"), "tip": _("No animations: everything happens at once")},
+            {"id": "calm", "label": _("Calm"), "tip": _("Quick, gentle zooms and fades. Nothing bounces.")},
+            {"id": "gnome", "label": _("GNOME"), "tip": _("GNOME's own animations, as they come")},
+            {"id": "lively", "label": _("Lively"), "tip": _("Springy windows, a genie into the taskbar and a bouncing app icon (the default)")},
+            {"id": "playful", "label": _("Playful"), "tip": _("Bouncy, jelly-like and fun")},
         ]
 
     @Property(str, notify=settingsChanged)
@@ -981,9 +991,19 @@ class Backend(QObject):
         if not (0 < median < 10_000 and 0 < p95 < 10_000 and 1 < hz < 1000):
             return ""
         fps = min(hz, 1000 / median)
-        word = "smooth" if p95 <= 1.5 * 1000 / hz else "a little uneven" if fps >= 0.6 * hz else "slow"
-        on = f" with {windows} windows open" if windows > 1 else ""
-        return f"Last window drag{on}: about {round(fps)} frames a second, {word}."
+        smooth, uneven = p95 <= 1.5 * 1000 / hz, fps >= 0.6 * hz
+        n = round(fps)
+        if windows > 1:
+            if smooth:
+                return _("Last window drag with {windows} windows open: about {fps} frames a second, smooth.").format(windows=windows, fps=n)
+            if uneven:
+                return _("Last window drag with {windows} windows open: about {fps} frames a second, a little uneven.").format(windows=windows, fps=n)
+            return _("Last window drag with {windows} windows open: about {fps} frames a second, slow.").format(windows=windows, fps=n)
+        if smooth:
+            return _("Last window drag: about {fps} frames a second, smooth.").format(fps=n)
+        if uneven:
+            return _("Last window drag: about {fps} frames a second, a little uneven.").format(fps=n)
+        return _("Last window drag: about {fps} frames a second, slow.").format(fps=n)
 
     def _get_speed_state(self) -> str:
         return self._speed_state
@@ -1056,7 +1076,7 @@ class Backend(QObject):
 
     @Property("QVariantList", constant=True)
     def accents(self) -> list[dict]:
-        return [{"id": k, "color": v, "label": k.capitalize()} for k, v in GNOME_ACCENTS.items()]
+        return [{"id": k, "color": v, "label": changes_mod._accent_name(k)} for k, v in GNOME_ACCENTS.items()]
 
     @Property(str, constant=True)
     def systemAccent(self) -> str:
@@ -1445,7 +1465,7 @@ class Backend(QObject):
         """Open GNOME's own restart dialog: the user confirms there, nothing restarts without it."""
         path = self._env.which("gnome-session-quit")
         if not path or not self._detach(path, ["--reboot"]):
-            self.failed.emit("Could not open the restart dialog. Restart your PC from the system menu instead.")
+            self.failed.emit(_("Could not open the restart dialog. Restart your PC from the system menu instead."))
 
     @Slot()
     def applyAndLock(self) -> None:
@@ -1471,10 +1491,9 @@ class Backend(QObject):
         """What the desktop here is made of, in one line for the welcome ("" until known)."""
         if not self._targets_ready:
             return ""
-        parts = ["Dash to Panel" if self.hasDashToPanel else "GNOME's own top bar"]
+        parts = ["Dash to Panel" if self.hasDashToPanel else _("GNOME's own top bar")]
         parts += [n for n in (self._dock_name, self._menu_name) if n]
-        text = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
-        return f"Found on this PC: {text}."
+        return _("Found on this PC: {list}.").format(list=_join_names(parts))
 
     @Property(bool, notify=targetsChanged)
     def hasBackup(self) -> bool:
@@ -1485,8 +1504,8 @@ class Backend(QObject):
         """One line when another app (a theme update, say) replaced files Apply wrote, or ""."""
         if not self._lost:
             return ""
-        what = self._lost[0] if len(self._lost) == 1 else ", ".join(self._lost[:-1]) + " and " + self._lost[-1]
-        return f"Another app replaced the Fedora Glass look for {what}. Apply again to bring it back."
+        return _("Another app replaced the Fedora Glass look for {what}. Apply again to bring it back.").format(
+            what=_join_names(self._lost))
 
     @Slot(str, bool)
     def setTargetEnabled(self, target_id: str, on: bool) -> None:
@@ -1527,9 +1546,10 @@ class Backend(QObject):
                     det = t.detect(engine.env)
                     available, detail = bool(det.available), det.detail or ""
                 except Exception as e:
-                    available, detail = False, f"Could not check: {e}"
-                out.append({"id": t.id, "name": t.name, "group": t.group or "Apps",
-                            "summary": t.summary, "notes": notes,
+                    available, detail = False, _("Could not check: {error}").format(error=e)
+                out.append({"id": t.id, "name": tr(t.name), "group": t.group or "Apps",
+                            "groupLabel": tr(t.group or "Apps"),
+                            "summary": tr(t.summary), "notes": [tr(n) for n in notes],
                             "available": available, "detail": detail,
                             "hideWhenMissing": bool(getattr(t, "hide_when_missing", False)),
                             # Off until the user turns it on: off is its normal state, not a warning.
@@ -1624,9 +1644,9 @@ class Backend(QObject):
         need Apply again."""
         r = self._env.gsettings_set("org.gnome.shell", "disable-user-extensions", "false")
         if not r.ok:
-            self.failed.emit("Could not switch extensions on. Try the Extensions app instead.")
+            self.failed.emit(_("Could not switch extensions on. Try the Extensions app instead."))
             return
-        self.noticed.emit("Extensions are on again. Press Apply to finish your look.")
+        self.noticed.emit(_("Extensions are on again. Press Apply to finish your look."))
         self.refreshTargets()
 
     # ---- an old source install left behind (see leftovers.py) -----------------------
@@ -1667,9 +1687,9 @@ class Backend(QObject):
             if isinstance(problems, Exception):
                 problems = [str(problems)]
             if problems:
-                self.failed.emit(f"Could not clean up the old copy: {problems[0]}")
+                self.failed.emit(_("Could not clean up the old copy: {problem}").format(problem=problems[0]))
             else:
-                self.noticed.emit("Old copy cleaned up. Fedora Glass now runs from the package only.")
+                self.noticed.emit(_("Old copy cleaned up. Fedora Glass now runs from the package only."))
             self.refreshTargets()
         self._run("cleanup", job, done)
 
@@ -1679,7 +1699,7 @@ class Backend(QObject):
         if not text:
             return
         QGuiApplication.clipboard().setText(text)
-        self.noticed.emit("Error details copied")
+        self.noticed.emit(_("Error details copied"))
 
     @staticmethod
     def _motion_env(engine: Any) -> dict:
@@ -1713,7 +1733,7 @@ class Backend(QObject):
         dtp_before = self.hasDashToPanel
         if isinstance(out, Exception):
             self._targets, self._has_backup = [], False
-            self.failed.emit(f"Could not load targets: {out}")
+            self.failed.emit(_("Could not load targets: {error}").format(error=out))
             restart = False
         else:
             (self._targets, self._has_backup, (self._glass_live, restart), self._terminal_pal, self._lost,
@@ -1809,10 +1829,10 @@ class Backend(QObject):
 
         def job(report):
             engine = self._engine_obj()
-            names = {t.id: t.name for t in engine.targets}
-            plain = {t.id: getattr(t, "plain", "") or "" for t in engine.targets}
+            names = {t.id: tr(t.name) for t in engine.targets}
+            plain = {t.id: tr(getattr(t, "plain", "") or "") for t in engine.targets}
             home = str(engine.env.home)
-            report(0.1, "Planning")
+            report(0.1, _("Planning"))
             plan = engine.plan(s)
             return [{"id": tid, "name": names.get(tid, tid), "plain": plain.get(tid, ""),
                      "actions": [{"kind": type(a).__name__, "text": _tilde(a.describe(), home)} for a in actions]}
@@ -1820,7 +1840,7 @@ class Backend(QObject):
 
         def done(out):
             if isinstance(out, Exception):
-                self.failed.emit(f"Could not work out the changes: {out}")
+                self.failed.emit(_("Could not work out the changes: {error}").format(error=out))
             else:
                 self.planReady.emit(out)
         self._run("plan", job, done)
@@ -1854,7 +1874,7 @@ class Backend(QObject):
             settings_mod.save(s, self._path)
         except OSError as e:
             self._lock_after_apply = False
-            self.failed.emit(f"Could not save settings: {e}")
+            self.failed.emit(_("Could not save settings: {error}").format(error=e))
             return
         self._applying = s
         glass_wanted = s.target_enabled("glass")
@@ -1863,16 +1883,16 @@ class Backend(QObject):
             engine = self._engine_obj()
             ts = list(engine.targets)
             if not ts:
-                report(0.5, "Writing tokens")
+                report(0.5, _("Writing tokens"))
                 return [], self._backup_exists(engine), self._restart_state(engine, glass_wanted)
             results = {}
             for i, t in enumerate(ts):
-                report(i / len(ts), t.name)
+                report(i / len(ts), tr(t.name))
                 # Switching the glass on can finish parts that waited for it a step
                 # earlier (the Shell theme): the latest result for a part counts.
                 for r in engine.apply(s, only={t.id}):
                     results[r.target] = r
-            report(1.0, "Done")
+            report(1.0, _("Done"))
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
@@ -1895,13 +1915,15 @@ class Backend(QObject):
                 except OSError:
                     pass
                 self._refresh_damage()
-                self.failed.emit(f"Apply stopped: {out}")
+                self.failed.emit(_("Apply stopped: {error}").format(error=out))
                 return
             results, self._has_backup, (self._glass_live, restart) = out
             self._saved = replace(s, undo_on_remove=uor)
             self._usable = True         # settings.json is the look the user applied now
             self._keep_previous(was_applied, was_at, step)
-            rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message} for r in results]
+            from ..engine import WAITING
+            rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message,
+                     "restart": r.status == "info" and r.message == tr(WAITING)} for r in results]
             # Some parts failed: the rest is applied, and settings.json is that look (the
             # watcher keeps it), but Undo goes back to the last look that applied fully.
             if any(r["status"] == "failed" for r in rows):
@@ -1924,7 +1946,7 @@ class Backend(QObject):
             self._login_state = self._read_login_state()
             if self._login_stale(self._saved):
                 self._run_login(["apply", *self.login_values(self._saved)],
-                                "The login screen has your new look. You'll see it the next time you restart your PC.")
+                                _("The login screen has your new look. You'll see it the next time you restart your PC."))
             else:
                 self.loginGlassChanged.emit()
             self.applyFinished.emit(rows)
@@ -1947,13 +1969,13 @@ class Backend(QObject):
 
         def job(report):
             engine = self._engine_obj()
-            report(0.3, "Restoring")
+            report(0.3, _("Restoring"))
             problems = engine.revert()
             return list(problems), self._backup_exists(engine)
 
         def done(out):
             if isinstance(out, Exception):
-                self.failed.emit(f"Restore stopped: {out}")
+                self.failed.emit(_("Restore stopped: {error}").format(error=out))
                 return
             problems, self._has_backup = out
             self._glass_live = False
@@ -2015,7 +2037,7 @@ class Backend(QObject):
         since quitting it would end running shells."""
         path = self._env.which("nautilus")
         if not path or not QProcess.startDetached(path, ["-q"]):
-            self.failed.emit("Could not restart Files. Close all Files windows, or restart your PC instead.")
+            self.failed.emit(_("Could not restart Files. Close all Files windows, or restart your PC instead."))
             return False
         self._set_header_note("restarted")
         return True
@@ -2103,11 +2125,11 @@ class Backend(QObject):
         # The applied look, as Apply keeps it: the desktop doesn't have unapplied slider
         # values either, and loginGlassStale compares with this one.
         self._run_login(["apply", *self.login_values(self._saved)],
-                        "Glass is on the login screen. You'll see it the next time you restart your PC.")
+                        _("Glass is on the login screen. You'll see it the next time you restart your PC."))
 
     @Slot()
     def turnOffLoginGlass(self) -> None:
-        self._run_login(["undo"], "The normal login screen is back.")
+        self._run_login(["undo"], _("The normal login screen is back."))
 
     def _run_login(self, args: list[str], done: str) -> None:
         if self._login_proc is not None or not self._login_available():
@@ -2132,11 +2154,11 @@ class Backend(QObject):
         if code == 0:
             self._login_note = done
         elif code in (126, 127):          # pkexec: the password dialog was closed or refused
-            self._login_note = "Not changed: the password wasn't given."
+            self._login_note = _("Not changed: the password wasn't given.")
         else:
             self._login_failed = True
-            first = err.splitlines()[-1] if err else "the helper didn't finish"
-            self._login_note = first if first.startswith("Nothing was changed") else f"Nothing was changed: {first}"
+            first = err.splitlines()[-1] if err else _("the helper didn't finish")
+            self._login_note = first if first.startswith("Nothing was changed") else _("Nothing was changed: {reason}").format(reason=first)
         self._login_state = self._read_login_state()
         self.loginGlassChanged.emit()
 
@@ -2163,7 +2185,7 @@ class Backend(QObject):
                 # kept beside it, where removing the package reads it.
                 settings_mod.save_undo_on_remove(on, self._path)
         except OSError as e:
-            self.failed.emit(f"Could not save settings: {e}")
+            self.failed.emit(_("Could not save settings: {error}").format(error=e))
             return
         if self._applying is not None:
             self._applying = on_disk
@@ -2226,14 +2248,14 @@ class Backend(QObject):
 
         def job(report):
             engine = self._engine_obj()
-            report(0.3, "Restoring")
+            report(0.3, _("Restoring"))
             problems = engine.revert()
             return list(problems), self._backup_exists(engine)
 
         def done(out):
             if isinstance(out, Exception):
                 self._set_removing(False)
-                self.failed.emit(f"Restore stopped, so Fedora Glass was not removed: {out}")
+                self.failed.emit(_("Restore stopped, so Fedora Glass was not removed: {error}").format(error=out))
                 return
             problems, self._has_backup = out
             self._lost = []
@@ -2265,10 +2287,10 @@ class Backend(QObject):
             self.removeFinished.emit(True)
             return
         if code in (126, 127):
-            self.failed.emit("Your original look is back, but Fedora Glass was not removed: the password wasn't given.")
+            self.failed.emit(_("Your original look is back, but Fedora Glass was not removed: the password wasn't given."))
         else:
-            last = err.splitlines()[-1] if err else f"{distro.current().tool_name} did not finish"
-            self.failed.emit(f"Your original look is back, but removing Fedora Glass failed: {last}")
+            last = err.splitlines()[-1] if err else _("{tool} did not finish").format(tool=distro.current().tool_name)
+            self.failed.emit(_("Your original look is back, but removing Fedora Glass failed: {reason}").format(reason=last))
         self.removeFinished.emit(False)
 
     # ---- Shell features: apps without glass -----------------------------------------------
@@ -2385,9 +2407,9 @@ class Backend(QObject):
     @Property(str, constant=True)
     def noGlassBuiltIn(self) -> str:
         """The apps the extension always leaves without glass, in words."""
-        return ("Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, "
-                "Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and "
-                "Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed.")
+        return _("Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, "
+                 "Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and "
+                 "Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed.")
 
     # =================================================================================
     # Feature stream "looks": saved looks, plain-language changes, one Apply back, and
@@ -2492,9 +2514,9 @@ class Backend(QObject):
     def suggestLookName(self) -> str:
         names = {x["name"].casefold() for x in self._look_list()}
         n = 1
-        while (f"My look {n}" if n > 1 else "My look").casefold() in names:
+        while (_("My look {n}").format(n=n) if n > 1 else _("My look")).casefold() in names:
             n += 1
-        return f"My look {n}" if n > 1 else "My look"
+        return _("My look {n}").format(n=n) if n > 1 else _("My look")
 
     @Slot(str, result=str)
     def saveLook(self, name: str) -> str:
@@ -2505,11 +2527,11 @@ class Backend(QObject):
             self.lookProblem.emit(str(e))
             return ""
         except OSError as e:
-            self.lookProblem.emit(f"The look couldn't be saved: {e.strerror or e}")
+            self.lookProblem.emit(_("The look couldn't be saved: {reason}").format(reason=e.strerror or e))
             return ""
         self._looks_changed()
         self.settingsChanged.emit()     # it is the active look now
-        self.noticed.emit(f"Saved “{looks_mod.clean_name(name)}”")
+        self.noticed.emit(_("Saved “{name}”").format(name=looks_mod.clean_name(name)))
         return look_id
 
     @Slot(str, str, result=str)
@@ -2520,7 +2542,7 @@ class Backend(QObject):
             self.lookProblem.emit(str(e))
             return ""
         except OSError as e:
-            self.lookProblem.emit(f"The look couldn't be renamed: {e.strerror or e}")
+            self.lookProblem.emit(_("The look couldn't be renamed: {reason}").format(reason=e.strerror or e))
             return ""
         self._looks_changed()
         self.settingsChanged.emit()
@@ -2532,12 +2554,12 @@ class Backend(QObject):
         try:
             self._library.delete(look_id)
         except OSError as e:
-            self.lookProblem.emit(f"The look couldn't be deleted: {e.strerror or e}")
+            self.lookProblem.emit(_("The look couldn't be deleted: {reason}").format(reason=e.strerror or e))
             return
         self._looks_changed()
         self.settingsChanged.emit()
         if look is not None:
-            self.noticed.emit(f"Deleted “{look['name']}”")
+            self.noticed.emit(_("Deleted “{name}”").format(name=look["name"]))
 
     @Slot(str, result=str)
     def lookFileName(self, look_id: str) -> str:
@@ -2561,7 +2583,7 @@ class Backend(QObject):
     def exportLook(self, look_id: str, url: Any) -> bool:
         dest = self._local(url)
         if dest is None:
-            self.lookProblem.emit("Pick a file on this PC to save the look in.")
+            self.lookProblem.emit(_("Pick a file on this PC to save the look in."))
             return False
         # The dialog adds ".json" itself (defaultSuffix) and asks before it replaces a file,
         # so the name it gives is the one to use: adding ".json" here could replace another
@@ -2576,7 +2598,7 @@ class Backend(QObject):
         except looks_mod.LookError as e:
             self.lookProblem.emit(str(e))
             return False
-        self.noticed.emit(f"Saved as {_tilde(str(dest), str(self._env.home))}")
+        self.noticed.emit(_("Saved as {path}").format(path=_tilde(str(dest), str(self._env.home))))
         return True
 
     @Slot("QVariant", result=str)
@@ -2585,7 +2607,7 @@ class Backend(QObject):
         it puts it in the editor. Its id, or "" (lookProblem says why)."""
         src = self._local(url)
         if src is None:
-            self.lookProblem.emit("Pick a look file on this PC.")
+            self.lookProblem.emit(_("Pick a look file on this PC."))
             return ""
         try:
             name, values = looks_mod.read_file(src)
@@ -2594,11 +2616,11 @@ class Backend(QObject):
             self.lookProblem.emit(str(e))
             return ""
         except OSError as e:
-            self.lookProblem.emit(f"The look couldn't be added: {e.strerror or e}")
+            self.lookProblem.emit(_("The look couldn't be added: {reason}").format(reason=e.strerror or e))
             return ""
         self._looks_changed()
         added = next((x["name"] for x in self._look_list() if x["id"] == look_id), name)
-        self.noticed.emit(f"Added “{added}”. Pick it to try it.")
+        self.noticed.emit(_("Added “{name}”. Pick it to try it.").format(name=added))
         return look_id
 
     # ---- unapplied changes in plain words -------------------------------------------------
@@ -2657,12 +2679,12 @@ class Backend(QObject):
         today = time.localtime()
         clock = time.strftime("%H:%M", t)
         if (t.tm_year, t.tm_yday) == (today.tm_year, today.tm_yday):
-            return f"today at {clock}"
+            return _("today at {time}").format(time=clock)
         yesterday = time.localtime(time.time() - 86400)
         if (t.tm_year, t.tm_yday) == (yesterday.tm_year, yesterday.tm_yday):
-            return f"yesterday at {clock}"
+            return _("yesterday at {time}").format(time=clock)
         day = time.strftime("%d %B" if t.tm_year == today.tm_year else "%d %B %Y", t).lstrip("0")
-        return f"on {day} at {clock}"
+        return _("on {day} at {time}").format(day=day, time=clock)
 
     @Slot()
     def goToPrevious(self) -> None:
@@ -2766,7 +2788,7 @@ class Backend(QObject):
                 self.apply()
 
             def job(report):
-                report(0.02, "your wallpaper's colour")
+                report(0.02, _("your wallpaper's colour"))
                 return wallcolour.colours_of(path)
             if not self._run("apply", job, done):
                 self._lock_after_apply = False
@@ -2815,12 +2837,12 @@ class Backend(QObject):
             return ""
         path = self._match_path()
         if not path:
-            return "There's no wallpaper picture to take a colour from, so the colour stays as it is."
+            return _("There's no wallpaper picture to take a colour from, so the colour stays as it is.")
         c = self._known_colours(path)
         if c is not None and c.get("unreadable"):
-            return "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
+            return _("Fedora Glass can't read this wallpaper's picture, so the colour stays as it is.")
         if c is not None and not c["tint"]:
-            return "Your wallpaper has hardly any colour in it, so the colour stays as it is."
+            return _("Your wallpaper has hardly any colour in it, so the colour stays as it is.")
         return ""
 
     @Property(bool, notify=wallpaperMatchChanged)

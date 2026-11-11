@@ -12,6 +12,7 @@ from dataclasses import fields
 from typing import Any, Callable
 
 from .. import settings as settings_mod
+from ..i18n import _, N_, gettext as tr
 from ..settings import GNOME_ACCENTS, MOTION_EVENTS, Settings
 
 PAGE_ORDER = ("home", "colour", "glass", "windows", "motion", "pointer", "lock", "apps", "advanced", "about")
@@ -26,124 +27,133 @@ def px(v: Any) -> str:
 
 
 def onoff(v: Any) -> str:
-    return "On" if v else "Off"
+    return _("On") if v else _("Off")
 
 
-def _auto(fmt: Callable[[Any], str], word: str = "Automatic") -> Callable[[Any], str]:
-    return lambda v: word if v is None else fmt(v)
+def _auto(fmt: Callable[[Any], str], word: str = N_("Automatic")) -> Callable[[Any], str]:
+    return lambda v: tr(word) if v is None else fmt(v)
 
 
 def _choice(labels: dict[str, str]) -> Callable[[Any], str]:
-    return lambda v: labels.get(v, str(v).capitalize())
+    return lambda v: tr(labels[v]) if v in labels else str(v).capitalize()
 
 
 def colour_hex(v: Any) -> str:
     return str(v).upper()
 
 
+_ACCENT_NAMES = {"blue": N_("Blue"), "teal": N_("Teal"), "green": N_("Green"), "yellow": N_("Yellow"),
+                 "orange": N_("Orange"), "red": N_("Red"), "pink": N_("Pink"), "purple": N_("Purple"),
+                 "slate": N_("Slate")}
+
+
+def _accent_name(v: Any) -> str:
+    return tr(_ACCENT_NAMES[v]) if v in _ACCENT_NAMES else str(v).capitalize()
+
+
 def accent(v: Any, system: str = "") -> str:
     if v == "system":
-        return f"System ({system.capitalize()})" if system in GNOME_ACCENTS else "System"
+        return _("System ({name})").format(name=_accent_name(system)) if system in GNOME_ACCENTS else _("System")
     if v in GNOME_ACCENTS:
-        return str(v).capitalize()
-    return f"Custom ({str(v).upper()})"
+        return _accent_name(v)
+    return _("Custom ({hex})").format(hex=str(v).upper())
 
 
 def _quoted(v: Any) -> str:
     text = str(v or "")
     if not text:
-        return "None"
+        return _("None")
     return "“" + (text if len(text) <= 32 else text[:31] + "…") + "”"
 
 
 def _cursor(v: Any) -> str:
     if v == "keep":
-        return "Your own"
+        return _("Your own")
     from ..cursors import STYLES
-    return next((c.name for c in STYLES if c.id == v), str(v))
+    return next((tr(c.name) for c in STYLES if c.id == v), str(v))
 
 
-_GNOME = "GNOME's own"
+_GNOME = N_("GNOME's own")
 # Settings name -> (label, page, objectName of its control, how a value reads).
 FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
-    "frost": ("Frost", "glass", "glassFrost", pct),
-    "scheme": ("Style", "colour", "schemeChoice", _choice({"auto": "Auto", "dark": "Dark", "light": "Light"})),
-    "accent": ("Accent", "colour", "accentRow", accent),
-    "tint": ("Tint", "colour", "tintButton", colour_hex),
-    "tint_strength": ("Tint strength", "colour", "tintStrength", pct),
-    "radius": ("Corner roundness", "colour", "cornerRoundness", px),
-    "highlight": ("Edge reflections", "home", "presetRow", pct),
-    "opacity": ("Transparency", "advanced", "fineOpacity", _auto(pct)),
-    "blur": ("Blur", "advanced", "fineBlur", _auto(px)),
-    "reduce_transparency": ("Reduce transparency", "advanced", "reduceTransparency", onoff),
-    "glass_quality": ("Glass quality", "glass", "speedCard",
-                      _choice({"auto": "Auto", "full": "Full", "lighter": "Lighter", "lightest": "Lightest"})),
-    "panel_style": ("Panel", "windows", "panelStyle", _choice({"floating": "Floating", "docked": "Docked"})),
-    "panel_margin": ("Panel margin", "windows", "panelMargin", px),
-    "blur_app_windows": ("Window glass", "glass", "glassAppWindows", onoff),
-    "terminal_opacity": ("Terminal opacity", "advanced", "fineTerminalOpacity", _auto(pct)),
-    "refraction": ("Bend", "glass", "bend", pct),
-    "dispersion": ("Rainbow edge", "glass", "rainbowEdge", pct),
-    "vibrancy": ("Colour through glass", "glass", "colourThroughGlass", pct),
-    "bleed": ("Colour bleed", "glass", "colourBleed", pct),
-    "pointer_light": ("Light follows pointer", "glass", "lightFollowsPointer", pct),
-    "liquid_motion": ("Liquid motion", "motion", "liquidMotion", onoff),
-    "menu_grow": ("Menus grow from their button", "motion", "menuGrow", onoff),
-    "glass_panel": ("Glass on the panel", "glass", "glassPanel", onoff),
-    "glass_menus": ("Glass on menus", "glass", "glassMenus", onoff),
-    "glass_overview": ("Glass in the overview", "glass", "glassOverview", onoff),
-    "glass_see_windows": ("See windows through the glass", "glass", "glassSeeWindows", onoff),
-    "start_on_desktop": ("Start on the desktop", "pointer", "startOnDesktop", onoff),
-    "overview_off": ("Turn off the overview", "pointer", "overviewOff", onoff),
-    "header_height": ("Header bar height", "windows", "headerHeight", px),
-    "header_opacity": ("Header bar opacity", "windows", "headerOpacity", _auto(pct, "Same as the window")),
-    "terminal_colors": ("Terminal colours", "windows", "terminalColors", onoff),
-    "terminal_follows_style": ("Terminal follows light and dark", "windows", "terminalFollowsStyle", onoff),
-    "qt_gnome_titlebars": ("Qt apps get the same title bar", "windows", "qtGnomeTitlebars", onoff),
-    "motion_dtp_hover_off": ("Dash to Panel's own hover animation off", "motion", "motionDtpNote", onoff),
-    "hover_glide": ("Gliding highlight", "motion", "motionGlide", onoff),
-    "lock_glass": ("Glass lock screen", "lock", "lockGlass", onoff),
-    "lock_blur": ("Lock screen frost", "lock", "lockBlur", px),
-    "lock_dim": ("Lock screen darken", "lock", "lockDim", pct),
-    "lock_tint": ("Lock screen tint", "lock", "lockTint", pct),
-    "lock_card": ("Glass card behind the password", "lock", "lockCard", onoff),
-    "lock_clock": ("Lock screen clock", "lock", "lockClock", _choice({"gnome": _GNOME, "bold": "Bold", "thin": "Thin"})),
-    "lock_clock_position": ("Clock position", "lock", "lockClockPosition",
-                            _choice({"gnome": _GNOME, "top": "Top", "middle": "Middle"})),
-    "lock_slide": ("Unlock animation", "lock", "lockSlide", _choice({"gnome": _GNOME, "smooth": "Smooth", "spring": "Spring"})),
-    "lock_slide_ms": ("Unlock slide time", "lock", "lockSlideMs", lambda v: f"{int(v)} ms"),
-    "lock_bounce": ("Unlock bounce", "lock", "lockBounce", pct),
-    "lock_widget_battery": ("Battery on the lock screen", "lock", "lockWidgetBattery", onoff),
-    "lock_widget_weather": ("Weather on the lock screen", "lock", "lockWidgetWeather", onoff),
-    "lock_weather_place": ("Name the place for weather", "lock", "lockWeatherPlace", onoff),
-    "lock_greeting": ("Greeting on the lock screen", "lock", "lockGreeting", onoff),
-    "lock_message": ("Message on the lock screen", "lock", "lockMessageChip", _quoted),
-    "lock_widget_style": ("Lock screen widget look", "lock", "lockWidgetStyle", _choice({"chips": "Glass", "plain": "Text only"})),
-    "lock_hide_notifications": ("Hide notifications on the lock screen", "lock", "lockHideNotifications", onoff),
-    "cursor_theme": ("Mouse pointer", "pointer", "cursorCard", _cursor),
-    "cursor_size": ("Pointer size", "pointer", "cursorSize", lambda v: "Your own" if not v else px(v)),
-    "tint_from_wallpaper": ("Tint matches the wallpaper", "colour", "wallpaperTint", onoff),
-    "accent_from_wallpaper": ("Accent matches the wallpaper", "colour", "wallpaperAccent", onoff),
+    "frost": (N_("Frost"), "glass", "glassFrost", pct),
+    "scheme": (N_("Style"), "colour", "schemeChoice", _choice({"auto": N_("Auto"), "dark": N_("Dark"), "light": N_("Light")})),
+    "accent": (N_("Accent"), "colour", "accentRow", accent),
+    "tint": (N_("Tint"), "colour", "tintButton", colour_hex),
+    "tint_strength": (N_("Tint strength"), "colour", "tintStrength", pct),
+    "radius": (N_("Corner roundness"), "colour", "cornerRoundness", px),
+    "highlight": (N_("Edge reflections"), "home", "presetRow", pct),
+    "opacity": (N_("Transparency"), "advanced", "fineOpacity", _auto(pct)),
+    "blur": (N_("Blur"), "advanced", "fineBlur", _auto(px)),
+    "reduce_transparency": (N_("Reduce transparency"), "advanced", "reduceTransparency", onoff),
+    "glass_quality": (N_("Glass quality"), "glass", "speedCard",
+                      _choice({"auto": N_("Auto"), "full": N_("Full"), "lighter": N_("Lighter"), "lightest": N_("Lightest")})),
+    "panel_style": (N_("Panel"), "windows", "panelStyle", _choice({"floating": N_("Floating"), "docked": N_("Docked")})),
+    "panel_margin": (N_("Panel margin"), "windows", "panelMargin", px),
+    "blur_app_windows": (N_("Window glass"), "glass", "glassAppWindows", onoff),
+    "terminal_opacity": (N_("Terminal opacity"), "advanced", "fineTerminalOpacity", _auto(pct)),
+    "refraction": (N_("Bend"), "glass", "bend", pct),
+    "dispersion": (N_("Rainbow edge"), "glass", "rainbowEdge", pct),
+    "vibrancy": (N_("Colour through glass"), "glass", "colourThroughGlass", pct),
+    "bleed": (N_("Colour bleed"), "glass", "colourBleed", pct),
+    "pointer_light": (N_("Light follows pointer"), "glass", "lightFollowsPointer", pct),
+    "liquid_motion": (N_("Liquid motion"), "motion", "liquidMotion", onoff),
+    "menu_grow": (N_("Menus grow from their button"), "motion", "menuGrow", onoff),
+    "glass_panel": (N_("Glass on the panel"), "glass", "glassPanel", onoff),
+    "glass_menus": (N_("Glass on menus"), "glass", "glassMenus", onoff),
+    "glass_overview": (N_("Glass in the overview"), "glass", "glassOverview", onoff),
+    "glass_see_windows": (N_("See windows through the glass"), "glass", "glassSeeWindows", onoff),
+    "start_on_desktop": (N_("Start on the desktop"), "pointer", "startOnDesktop", onoff),
+    "overview_off": (N_("Turn off the overview"), "pointer", "overviewOff", onoff),
+    "header_height": (N_("Header bar height"), "windows", "headerHeight", px),
+    "header_opacity": (N_("Header bar opacity"), "windows", "headerOpacity", _auto(pct, N_("Same as the window"))),
+    "terminal_colors": (N_("Terminal colours"), "windows", "terminalColors", onoff),
+    "terminal_follows_style": (N_("Terminal follows light and dark"), "windows", "terminalFollowsStyle", onoff),
+    "qt_gnome_titlebars": (N_("Qt apps get the same title bar"), "windows", "qtGnomeTitlebars", onoff),
+    "motion_dtp_hover_off": (N_("Dash to Panel's own hover animation off"), "motion", "motionDtpNote", onoff),
+    "hover_glide": (N_("Gliding highlight"), "motion", "motionGlide", onoff),
+    "lock_glass": (N_("Glass lock screen"), "lock", "lockGlass", onoff),
+    "lock_blur": (N_("Lock screen frost"), "lock", "lockBlur", px),
+    "lock_dim": (N_("Lock screen darken"), "lock", "lockDim", pct),
+    "lock_tint": (N_("Lock screen tint"), "lock", "lockTint", pct),
+    "lock_card": (N_("Glass card behind the password"), "lock", "lockCard", onoff),
+    "lock_clock": (N_("Lock screen clock"), "lock", "lockClock", _choice({"gnome": _GNOME, "bold": N_("Bold"), "thin": N_("Thin")})),
+    "lock_clock_position": (N_("Clock position"), "lock", "lockClockPosition",
+                            _choice({"gnome": _GNOME, "top": N_("Top"), "middle": N_("Middle")})),
+    "lock_slide": (N_("Unlock animation"), "lock", "lockSlide", _choice({"gnome": _GNOME, "smooth": N_("Smooth"), "spring": N_("Spring")})),
+    "lock_slide_ms": (N_("Unlock slide time"), "lock", "lockSlideMs", lambda v: f"{int(v)} ms"),
+    "lock_bounce": (N_("Unlock bounce"), "lock", "lockBounce", pct),
+    "lock_widget_battery": (N_("Battery on the lock screen"), "lock", "lockWidgetBattery", onoff),
+    "lock_widget_weather": (N_("Weather on the lock screen"), "lock", "lockWidgetWeather", onoff),
+    "lock_weather_place": (N_("Name the place for weather"), "lock", "lockWeatherPlace", onoff),
+    "lock_greeting": (N_("Greeting on the lock screen"), "lock", "lockGreeting", onoff),
+    "lock_message": (N_("Message on the lock screen"), "lock", "lockMessageChip", _quoted),
+    "lock_widget_style": (N_("Lock screen widget look"), "lock", "lockWidgetStyle", _choice({"chips": N_("Glass"), "plain": N_("Text only")})),
+    "lock_hide_notifications": (N_("Hide notifications on the lock screen"), "lock", "lockHideNotifications", onoff),
+    "cursor_theme": (N_("Mouse pointer"), "pointer", "cursorCard", _cursor),
+    "cursor_size": (N_("Pointer size"), "pointer", "cursorSize", lambda v: _("Your own") if not v else px(v)),
+    "tint_from_wallpaper": (N_("Tint matches the wallpaper"), "colour", "wallpaperTint", onoff),
+    "accent_from_wallpaper": (N_("Accent matches the wallpaper"), "colour", "wallpaperAccent", onoff),
     # Shell features
-    "lighter_on_battery": ("Lighter glass on battery", "glass", "lighterOnBattery", onoff),
-    "quick_toggle": ("Glass switch in Quick Settings", "glass", "quickToggle", onoff),
-    "no_glass_apps": ("Apps without glass", "windows", "noGlassCard",
-                      lambda v: "None" if not v else f"{len(v)} app" + ("" if len(v) == 1 else "s")),
+    "lighter_on_battery": (N_("Lighter glass on battery"), "glass", "lighterOnBattery", onoff),
+    "quick_toggle": (N_("Glass switch in Quick Settings"), "glass", "quickToggle", onoff),
+    "no_glass_apps": (N_("Apps without glass"), "windows", "noGlassCard",
+                      lambda v: _("None") if not v else (_("1 app") if len(v) == 1 else _("{n} apps").format(n=len(v)))),
 }
 # Not shown: saved the moment it is switched, or bookkeeping that follows another setting.
 HIDDEN = {"undo_on_remove", "tint_own", "accent_own", "wallpaper_match"}
 
-PART_LABELS = {"panel": "Panel", "arcmenu": "Start menu", "quicksettings": "Quick settings", "calendar": "Calendar",
-               "overview": "Overview", "windows": "Windows", "terminal": "Terminal"}
-PART_KEY_LABELS = {"tint": ("tint", colour_hex), "tint_strength": ("tint strength", pct), "radius": ("corners", px),
-                   "frost": ("frost", pct), "refraction": ("bend", pct), "bleed": ("colour bleed", pct),
-                   "reflections": ("edge reflections", pct)}
-EVENT_LABELS = {"open": "Open", "minimize": "Minimize and restore", "close": "Close", "launch": "App starting",
-                "hover": "Panel hover"}
-MOTION_LABELS = {"gnome": "GNOME default", "spring": "Spring", "bounce": "Bounce", "jelly": "Jelly", "genie": "Genie",
-                 "scalefade": "Scale and fade", "off": "Off"}
-STYLE_LABELS = {"off": "Off", "calm": "Calm", "gnome": "GNOME", "lively": "Lively", "playful": "Playful",
-                "custom": "Your own mix"}
+PART_LABELS = {"panel": N_("Panel"), "arcmenu": N_("Start menu"), "quicksettings": N_("Quick settings"), "calendar": N_("Calendar"),
+               "overview": N_("Overview"), "windows": N_("Windows"), "terminal": N_("Terminal")}
+PART_KEY_LABELS = {"tint": (N_("tint"), colour_hex), "tint_strength": (N_("tint strength"), pct), "radius": (N_("corners"), px),
+                   "frost": (N_("frost"), pct), "refraction": (N_("bend"), pct), "bleed": (N_("colour bleed"), pct),
+                   "reflections": (N_("edge reflections"), pct)}
+EVENT_LABELS = {"open": N_("Open"), "minimize": N_("Minimize and restore"), "close": N_("Close"), "launch": N_("App starting"),
+                "hover": N_("Panel hover")}
+MOTION_LABELS = {"gnome": N_("GNOME default"), "spring": N_("Spring"), "bounce": N_("Bounce"), "jelly": N_("Jelly"), "genie": N_("Genie"),
+                 "scalefade": N_("Scale and fade"), "off": N_("Off")}
+STYLE_LABELS = {"off": N_("Off"), "calm": N_("Calm"), "gnome": N_("GNOME"), "lively": N_("Lively"), "playful": N_("Playful"),
+                "custom": N_("Your own mix")}
 
 
 def _row(page: str, name: str, label: str, before: str, after: str, key: str) -> dict:
@@ -163,26 +173,30 @@ def _motion_rows(now: Settings, was: Settings) -> list[dict]:
     sa, sb = settings_mod.motion_style_of(a), settings_mod.motion_style_of(b)
     styled = sa != "custom" and sb != "custom" and sa != sb
     if styled:
-        rows.append(_row("motion", "motionStyle", "Motion style", STYLE_LABELS[sb], STYLE_LABELS[sa], "motion.style"))
+        rows.append(_row("motion", "motionStyle", _("Motion style"), tr(STYLE_LABELS[sb]), tr(STYLE_LABELS[sa]), "motion.style"))
     speeds_a = {round(a[ev]["speed"], 3) for ev in MOTION_EVENTS}
     speeds_b = {round(b[ev]["speed"], 3) for ev in MOTION_EVENTS}
     one_speed = len(speeds_a) == 1 and len(speeds_b) == 1
     if one_speed and speeds_a != speeds_b:
-        rows.append(_row("motion", "motionSpeed", "Animation speed", f"{speeds_b.pop():g}×", f"{speeds_a.pop():g}×",
+        rows.append(_row("motion", "motionSpeed", _("Animation speed"), f"{speeds_b.pop():g}×", f"{speeds_a.pop():g}×",
                          "motion.speed"))
     for ev in MOTION_EVENTS:
         x, y = a[ev], b[ev]
-        label = EVENT_LABELS[ev]
+        label = tr(EVENT_LABELS[ev])
         if not styled and x["preset"] != y["preset"]:
-            rows.append(_row("motion", "eachAnimation", f"{label} animation", MOTION_LABELS.get(y["preset"], y["preset"]),
-                             MOTION_LABELS.get(x["preset"], x["preset"]), f"motion.{ev}.preset"))
+            rows.append(_row("motion", "eachAnimation", _("{event} animation").format(event=label), _motion_name(y["preset"]),
+                             _motion_name(x["preset"]), f"motion.{ev}.preset"))
         if not styled and x["intensity"] != y["intensity"]:
-            rows.append(_row("motion", "eachAnimation", f"{label} strength", pct(y["intensity"]), pct(x["intensity"]),
+            rows.append(_row("motion", "eachAnimation", _("{event} strength").format(event=label), pct(y["intensity"]), pct(x["intensity"]),
                              f"motion.{ev}.intensity"))
         if not one_speed and x["speed"] != y["speed"]:
-            rows.append(_row("motion", "eachAnimation", f"{label} speed", f"{y['speed']:g}×", f"{x['speed']:g}×",
+            rows.append(_row("motion", "eachAnimation", _("{event} speed").format(event=label), f"{y['speed']:g}×", f"{x['speed']:g}×",
                              f"motion.{ev}.speed"))
     return rows
+
+
+def _motion_name(preset: str) -> str:
+    return tr(MOTION_LABELS[preset]) if preset in MOTION_LABELS else preset
 
 
 def _part_rows(now: Settings, was: Settings) -> list[dict]:
@@ -193,8 +207,8 @@ def _part_rows(now: Settings, was: Settings) -> list[dict]:
             if a.get(key) == b.get(key):
                 continue
             word, fmt = PART_KEY_LABELS.get(key, (key, str))
-            same = "Same as everywhere"
-            rows.append(_row("advanced", "partRow", f"{PART_LABELS.get(part, part)}: {word}",
+            same = _("Same as everywhere")
+            rows.append(_row("advanced", "partRow", _("{part}: {setting}").format(part=tr(PART_LABELS[part]) if part in PART_LABELS else part, setting=tr(word)),
                              same if key not in b else fmt(b[key]), same if key not in a else fmt(a[key]),
                              f"parts.{part}.{key}"))
     return rows
@@ -205,8 +219,8 @@ def _target_rows(now: Settings, was: Settings, names: dict[str, str]) -> list[di
     for tid in sorted(set(now.targets) | set(was.targets), key=lambda t: names.get(t, t).casefold()):
         on, before = now.target_enabled(tid), was.target_enabled(tid)
         if on != before:
-            rows.append(_row("apps", "appsList", names.get(tid, tid), "Themed" if before else "Left alone",
-                             "Themed" if on else "Left alone", f"targets.{tid}"))
+            rows.append(_row("apps", "appsList", names.get(tid, tid), _("Themed") if before else _("Left alone"),
+                             _("Themed") if on else _("Left alone"), f"targets.{tid}"))
     return rows
 
 
@@ -238,7 +252,7 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
             before, after = f"{b * 100:.{digits}f} %", f"{a * 100:.{digits}f} %"
         elif before == after:
             before, after = str(b), str(a)
-        rows.append(_row(page, name, label, before, after, k))
+        rows.append(_row(page, name, tr(label), before, after, k))
     rows += _motion_rows(now, was)
     rows += _part_rows(now, was)
     rows += _target_rows(now, was, target_names or {})

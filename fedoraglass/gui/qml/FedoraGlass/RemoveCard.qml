@@ -12,12 +12,12 @@ Card {
     Column {
         width: parent.width
         spacing: 6
-        SectionTitle { text: "Removing Fedora Glass" }
+        SectionTitle { text: qsTr("Removing Fedora Glass") }
         SwitchRow {
             objectName: "undoOnRemove"
-            label: "Put my original look back"
-            caption: "When Fedora Glass is removed, your desktop goes back to how it was before"
-            tip: "On: removing Fedora Glass (here, or with " + Backend.removeCommand + ") first does what Restore original does. Off: the glass and themes stay after the app is gone. Saved straight away."
+            label: qsTr("Put my original look back")
+            caption: qsTr("When Fedora Glass is removed, your desktop goes back to how it was before")
+            tip: qsTr("On: removing Fedora Glass (here, or with %1) first does what Restore original does. Off: the glass and themes stay after the app is gone. Saved straight away.").arg(Backend.removeCommand)
             checked: Backend.undoOnRemove
             onToggled: (on) => Backend.undoOnRemove = on
         }
@@ -26,12 +26,12 @@ Card {
             objectName: "removeApp"
             visible: Backend.canRemoveApp
             kind: "danger"
-            text: root.busy ? "Removing Fedora Glass…" : "Remove Fedora Glass…"
+            text: root.busy ? qsTr("Removing Fedora Glass…") : qsTr("Remove Fedora Glass…")
             iconName: "trash"
             leftPadding: 14
             busy: root.busy
             enabled: !Backend.busy && !root.busy
-            tip: "Puts your original look back, then removes the app. Asks for your password."
+            tip: qsTr("Puts your original look back, then removes the app. Asks for your password.")
             tipBelow: true
             onClicked: removeSheet.open()
         }
@@ -40,16 +40,16 @@ Card {
 
     Sheet {
         id: removeSheet
-        title: "Remove Fedora Glass?"
-        subtitle: "Your original look comes back first, exactly as Restore original does. Then Fedora Glass is removed from your PC, which needs your password. Your Fedora Glass settings are kept, in case you install it again."
+        title: qsTr("Remove Fedora Glass?")
+        subtitle: qsTr("Your original look comes back first, exactly as Restore original does. Then Fedora Glass is removed from your PC, which needs your password. Your Fedora Glass settings are kept, in case you install it again.")
         iconName: "trash"
         iconColor: Theme.bad
         width: Math.min(520, (parent ? parent.width : 800) - 64)
         buttons: [
-            LgButton { text: "Cancel"; kind: "secondary"; onClicked: removeSheet.close() },
+            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: removeSheet.close() },
             LgButton {
                 objectName: "removeConfirm"
-                text: "Remove"
+                text: qsTr("Remove")
                 kind: "destructive"
                 iconName: "trash"
                 onClicked: { removeSheet.close(); Backend.removeApp() }
@@ -60,8 +60,8 @@ Card {
 
     Sheet {
         id: removedSheet
-        title: "Fedora Glass is removed"
-        subtitle: "Your original look is back. Restart your PC to finish, so GNOME lets go of the glass completely."
+        title: qsTr("Fedora Glass is removed")
+        subtitle: qsTr("Your original look is back. Restart your PC to finish, so GNOME lets go of the glass completely.")
         iconName: "okCircle"
         iconColor: Theme.good
         width: Math.min(520, (parent ? parent.width : 800) - 64)
@@ -69,13 +69,13 @@ Card {
         buttons: [
             LgButton {
                 objectName: "removedRestart"
-                text: "Restart now…"
+                text: qsTr("Restart now…")
                 kind: "secondary"
                 iconName: "power"
-                tip: "GNOME asks before it restarts, so you can save your work first."
+                tip: qsTr("GNOME asks before it restarts, so you can save your work first.")
                 onClicked: Backend.restartPC()
             },
-            LgButton { text: "Close Fedora Glass"; kind: "primary"; onClicked: Qt.quit() }
+            LgButton { text: qsTr("Close Fedora Glass"); kind: "primary"; onClicked: Qt.quit() }
         ]
         Item { width: 1; height: 1 }
     }

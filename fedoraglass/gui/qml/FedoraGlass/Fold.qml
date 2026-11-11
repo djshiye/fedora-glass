@@ -37,7 +37,7 @@ Item {
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         onClicked: root.expanded = !root.expanded
-        Accessible.name: root.title + (root.summary ? ": " + root.summary : "")
+        Accessible.name: root.summary ? qsTr("%1: %2").arg(root.title).arg(root.summary) : root.title
         Accessible.role: Accessible.Button
         HoverHandler { cursorShape: Qt.PointingHandCursor }
         background: Rectangle {

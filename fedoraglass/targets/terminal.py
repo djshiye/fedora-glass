@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..i18n import _, N_
 from ..env import Env
 from ..render import apps as ra
 from ..render import headerbar
@@ -36,19 +37,19 @@ def window_opacity(ctx: Context) -> float:
 class Ptyxis(Target):
     id: str = "ptyxis"
     name: str = "Ptyxis"
-    plain: str = ("Makes Ptyxis windows see-through on every profile, and uses the Fedora Glass colours "
-                  "if you turned them on.")
+    plain: str = (N_("Makes Ptyxis windows see-through on every profile, and uses the Fedora Glass colours "
+                  "if you turned them on."))
     group: str = "Terminal"
-    summary: str = "Window opacity on every profile, and the Fedora Glass colour palette if you turn it on."
+    summary: str = N_("Window opacity on every profile, and the Fedora Glass colour palette if you turn it on.")
     notes: list[str] = field(default_factory=lambda: [
-        "Profiles keep their own colours unless you choose Fedora Glass terminal colours.",
-        "Profiles are changed in place; reverting restores each profile's old palette and opacity.",
-        "Ptyxis creates its first profile on first launch: open it once, then Apply again."])
+        N_("Profiles keep their own colours unless you choose Fedora Glass terminal colours."),
+        N_("Profiles are changed in place; reverting restores each profile's old palette and opacity."),
+        N_("Ptyxis creates its first profile on first launch: open it once, then Apply again.")])
 
     def detect(self, env: Env) -> Detection:
         if env.which("ptyxis") or Path("/usr/bin/ptyxis").exists() or env.flatpak_installed("app.devsuite.Ptyxis"):
             return Detection(True)
-        return Detection(False, "Ptyxis is not installed")
+        return Detection(False, _("{name} is not installed").format(name="Ptyxis"))
 
     def palette_path(self, env: Env) -> Path:
         return env.data / "org.gnome.Ptyxis/palettes/Fedora Glass.palette"
@@ -99,15 +100,15 @@ class Ptyxis(Target):
 class GnomeTerminal(Target):
     id: str = "gnome-terminal"
     name: str = "GNOME Terminal"
-    plain: str = "Sets the colours and the see-through background on every GNOME Terminal profile."
+    plain: str = N_("Sets the colours and the see-through background on every GNOME Terminal profile.")
     group: str = "Terminal"
-    summary: str = "Glass palette, colours and transparency on every profile."
-    notes: list[str] = field(default_factory=lambda: ["GNOME Terminal has one colour set per profile, so it follows the scheme in use when you Apply."])
+    summary: str = N_("Glass palette, colours and transparency on every profile.")
+    notes: list[str] = field(default_factory=lambda: [N_("GNOME Terminal has one colour set per profile, so it follows the scheme in use when you Apply.")])
 
     def detect(self, env: Env) -> Detection:
         if env.which("gnome-terminal"):
             return Detection(True)
-        return Detection(False, "GNOME Terminal is not installed")
+        return Detection(False, _("{name} is not installed").format(name="GNOME Terminal"))
 
     def plan(self, ctx: Context) -> list[Action]:
         env, t = ctx.env, ctx.tokens
@@ -139,15 +140,15 @@ class GnomeTerminal(Target):
 class Btop(Target):
     id: str = "btop"
     name: str = "btop"
-    plain: str = "Adds a Fedora Glass colour theme for btop and selects it, without btop's own background."
+    plain: str = N_("Adds a Fedora Glass colour theme for btop and selects it, without btop's own background.")
     group: str = "Terminal"
-    summary: str = "Glass colour theme; btop's own background is dropped so the terminal glass shows."
-    notes: list[str] = field(default_factory=lambda: ["Restart btop to load the theme. Only color_theme and theme_background are set in btop.conf (made if btop hasn't written one yet)."])
+    summary: str = N_("Glass colour theme; btop's own background is dropped so the terminal glass shows.")
+    notes: list[str] = field(default_factory=lambda: [N_("Restart btop to load the theme. Only color_theme and theme_background are set in btop.conf (made if btop hasn't written one yet).")])
 
     def detect(self, env: Env) -> Detection:
         if env.which("btop") or (env.config / "btop").is_dir():
             return Detection(True)
-        return Detection(False, "btop is not installed")
+        return Detection(False, _("{name} is not installed").format(name="btop"))
 
     def plan(self, ctx: Context) -> list[Action]:
         d = ctx.env.config / "btop"
@@ -166,15 +167,15 @@ class Btop(Target):
 class Micro(Target):
     id: str = "micro"
     name: str = "micro"
-    plain: str = "Adds a Fedora Glass colour scheme for micro and selects it."
+    plain: str = N_("Adds a Fedora Glass colour scheme for micro and selects it.")
     group: str = "Terminal"
-    summary: str = "Glass colour scheme with a transparent background."
-    notes: list[str] = field(default_factory=lambda: ["Needs a true-colour terminal (Ptyxis is one)."])
+    summary: str = N_("Glass colour scheme with a transparent background.")
+    notes: list[str] = field(default_factory=lambda: [N_("Needs a true-colour terminal (Ptyxis is one).")])
 
     def detect(self, env: Env) -> Detection:
         if env.which("micro") or (env.config / "micro").is_dir():
             return Detection(True)
-        return Detection(False, "micro is not installed")
+        return Detection(False, _("{name} is not installed").format(name="micro"))
 
     def plan(self, ctx: Context) -> list[Action]:
         d = ctx.env.config / "micro"

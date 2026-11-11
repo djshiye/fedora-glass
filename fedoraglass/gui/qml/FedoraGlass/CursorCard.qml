@@ -10,7 +10,7 @@ Card {
     objectName: "cursorCard"
     height: implicitHeight
     // Every choice: the user's own pointer first, then the styles that come with the app.
-    readonly property var choices: [{ id: "keep", name: "Keep mine", blurb: Cursors.ownName, credit: "", fun: false, installed: true }]
+    readonly property var choices: [{ id: "keep", name: qsTr("Keep mine"), blurb: Cursors.ownName, credit: "", fun: false, installed: true }]
                                    .concat(Cursors.styles)
     readonly property real innerW: width - 2 * padding
     readonly property int columns: innerW > 520 ? 3 : 2
@@ -26,7 +26,7 @@ Card {
         height: 112
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
-        Accessible.name: "Pointer style " + modelData.name
+        Accessible.name: qsTr("Pointer style %1").arg(modelData.name)
         Accessible.role: Accessible.RadioButton
         Accessible.checked: selected
         onClicked: Backend.cursorTheme = modelData.id
@@ -35,7 +35,7 @@ Card {
         LgToolTip {
             shown: tile.hovered && tile.modelData.credit !== ""
             text: tile.usable ? tile.modelData.credit
-                              : tile.modelData.credit + ". Not installed with this copy of Fedora Glass."
+                              : qsTr("%1. Not installed with this copy of Fedora Glass.").arg(tile.modelData.credit)
         }
 
         background: Rectangle {
@@ -118,7 +118,7 @@ Card {
                 }
                 Text {
                     width: parent.width
-                    text: tile.usable ? tile.modelData.blurb : "Not installed"
+                    text: tile.usable ? tile.modelData.blurb : qsTr("Not installed")
                     elide: Text.ElideRight
                     color: Theme.textFaint
                     font.pixelSize: 11
@@ -141,10 +141,10 @@ Card {
         width: parent.width
         spacing: 16
         SectionTitle {
-            text: "Mouse pointer"
+            text: qsTr("Mouse pointer")
             resetKeys: ["cursor_theme", "cursor_size"]
-            resetTip: "Keep your own mouse pointer"
-            caption: "Point at a style to try it here. Apply sets it for the whole desktop; Restore original brings yours back."
+            resetTip: qsTr("Keep your own mouse pointer")
+            caption: qsTr("Point at a style to try it here. Apply sets it for the whole desktop; Restore original brings yours back.")
         }
 
         Grid {
@@ -164,8 +164,8 @@ Card {
             objectName: "cursorFun"
             card: false
             divider: true
-            title: "Just for fun"
-            summary: "Playful looks, same clear shapes"
+            title: qsTr("Just for fun")
+            summary: qsTr("Playful looks, same clear shapes")
             // Open when one of them is the pick, so the choice is never hidden.
             Component.onCompleted: expanded = root.choices.some((c) => c.fun && c.id === Backend.cursorTheme)
             // Built the first time it opens: its pointer pictures are read only then.
@@ -190,17 +190,17 @@ Card {
         Column {
             width: parent.width
             spacing: 8
-            Text { text: "Size"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+            Text { text: qsTr("Size"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
             Segmented {
                 objectName: "cursorSize"
                 width: parent.width
-                model: [{ value: 0, label: "Keep mine", tip: "Leave the pointer size as it is now" },
-                        { value: 24, label: "Normal", tip: "GNOME's normal pointer size" },
-                        { value: 32, label: "Large", tip: "A third bigger than normal" },
-                        { value: 48, label: "Larger", tip: "Twice the normal size" }]
+                model: [{ value: 0, label: qsTr("Keep mine"), tip: qsTr("Leave the pointer size as it is now") },
+                        { value: 24, label: qsTr("Normal"), tip: qsTr("GNOME's normal pointer size") },
+                        { value: 32, label: qsTr("Large"), tip: qsTr("A third bigger than normal") },
+                        { value: 48, label: qsTr("Larger"), tip: qsTr("Twice the normal size") }]
                 value: Backend.cursorSize
                 onActivated: (v) => Backend.cursorSize = v
-                Accessible.name: "Pointer size"
+                Accessible.name: qsTr("Pointer size")
             }
         }
     }

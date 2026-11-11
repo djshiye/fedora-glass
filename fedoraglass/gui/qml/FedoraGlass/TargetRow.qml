@@ -59,7 +59,7 @@ Item {
                     width: naLabel.implicitWidth + 16
                     radius: height / 2
                     color: Theme.well
-                    Text { id: naLabel; anchors.centerIn: parent; text: "Not available"; color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
+                    Text { id: naLabel; anchors.centerIn: parent; text: qsTr("Not available"); color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
                 }
                 Rectangle {
                     objectName: "optionalPill"
@@ -69,7 +69,7 @@ Item {
                     width: optLabel.implicitWidth + 16
                     radius: height / 2
                     color: Theme.well
-                    Text { id: optLabel; anchors.centerIn: parent; text: "Optional"; color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
+                    Text { id: optLabel; anchors.centerIn: parent; text: qsTr("Optional"); color: Theme.textDim; font.pixelSize: 11; font.weight: Font.DemiBold }
                 }
                 Rectangle {
                     objectName: "offPill"
@@ -79,7 +79,7 @@ Item {
                     width: offLabel.implicitWidth + 16
                     radius: height / 2
                     color: Theme.alpha(Theme.warn, 0.16)
-                    Text { id: offLabel; anchors.centerIn: parent; text: "Off"; color: Theme.warn; font.pixelSize: 11; font.weight: Font.DemiBold }
+                    Text { id: offLabel; anchors.centerIn: parent; text: qsTr("Off"); color: Theme.warn; font.pixelSize: 11; font.weight: Font.DemiBold }
                 }
             }
             Text {
@@ -94,7 +94,7 @@ Item {
                 objectName: "optionalHint"
                 visible: row.optionalOff
                 width: parent.width
-                text: "Off until you turn it on."
+                text: qsTr("Off until you turn it on.")
                 color: Theme.textDim
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
@@ -118,7 +118,7 @@ Item {
                 hoverEnabled: true
                 focusPolicy: Qt.StrongFocus
                 onClicked: row.notesOpen = !row.notesOpen
-                Accessible.name: row.notesOpen ? "Hide notes" : "Show notes"
+                Accessible.name: row.notesOpen ? qsTr("Hide notes") : qsTr("Show notes")
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
                 contentItem: Row {
                     spacing: 4
@@ -131,7 +131,8 @@ Item {
                     Text {
                         id: notesLabel
                         anchors.verticalCenter: parent.verticalCenter
-                        text: (row.notesOpen ? "Hide " : "") + (row.notes.length === 1 ? "1 note" : row.notes.length + " notes")
+                        text: row.notesOpen ? (row.notes.length === 1 ? qsTr("Hide 1 note") : qsTr("Hide %1 notes").arg(row.notes.length))
+                                            : (row.notes.length === 1 ? qsTr("1 note") : qsTr("%1 notes").arg(row.notes.length))
                         color: Theme.accentText
                         font.pixelSize: 13
                         font.weight: Font.Medium
@@ -181,10 +182,10 @@ Item {
             checked: row.on && row.available
             enabled: row.available
             onToggled: Backend.setTargetEnabled(row.item.id, checked)
-            Accessible.name: (row.item.name || "") + (row.available ? "" : " (not available)")
+            Accessible.name: row.available ? (row.item.name || "") : qsTr("%1 (not available)").arg(row.item.name || "")
             LgToolTip {
                 shown: sw.hovered
-                text: !row.available ? "Not installed here, so it is skipped" : row.on ? "Themed on Apply" : "Left alone (turning it off later restores it)"
+                text: !row.available ? qsTr("Not installed here, so it is skipped") : row.on ? qsTr("Themed on Apply") : qsTr("Left alone (turning it off later restores it)")
             }
         }
     }

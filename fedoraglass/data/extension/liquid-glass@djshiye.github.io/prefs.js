@@ -6,6 +6,7 @@ import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {_} from './strings.js';
 
 function launcher() {
     // fedora-glass, or liquid-glass from before the rename.
@@ -22,14 +23,14 @@ export default class FedoraGlassPrefs extends ExtensionPreferences {
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({
             title: 'Fedora Glass',
-            description: 'Everything is set in the Fedora Glass app, with a live preview.',
+            description: _('Everything is set in the Fedora Glass app, with a live preview.'),
         });
-        const row = new Adw.ActionRow({title: 'Open Fedora Glass'});
-        const button = new Gtk.Button({label: 'Open', valign: Gtk.Align.CENTER, css_classes: ['suggested-action']});
+        const row = new Adw.ActionRow({title: _('Open Fedora Glass')});
+        const button = new Gtk.Button({label: _('Open'), valign: Gtk.Align.CENTER, css_classes: ['suggested-action']});
         const path = launcher();
         button.sensitive = path !== null;
         if (path === null)
-            row.subtitle = 'The Fedora Glass app is not installed.';
+            row.subtitle = _('The Fedora Glass app is not installed.');
         button.connect('clicked', () => {
             Gio.Subprocess.new([path, 'gui'], Gio.SubprocessFlags.NONE);
             window.close();

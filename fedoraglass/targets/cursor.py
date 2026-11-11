@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..i18n import _, N_
 from .. import cursors
 from ..cursors import IFACE, KEEP
 from ..env import Env
@@ -11,18 +12,18 @@ from .base import Action, Context, Detection, GReset, GSet, Target
 class Cursor(Target):
     def __init__(self) -> None:
         super().__init__(
-            id="cursor", name="Mouse pointer", group="Desktop",
-            summary="The pointer style and size picked on the Pointer and desktop page. "
-                    "Restore original brings your own pointer back.",
-            plain="Sets the mouse pointer style and size you picked. "
-                  "Restore original brings your own pointer back.",
+            id="cursor", name=N_("Mouse pointer"), group="Desktop",
+            summary=N_("The pointer style and size picked on the Pointer and desktop page. "
+                    "Restore original brings your own pointer back."),
+            plain=N_("Sets the mouse pointer style and size you picked. "
+                  "Restore original brings your own pointer back."),
             scheme_dependent=False,
         )
 
     def detect(self, env: Env) -> Detection:
         missing = [s.name for s in cursors.STYLES if cursors.theme_dir(env, s.id) is None]
         if len(missing) == len(cursors.STYLES):
-            return Detection(True, "The pointer styles are not installed with this copy")
+            return Detection(True, _("The pointer styles are not installed with this copy"))
         return Detection(True)
 
     def plan(self, ctx: Context) -> list[Action]:
@@ -42,8 +43,8 @@ class Cursor(Target):
     def live_notes(self, ctx: Context) -> list[str]:
         th = ctx.settings.cursor_theme
         if th != KEEP and cursors.theme_dir(ctx.env, th) is None:
-            return ["The pointer style you picked is not installed, so your own pointer stays. "
-                    "Reinstall Fedora Glass to get it back."]
+            return [_("The pointer style you picked is not installed, so your own pointer stays. "
+                    "Reinstall Fedora Glass to get it back.")]
         return []
 
 

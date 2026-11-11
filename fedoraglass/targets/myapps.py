@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..i18n import _, N_
 from ..env import Env
 from .apps import AppTarget, installed
 from .base import Action, Context, Detection, Target
@@ -23,7 +24,7 @@ class MyApp(AppTarget):
         if installed(env, cmds=(self.cmd,), flatpak=self.flatpak or self.desktop_id or None,
                      desktop=(self.desktop_id,) if self.desktop_id else ()):
             return Detection(True)
-        return Detection(False, f"{self.name} is not installed")
+        return Detection(False, _("{name} is not installed").format(name=self.name))
 
     def plan(self, ctx: Context) -> list[Action]:
         return []
@@ -37,17 +38,17 @@ class Wheelguard(MyApp):
 
 TARGETS: list[Target] = [
     MyApp(id="clipperino", name="Clipperino", cmd="clipperino", desktop_id="io.github.djshiye.Clipperino",
-          summary="Themed through GTK 4.",
-          plain="Changes nothing here: Clipperino gets the look from the GTK 4 part.",
-          notes=["Clipperino uses libadwaita, so the GTK 4 target already themes it."]),
+          summary=N_("Themed through GTK 4."),
+          plain=N_("Changes nothing here: Clipperino gets the look from the GTK 4 part."),
+          notes=[N_("Clipperino uses libadwaita, so the GTK 4 target already themes it.")]),
     MyApp(id="rgbeast", name="RGBeast", cmd="rgbeast", desktop_id="io.github.djshiye.RGBeast",
-          summary="Themed through GTK 4.",
-          plain="Changes nothing here: RGBeast gets the look from the GTK 4 part.",
-          notes=["RGBeast uses libadwaita, so the GTK 4 target already themes it."]),
+          summary=N_("Themed through GTK 4."),
+          plain=N_("Changes nothing here: RGBeast gets the look from the GTK 4 part."),
+          notes=[N_("RGBeast uses libadwaita, so the GTK 4 target already themes it.")]),
     Wheelguard(id="wheelguard", name="Wheelguard", cmd="wheelguard-settings",
                desktop_id="io.github.djshiye.Wheelguard",
-               summary="Follows Fedora Glass by itself: it reads the Fedora Glass colours and watches them for changes.",
-               plain="Changes nothing here: Wheelguard reads the Fedora Glass colours by itself.",
-               notes=["Wheelguard's Qt Quick UI takes its colours from the token file Fedora Glass writes "
-                      "on every Apply. Its shell-extension popup is themed by the Shell target."]),
+               summary=N_("Follows Fedora Glass by itself: it reads the Fedora Glass colours and watches them for changes."),
+               plain=N_("Changes nothing here: Wheelguard reads the Fedora Glass colours by itself."),
+               notes=[N_("Wheelguard's Qt Quick UI takes its colours from the token file Fedora Glass writes "
+                      "on every Apply. Its shell-extension popup is themed by the Shell target.")]),
 ]

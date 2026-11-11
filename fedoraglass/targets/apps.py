@@ -11,6 +11,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..i18n import _, N_
 from ..env import Env
 from ..render import apps as ra
 from .base import Action, Command, Context, Detection, Target, WriteFile
@@ -71,14 +72,14 @@ DISCORD_FLATPAK = "com.discordapp.Discord"
 @dataclass
 class Discord(AppTarget):
     id: str = "discord"
-    plain: str = "Adds a Fedora Glass theme to Vencord and turns it on, so Discord gets the glass colours."
+    plain: str = N_("Adds a Fedora Glass theme to Vencord and turns it on, so Discord gets the glass colours.")
     name: str = "Discord"
-    summary: str = "Glass theme for Discord, installed as a Vencord theme."
+    summary: str = N_("Glass theme for Discord, installed as a Vencord theme.")
     scheme_dependent: bool = False
     notes: list[str] = field(default_factory=lambda: [
-        "Needs Vencord (vencord.dev). Restart Discord after applying.",
-        "Discord's window is opaque unless Vencord's transparent-window option is on; "
-        "without it you get glass-coloured surfaces but no see-through.",
+        N_("Needs Vencord (vencord.dev). Restart Discord after applying."),
+        N_("Discord's window is opaque unless Vencord's transparent-window option is on; "
+        "without it you get glass-coloured surfaces but no see-through."),
     ])
 
     def vencord_dirs(self, env: Env) -> list[Path]:
@@ -91,7 +92,7 @@ class Discord(AppTarget):
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("discord",), flatpak=DISCORD_FLATPAK, dirs=(env.config / "discord",)):
             return Detection(True)
-        return Detection(False, "Discord is not installed")
+        return Detection(False, _("{name} is not installed").format(name="Discord"))
 
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
@@ -122,19 +123,19 @@ class Discord(AppTarget):
 @dataclass
 class VSCode(AppTarget):
     id: str = "vscode"
-    plain: str = "Installs Fedora Glass Dark and Light colour themes in VS Code and selects the one that fits."
+    plain: str = N_("Installs Fedora Glass Dark and Light colour themes in VS Code and selects the one that fits.")
     name: str = "VS Code"
-    summary: str = "Fedora Glass Dark and Light colour themes, installed as a local extension."
+    summary: str = N_("Fedora Glass Dark and Light colour themes, installed as a local extension.")
     notes: list[str] = field(default_factory=lambda: [
-        "VS Code windows can't be translucent on Linux; the theme uses the glass colours on opaque surfaces.",
-        "If settings.json contains comments, Fedora Glass leaves it alone: pick Fedora Glass Dark/Light "
-        "yourself under Preferences > Color Theme.",
+        N_("VS Code windows can't be translucent on Linux; the theme uses the glass colours on opaque surfaces."),
+        N_("If settings.json contains comments, Fedora Glass leaves it alone: pick Fedora Glass Dark/Light "
+        "yourself under Preferences > Color Theme."),
     ])
 
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("code",), dirs=(env.config / "Code", env.home / ".vscode")):
             return Detection(True)
-        return Detection(False, "VS Code is not installed")
+        return Detection(False, _("{name} is not installed").format(name="VS Code"))
 
     def plan(self, ctx: Context) -> list[Action]:
         env, t = ctx.env, ctx.tokens
@@ -165,7 +166,7 @@ class VSCode(AppTarget):
         path = ctx.env.config / "Code/User/settings.json"
         out = list(self.notes)
         if path.exists() and ra.merge_json_text(ra.read_text(path), {}) is None:
-            out.insert(0, "settings.json has comments, so it was not changed: select the theme manually.")
+            out.insert(0, _("settings.json has comments, so it was not changed: select the theme manually."))
         return out
 
 
@@ -173,17 +174,17 @@ class VSCode(AppTarget):
 @dataclass
 class Obsidian(AppTarget):
     id: str = "obsidian"
-    plain: str = "Adds the Fedora Glass theme to each of your vaults and selects it."
+    plain: str = N_("Adds the Fedora Glass theme to each of your vaults and selects it.")
     name: str = "Obsidian"
-    summary: str = "Fedora Glass theme installed into every vault and selected."
+    summary: str = N_("Fedora Glass theme installed into every vault and selected.")
     scheme_dependent: bool = False
     notes: list[str] = field(default_factory=lambda: [
-        "Restart Obsidian (or reload with Ctrl+R) to see the theme. Obsidian's window is opaque."])
+        N_("Restart Obsidian (or reload with Ctrl+R) to see the theme. Obsidian's window is opaque.")])
 
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("obsidian",), dirs=(env.config / "obsidian",), appimage="obsidian"):
             return Detection(True)
-        return Detection(False, "Obsidian is not installed")
+        return Detection(False, _("{name} is not installed").format(name="Obsidian"))
 
     def vaults(self, env: Env) -> list[Path]:
         text = ra.read_text(env.config / "obsidian/obsidian.json")
@@ -220,21 +221,21 @@ class Obsidian(AppTarget):
 @dataclass
 class QBittorrent(AppTarget):
     id: str = "qbittorrent"
-    plain: str = "Adds a Fedora Glass theme for qBittorrent and selects it in its settings."
+    plain: str = N_("Adds a Fedora Glass theme for qBittorrent and selects it in its settings.")
     name: str = "qBittorrent"
-    summary: str = "Folder-based custom UI theme (colours and a rounded style sheet)."
+    summary: str = N_("Folder-based custom UI theme (colours and a rounded style sheet).")
     # The style sheet can't switch by itself, so the colours follow the same scheme and
     # both are written again when GNOME switches dark and light.
     scheme_dependent: bool = True
     notes: list[str] = field(default_factory=lambda: [
-        "Close qBittorrent before applying: it rewrites its settings file on exit and would undo this.",
-        "Colours and style sheet follow the GNOME dark or light style; restart qBittorrent after a switch.",
+        N_("Close qBittorrent before applying: it rewrites its settings file on exit and would undo this."),
+        N_("Colours and style sheet follow the GNOME dark or light style; restart qBittorrent after a switch."),
     ])
 
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("qbittorrent",), dirs=(env.config / "qBittorrent",), appimage="qbittorrent"):
             return Detection(True)
-        return Detection(False, "qBittorrent is not installed")
+        return Detection(False, _("{name} is not installed").format(name="qBittorrent"))
 
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
@@ -264,11 +265,11 @@ PRISM_FLATPAK = "org.prismlauncher.PrismLauncher"
 @dataclass
 class Prism(AppTarget):
     id: str = "prism"
-    plain: str = "Adds a Fedora Glass theme for Prism Launcher and selects it."
+    plain: str = N_("Adds a Fedora Glass theme for Prism Launcher and selects it.")
     name: str = "Prism Launcher"
-    summary: str = "Custom Prism theme (palette and style sheet), selected as the application theme."
+    summary: str = N_("Custom Prism theme (palette and style sheet), selected as the application theme.")
     notes: list[str] = field(default_factory=lambda: [
-        "Close Prism Launcher before applying so it doesn't overwrite its settings."])
+        N_("Close Prism Launcher before applying so it doesn't overwrite its settings.")])
 
     def data_dir(self, env: Env) -> Path:
         fp = env.home / ".var/app" / PRISM_FLATPAK / "data/PrismLauncher"
@@ -279,7 +280,7 @@ class Prism(AppTarget):
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("prismlauncher",), flatpak=PRISM_FLATPAK, dirs=(env.data / "PrismLauncher",)):
             return Detection(True)
-        return Detection(False, "Prism Launcher is not installed")
+        return Detection(False, _("{name} is not installed").format(name="Prism Launcher"))
 
     def plan(self, ctx: Context) -> list[Action]:
         d = self.data_dir(ctx.env)
@@ -300,16 +301,16 @@ class Prism(AppTarget):
 @dataclass
 class Browsers(AppTarget):
     id: str = "browsers"
-    plain: str = "Writes a theme in your colours for Brave and Helium. You load it once yourself; the note says how."
+    plain: str = N_("Writes a theme in your colours for Brave and Helium. You load it once yourself; the note says how.")
     name: str = "Brave and Helium"
-    summary: str = "Chromium theme extension with the glass colours (loaded once by hand)."
+    summary: str = N_("Chromium theme extension with the glass colours (loaded once by hand).")
 
     def detect(self, env: Env) -> Detection:
         if (installed(env, cmds=("brave-browser", "brave-origin", "brave", "helium"),
                       dirs=(env.config / "BraveSoftware", env.config / "net.imput.helium"),
                       appimage="helium")):
             return Detection(True)
-        return Detection(False, "Brave and Helium are not installed")
+        return Detection(False, _("Brave and Helium are not installed"))
 
     def theme_dir(self, env: Env) -> Path:
         return env.data / "liquid-glass/chromium-theme"
@@ -321,9 +322,9 @@ class Browsers(AppTarget):
         return [
             "One-time step per browser: open chrome://extensions, turn on Developer mode, choose "
             f"Load unpacked and pick {self.theme_dir(ctx.env)}.",
-            "Later changes need Reload on that extension's card. Chromium themes follow the scheme in use "
-            "when you apply, and browser windows stay opaque.",
-            "Fedora Glass never edits browser profiles.",
+            _("Later changes need Reload on that extension's card. Chromium themes follow the scheme in use "
+            "when you apply, and browser windows stay opaque."),
+            _("Fedora Glass never edits browser profiles."),
         ]
 
 
@@ -385,27 +386,27 @@ class Firefox(AppTarget):
     """Opt-in: off until the user turns it on (settings.OPT_IN_TARGETS)."""
     id: str = "firefox-theme"
     name: str = "Firefox"
-    summary: str = "Fedora Glass colours for Firefox's toolbars, tabs and menus."
-    plain: str = ("Adds a Fedora Glass style sheet to each Firefox profile and one line to its "
-                  "userChrome.css, userContent.css and user.js. Restore original takes them away.")
+    summary: str = N_("Fedora Glass colours for Firefox's toolbars, tabs and menus.")
+    plain: str = (N_("Adds a Fedora Glass style sheet to each Firefox profile and one line to its "
+                  "userChrome.css, userContent.css and user.js. Restore original takes them away."))
     # Both palettes are in the style sheet; Firefox picks one by itself.
     scheme_dependent: bool = False
     notes: list[str] = field(default_factory=lambda: [
-        "Restart Firefox to see it (Firefox only reads these files when it starts).",
-        "Keep Firefox's theme on System theme or Dark/Light (Add-ons > Themes): the colours follow "
-        "the light or dark style Firefox uses. Windows stay solid.",
-        "Your own userChrome.css and userContent.css are kept; Fedora Glass only adds one import line, "
-        "and Restore original takes it away again.",
-        "Firefox keeps the 'allow userChrome.css' switch in its own settings after Restore. "
-        "Without the Fedora Glass files it changes nothing; reset it in about:config if you like.",
+        N_("Restart Firefox to see it (Firefox only reads these files when it starts)."),
+        N_("Keep Firefox's theme on System theme or Dark/Light (Add-ons > Themes): the colours follow "
+        "the light or dark style Firefox uses. Windows stay solid."),
+        N_("Your own userChrome.css and userContent.css are kept; Fedora Glass only adds one import line, "
+        "and Restore original takes it away again."),
+        N_("Firefox keeps the 'allow userChrome.css' switch in its own settings after Restore. "
+        "Without the Fedora Glass files it changes nothing; reset it in about:config if you like."),
     ])
 
     def detect(self, env: Env) -> Detection:
         if not installed(env, cmds=("firefox",), flatpak=FIREFOX_FLATPAK, desktop=("firefox", "org.mozilla.firefox"),
                          dirs=tuple(firefox_roots(env))):
-            return Detection(False, "Firefox is not installed")
+            return Detection(False, _("{name} is not installed").format(name="Firefox"))
         if not firefox_profiles(env):
-            return Detection(False, "No Firefox profile yet: start Firefox once, then come back")
+            return Detection(False, _("No Firefox profile yet: start Firefox once, then come back"))
         return Detection(True)
 
     @staticmethod
@@ -449,7 +450,7 @@ class Firefox(AppTarget):
         out = list(self.notes)
         skipped = [p.name for p in firefox_profiles(ctx.env) if self._skipped(p)]
         if skipped:
-            out.insert(0, f"Left alone because its chrome folder or user.js is a link: {', '.join(skipped)}.")
+            out.insert(0, _("Left alone because its chrome folder or user.js is a link: {names}.").format(names=", ".join(skipped)))
         return out
 
 
@@ -466,7 +467,7 @@ class NotesOnly(AppTarget):
         if installed(env, cmds=self.cmds, flatpak=self.flatpak, desktop=self.desktop,
                      dirs=tuple(env.home / d for d in self.dirs)):
             return Detection(True)
-        return Detection(False, f"{self.name} is not installed")
+        return Detection(False, _("{name} is not installed").format(name=self.name))
 
     def plan(self, ctx: Context) -> list[Action]:
         return []
@@ -477,8 +478,8 @@ class Slack(NotesOnly):
     def live_notes(self, ctx: Context) -> list[str]:
         theme = ra.slack_theme(ctx.tokens)
         return [
-            "Slack has no theme file. Open Preferences > Themes, scroll to the bottom, choose "
-            "'Create a custom theme' and paste this string:",
+            _("Slack has no theme file. Open Preferences > Themes, scroll to the bottom, choose "
+            "'Create a custom theme' and paste this string:"),
             theme,
         ]
 
@@ -486,27 +487,27 @@ class Slack(NotesOnly):
 TARGETS: list[Target] = [
     Discord(), VSCode(), Obsidian(), QBittorrent(), Prism(), Browsers(),
     Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",),
-          summary="No theme file; a ready-made sidebar theme string is shown to paste.",
-          plain="Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead.",
+          summary=N_("No theme file; a ready-made sidebar theme string is shown to paste."),
+          plain=N_("Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead."),
           scheme_dependent=True),
     NotesOnly(id="steam", name="Steam", group="Apps", cmds=("steam",), dirs=(".local/share/Steam",),
-              summary="Not themed: Steam draws its own UI.", scheme_dependent=False,
-              plain="Changes nothing: Steam draws its own look.",
-              notes=["Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone."]),
+              summary=N_("Not themed: Steam draws its own UI."), scheme_dependent=False,
+              plain=N_("Changes nothing: Steam draws its own look."),
+              notes=[N_("Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone.")]),
     NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",),
-              summary="Not themed; follows the system dark mode.", scheme_dependent=False,
-              plain="Changes nothing: Zoom follows your light or dark setting by itself.",
-              notes=["In Zoom: Settings > General > Theme > Use system setting."]),
+              summary=N_("Not themed; follows the system dark mode."), scheme_dependent=False,
+              plain=N_("Changes nothing: Zoom follows your light or dark setting by itself."),
+              notes=[N_("In Zoom: Settings > General > Theme > Use system setting.")]),
     NotesOnly(id="claude-desktop", name="Claude Desktop", group="Apps",
               cmds=("claude-desktop",), dirs=(".config/Claude",), desktop=("com.anthropic.Claude",),
-              summary="Not themed; follows the system dark mode.", scheme_dependent=False,
-              plain="Changes nothing: Claude follows your light or dark setting by itself.",
-              notes=["In Claude: Settings > Appearance > Match system."]),
+              summary=N_("Not themed; follows the system dark mode."), scheme_dependent=False,
+              plain=N_("Changes nothing: Claude follows your light or dark setting by itself."),
+              notes=[N_("In Claude: Settings > Appearance > Match system.")]),
     NotesOnly(id="libreoffice", name="LibreOffice", group="Apps", cmds=("libreoffice", "soffice"),
               dirs=(".config/libreoffice",),
-              summary="Follows the GTK 3 theme automatically.", scheme_dependent=False,
-              plain="Changes nothing here: LibreOffice picks up the GTK 3 look by itself.",
-              notes=["LibreOffice's GTK 3 backend picks up the adw-gtk3 glass theme. If it looks flat, "
-                     "set Tools > Options > LibreOffice > View > Icon/Application colours to Automatic."]),
+              summary=N_("Follows the GTK 3 theme automatically."), scheme_dependent=False,
+              plain=N_("Changes nothing here: LibreOffice picks up the GTK 3 look by itself."),
+              notes=[N_("LibreOffice's GTK 3 backend picks up the adw-gtk3 glass theme. If it looks flat, "
+                     "set Tools > Options > LibreOffice > View > Icon/Application colours to Automatic.")]),
     Firefox(),
 ]

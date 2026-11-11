@@ -7,8 +7,8 @@ import FedoraGlass.Core
 Sheet {
     id: sheet
     objectName: "appPicker"
-    title: "Apps without glass"
-    subtitle: "Pick the apps whose windows should get no glass. Apply to use them."
+    title: qsTr("Apps without glass")
+    subtitle: qsTr("Pick the apps whose windows should get no glass. Apply to use them.")
     iconName: "apps"
     initialFocusItem: field
 
@@ -24,7 +24,7 @@ Sheet {
     onAboutToShow: { field.text = ""; Backend.refreshInstalledApps() }
 
     buttons: [
-        LgButton { objectName: "appPickerDone"; text: "Done"; kind: "primary"; onClicked: sheet.close() }
+        LgButton { objectName: "appPickerDone"; text: qsTr("Done"); kind: "primary"; onClicked: sheet.close() }
     ]
 
     Column {
@@ -53,14 +53,14 @@ Sheet {
                 height: parent.height
                 verticalAlignment: TextInput.AlignVCenter
                 leftPadding: 4; rightPadding: 4
-                placeholderText: "Search apps"
+                placeholderText: qsTr("Search apps")
                 placeholderTextColor: Theme.textFaint
                 color: Theme.text
                 selectionColor: Theme.alpha(Theme.accent, 0.4)
                 selectedTextColor: Theme.text
                 font.pixelSize: 14
                 background: Item {}
-                Accessible.name: "Search apps"
+                Accessible.name: qsTr("Search apps")
                 Keys.onDownPressed: { if (apps.count) { apps.currentIndex = 0; apps.forceActiveFocus(Qt.TabFocusReason) } }
             }
         }
@@ -76,9 +76,9 @@ Sheet {
                 wrapMode: Text.WordWrap
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsBody
-                text: !Backend.installedAppsReady ? "Looking for your apps…"
-                    : sheet.query !== "" ? "No app matches “" + field.text.trim() + "”."
-                    : "No apps were found."
+                text: !Backend.installedAppsReady ? qsTr("Looking for your apps…")
+                    : sheet.query !== "" ? qsTr("No app matches “%1”.").arg(field.text.trim())
+                    : qsTr("No apps were found.")
             }
             ListView {
                 id: apps
@@ -90,7 +90,7 @@ Sheet {
                 keyNavigationEnabled: true
                 C.ScrollBar.vertical: LgScrollBar {}
                 Accessible.role: Accessible.List
-                Accessible.name: "Installed apps"
+                Accessible.name: qsTr("Installed apps")
                 delegate: C.AbstractButton {
                     id: item
                     required property var modelData
@@ -107,7 +107,7 @@ Sheet {
                     Accessible.role: Accessible.CheckBox
                     Accessible.checkable: true
                     Accessible.checked: item.added || builtIn
-                    Accessible.name: modelData.name + (builtIn ? ", always without glass" : "")
+                    Accessible.name: builtIn ? qsTr("%1, always without glass").arg(modelData.name) : modelData.name
                     onClicked: Backend.toggleNoGlassApp(modelData.id)
                     Keys.onSpacePressed: Backend.toggleNoGlassApp(modelData.id)
                     HoverHandler { cursorShape: item.builtIn ? Qt.ArrowCursor : Qt.PointingHandCursor }
@@ -147,7 +147,7 @@ Sheet {
                                 id: always
                                 visible: item.builtIn
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Always without glass"
+                                text: qsTr("Always without glass")
                                 color: Theme.textFaint
                                 font.pixelSize: Theme.fsSmall
                             }

@@ -8,16 +8,16 @@ import FedoraGlass.Core
 Sheet {
     id: sheet
     objectName: "welcomeSheet"
-    title: "Welcome to Fedora Glass"
-    subtitle: "Glass for your panel, menus, lock screen and apps. Try anything here: your desktop only changes when you press Apply."
+    title: qsTr("Welcome to Fedora Glass")
+    subtitle: qsTr("Glass for your panel, menus, lock screen and apps. Try anything here: your desktop only changes when you press Apply.")
     iconName: "sparkle"
     width: Math.min(680, (parent ? parent.width : 800) - 64)
     onClosed: Backend.dismissWelcome()
 
     readonly property var looks: [
-        { name: "Liquid", caption: "Clear and bright", blur: 0.25, haze: 0.04 },
-        { name: "Balanced", caption: "Readable, still glassy", blur: 0.6, haze: 0.14 },
-        { name: "Frosted", caption: "Calm, milky frost", blur: 1.0, haze: 0.32 }
+        { name: "Liquid", caption: qsTr("Clear and bright"), blur: 0.25, haze: 0.04 },
+        { name: "Balanced", caption: qsTr("Readable, still glassy"), blur: 0.6, haze: 0.14 },
+        { name: "Frosted", caption: qsTr("Calm, milky frost"), blur: 1.0, haze: 0.32 }
     ]
 
     // Nothing changes on the desktop until a button that says Apply: "Customise first"
@@ -28,18 +28,18 @@ Sheet {
         LgButton {
             id: customiseButton
             objectName: "welcomeStart"
-            text: "Customise first"
+            text: qsTr("Customise first")
             kind: "secondary"
             onClicked: sheet.close()
         },
         LgButton {
             objectName: "welcomeApply"
-            text: "Apply this look"
+            text: qsTr("Apply this look")
             kind: "primary"
             iconName: "check"
             leftPadding: 18; rightPadding: 22
             enabled: !Backend.busy
-            tip: "Applies the look you picked to your desktop and apps. Restore original undoes it."
+            tip: qsTr("Applies the look you picked to your desktop and apps. Restore original undoes it.")
             onClicked: { sheet.close(); Backend.dismissWelcome(); Backend.apply() }
         }
     ]
@@ -51,7 +51,7 @@ Sheet {
         Column {
             width: parent.width
             spacing: 10
-            Text { text: "Pick a starting look"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+            Text { text: qsTr("Pick a starting look"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
             Row {
                 id: tiles
                 width: parent.width
@@ -68,7 +68,7 @@ Sheet {
                         height: pic.height + 54
                         hoverEnabled: true
                         focusPolicy: Qt.StrongFocus
-                        Accessible.name: modelData.name + ": " + modelData.caption
+                        Accessible.name: qsTr("%1: %2").arg(Theme.presetLabel(modelData.name)).arg(modelData.caption)
                         onClicked: Backend.applyPreset(modelData.name)
                         HoverHandler { cursorShape: Qt.PointingHandCursor }
 
@@ -167,7 +167,7 @@ Sheet {
                                 width: parent.width - 24
                                 spacing: 1
                                 Text {
-                                    text: tile.modelData.name
+                                    text: Theme.presetLabel(tile.modelData.name)
                                     color: tile.selected ? Theme.accentText : Theme.text
                                     font.pixelSize: Theme.fsBody
                                     font.weight: Font.DemiBold
@@ -219,9 +219,9 @@ Sheet {
                 readonly property real stepW: (width - 2 * spacing) / 3
                 Repeater {
                     model: [
-                        { icon: "eye", title: "Try it here", text: "The preview shows every change straight away." },
-                        { icon: "check", title: "Press Apply", text: "Your apps change at once. Restart once for the glass." },
-                        { icon: "undo", title: "Undo any time", text: "Restore original puts everything back." }
+                        { icon: "eye", title: qsTr("Try it here"), text: qsTr("The preview shows every change straight away.") },
+                        { icon: "check", title: qsTr("Press Apply"), text: qsTr("Your apps change at once. Restart once for the glass.") },
+                        { icon: "undo", title: qsTr("Undo any time"), text: qsTr("Restore original puts everything back.") }
                     ]
                     delegate: Row {
                         required property var modelData

@@ -70,5 +70,10 @@ QtObject {
     property Item preview: null
     property Item motionDriver: null
 
+    // The shown name of a preset; the English name stays the key everywhere else.
+    function presetLabel(name) {
+        return ({ Liquid: qsTr("Liquid"), Clear: qsTr("Clear", "preset"), Balanced: qsTr("Balanced"),
+                  Frosted: qsTr("Frosted"), Solid: qsTr("Solid") })[name] ?? name
+    }
     function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 }
