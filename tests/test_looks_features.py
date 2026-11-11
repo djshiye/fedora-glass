@@ -277,3 +277,19 @@ def test_wallpaper_settings_are_normalized():
     assert s.tint_own == "" and s.accent_own == ""
     assert "\n" not in s.wallpaper_match and len(s.wallpaper_match) == 4096
     assert asdict(Settings().normalized())["tint_from_wallpaper"] is False
+
+
+def test_export_works_where_chmod_is_refused(tmp_path, monkeypatch):
+    """A FAT/exFAT stick refuses chmod with EPERM: the export still has to work."""
+    lib = looks.Library(tmp_path / "looks")
+    look_id = lib.save("Mint", Settings(frost=0.5))
+    out = tmp_path / "stick/mint.json"
+    out.parent.mkdir()
+
+    def no_chmod(*a, **k):
+        raise PermissionError(1, "Operation not permitted")
+    with monkeypatch.context() as m:
+        m.setattr(os, "chmod", no_chmod)
+        lib.export(look_id, out)
+    assert json.loads(out.read_text())["name"] == "Mint"
+    assert [p.name for p in out.parent.iterdir()] == ["mint.json"]     # no temp file left

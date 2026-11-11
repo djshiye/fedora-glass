@@ -19,6 +19,7 @@ import json
 import os
 import re
 import stat
+import tempfile
 import unicodedata
 from dataclasses import asdict, fields, replace
 from pathlib import Path
@@ -47,6 +48,28 @@ LOOK_KEYS = (
     "cursor_theme", "cursor_size",
     "tint_from_wallpaper", "accent_from_wallpaper",
 )
+
+
+def _write_shared(path: Path, data: bytes) -> None:
+    """Write a file meant to be shared (readable by all, 0644) via a temp file in the same
+    folder and a rename. A failed chmod is fine: FAT/exFAT sticks have no permissions."""
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp, 0o644)
+        except OSError:
+            pass
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 class LookError(Exception):
@@ -290,7 +313,6 @@ class Library:
             raise LookError(_("That look isn't there any more."))
         data = {"format": FORMAT, "version": VERSION, "name": look["name"], "settings": look["settings"]}
         try:
-            settings_mod._write(dest, json.dumps(data, indent=2).encode("utf-8") + b"\n")
-            os.chmod(dest, 0o644)    # a file to share: readable, like any document
+            _write_shared(dest, json.dumps(data, indent=2).encode("utf-8") + b"\n")
         except OSError as e:
             raise LookError(_("The look couldn't be saved there ({reason}).").format(reason=e.strerror or e)) from None
