@@ -443,3 +443,31 @@ def test_going_back_while_the_app_still_checks_the_system_waits_for_it(qml, fake
         b.waitIdle()
         _spin(20)
     assert _on_disk(tmp_path)["frost"] == 0.3
+
+
+def test_file_dialogs_load_only_when_asked_and_their_absence_is_said(qml):
+    from PySide6.QtCore import QMetaObject, QObject
+    from tests.test_gui_reliability import _find, _window
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        looks_ = _find(win, "savedLooks")
+        loader = looks_.findChild(QObject, "lookDialogs")
+        assert not loader.property("active") and loader.property("item") is None    # not loaded at start
+        QMetaObject.invokeMethod(looks_, "importFile")
+        _spin(300)
+        item = loader.property("item")
+        assert item is not None                        # QtQuick.Dialogs is here
+        dialog = next(c for c in item.children() if c.metaObject().indexOfProperty("fileMode") >= 0)
+        assert dialog.property("visible")
+        dialog.setProperty("visible", False)
+        # Without QtQuick.Dialogs (a package of its own on Ubuntu): Home still works and says why.
+        loader.setProperty("active", False)
+        loader.setProperty("source", "NoSuchDialogs.qml")
+        QMetaObject.invokeMethod(looks_, "importFile")
+        _spin(300)
+        assert looks_.property("problemOpen")
+        assert "qml6-module-qtquick-dialogs" in looks_.property("problemText")
+    finally:
+        win.close()

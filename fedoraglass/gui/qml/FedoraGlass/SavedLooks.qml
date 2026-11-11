@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls.Basic as C
-import QtQuick.Dialogs as D
 import FedoraGlass.Core
 
 // The user's own looks, after the built-in ones on Home: a row of tiles, each with a menu
@@ -12,6 +11,8 @@ Column {
     property real tileW: 120
     readonly property var looks: Backend.savedLooks
     readonly property bool menuOpen: menu.opened
+    readonly property bool problemOpen: problemSheet.opened
+    readonly property string problemText: problemSheet.subtitle
     spacing: 8
     visible: looks.length > 0
 
@@ -20,7 +21,7 @@ Column {
         nameSheet.lookId = ""
         nameSheet.open()
     }
-    function importFile() { importDialog.open() }
+    function importFile() { _openImport() }
 
     Text {
         text: "Your looks"
@@ -91,9 +92,7 @@ Column {
                 iconName: "download"; text: "Save as a file…"
                 onClicked: {
                     menu.close()
-                    exportDialog.lookId = menu.lookId
-                    exportDialog.selectedFile = Backend.looksFolder + "/" + Backend.lookFileName(menu.lookId)
-                    exportDialog.open()
+                    root._openExport(menu.lookId)
                 }
             }
             MenuRow {
@@ -239,24 +238,37 @@ Column {
     }
 
     // ---- files ---------------------------------------------------------------------------------
-    D.FileDialog {
-        id: importDialog
-        objectName: "lookImportDialog"
-        title: "Add a look from a file"
-        fileMode: D.FileDialog.OpenFile
-        currentFolder: Backend.looksFolder
-        nameFilters: ["Fedora Glass looks (*.json)", "All files (*)"]
-        onAccepted: { root._doing = "import"; Backend.importLook(selectedFile); root._doing = "" }
+    // The file dialogs come from QtQuick.Dialogs, a separate package on some systems: loaded
+    // only when asked for, so Home works without it and only the files part says what's missing.
+    Loader {
+        id: dialogs
+        objectName: "lookDialogs"
+        active: false
+        source: "LookFileDialogs.qml"
+        onStatusChanged: if (status === Loader.Error) {
+            problemSheet.what = root._doing
+            problemSheet.subtitle = "Saving looks as files needs Qt's file dialogs, which aren't installed. On Ubuntu and Debian, install qml6-module-qtquick-dialogs."
+            problemSheet.open()
+        }
     }
-    D.FileDialog {
-        id: exportDialog
-        objectName: "lookExportDialog"
-        property string lookId: ""
-        title: "Save the look as a file"
-        fileMode: D.FileDialog.SaveFile
-        currentFolder: Backend.looksFolder
-        defaultSuffix: "json"
-        nameFilters: ["Fedora Glass looks (*.json)"]
-        onAccepted: { root._doing = "export"; Backend.exportLook(lookId, selectedFile); root._doing = "" }
+    function _dialogs() {
+        dialogs.active = true
+        return dialogs.status === Loader.Ready ? dialogs.item : null
+    }
+    function _openImport() {
+        root._doing = "import"
+        const d = _dialogs()
+        if (d) d.openImport()
+    }
+    function _openExport(lookId) {
+        root._doing = "export"
+        const d = _dialogs()
+        if (d) d.openExport(lookId)
+    }
+    Connections {
+        target: dialogs.item
+        ignoreUnknownSignals: true
+        function onImportPicked(url) { root._doing = "import"; Backend.importLook(url); root._doing = "" }
+        function onExportPicked(lookId, url) { root._doing = "export"; Backend.exportLook(lookId, url); root._doing = "" }
     }
 }
