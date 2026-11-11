@@ -71,6 +71,11 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.5.24" date="2026-11-11">
+      <description>
+        <p>Now in German, French, Spanish, Italian and Brazilian Portuguese, following your system language.</p>
+      </description>
+    </release>
     <release version="1.5.23" date="2026-11-11">
       <description>
         <p>Sturdier: a failed Apply or a damaged settings file never changes your look, a lighter background helper, faster window drags, and many app fixes.</p>
