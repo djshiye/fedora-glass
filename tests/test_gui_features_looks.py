@@ -160,6 +160,15 @@ def test_export_and_import_a_look_file(qml, fake_env, tmp_path):
     assert b.exportLook(look_id, QUrl.fromLocalFile(str(dest)))
     shared = json.loads((fake_env.home / "Documents/warm.json").read_text())
     assert shared["settings"]["frost"] == 0.75 and "lock_message" not in json.dumps(shared)
+    # The name the dialog confirmed is the one written: never another file next to it.
+    (fake_env.home / "Documents/notes.txt.json").write_text("mine")
+    assert b.exportLook(look_id, QUrl.fromLocalFile(str(fake_env.home / "Documents/notes.txt")))
+    assert (fake_env.home / "Documents/notes.txt.json").read_text() == "mine"
+    assert json.loads((fake_env.home / "Documents/notes.txt").read_text())["format"] == "fedora-glass-look"
+    (fake_env.home / "Documents/plain.json").write_text("mine too")
+    assert b.exportLook(look_id, QUrl.fromLocalFile(str(fake_env.home / "Documents/plain")))
+    assert (fake_env.home / "Documents/plain.json").read_text() == "mine too", "a bare name never replaces name.json"
+    assert (fake_env.home / "Documents/plain").is_file()
     b.deleteLook(look_id)
     problems: list = []
     b.lookProblem.connect(problems.append)

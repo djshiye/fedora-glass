@@ -2549,8 +2549,14 @@ class Backend(QObject):
         if dest is None:
             self.lookProblem.emit("Pick a file on this PC to save the look in.")
             return False
-        if dest.suffix.lower() != ".json":
-            dest = dest.with_name(dest.name + ".json")
+        # The dialog adds ".json" itself (defaultSuffix) and asks before it replaces a file,
+        # so the name it gives is the one to use: adding ".json" here could replace another
+        # file nobody was asked about (foo.txt confirmed, foo.txt.json replaced). Only a bare
+        # name (a dialog that doesn't add it) gets ".json", and only when that is no file yet.
+        if not dest.suffix:
+            named = dest.with_name(dest.name + ".json")
+            if not os.path.lexists(named):
+                dest = named
         try:
             self._library.export(look_id, dest)
         except looks_mod.LookError as e:
