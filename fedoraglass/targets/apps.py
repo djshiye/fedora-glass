@@ -6,6 +6,7 @@ files written; the rest only show a note in the app.
 
 from __future__ import annotations
 
+import configparser
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -326,6 +327,132 @@ class Browsers(AppTarget):
         ]
 
 
+# ---- Firefox ---------------------------------------------------------------------------------
+FIREFOX_FLATPAK = "org.mozilla.firefox"
+
+
+def firefox_roots(env: Env) -> list[Path]:
+    """Folders that hold a profiles.ini: the classic one, the XDG one newer Firefox uses,
+    and the same two inside the Flatpak's own home."""
+    fp = env.home / ".var/app" / FIREFOX_FLATPAK
+    return [env.home / ".mozilla/firefox", env.config / "mozilla/firefox",
+            fp / ".mozilla/firefox", fp / "config/mozilla/firefox"]
+
+
+def firefox_profiles(env: Env) -> list[Path]:
+    """Every profile folder the profiles.ini files list, that exists. All of them, not only
+    the default: each Firefox install (rpm, Flatpak, Developer Edition) has its own default,
+    and profiles.ini only lists profiles the user made."""
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for root in firefox_roots(env):
+        text = ra.read_text(root / "profiles.ini")
+        if not text:
+            continue
+        cp = configparser.RawConfigParser(strict=False, interpolation=None)
+        try:
+            cp.read_string(text)
+        except configparser.Error:
+            continue
+        for sec in cp.sections():
+            if not sec.startswith("Profile") or not cp.has_option(sec, "Path"):
+                continue
+            rel = cp.get(sec, "IsRelative", fallback="1").strip() != "0"
+            p = Path(cp.get(sec, "Path").strip())
+            p = root / p if rel else p
+            if not p.is_absolute() or not p.is_dir() or p.is_symlink():
+                continue
+            key = p.resolve()
+            if key not in seen:
+                seen.add(key)
+                out.append(p)
+    return out
+
+
+def _read_exact(path: Path) -> str | None:
+    """A file's text with its own line endings ("" when there is none); None when it isn't
+    UTF-8 text or is a link. read_text would turn the user's CRLF lines into LF ones."""
+    try:
+        if path.is_symlink():
+            return None
+        return path.read_bytes().decode("utf-8") if path.exists() else ""
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+@dataclass
+class Firefox(AppTarget):
+    """Opt-in: off until the user turns it on (settings.OPT_IN_TARGETS)."""
+    id: str = "firefox-theme"
+    name: str = "Firefox"
+    summary: str = "Fedora Glass colours for Firefox's toolbars, tabs and menus. Off until you turn it on."
+    plain: str = ("Adds a Fedora Glass style sheet to each Firefox profile and one line to its "
+                  "userChrome.css, userContent.css and user.js. Restore original takes them away.")
+    # Both palettes are in the style sheet; Firefox picks one by itself.
+    scheme_dependent: bool = False
+    notes: list[str] = field(default_factory=lambda: [
+        "Restart Firefox to see it (Firefox only reads these files when it starts).",
+        "Keep Firefox's theme on System theme or Dark/Light (Add-ons > Themes): the colours follow "
+        "the light or dark style Firefox uses. Windows stay solid.",
+        "Your own userChrome.css and userContent.css are kept; Fedora Glass only adds one import line, "
+        "and Restore original takes it away again.",
+        "Firefox keeps the 'allow userChrome.css' switch in its own settings after Restore. "
+        "Without the Fedora Glass files it changes nothing; reset it in about:config if you like.",
+    ])
+
+    def detect(self, env: Env) -> Detection:
+        if not installed(env, cmds=("firefox",), flatpak=FIREFOX_FLATPAK, desktop=("firefox", "org.mozilla.firefox"),
+                         dirs=tuple(firefox_roots(env))):
+            return Detection(False, "Firefox is not installed")
+        if not firefox_profiles(env):
+            return Detection(False, "No Firefox profile yet: start Firefox once, then come back")
+        return Detection(True)
+
+    @staticmethod
+    def _skipped(profile: Path) -> bool:
+        # A linked chrome folder or file points into someone's dotfiles: never write through it.
+        chrome = profile / "chrome"
+        return any(p.is_symlink() for p in (chrome, chrome / "userChrome.css", chrome / "userContent.css",
+                                            chrome / ra.FIREFOX_CHROME_FILE, chrome / ra.FIREFOX_CONTENT_FILE,
+                                            profile / "user.js"))
+
+    def plan(self, ctx: Context) -> list[Action]:
+        acts: list[Action] = []
+        block = ("block", ra.FIREFOX_BEGIN, ra.FIREFOX_END)
+        chrome_css = ra.firefox_chrome_css(ctx.dark, ctx.light)
+        content_css = ra.firefox_content_css(ctx.dark, ctx.light)
+        for prof in firefox_profiles(ctx.env):
+            if self._skipped(prof):
+                continue
+            chrome = prof / "chrome"
+            edits: list[WriteFile] = []
+            for user_file, ours in (("userChrome.css", ra.FIREFOX_CHROME_FILE),
+                                    ("userContent.css", ra.FIREFOX_CONTENT_FILE)):
+                path = chrome / user_file
+                text = _read_exact(path)
+                if text is None:
+                    break           # not text we can read: leave this profile alone
+                edits.append(WriteFile(path, ra.css_import_block(text, ours), edits=block))
+            else:
+                ujs = prof / "user.js"
+                text = _read_exact(ujs)
+                if text is None:
+                    continue
+                acts += [WriteFile(chrome / ra.FIREFOX_CHROME_FILE, chrome_css),
+                         WriteFile(chrome / ra.FIREFOX_CONTENT_FILE, content_css), *edits]
+                if not ra.userjs_has_pref(text):
+                    # The user's own line already turns it on: theirs is enough, and stays.
+                    acts.append(WriteFile(ujs, ra.userjs_block(text), edits=block))
+        return acts
+
+    def live_notes(self, ctx: Context) -> list[str]:
+        out = list(self.notes)
+        skipped = [p.name for p in firefox_profiles(ctx.env) if self._skipped(p)]
+        if skipped:
+            out.insert(0, f"Left alone because its chrome folder or user.js is a link: {', '.join(skipped)}.")
+        return out
+
+
 # ---- apps with no theming hook ----------------------------------------------------------------------
 @dataclass
 class NotesOnly(AppTarget):
@@ -381,9 +508,5 @@ TARGETS: list[Target] = [
               plain="Changes nothing here: LibreOffice picks up the GTK 3 look by itself.",
               notes=["LibreOffice's GTK 3 backend picks up the adw-gtk3 glass theme. If it looks flat, "
                      "set Tools > Options > LibreOffice > View > Icon/Application colours to Automatic."]),
-    NotesOnly(id="firefox", name="Firefox", group="Apps", cmds=("firefox",), dirs=(".config/mozilla", ".mozilla"),
-              summary="Not themed; follows the GTK theme for its window frame.", scheme_dependent=False,
-              plain="Changes nothing: Fedora Glass leaves your Firefox profiles alone.",
-              notes=["Use Firefox's built-in System theme (Add-ons > Themes) so the toolbar matches. "
-                     "Fedora Glass does not edit Firefox profiles."]),
+    Firefox(),
 ]

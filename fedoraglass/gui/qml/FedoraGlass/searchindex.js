@@ -80,7 +80,9 @@ var entries = [
     { label: "Remove Fedora Glass", words: "remove uninstall delete", page: "about", name: "removeApp", when: "removable" },
     { label: "Put my original look back on removal", words: "remove uninstall original look back restore keep", page: "about", name: "undoOnRemove" },
     { label: "Keyboard shortcuts", words: "keyboard shortcuts keys help", page: "about", name: "shortcutsButton" },
-    { label: "Version and what's new", words: "version about what's new changelog update", page: "about", name: "aboutVersion" }
+    { label: "Version and what's new", words: "version about what's new changelog update", page: "about", name: "aboutVersion" },
+    // Firefox theme
+    { label: "Firefox colours", words: "firefox browser mozilla theme toolbar tabs userchrome", page: "apps", name: "appsList" }
 ]
 
 function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, " ") }

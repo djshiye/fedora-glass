@@ -135,7 +135,7 @@ class Settings:
     # frost (0..1), refraction (0..1), bleed (0..1), reflections (0..1, edge reflections).
     parts: dict[str, dict] = field(default_factory=dict)
 
-    # Target id -> enabled. Missing ids default to enabled.
+    # Target id -> enabled. Missing ids default to enabled, except OPT_IN_TARGETS.
     targets: dict[str, bool] = field(default_factory=dict)
 
     # Window header bars in GTK 3, GTK 4 and libadwaita apps.
@@ -196,7 +196,7 @@ class Settings:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
 
     def target_enabled(self, target_id: str) -> bool:
-        return self.targets.get(target_id, True)
+        return self.targets.get(target_id, target_default(target_id))
 
     # ---- validation ---------------------------------------------------
     def start_on_desktop_for(self, has_dash_to_panel: bool) -> bool:
@@ -272,7 +272,26 @@ class Settings:
         if s.header_opacity is not None:
             h = float(s.header_opacity)
             s.header_opacity = min(1.0, max(HEADER_OPACITY_MIN, h)) if math.isfinite(h) else None
+        # ---- Firefox theme (opt-in parts) ----
+        # Only a real true turns an opt-in part on: "yes" typed by hand, or a damaged
+        # value, must not change files in another app's profile.
+        raw = dict(self.targets) if isinstance(self.targets, dict) else {}
+        for k in OPT_IN_TARGETS & set(s.targets):
+            s.targets[k] = raw.get(k) is True
         return s
+
+
+# ---- Firefox theme (opt-in parts) ----------------------------------------------------
+# Parts that are off until the user turns them on in the Apps page: they change files in
+# another app's own profile folders, which nobody should find changed without asking.
+# A new id, not Firefox's old "firefox" row: an older version stored that one as on when
+# it was switched off and on again, and that must not count as asking for this.
+OPT_IN_TARGETS = frozenset({"firefox-theme"})
+
+
+def target_default(target_id: str) -> bool:
+    """Whether a part is on when the user hasn't switched it either way."""
+    return target_id not in OPT_IN_TARGETS
 
 
 LOCK_CHOICES = {"lock_clock": ("gnome", "bold", "thin"), "lock_clock_position": ("gnome", "top", "middle"),

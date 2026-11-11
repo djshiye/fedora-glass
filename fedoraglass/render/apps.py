@@ -661,3 +661,149 @@ def slack_theme(t: Tokens) -> str:
     hover = _o(col.mix(t.fg, 0.10))
     parts = [col, hover, t.accent, t.accent_fg, hover, t.fg, t.success, t.destructive]
     return ",".join(c.hex6.upper() if i else c.hex6.upper() for i, c in enumerate(parts))
+
+
+# ---- Firefox ------------------------------------------------------------------------------
+# Firefox reads userChrome.css and userContent.css from <profile>/chrome when the pref below
+# is on. Our colours live in their own files; the user's userChrome.css and userContent.css
+# only get one marked @import block, and user.js one marked pref block, so Restore can take
+# exactly those lines out again and everything the user wrote stays.
+FIREFOX_CHROME_FILE = "fedora-glass.css"
+FIREFOX_CONTENT_FILE = "fedora-glass-content.css"
+FIREFOX_PREF = "toolkit.legacyUserProfileCustomizations.stylesheets"
+FIREFOX_BEGIN = "Fedora Glass: begin"
+FIREFOX_END = "Fedora Glass: end"
+
+
+def _firefox_vars(t: Tokens) -> dict[str, str]:
+    """Firefox's own colour properties, opaque (Firefox windows can't be see-through).
+    Both names are set where Firefox renamed one: the first is the name in current Firefox
+    (the ones the theme API sets, see ThemeVariableMap.sys.mjs), the second the one in ESR 140."""
+    frame = _o(t.window)
+    tool = _o(t.view.mix(t.window_chrome, 0.5))
+    field = _o(frame.mix(t.fg, 0.08))
+    popup = _o(t.popover.mix(frame, 0.3))
+    line = _o(frame.mix(t.fg, 0.14))
+    v: dict[str, str] = {}
+
+    def put(names: str, value: Color | str) -> None:
+        for n in names.split():
+            v[n] = value.css if isinstance(value, Color) else value
+
+    put("--toolbox-background-color --toolbox-bgcolor --lwt-accent-color", frame)
+    put("--toolbox-background-color-inactive --toolbox-bgcolor-inactive --lwt-accent-color-inactive",
+        _o(frame.mix(t.fg, 0.04)))
+    put("--toolbox-text-color --toolbox-textcolor --toolbox-text-color-inactive --toolbox-textcolor-inactive "
+        "--lwt-text-color", t.fg)
+    put("--toolbar-background-color --toolbar-bgcolor", tool)
+    put("--toolbar-text-color --toolbar-color", t.fg)
+    put("--tab-background-color-selected --tab-selected-bgcolor", tool)
+    put("--tab-text-color-selected --tab-selected-textcolor", t.fg)
+    put("--toolbar-field-background-color", field)
+    put("--toolbar-field-text-color --toolbar-field-color", t.fg)
+    put("--toolbar-field-border-color", "transparent")
+    put("--toolbar-field-background-color-focus --toolbar-field-focus-background-color", _o(t.view))
+    put("--toolbar-field-text-color-focus --toolbar-field-focus-color", t.fg)
+    put("--toolbar-field-border-color-focus --toolbar-field-focus-border-color", t.accent)
+    put("--toolbarbutton-icon-fill", t.fg)
+    put("--toolbarbutton-icon-fill-attention", t.accent_text)
+    put("--toolbarbutton-background-color-hover --toolbarbutton-hover-background", t.hover)
+    put("--toolbarbutton-background-color-active --toolbarbutton-active-background", t.active)
+    put("--toolbarseparator-color --tabs-navbar-separator-color --chrome-content-separator-color", line)
+    put("--urlbarview-background-color-selected --urlbarView-highlight-background", t.accent)
+    put("--urlbarview-text-color-selected --urlbarView-highlight-color", t.accent_fg)
+    put("--panel-background-color --arrowpanel-background", popup)
+    put("--panel-text-color --arrowpanel-color", t.fg)
+    put("--panel-border-color --arrowpanel-border-color", line)
+    put("--sidebar-background-color", _o(t.window_chrome))
+    put("--sidebar-text-color", t.fg)
+    put("--sidebar-border-color", line)
+    put("--tabpanel-background-color", _o(t.view))
+    put("--focus-outline-color --color-accent-primary --button-primary-bgcolor", t.accent)
+    put("--button-primary-color", t.accent_fg)
+    return v
+
+
+def _decls(v: dict[str, str], indent: str = "    ") -> str:
+    # !important: userChrome.css is a user style sheet, which Firefox's own rules
+    # would otherwise win over.
+    return "\n".join(f"{indent}{k}: {val} !important;" for k, val in v.items())
+
+
+def firefox_chrome_css(dark: Tokens, light: Tokens) -> str:
+    """Both palettes; Firefox picks one with the same light or dark it draws itself in
+    (System theme follows GNOME's style), so a switch needs no new Apply."""
+    out = ["/* Fedora Glass for Firefox: the Fedora Glass colours on Firefox's own toolbars, tabs and menus.",
+           " * Written by Fedora Glass; Restore original takes it away. */", ""]
+    for t, scheme in ((dark, "dark"), (light, "light")):
+        # menupopup and panel set their own menu colours, so they get ours too.
+        out += [f"@media (prefers-color-scheme: {scheme}) {{",
+                "  :root, menupopup, panel {", _decls(_firefox_vars(t)), "  }",
+                "}", ""]
+    return "\n".join(out)
+
+
+def firefox_content_css(dark: Tokens, light: Tokens) -> str:
+    """The new tab page in the same colours (only that page: websites keep their own look)."""
+    out = ["/* Fedora Glass for Firefox: the new tab page in the Fedora Glass colours.",
+           " * Written by Fedora Glass; Restore original takes it away. */", "",
+           '@-moz-document url("about:home"), url("about:newtab") {']
+    for t, scheme in ((dark, "dark"), (light, "light")):
+        v = {"--newtab-background-color": _o(t.view).css,
+             "--newtab-background-color-secondary": _o(t.view.mix(t.fg, 0.06)).css,
+             "--newtab-text-primary-color": t.fg.css}
+        out += [f"  @media (prefers-color-scheme: {scheme}) {{", "    :root {", _decls(v, "      "), "    }", "  }"]
+    out += ["}", ""]
+    return "\n".join(out)
+
+
+def without_block(text: str, begin: str, end: str) -> str:
+    """`text` with every line from a `begin` marker line to the next `end` marker line taken out."""
+    out, inside = [], False
+    for ln in text.splitlines(keepends=True):
+        if not inside and begin in ln:
+            inside = True
+        if not inside:
+            out.append(ln)
+        elif end in ln:
+            inside = False
+    return "".join(out)
+
+
+def css_import_block(text: str | None, sheet: str) -> str:
+    """A user's userChrome.css (or userContent.css) with our @import at the top. An @import
+    only counts before every other rule, so it goes first (after a @charset line)."""
+    rest = without_block(text or "", FIREFOX_BEGIN, FIREFOX_END)
+    nl = "\r\n" if "\r\n" in rest else "\n"
+    block = (f"/* {FIREFOX_BEGIN} (Restore original in Fedora Glass takes these lines away) */{nl}"
+             f'@import url("{sheet}");{nl}'
+             f"/* {FIREFOX_END} */{nl}")
+    lines = rest.splitlines(keepends=True)
+    at = 1 if lines and lines[0].lstrip("﻿").startswith("@charset") else 0
+    if at and not lines[0].endswith(("\n", "\r")):
+        lines[0] += nl
+    return "".join(lines[:at]) + block + "".join(lines[at:])
+
+
+_PREF = re.compile(r"""^\s*user_pref\(\s*["']([^"']+)["']\s*,\s*(.*?)\s*\)\s*;""")
+
+
+def userjs_has_pref(text: str | None, name: str = FIREFOX_PREF) -> bool:
+    """Whether the user's own lines in user.js already switch `name` on (ours don't count)."""
+    last = None
+    for ln in without_block(text or "", FIREFOX_BEGIN, FIREFOX_END).splitlines():
+        m = _PREF.match(ln)
+        if m and m.group(1) == name:
+            last = m.group(2)       # the last line for a pref wins
+    return last == "true"
+
+
+def userjs_block(text: str | None) -> str:
+    """user.js with our pref at the end (the last line for a pref wins)."""
+    rest = without_block(text or "", FIREFOX_BEGIN, FIREFOX_END)
+    nl = "\r\n" if "\r\n" in rest else "\n"
+    if rest and not rest.endswith(("\n", "\r")):
+        rest += nl
+    return (rest + f"// {FIREFOX_BEGIN} (Restore original in Fedora Glass takes these lines away){nl}"
+            f'user_pref("{FIREFOX_PREF}", true);{nl}'
+            f"// {FIREFOX_END}{nl}")
