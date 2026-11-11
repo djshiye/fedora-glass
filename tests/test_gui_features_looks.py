@@ -436,6 +436,32 @@ def test_a_wallpaper_without_colour_keeps_the_tint_and_says_so(qml, fake_env, tm
     assert b.settings().tint == own and "hardly any colour" in b.property("wallpaperMatchNote")
 
 
+def test_a_wallpaper_picture_qt_cannot_read_is_said_so_not_called_colourless(qml, fake_env, tmp_path):
+    bad = tmp_path / "wall.jxl"
+    bad.write_bytes(b"\xff\x0a" + os.urandom(200))     # a format without its Qt plugin here
+    bg = fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})
+    bg["picture-uri"] = bg["picture-uri-dark"] = f"'file://{bad}'"
+    b = _backend(fake_env, tmp_path)
+    own = b.settings().tint
+    b.setProperty("tintFromWallpaper", True)
+    _settle(lambda: not b.property("wallpaperMatchBusy"))
+    assert b.settings().tint == own
+    assert b.property("wallpaperMatchNote") == "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
+
+
+def test_a_slideshow_wallpaper_gives_the_colour_of_its_first_picture(qml, fake_env, tmp_path):
+    pic = _picture(tmp_path / "first.png", "#8a2be2")         # violet
+    show = tmp_path / "show.xml"
+    show.write_text(f"<background><static><duration>60</duration><file>{pic}</file></static>"
+                    f"<transition><from>{pic}</from><to>/nowhere.png</to></transition></background>")
+    bg = fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})
+    bg["picture-uri"] = bg["picture-uri-dark"] = f"'file://{show}'"
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("tintFromWallpaper", True)
+    _settle(lambda: not b.property("wallpaperMatchBusy"))
+    assert 260 < _hue(b.settings().tint) < 290 and b.property("wallpaperMatchNote") == ""
+
+
 def test_colour_page_has_the_wallpaper_switches_and_note(qml):
     from tests.test_gui_reliability import _find, _probe, _window
     b = _probe(qml)

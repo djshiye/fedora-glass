@@ -72,8 +72,34 @@ def picture_key(path: str) -> str:
     return f"{path}|{st.st_mtime_ns}|{st.st_size}"
 
 
-def read_pixels(path: str) -> list[tuple[int, int, int]]:
-    """The picture, decoded small. Qt is only needed here (on the app's worker thread)."""
+SLIDESHOW_MAX = 256 * 1024
+
+
+def slideshow_picture(path: str) -> str:
+    """The first picture of a GNOME slideshow (.xml wallpaper), or "" when there is none.
+    The file is read only up to SLIDESHOW_MAX bytes, and only a plain picture file is taken
+    (never another slideshow)."""
+    import xml.etree.ElementTree as ET
+    try:
+        with open(path, "rb") as f:
+            data = f.read(SLIDESHOW_MAX + 1)
+        if len(data) > SLIDESHOW_MAX:
+            return ""
+        root = ET.fromstring(data)
+    except (OSError, ET.ParseError, ValueError):
+        return ""
+    for el in root.iter():
+        if el.tag in ("file", "from") and el.text:
+            pic = el.text.strip()
+            if os.path.isabs(pic) and not pic.lower().endswith(".xml") and Path(pic).is_file():
+                return pic
+            return ""
+    return ""
+
+
+def read_pixels(path: str) -> list[tuple[int, int, int]] | None:
+    """The picture, decoded small, or None when Qt can't decode it (a format without its
+    plugin, a damaged file). Qt is only needed here (on the app's worker thread)."""
     from PySide6.QtCore import QSize
     from PySide6.QtGui import QImageReader
     r = QImageReader(path)
@@ -85,7 +111,7 @@ def read_pixels(path: str) -> list[tuple[int, int, int]]:
         r.setScaledSize(QSize(SAMPLE, SAMPLE))
     img = r.read()
     if img.isNull():
-        return []
+        return None
     out = []
     for y in range(img.height()):
         for x in range(img.width()):
@@ -95,10 +121,17 @@ def read_pixels(path: str) -> list[tuple[int, int, int]]:
 
 
 def colours_of(path: str) -> dict:
-    """{"key", "tint", "accent"} for the picture at `path`; tint and accent are "" when it
-    has no colour to take (or can't be read)."""
+    """{"key", "tint", "accent", "unreadable"} for the picture at `path`. Tint and accent
+    are "" when there is no colour to take; "unreadable" says that was because the picture
+    can't be read at all, not because it has hardly any colour."""
     key = picture_key(path)
-    rgb = dominant(read_pixels(path)) if key and Path(path).is_file() else None
+    pic = path
+    if key and path.lower().endswith(".xml"):
+        pic = slideshow_picture(path)       # a slideshow: its first picture
+    pixels = read_pixels(pic) if key and pic and Path(pic).is_file() else None
+    if pixels is None:
+        return {"key": key, "tint": "", "accent": "", "unreadable": True}
+    rgb = dominant(pixels)
     if rgb is None:
-        return {"key": key, "tint": "", "accent": ""}
-    return {"key": key, "tint": as_tint(rgb), "accent": as_accent(rgb)}
+        return {"key": key, "tint": "", "accent": "", "unreadable": False}
+    return {"key": key, "tint": as_tint(rgb), "accent": as_accent(rgb), "unreadable": False}

@@ -245,6 +245,22 @@ def test_the_tint_is_soft_and_the_accent_clear():
     assert sm._is_hex(tint) and sm._is_hex(accent)
 
 
+def test_a_slideshow_gives_only_a_plain_picture_file(tmp_path):
+    pic = tmp_path / "a.png"
+    pic.write_bytes(b"x")
+    show = tmp_path / "s.xml"
+    show.write_text(f"<background><static><file> {pic} </file></static></background>")
+    assert wallcolour.slideshow_picture(str(show)) == str(pic)
+    show.write_text(f"<background><static><file>{show}</file></static></background>")
+    assert wallcolour.slideshow_picture(str(show)) == ""            # never another slideshow
+    show.write_text("<background><static><file>a.png</file></static></background>")
+    assert wallcolour.slideshow_picture(str(show)) == ""            # only a full path
+    show.write_text("<background><static><file>")
+    assert wallcolour.slideshow_picture(str(show)) == ""
+    show.write_text("<b>" + "x" * (wallcolour.SLIDESHOW_MAX + 1) + "</b>")
+    assert wallcolour.slideshow_picture(str(show)) == ""
+
+
 def test_wallpaper_settings_are_normalized():
     s = Settings(tint_from_wallpaper="yes", accent_from_wallpaper=1, tint_own="red", accent_own="javascript:",
                  wallpaper_match="/a\nb|1|2" + "x" * 5000).normalized()

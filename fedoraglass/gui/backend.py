@@ -2719,7 +2719,7 @@ class Backend(QObject):
         task.wait()
         task.deleteLater()
         self._wall_colours[path] = out if isinstance(out, dict) else \
-            {"key": wallcolour.picture_key(path), "tint": "", "accent": ""}
+            {"key": wallcolour.picture_key(path), "tint": "", "accent": "", "unreadable": True}
         if path == self._match_path():
             self._use_colours(self._wall_colours[path])
         self.wallpaperMatchChanged.emit()
@@ -2737,7 +2737,7 @@ class Backend(QObject):
         if c is None:
             def done(out: Any) -> None:
                 self._wall_colours[path] = out if isinstance(out, dict) else \
-                    {"key": wallcolour.picture_key(path), "tint": "", "accent": ""}
+                    {"key": wallcolour.picture_key(path), "tint": "", "accent": "", "unreadable": True}
                 self.wallpaperMatchChanged.emit()
                 self.apply()
 
@@ -2793,6 +2793,8 @@ class Backend(QObject):
         if not path:
             return "There's no wallpaper picture to take a colour from, so the colour stays as it is."
         c = self._known_colours(path)
+        if c is not None and c.get("unreadable"):
+            return "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
         if c is not None and not c["tint"]:
             return "Your wallpaper has hardly any colour in it, so the colour stays as it is."
         return ""
