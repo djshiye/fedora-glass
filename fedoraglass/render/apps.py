@@ -679,8 +679,10 @@ def _firefox_vars(t: Tokens) -> dict[str, str]:
     """Firefox's own colour properties, opaque (Firefox windows can't be see-through).
     Both names are set where Firefox renamed one: the first is the name in current Firefox
     (the ones the theme API sets, see ThemeVariableMap.sys.mjs), the second the one in ESR 140."""
-    frame = _o(t.window)
     tool = _o(t.view.mix(t.window_chrome, 0.5))
+    # A touch of the text colour, so the tab strip stands apart from the toolbar under it
+    # (the plain window colour is nearly the toolbar's in the light style).
+    frame = _o(t.window.mix(t.fg, 0.05))
     field = _o(frame.mix(t.fg, 0.08))
     popup = _o(t.popover.mix(frame, 0.3))
     line = _o(frame.mix(t.fg, 0.14))

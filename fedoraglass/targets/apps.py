@@ -385,7 +385,8 @@ class Firefox(AppTarget):
     """Opt-in: off until the user turns it on (settings.OPT_IN_TARGETS)."""
     id: str = "firefox-theme"
     name: str = "Firefox"
-    summary: str = "Fedora Glass colours for Firefox's toolbars, tabs and menus. Off until you turn it on."
+    summary: str = ("Fedora Glass colours for Firefox's toolbars, tabs and menus. Your Firefox profiles "
+                    "are only changed if you turn this on.")
     plain: str = ("Adds a Fedora Glass style sheet to each Firefox profile and one line to its "
                   "userChrome.css, userContent.css and user.js. Restore original takes them away.")
     # Both palettes are in the style sheet; Firefox picks one by itself.

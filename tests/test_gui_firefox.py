@@ -9,7 +9,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6.QtGui")
 
-from tests.test_gui_backend import FakeEngine, FakeEnv, _KEEP, app  # noqa: E402,F401
+from test_gui_backend import FakeEngine, FakeEnv, _KEEP, app  # noqa: E402,F401
 from fedoraglass import settings as settings_mod  # noqa: E402
 from fedoraglass.targets import apps as ta  # noqa: E402
 

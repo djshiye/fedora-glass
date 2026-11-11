@@ -17,9 +17,10 @@ from test_gui_backend import app, home, make_backend  # noqa: E402,F401
 
 def test_backend_hands_the_preview_the_app_switches_and_terminal_colours(make_backend):
     b = make_backend()
-    assert b.property("targetStates") == {}
+    # Opt-in parts (the Firefox theme) are listed as off: for the preview a missing id is on.
+    assert b.property("targetStates") == {"firefox-theme": False}
     b.setTargetEnabled("gtk4", False)
-    assert b.property("targetStates") == {"gtk4": False}
+    assert b.property("targetStates") == {"firefox-theme": False, "gtk4": False}
     pal = b.property("terminalPalettes")
     assert set(pal) == {"dark", "light"}
     assert {"bg", "fg", "green", "blue", "yellow", "dim", "cursor"} <= set(pal["dark"])
