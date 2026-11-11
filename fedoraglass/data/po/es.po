@@ -2715,8 +2715,8 @@ msgid "Always without glass: %1"
 msgstr "Siempre sin cristal: %1"
 
 #: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:28
-msgid "Their windows get no glass behind them. Handy for apps that draw their own solid windows."
-msgstr "Sus ventanas no llevan cristal detrás. Útil para aplicaciones que dibujan sus propias ventanas sólidas."
+msgid "Their windows get a plain solid background instead of glass, which is also lighter on the graphics card."
+msgstr "Sus ventanas reciben un fondo sólido y sencillo en lugar del cristal, lo que también es más ligero para la tarjeta gráfica."
 
 #: fedoraglass/gui/qml/FedoraGlass/NoGlassCard.qml:30
 msgid "Take every app off this list"

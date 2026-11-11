@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
-// Apps without glass: the user's own list of apps whose windows get no glass behind them,
+// Apps without glass: the user's own list of apps whose windows get a solid background, not glass,
 // with Add (a picker of the installed apps) and Remove, and the ones that never get it.
 Card {
     id: root
@@ -25,7 +25,7 @@ Card {
                 width: parent.width - addBtn.width - 16
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Apps without glass")
-                caption: qsTr("Their windows get no glass behind them. Handy for apps that draw their own solid windows.")
+                caption: qsTr("Their windows get a plain solid background instead of glass, which is also lighter on the graphics card.")
                 resetKeys: ["no_glass_apps"]
                 resetTip: qsTr("Take every app off this list")
             }

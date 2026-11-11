@@ -16,7 +16,10 @@ export const DEFAULTS = Object.freeze({
     panel: {enabled: true, behind: 'windows', look: {}},
     menus: {enabled: true, behind: 'windows', look: {}},
     // App windows: a narrower lens than the menus, and no colour bleed.
-    windows: {enabled: true, behind: 'windows', radius: 12, skip: [],
+    // skip: the apps whose windows get no glass, the built-in ones first; solid: the
+    // user's own ones among them (its tail), whose windows get a solid backdrop in
+    // solidColor instead (windows.js).
+    windows: {enabled: true, behind: 'windows', radius: 12, skip: [], solid: [], solidColor: '#242424',
         look: {refraction: 14, bend: 16, dispersion: 0.2, depth: 0.1, highlight: 0.45, bleed: 0, blur: 30}},
     overview: {enabled: true, blur: 40, brightness: 0.7},
     desktop: {startOnDesktop: false, overviewOff: false},
@@ -73,8 +76,6 @@ function cleanSurface(raw, def) {
         out.blur = num(raw.blur, def.blur, 0, 100);
     if ('brightness' in def)
         out.brightness = num(raw.brightness, def.brightness, 0, 1);
-    if ('skip' in def && Array.isArray(raw.skip))
-        out.skip = raw.skip.filter(s => typeof s === 'string' && s.length < 200).slice(0, 200);
     if ('look' in def && raw.look && typeof raw.look === 'object')
         out.look = {...def.look, ...raw.look};
     return out;
@@ -101,6 +102,26 @@ function cleanLock(raw) {
         out[k] = list.includes(raw[k]) ? raw[k] : def[k];
     out.widgets = cleanWidgets(raw.widgets);
     return out;
+}
+
+const SKIP_MAX = 200;
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * The apps without glass (windows.skip): at most 200 ids of under 200 characters. The
+ * app writes the built-in ones first and the user's own from solidFrom on; those last
+ * are `solid` (the tail of skip), and their windows get a solid backdrop in solidColor
+ * (the theme's window colour, made opaque). A file without solidFrom has none.
+ */
+export function cleanSkip(raw) {
+    const w = raw && typeof raw === 'object' ? raw : {};
+    const list = Array.isArray(w.skip) ? w.skip : [];
+    const from = Number.isInteger(w.solidFrom) ? Math.min(Math.max(w.solidFrom, 0), list.length) : list.length;
+    const ok = s => typeof s === 'string' && s.length && s.length < 200;
+    const builtIn = list.slice(0, from).filter(ok);
+    const skip = [...builtIn, ...list.slice(from).filter(ok)].slice(0, SKIP_MAX);
+    return {skip, solid: skip.slice(builtIn.length),
+        solidColor: typeof w.solidColor === 'string' && HEX6.test(w.solidColor) ? w.solidColor.toLowerCase() : DEFAULTS.windows.solidColor};
 }
 
 const MESSAGE_MAX = 120;
@@ -146,6 +167,7 @@ export function parse(text) {
     cfg.desktop = {};
     for (const [k, v] of Object.entries(DEFAULTS.desktop))
         cfg.desktop[k] = typeof desktop[k] === 'boolean' ? desktop[k] : v;
+    Object.assign(cfg.windows, cleanSkip(raw.windows));
     // Terminal windows can have their own look; it starts from the app windows' one.
     const tl = raw.windows && typeof raw.windows === 'object' ? raw.windows.terminalLook : null;
     cfg.windows.terminalLook = tl && typeof tl === 'object' ? cleanLook({...cfg.windows.look, ...tl}, cfg.windows.look) : null;

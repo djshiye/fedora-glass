@@ -5,6 +5,7 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
+import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {SwitcherPopup} from 'resource:///org/gnome/shell/ui/switcherPopup.js';
@@ -96,6 +97,38 @@ export function withoutGlass(ids, skip) {
     return ids.some(id => want.has(id.toLowerCase()) || NO_GLASS.test(id) || OWN_APP.test(id));
 }
 
+// The built-in part of skip (all but its tail, the user's own `solid` ones), in lower case.
+const builtInOf = new WeakMap();
+function builtInSet(skip, solid) {
+    let set = builtInOf.get(skip);
+    if (!set || set.n !== solid.length) {
+        set = new Set(skip.slice(0, Math.max(0, skip.length - solid.length)).map(id => id.toLowerCase()));
+        set.n = solid.length;
+        builtInOf.set(skip, set);
+    }
+    return set;
+}
+
+/**
+ * What goes behind an app's windows: 'glass'; 'none' for the built-in apps without glass
+ * (games, video players, apps that paint their own solid windows) and Fedora Glass itself;
+ * 'solid' for an app on the user's own list (solid, the tail of skip, see config.js).
+ * Fedora Glass's GTK and Qt themes paint a window's background partly see-through, for
+ * the glass behind it to blur what lies under it: without the glass that showed the
+ * desktop sharp through the window. A solid backdrop makes it look like a plain window.
+ * An app the built-in list has too stays 'none', as before.
+ */
+export function windowKind(ids, skip, solid = []) {
+    if (!withoutGlass(ids, skip))
+        return 'glass';
+    if (!solid.length || ids.some(id => NO_GLASS.test(id) || OWN_APP.test(id)))
+        return 'none';
+    const builtIn = builtInSet(skip, solid), own = skipSet(solid);
+    if (ids.some(id => builtIn.has(id.toLowerCase())))
+        return 'none';
+    return ids.some(id => own.has(id.toLowerCase())) ? 'solid' : 'none';
+}
+
 /** The card a frameless app draws inside its window ({margin, radius}), or null. */
 export function clientCard(ids) {
     return CLIENT_CARDS.find(c => ids.some(id => c.app.test(id))) ?? null;
@@ -126,6 +159,16 @@ function isMaximized(w) {
     if (typeof w.is_maximized === 'function')
         return w.is_maximized();
     return !!(w.maximized_horizontally && w.maximized_vertically);
+}
+
+// St's px per CSS px (a style's border-radius in actor px): 1 but on a HiDPI screen
+// GNOME scales as a whole (2 on X11 at 200 %, where windows are in device px too).
+function cssScale() {
+    try {
+        return St.ThemeContext.get_for_stage(global.stage)?.scale_factor || 1;
+    } catch {
+        return 1;
+    }
 }
 
 // An unmanaged window (closing, its actor still animating) has no monitor left.
@@ -377,6 +420,12 @@ class WindowGlass {
         this._coverKey = '';       // what it hid from the windows below when last asked (see _noteCover)
         this._coverRect = null;
         this.frame = null;         // its frame when last seen (see Windows._changed)
+        // An app on the user's list: a solid backdrop instead of glass (see _showSolid).
+        this._solid = null;
+        this._solidSignals = new Signals();
+        this._solidKey = '';
+        this._solidFrame = '';
+        this._solidShape = null;   // where it is, in the actor's px, while it is in the actor
         for (const s of ['position-changed', 'size-changed', 'notify::fullscreen', 'notify::minimized',
             'notify::maximized-horizontally', 'notify::maximized-vertically', 'workspace-changed'])
             this._signals.on(this.win, s, () => this.queue());
@@ -390,7 +439,8 @@ class WindowGlass {
         this._signals.on(actor, 'destroy', () => this.destroy());
         // A closing window's actor outlives it while the close animation plays, but
         // Mutter asserts if the window is asked about its monitor once unmanaged.
-        this._signals.on(this.win, 'unmanaging', () => this.destroy());
+        // A solid backdrop stays for the close animation, and goes with the actor.
+        this._signals.on(this.win, 'unmanaging', () => this.destroy(true));
         this.update(owner.cfg.windows);
     }
 
@@ -415,14 +465,16 @@ class WindowGlass {
      */
     solidRects() {
         const a = this.actor, w = this.win;
-        if (!this._shape || !this.shown || gone(w) || a.opacity < 255 || a.scale_x !== 1 || a.scale_y !== 1 ||
-            a.translation_x !== 0 || a.translation_y !== 0 || this.pane.opacity < 255 ||
+        // A solid backdrop is as opaque as glass.
+        const solid = !!this._solidShape;
+        if ((!solid && (!this._shape || !this.shown || this.pane.opacity < 255)) || gone(w) || a.opacity < 255 ||
+            a.scale_x !== 1 || a.scale_y !== 1 || a.translation_x !== 0 || a.translation_y !== 0 ||
             ['opacity', 'scale-x', 'scale-y', 'translation-x', 'translation-y'].some(t => a.get_transition(t)))
             return [];
         // Where its glass is now (its own _place may not have run yet this frame); the
         // usual corners are the largest it has, so this never claims too much.
         const card = glassFrame(w.get_frame_rect(), clientCard(this.appIds()), isMaximized(w));
-        const r = Math.ceil(isMaximized(w) ? 0 : card.radius ?? this.settings.radius ?? 0);
+        const r = Math.ceil(isMaximized(w) ? 0 : (card.radius ?? this.settings.radius ?? 0) * (solid ? cssScale() : 1));
         return bands(card.rect, r);
     }
 
@@ -433,7 +485,8 @@ class WindowGlass {
      * on every step).
      */
     covers() {
-        if (this._settle || this.owner.seesWindows(this.win))
+        // A solid backdrop shows nothing of what is behind it, focused or not.
+        if (this._settle || (!this._solidShape && this.owner.seesWindows(this.win)))
             return [];
         return this.solidRects();
     }
@@ -444,7 +497,12 @@ class WindowGlass {
      * moved, turned or drawn through an effect (another extension's animation).
      */
     paintCover() {
-        const a = this.actor, s = this._shape;
+        const a = this.actor, s = this._shape, solid = this._solidShape;
+        if (solid) {
+            if (a.opacity < 255 || !plain(a) || a.get_effects().length)
+                return [];
+            return bands(solid, Math.ceil(solid.r));
+        }
         if (!s || !this.shown || a.opacity < 255 || this.pane.opacity < 255 || !plain(a) ||
             a.get_effects().some(e => e !== a.get_effect(NO_CULL)))
             return [];
@@ -612,8 +670,9 @@ class WindowGlass {
 
     /**
      * Why the window shows no glass now: null when it does; 'out' when its glass must
-     * also leave its actor (see _attach); 'hidden' when nobody can see it, so the glass
-     * may stay where it is until it lets go of its pictures.
+     * also leave its actor (see _attach); 'solid' for an app on the user's list, which
+     * gets a solid backdrop instead (see _showSolid); 'hidden' when nobody can see it, so
+     * the glass may stay where it is until it lets go of its pictures.
      */
     _whyNot() {
         const w = this.win, s = this.settings;
@@ -627,9 +686,12 @@ class WindowGlass {
         if (typeof w.is_client_decorated === 'function' && w.get_client_type?.() === Meta.WindowClientType.X11 &&
             !w.is_client_decorated())
             return 'out';
-        const ids = this.appIds();
-        if (withoutGlass(ids, s.skip))
+        // Full screen stays 'out' (above): nothing may sit in a full-screen window's actor.
+        const kind = windowKind(this.appIds(), s.skip, s.solid ?? []);
+        if (kind === 'none')
             return 'out';
+        if (kind === 'solid')
+            return 'solid';
         if (w.minimized)
             return 'minimized';
         // The overview, Alt+Tab, the screenshot tool and a touchpad workspace swipe show
@@ -726,6 +788,13 @@ class WindowGlass {
         // A closing window drops its glass on 'unmanaging'; one that has briefly lost
         // its monitor (a screen unplugged) just shows none until it has one again.
         const why = this._whyNot();
+        if (why === 'solid') {
+            this._hide('out');
+            this._showSolid();
+            this._noteCover(true);
+            return;
+        }
+        this._hideSolid();
         if (why) {
             this._hide(why);
             if (why === 'hidden' && this.pane && this.pane.visible)
@@ -757,12 +826,15 @@ class WindowGlass {
         this.owner.belowChanged(this, [was, this._coverRect], now);
     }
 
-    _place() {
-        const {pane, rims} = this;
+    /**
+     * Where the glass goes and its corners: the frame (or an app's own card), with the
+     * usual radius, or square corners when maximized or tiled. onWa: which of its sides
+     * (left, top, right, bottom) lie on the screen's work area.
+     */
+    _frameShape() {
         const w = this.win;
         const card = glassFrame(w.get_frame_rect(), clientCard(this.appIds()), isMaximized(w));
         const frame = card.rect;
-        const buf = w.get_buffer_rect();
         // Maximized and tiled windows have square corners and no rim on the sides
         // that meet the screen, the panel or the next tile; a floating window loses
         // only the sides that sit exactly on the screen edge.
@@ -771,9 +843,75 @@ class WindowGlass {
         const onWa = [near(frame.x, wa.x), near(frame.y, wa.y), near(frame.x + frame.width, wa.x + wa.width),
             near(frame.y + frame.height, wa.y + wa.height)];
         const snapped = isMaximized(w) || (onWa[1] && onWa[3]) || (onWa[0] && onWa[2]);
+        return {frame, onWa, snapped, r: snapped ? 0 : card.radius ?? this.settings.radius};
+    }
+
+    /**
+     * An app on the user's list: its window gets a plain solid backdrop where the glass
+     * would be, in the theme's window colour made opaque (solidColor), with the glass's
+     * corners, under the window's own surface. The themes paint a window's background
+     * partly see-through for the glass to blur what is behind it; with nothing behind,
+     * the desktop showed sharp through the window. One St box: a flat fill with GNOME's
+     * cached corner pieces, no blur, no copy of what is behind it, no shader, and nothing
+     * to redraw while windows move behind it (moving it moves its window's actor).
+     */
+    _showSolid() {
+        if (!this._solid) {
+            this._solid = new St.Widget({name: 'fedora-glass-solid', reactive: false});
+            this._solidKey = '';
+            this._solidSignals.on(this._solid, 'destroy', () => {
+                this._solidSignals.clear();
+                this._solid = null;
+                this._solidShape = null;
+            });
+        }
+        if (!this._solid.get_parent())
+            this.actor.insert_child_at_index(this._solid, 0);
+        const {frame, r} = this._frameShape();
+        const buf = this.win.get_buffer_rect();
+        const at = {x: frame.x - buf.x, y: frame.y - buf.y, width: frame.width, height: frame.height};
+        const scale = cssScale();
+        // Its own size and corners change only when the window's do: a move only moves the
+        // window's actor, which carries it along.
+        const key = `${at.x},${at.y},${at.width},${at.height},${r},${scale},${this.settings.solidColor}`;
+        if (key !== this._solidKey) {
+            this._solidKey = key;
+            this._solid.set_position(at.x, at.y);
+            this._solid.set_size(at.width, at.height);
+            this._solid.set_style(`background-color: ${this.settings.solidColor ?? '#242424'}; border-radius: ${r}px;`);
+        }
+        this._solid.show();
+        this._solidShape = {...at, r: r * scale};
+        // While it moves it hides nothing from the windows below (see covers).
+        const fk = `${frame.x},${frame.y},${frame.width},${frame.height}`;
+        if (fk !== this._solidFrame) {
+            if (this._solidFrame)
+                this._moved();
+            this._solidFrame = fk;
+        }
+    }
+
+    /** No solid backdrop (glass instead, none, or full screen): out of the window's actor. */
+    _hideSolid() {
+        this._solidShape = null;
+        this._solidFrame = '';
+        const b = this._solid;
+        if (!b)
+            return;
+        this._solidSignals.clear();
+        this._solid = null;
+        try {
+            b.destroy();
+        } catch {}   // gone with the window's actor
+    }
+
+    _place() {
+        const {pane, rims} = this;
+        const w = this.win;
+        const {frame, onWa, snapped, r} = this._frameShape();
+        const buf = w.get_buffer_rect();
         const scr = screenEdges(this.actor, frame.x, frame.y, frame.width, frame.height);
         const edges = snapped ? onWa.map((e, i) => e || scr[i]) : scr;
-        const r = snapped ? 0 : card.radius ?? this.settings.radius;
         const p = pane.pad;
         const rp = rims[0].pad;
         const q = Math.max(p, rp);
@@ -832,9 +970,7 @@ class WindowGlass {
      * fifth of a frame on software rendering). Keep none until it has settled.
      */
     _moved() {
-        if (!this.pane)
-            return;
-        for (const p of [this.pane, ...this.rims])
+        for (const p of this.pane ? [this.pane, ...this.rims] : [])
             p.setKeep(false);
         if (this._settle)
             GLib.source_remove(this._settle);
@@ -866,7 +1002,8 @@ class WindowGlass {
         this._rimHolders.forEach((h, i) => (h.visible = !!this.rims?.[i]?.visible));
     }
 
-    destroy() {
+    /** keepSolid: the window is closing; its solid backdrop stays for the close animation. */
+    destroy(keepSolid = false) {
         if (this._dead)
             return;
         this._dead = true;
@@ -877,6 +1014,12 @@ class WindowGlass {
         try {
             this._keepBelowWhole(false);
         } catch {}   // the window's actor is already gone
+        if (keepSolid) {
+            this._solidSignals.clear();
+            this._solid = this._solidShape = null;
+        } else {
+            this._hideSolid();
+        }
         this._release();
         this.owner.forget(this.actor);
     }
