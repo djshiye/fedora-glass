@@ -555,3 +555,23 @@ def test_light_dark_switch_with_two_wallpapers_is_not_a_change(qml, fake_env, tm
     cur = b._match_path(b._saved)
     b._saved = replace(b._saved, wallpaper_match=wallcolour.picture_key(cur))
     assert not b.property("wallpaperChangedSince")
+
+
+def test_a_failed_step_back_keeps_its_direction_for_the_next_apply(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.2)
+    _apply(b)
+    time.sleep(0.01)
+    b.setProperty("frost", 0.8)
+    _apply(b)
+    b._test_engine.crash = True
+    b.goToPrevious()
+    for _i in range(5):
+        b.waitIdle()
+        _spin(20)
+    assert b._apply_step == "back"                 # the Apply failed: not used up
+    b._test_engine.crash = False
+    _apply(b)
+    assert b._saved.frost == 0.2
+    assert b.property("previousIsForward")         # the look it came from is now ahead
+    assert b._apply_step == ""

@@ -1869,8 +1869,8 @@ class Backend(QObject):
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
         # The look applied until now, kept as the one to go back to once this Apply ends.
+        # The step (back or forward) is used up only once this Apply works (see done).
         was_applied, was_at, step = self._saved, self._saved_at, self._apply_step
-        self._apply_step = ""
         # Saved first, so a settings folder that can't be written stops Apply before the
         # desktop changes. The look counts as applied (_saved) only once Apply ends.
         try:
@@ -1927,6 +1927,7 @@ class Backend(QObject):
             results, self._has_backup, (self._glass_live, restart) = out
             self._saved = replace(s, undo_on_remove=uor)
             self._usable = True         # settings.json is the look the user applied now
+            self._apply_step = ""
             self._keep_previous(was_applied, was_at, step)
             from ..engine import WAITING
             rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message,
