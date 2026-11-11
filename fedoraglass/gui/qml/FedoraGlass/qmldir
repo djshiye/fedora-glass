@@ -58,3 +58,5 @@ PointerPage 1.0 PointerPage.qml
 AdvancedPage 1.0 AdvancedPage.qml
 AboutPage 1.0 AboutPage.qml
 PreviewNote 1.0 PreviewNote.qml
+NoGlassCard 1.0 NoGlassCard.qml
+AppPickerSheet 1.0 AppPickerSheet.qml

@@ -9,6 +9,7 @@ from the tokens, and follows changes to that file live.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from ..color import Color, lerp
@@ -29,6 +30,27 @@ FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js"
 WINDOW_SKIP = ("Plank", "Conky", "steam", "Steam", "discord", "Code", "code", "obsidian", "Slack",
                "brave-browser", "brave-origin", "helium", "zoom", "Claude", "firefox", "libreoffice",
                "org.prismlauncher.PrismLauncher")
+# The games and video players windows.js never gives glass (its NO_GLASS, the same pattern),
+# so the app can show them as always without glass.
+WINDOW_NO_GLASS = re.compile(
+    r"^(steam_app_\d+|steam_proton|gamescope|mpv|vlc|celluloid|io\.github\.celluloid_player\.celluloid|totem|"
+    r"org\.gnome\.totem|org\.gnome\.showtime|com\.github\.rafostar\.clapper|io\.mpv\.mpv|org\.videolan\.vlc|"
+    r"retroarch|org\.libretro\.retroarch)$", re.IGNORECASE)
+
+
+def always_without_glass(app_id: str) -> bool:
+    """Whether the extension keeps glass off this app's windows whatever the user picks."""
+    return app_id in WINDOW_SKIP or bool(WINDOW_NO_GLASS.match(app_id))
+
+
+# config.js keeps at most this many skip ids (built-in and the user's together).
+SKIP_MAX = 200
+
+
+def window_skip(s: Settings) -> list[str]:
+    """The apps whose windows get no glass: the built-in ones first, so the user's own can
+    never push them out of the extension's limit, then the user's, each once."""
+    return list(dict.fromkeys([*WINDOW_SKIP, *s.no_glass_apps]))[:SKIP_MAX]
 
 
 def extension_files() -> dict[str, str]:
@@ -226,7 +248,7 @@ def config(s: Settings, t: Tokens) -> dict:
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
         "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": scale(t.window_radius)["l"],   # the same as the GTK window corners
-                    "skip": list(WINDOW_SKIP), "look": _window_look(t, "windows"),
+                    "skip": window_skip(s), "look": _window_look(t, "windows"),
                     "terminalLook": _window_look(t, "terminal")},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},

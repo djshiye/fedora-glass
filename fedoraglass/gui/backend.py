@@ -174,6 +174,54 @@ def _desktop_entry(env: Env, desktop_id: str) -> tuple[str, str] | None:
     return None
 
 
+def _app_dirs(env: Env) -> list[Path]:
+    """Where .desktop files live, in the order the Shell looks (the first one found wins)."""
+    dirs = [env.data / "applications", env.data / "flatpak/exports/share/applications",
+            Path("/var/lib/flatpak/exports/share/applications")]
+    dirs += [Path(d) / "applications" for d in
+             (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":") if d]
+    return dirs
+
+
+def installed_apps(env: Env) -> list[dict]:
+    """Apps people can open (their .desktop files, without hidden ones), sorted by name:
+    {"id": desktop id, "name", "icon": the Icon= value, "ids": the ids a window of the app
+    carries that the extension matches (the desktop id without ".desktop", and its
+    StartupWMClass when that differs)}. Reads files: call it off the UI thread."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    for d in _app_dirs(env):
+        try:
+            files = sorted(d.glob("*.desktop"))
+        except OSError:
+            continue
+        for p in files:
+            if p.name in seen:
+                continue
+            seen.add(p.name)       # hidden or broken here hides it in the dirs after, as in the Shell
+            cp = configparser.ConfigParser(interpolation=None, strict=False)
+            try:
+                cp.read(p, encoding="utf-8")
+                sec = cp["Desktop Entry"]
+            except (configparser.Error, KeyError, OSError, UnicodeDecodeError):
+                continue
+            if sec.get("Type", "Application") != "Application" or \
+                    sec.get("NoDisplay", "").lower() == "true" or sec.get("Hidden", "").lower() == "true":
+                continue
+            stem = p.name.removesuffix(".desktop")
+            ids = [stem]
+            wm = (sec.get("StartupWMClass") or "").strip()
+            if wm and wm != stem:
+                ids.append(wm)
+            ids = settings_mod.clean_app_ids(ids)
+            if not ids:
+                continue
+            out.append({"id": p.name, "name": (sec.get("Name") or stem).strip() or stem,
+                        "icon": (sec.get("Icon") or "").strip(), "ids": ids})
+    out.sort(key=lambda a: (a["name"].casefold(), a["id"]))
+    return out
+
+
 # Saved the moment it is switched (removing the package reads it), so never "not applied yet".
 _SAVED_AT_ONCE = ("undo_on_remove",)
 
@@ -238,6 +286,8 @@ class Backend(QObject):
     noticed = Signal(str)       # a short "done" message for a toast
     restartNeededChanged = Signal()
     partialChanged = Signal()
+    installedAppsChanged = Signal()     # the app picker's list (apps without glass)
+    noGlassAppsChanged = Signal()       # the rows of apps without glass
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
@@ -323,6 +373,12 @@ class Backend(QObject):
         self._speed_watch = QFileSystemWatcher(self)
         self._speed_watch.fileChanged.connect(self._on_speed_file)
         self._speed_watch.directoryChanged.connect(self._on_speed_file)
+        # Apps without glass: the installed apps, read off the UI thread when first wanted.
+        self._apps: list[dict] = []
+        self._apps_state = "idle"           # idle, loading or ready
+        self._apps_task: _Task | None = None
+        self.settingsChanged.connect(self.noGlassAppsChanged)
+        self.installedAppsChanged.connect(self.noGlassAppsChanged)
         # GNOME's two wallpapers (picture-uri for light, picture-uri-dark for dark), as file URLs.
         self._wallpapers = self._read_wallpapers()
         self._wall_monitor: QProcess | None = None
@@ -589,7 +645,7 @@ class Backend(QObject):
                 proc.kill()
                 proc.waitForFinished(500)
                 setattr(self, name, None)
-        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None)]:
+        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None), self._apps_task]:
             if t is not None:
                 t.wait(2000)
 
@@ -2157,6 +2213,120 @@ class Backend(QObject):
             last = err.splitlines()[-1] if err else f"{distro.current().tool_name} did not finish"
             self.failed.emit(f"Your original look is back, but removing Fedora Glass failed: {last}")
         self.removeFinished.emit(False)
+
+    # ---- Shell features: apps without glass -----------------------------------------------
+    # The user's own list of apps whose windows get no glass (Settings.no_glass_apps holds the
+    # ids the extension matches), shown one row per app with its icon and name.
+    def _app_icon(self, icon: str) -> str:
+        if not icon:
+            return ""
+        if icon.startswith("/"):
+            return QUrl.fromLocalFile(icon).toString() if Path(icon).is_file() else ""
+        return f"image://lgicon/{icon}" if QIcon.hasThemeIcon(icon) else ""
+
+    @Slot()
+    def refreshInstalledApps(self) -> None:
+        """Read the installed apps again (the picker opens with apps installed since), off the UI thread."""
+        if self._apps_task is not None:
+            return
+        if self._apps_state == "idle":
+            self._apps_state = "loading"
+            self.installedAppsChanged.emit()
+        env = self._env
+        task = _Task(lambda _report: installed_apps(env), self)
+        task.finishedWith.connect(self._apps_done)
+        self._apps_task = task
+        task.start()
+
+    @Slot(object)
+    def _apps_done(self, out: Any) -> None:
+        task, self._apps_task = self._apps_task, None
+        if task is not None:
+            task.wait()
+            task.deleteLater()
+        apps = out if isinstance(out, list) else []
+        from ..render.glass import always_without_glass
+        self._apps = [{**a, "iconUrl": self._app_icon(a["icon"]),
+                       "builtIn": any(always_without_glass(i) for i in a["ids"])} for a in apps]
+        self._apps_state = "ready"
+        self.installedAppsChanged.emit()     # the rows can show names and icons now
+
+    @Property(bool, notify=installedAppsChanged)
+    def installedAppsReady(self) -> bool:
+        return self._apps_state == "ready"
+
+    def _app_of(self) -> dict[str, dict]:
+        index: dict[str, dict] = {}
+        for a in self._apps:
+            for i in a["ids"]:
+                index.setdefault(i, a)
+        return index
+
+    @Property("QVariantList", notify=installedAppsChanged)
+    def installedApps(self) -> list[dict]:
+        """For the picker: every installed app, and whether it is always without glass anyway
+        ("builtIn"). Whether it is on the list is noGlassApps' (a row keyed by its id), so
+        picking one doesn't build the picker's list again (it would jump back to the top)."""
+        return [{"id": a["id"], "name": a["name"], "icon": a["iconUrl"], "builtIn": a["builtIn"]} for a in self._apps]
+
+    def _get_no_glass_apps(self) -> list[dict]:
+        """The user's apps without glass, one row per app in the order added: {"key", "name",
+        "icon", "ids"}. An id no installed app has (removed since, or typed into the
+        settings file) is a row of its own, named by the id."""
+        index = self._app_of()
+        rows: list[dict] = []
+        by_key: dict[str, dict] = {}
+        for i in self._s.no_glass_apps:
+            a = index.get(i)
+            key = a["id"] if a else i
+            if key in by_key:
+                by_key[key]["ids"].append(i)
+                continue
+            row = {"key": key, "name": a["name"] if a else i, "icon": a["iconUrl"] if a else "", "ids": [i]}
+            by_key[key] = row
+            rows.append(row)
+        return rows
+
+    noGlassApps = Property("QVariantList", _get_no_glass_apps, notify=noGlassAppsChanged)
+
+    def _set_no_glass(self, ids: list[str]) -> None:
+        self._set("no_glass_apps", settings_mod.clean_app_ids(ids))
+
+    @Slot(str)
+    def addNoGlassApp(self, desktop_id: str) -> None:
+        """Add an installed app (by desktop id): every id its windows may carry."""
+        app = next((a for a in self._apps if a["id"] == desktop_id), None)
+        if app is None:
+            return
+        self._set_no_glass([*self._s.no_glass_apps, *app["ids"]])
+
+    @Slot(str)
+    def removeNoGlassApp(self, key: str) -> None:
+        """Take a row off the list (its key from noGlassApps), with all of its ids. An
+        installed app's key is its desktop id, so a row added as that app goes whole."""
+        row = next((r for r in self._get_no_glass_apps() if r["key"] == key), None)
+        app = next((a for a in self._apps if a["id"] == key), None)
+        drop = set(row["ids"] if row else []) | set(app["ids"] if app else [])
+        if drop:
+            self._set_no_glass([i for i in self._s.no_glass_apps if i not in drop])
+
+    @Slot(str)
+    def toggleNoGlassApp(self, desktop_id: str) -> None:
+        """The picker's rows: on the list, off it; off, on it."""
+        app = next((a for a in self._apps if a["id"] == desktop_id), None)
+        if app is None:
+            return
+        if any(i in self._s.no_glass_apps for i in app["ids"]):
+            self.removeNoGlassApp(desktop_id)
+        else:
+            self.addNoGlassApp(desktop_id)
+
+    @Property(str, constant=True)
+    def noGlassBuiltIn(self) -> str:
+        """The apps the extension always leaves without glass, in words."""
+        return ("Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, "
+                "Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and "
+                "Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed.")
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:

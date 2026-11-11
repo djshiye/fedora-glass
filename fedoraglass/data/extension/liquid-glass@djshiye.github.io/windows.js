@@ -58,6 +58,15 @@ function appIds(w) {
         .filter(id => typeof id === 'string' && id.length);
 }
 
+/**
+ * Whether an app's windows get no glass: one the user listed in the Fedora Glass app
+ * (skip, from shell-glass.json: desktop ids, WM classes, app ids), a built-in game or
+ * video player, or Fedora Glass itself. ids: the window's, as appIds gives them.
+ */
+export function withoutGlass(ids, skip) {
+    return ids.some(id => skip.includes(id) || NO_GLASS.test(id) || OWN_APP.test(id));
+}
+
 /** The card a frameless app draws inside its window ({margin, radius}), or null. */
 export function clientCard(ids) {
     return CLIENT_CARDS.find(c => ids.some(id => c.app.test(id))) ?? null;
@@ -590,7 +599,7 @@ class WindowGlass {
             !w.is_client_decorated())
             return 'out';
         const ids = this.appIds();
-        if (ids.some(id => s.skip.includes(id) || NO_GLASS.test(id) || OWN_APP.test(id)))
+        if (withoutGlass(ids, s.skip))
             return 'out';
         if (w.minimized)
             return 'minimized';
