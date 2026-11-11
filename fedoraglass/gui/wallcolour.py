@@ -88,13 +88,63 @@ def slideshow_picture(path: str) -> str:
         root = ET.fromstring(data)
     except (OSError, ET.ParseError, ValueError):
         return ""
+    def area(el) -> int:
+        try:
+            return int(el.get("width", 0)) * int(el.get("height", 0))
+        except ValueError:
+            return 0
+
     for el in root.iter():
+        if el.tag == "file" and el.find("size") is not None:
+            # <file><size width=.. height=..>/path</size>…</file>: the largest one
+            sizes = [s for s in el.findall("size") if s.text and s.text.strip()]
+            if not sizes:
+                return ""
+            pic = max(sizes, key=area).text.strip()
+            if os.path.isabs(pic) and not pic.lower().endswith(".xml") and Path(pic).is_file():
+                return pic
+            return ""
         if el.tag in ("file", "from") and el.text:
             pic = el.text.strip()
             if os.path.isabs(pic) and not pic.lower().endswith(".xml") and Path(pic).is_file():
                 return pic
             return ""
     return ""
+
+
+def _pixbuf_pixels(path: str) -> list[tuple[int, int, int]] | None:
+    """The same as read_pixels, through GdkPixbuf (GNOME's own loaders, .jxl among them),
+    scaled down while it is decoded. None when GdkPixbuf isn't there or can't read it."""
+    try:
+        import gi
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf, GLib
+    except (ImportError, ValueError):
+        return None
+    try:
+        info = GdkPixbuf.Pixbuf.get_file_info(path)
+        w, h = (info[1], info[2]) if info and info[0] is not None else (0, 0)
+        if w > 0 and h > 0:
+            k = SAMPLE / max(w, h)
+            w, h = max(1, round(w * k)), max(1, round(h * k))
+        else:
+            w = h = SAMPLE
+        pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, w, h, True)
+        if pb is None:
+            return None
+        width, height, stride, n = pb.get_width(), pb.get_height(), pb.get_rowstride(), pb.get_n_channels()
+        data = bytes(pb.get_pixels())
+    except (GLib.Error, OSError, ValueError, TypeError):
+        return None
+    if n < 3 or width <= 0 or height <= 0:
+        return None
+    out = []
+    for y in range(height):
+        row = y * stride
+        for x in range(width):
+            i = row + x * n
+            out.append((data[i], data[i + 1], data[i + 2]))
+    return out
 
 
 def read_pixels(path: str) -> list[tuple[int, int, int]] | None:
@@ -111,7 +161,7 @@ def read_pixels(path: str) -> list[tuple[int, int, int]] | None:
         r.setScaledSize(QSize(SAMPLE, SAMPLE))
     img = r.read()
     if img.isNull():
-        return None
+        return _pixbuf_pixels(path)      # e.g. .jxl, which Qt reads only with kimageformats
     out = []
     for y in range(img.height()):
         for x in range(img.width()):

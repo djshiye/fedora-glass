@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.24
+Version:        1.5.25
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -132,6 +132,25 @@ NoNewPrivileges=true
 [Install]
 WantedBy=graphical-session.target
 UNIT
+# Brings the glass up to date at the first login after an update installed while logged
+# out. Pulled in by GNOME's own session target (a link shipped here), so an upgrade turns it
+# on too: the unit has no [Install] section to enable.
+cat > %{buildroot}%{_userunitdir}/fedora-glass-before-login.service <<'UNIT'
+[Unit]
+Description=Fedora Glass: bring the glass up to date before GNOME Shell starts
+# An update installed while logged out would otherwise need a second restart (see
+# `fedora-glass before-login`). GNOME's session manager, and with it GNOME Shell, starts
+# after gnome-session-pre.target; outside GNOME nothing pulls this in.
+Before=gnome-session-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fedora-glass before-login
+TimeoutStartSec=20
+NoNewPrivileges=true
+UNIT
+install -d %{buildroot}%{_userunitdir}/gnome-session-pre.target.wants
+ln -s ../fedora-glass-before-login.service %{buildroot}%{_userunitdir}/gnome-session-pre.target.wants/fedora-glass-before-login.service
 # Turned on for every user's session at install (the preset is applied by %%post).
 install -Dm644 /dev/stdin %{buildroot}%{_userpresetdir}/80-liquid-glass.preset <<'PRESET'
 enable liquid-glass-watch.service
@@ -200,6 +219,9 @@ fi
 %{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 %{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
+%{_userunitdir}/fedora-glass-before-login.service
+%dir %{_userunitdir}/gnome-session-pre.target.wants
+%{_userunitdir}/gnome-session-pre.target.wants/fedora-glass-before-login.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
@@ -218,6 +240,9 @@ fi
 %{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 %{_datadir}/icons/fedora-glass-*/
 %{_userunitdir}/liquid-glass-watch.service
+%{_userunitdir}/fedora-glass-before-login.service
+%dir %{_userunitdir}/gnome-session-pre.target.wants
+%{_userunitdir}/gnome-session-pre.target.wants/fedora-glass-before-login.service
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
@@ -226,6 +251,14 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.25-1
+- One restart is enough after an update, also when GNOME Software installs it while you restart
+- The Colour page no longer says your wallpaper changed when only light and dark switched
+- Saving a look to a USB stick works
+- Match my wallpaper reads .jxl pictures and slideshows that list sizes
+- App names in the app pickers show in your language
+- The Open button in the Extensions app reads right in French and Italian
+
 * Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.24-1
 - The app speaks German, French, Spanish, Italian and Brazilian Portuguese, following your system language (English otherwise)
 - So do the Quick Settings Glass tile, the lock screen greeting, the app's menu entry and the login screen password prompt

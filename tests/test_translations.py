@@ -104,3 +104,16 @@ def test_check_command_passes():
     out = subprocess.run([sys.executable, "-I", str(ROOT / "packaging" / "translations.py"), "check"],
                          capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
+
+
+def test_open_the_verb_and_open_the_motion_are_told_apart():
+    from fedoraglass import i18n
+    try:
+        for lang, verb, noun in (("fr", "Ouvrir", "Ouverture"), ("it", "Apri", "Apertura"),
+                                 ("de", "Öffnen", "Öffnen"), ("es", "Abrir", "Apertura"),
+                                 ("pt_BR", "Abrir", "Abertura")):
+            i18n.reset(lang)
+            assert i18n.gettext("Open") == verb
+            assert i18n.pgettext("motion event", "Open") == noun
+    finally:
+        i18n.reset()

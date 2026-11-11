@@ -31,6 +31,7 @@ from . import looks as looks_mod
 from . import wallcolour
 from ..color import Color
 from ..env import Env
+from .. import i18n
 from ..i18n import _, N_, gettext as tr
 from ..settings import GNOME_ACCENTS, PRESETS, Settings
 
@@ -227,7 +228,13 @@ def installed_apps(env: Env) -> list[dict]:
             ids = settings_mod.clean_app_ids(ids)
             if not ids:
                 continue
-            out.append({"id": p.name, "name": (sec.get("Name") or stem).strip() or stem,
+            name = ""
+            lang = i18n.language()
+            for code in ([lang, lang.split("_")[0]] if lang else []):
+                name = (sec.get(f"Name[{code}]") or "").strip()    # the app's name in our language
+                if name:
+                    break
+            out.append({"id": p.name, "name": name or (sec.get("Name") or stem).strip() or stem,
                         "icon": (sec.get("Icon") or "").strip(), "ids": ids})
     out.sort(key=lambda a: (a["name"].casefold(), a["id"]))
     return out
@@ -1862,8 +1869,8 @@ class Backend(QObject):
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
         # The look applied until now, kept as the one to go back to once this Apply ends.
+        # The step (back or forward) is used up only once this Apply works (see done).
         was_applied, was_at, step = self._saved, self._saved_at, self._apply_step
-        self._apply_step = ""
         # Saved first, so a settings folder that can't be written stops Apply before the
         # desktop changes. The look counts as applied (_saved) only once Apply ends.
         try:
@@ -1920,6 +1927,7 @@ class Backend(QObject):
             results, self._has_backup, (self._glass_live, restart) = out
             self._saved = replace(s, undo_on_remove=uor)
             self._usable = True         # settings.json is the look the user applied now
+            self._apply_step = ""
             self._keep_previous(was_applied, was_at, step)
             from ..engine import WAITING
             rows = [{"id": r.target, "name": r.name, "status": r.status, "message": r.message,
@@ -2699,10 +2707,11 @@ class Backend(QObject):
         self.apply()
 
     # ---- colours from the wallpaper ----------------------------------------------------
-    def _match_path(self, s: Settings | None = None) -> str:
+    def _match_path(self, s: Settings | None = None, dark: bool | None = None) -> str:
         """The picture GNOME shows with this look's style (picture-uri-dark in dark)."""
         s = s or self._s
-        dark = self._system_dark if s.scheme == "auto" else s.scheme == "dark"
+        if dark is None:
+            dark = self._system_dark if s.scheme == "auto" else s.scheme == "dark"
         url = self._wallpaper_for(dark)
         return QUrl(url).toLocalFile() if url else ""
 
@@ -2794,9 +2803,14 @@ class Backend(QObject):
                 self._lock_after_apply = False
             return False
         self._use_colours(c)
-        if c["key"] != self._s.wallpaper_match:
-            self._s = replace(self._s, wallpaper_match=c["key"])
+        mark = c["key"] + ("|dark" if self._match_dark() else "|light")
+        if mark != self._s.wallpaper_match:
+            self._s = replace(self._s, wallpaper_match=mark)
         return True
+
+    def _match_dark(self, s: Settings | None = None) -> bool:
+        s = s or self._s
+        return self._system_dark if s.scheme == "auto" else s.scheme == "dark"
 
     def _get_tint_from_wallpaper(self) -> bool:
         return self._s.tint_from_wallpaper
@@ -2852,7 +2866,13 @@ class Backend(QObject):
         saved = self._saved
         if not (saved.tint_from_wallpaper or saved.accent_from_wallpaper) or not saved.wallpaper_match:
             return False
-        return wallcolour.picture_key(self._match_path(saved)) != saved.wallpaper_match
+        # The key notes which style's picture it was taken from ("|dark" / "|light"); 1.5.24
+        # saved none, and those are compared with the picture of the style showing now.
+        key, dark = saved.wallpaper_match, None
+        for tag in ("|dark", "|light"):
+            if key.endswith(tag):
+                key, dark = key[:-len(tag)], tag == "|dark"
+        return wallcolour.picture_key(self._match_path(saved, dark)) != key
 
     # ---- plumbing for tests ----------------------------------------------------------
     def settings(self) -> Settings:

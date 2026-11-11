@@ -533,3 +533,45 @@ def test_file_dialogs_load_only_when_asked_and_their_absence_is_said(qml):
         assert "qml6-module-qtquick-dialogs" in looks_.property("problemText")
     finally:
         win.close()
+
+
+def test_light_dark_switch_with_two_wallpapers_is_not_a_change(qml, fake_env, tmp_path):
+    light = _picture(tmp_path / "light.png", "#8a2be2")
+    dark = _picture(tmp_path / "dark.png", "#2e8b57")
+    bg = fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})
+    bg["picture-uri"] = f"'file://{light}'"
+    bg["picture-uri-dark"] = f"'file://{dark}'"
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("tintFromWallpaper", True)
+    _settle(lambda: not b.property("wallpaperMatchBusy"))
+    _apply(b)
+    assert not b.property("wallpaperChangedSince")
+    b._system_dark = not b._system_dark          # the system flips light/dark
+    b.wallpaperMatchChanged.emit()
+    assert not b.property("wallpaperChangedSince")
+    # an old (1.5.24) key without a style still compares with the picture showing now
+    from dataclasses import replace
+    from fedoraglass.gui import wallcolour
+    cur = b._match_path(b._saved)
+    b._saved = replace(b._saved, wallpaper_match=wallcolour.picture_key(cur))
+    assert not b.property("wallpaperChangedSince")
+
+
+def test_a_failed_step_back_keeps_its_direction_for_the_next_apply(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.2)
+    _apply(b)
+    time.sleep(0.01)
+    b.setProperty("frost", 0.8)
+    _apply(b)
+    b._test_engine.crash = True
+    b.goToPrevious()
+    for _i in range(5):
+        b.waitIdle()
+        _spin(20)
+    assert b._apply_step == "back"                 # the Apply failed: not used up
+    b._test_engine.crash = False
+    _apply(b)
+    assert b._saved.frost == 0.2
+    assert b.property("previousIsForward")         # the look it came from is now ahead
+    assert b._apply_step == ""

@@ -71,6 +71,11 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.5.25" date="2026-11-11">
+      <description>
+        <p>One restart is enough after an update, a correct wallpaper notice when light and dark switch, looks save to USB sticks, and more wallpapers work with Match my wallpaper.</p>
+      </description>
+    </release>
     <release version="1.5.24" date="2026-11-11">
       <description>
         <p>Now in German, French, Spanish, Italian and Brazilian Portuguese, following your system language.</p>

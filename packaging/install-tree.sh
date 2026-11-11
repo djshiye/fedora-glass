@@ -67,6 +67,25 @@ NoNewPrivileges=true
 WantedBy=graphical-session.target
 UNIT
 chmod 644 "$dest/usr/lib/systemd/user/liquid-glass-watch.service"
+# Brings the glass up to date at the first login after an update installed while logged
+# out. Pulled in by GNOME's own session target through the link, so an upgrade turns it on too.
+cat > "$dest/usr/lib/systemd/user/fedora-glass-before-login.service" <<'UNIT'
+[Unit]
+Description=Fedora Glass: bring the glass up to date before GNOME Shell starts
+# An update installed while logged out would otherwise need a second restart (see
+# `fedora-glass before-login`). GNOME's session manager, and with it GNOME Shell, starts
+# after gnome-session-pre.target; outside GNOME nothing pulls this in.
+Before=gnome-session-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fedora-glass before-login
+TimeoutStartSec=20
+NoNewPrivileges=true
+UNIT
+chmod 644 "$dest/usr/lib/systemd/user/fedora-glass-before-login.service"
+install -d "$dest/usr/lib/systemd/user/gnome-session-pre.target.wants"
+ln -sf ../fedora-glass-before-login.service "$dest/usr/lib/systemd/user/gnome-session-pre.target.wants/fedora-glass-before-login.service"
 
 install -Dm644 "$src/LICENSE" "$dest/usr/share/licenses/fedora-glass/LICENSE"
 install -Dm644 "$src/LICENSES/Apache-2.0.txt" "$dest/usr/share/licenses/fedora-glass/Apache-2.0.txt"

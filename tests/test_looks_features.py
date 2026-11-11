@@ -277,3 +277,80 @@ def test_wallpaper_settings_are_normalized():
     assert s.tint_own == "" and s.accent_own == ""
     assert "\n" not in s.wallpaper_match and len(s.wallpaper_match) == 4096
     assert asdict(Settings().normalized())["tint_from_wallpaper"] is False
+
+
+def test_export_works_where_chmod_is_refused(tmp_path, monkeypatch):
+    """A FAT/exFAT stick refuses chmod with EPERM: the export still has to work."""
+    lib = looks.Library(tmp_path / "looks")
+    look_id = lib.save("Mint", Settings(frost=0.5))
+    out = tmp_path / "stick/mint.json"
+    out.parent.mkdir()
+
+    def no_chmod(*a, **k):
+        raise PermissionError(1, "Operation not permitted")
+    with monkeypatch.context() as m:
+        m.setattr(os, "chmod", no_chmod)
+        lib.export(look_id, out)
+    assert json.loads(out.read_text())["name"] == "Mint"
+    assert [p.name for p in out.parent.iterdir()] == ["mint.json"]     # no temp file left
+
+
+def test_a_look_name_of_a_lone_surrogate_is_empty(tmp_path):
+    assert looks.clean_name("\ud800") == ""
+    assert looks.clean_name("Ni\udfffght") == "Night"
+
+
+def test_a_slideshow_file_with_sizes_gives_the_largest_picture(tmp_path):
+    small, big = tmp_path / "s.png", tmp_path / "b.png"
+    small.write_bytes(b"x")
+    big.write_bytes(b"x")
+    show = tmp_path / "show.xml"
+    show.write_text(f'<background><static><duration>5</duration><file>\n'
+                    f'<size width="800" height="600">{small}</size>\n'
+                    f'<size width="3840" height="2160">{big}</size>\n'
+                    f'</file></static></background>')
+    assert wallcolour.slideshow_picture(str(show)) == str(big)
+
+
+def test_a_picture_qt_cannot_read_is_read_through_gdkpixbuf(tmp_path, monkeypatch):
+    import importlib.util
+    import sys
+    import types
+    pic = tmp_path / "wall.jxl"
+    pic.write_bytes(b"not a picture qt knows")
+    calls = {}
+
+    class Pb:
+        def get_width(self): return 2
+        def get_height(self): return 1
+        def get_rowstride(self): return 8
+        def get_n_channels(self): return 4
+        def get_pixels(self): return bytes([200, 40, 40, 255, 10, 20, 30, 255, 0, 0, 0, 0])
+
+    class GLibError(Exception):
+        pass
+
+    class Pixbuf:
+        @staticmethod
+        def get_file_info(path): return (object(), 4000, 2000)
+        @staticmethod
+        def new_from_file_at_scale(path, w, h, keep):
+            calls["scale"] = (w, h, keep)
+            return Pb()
+
+    gi = types.ModuleType("gi")
+    gi.require_version = lambda *a: None
+    repo = types.ModuleType("gi.repository")
+    repo.GdkPixbuf = types.SimpleNamespace(Pixbuf=Pixbuf)
+    repo.GLib = types.SimpleNamespace(Error=GLibError)
+    gi.repository = repo
+    # read_pixels needs Qt (the quick tests run without it); the GdkPixbuf part doesn't.
+    read = wallcolour.read_pixels if importlib.util.find_spec("PySide6") else wallcolour._pixbuf_pixels
+    with monkeypatch.context() as m:
+        m.setitem(sys.modules, "gi", gi)
+        m.setitem(sys.modules, "gi.repository", repo)
+        assert read(str(pic)) == [(200, 40, 40), (10, 20, 30)]
+    assert calls["scale"] == (64, 32, True)          # scaled down while decoding
+    with monkeypatch.context() as m:                   # no gi at all: unreadable, not a crash
+        m.setitem(sys.modules, "gi", None)
+        assert read(str(pic)) is None
