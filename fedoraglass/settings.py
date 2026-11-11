@@ -195,6 +195,17 @@ class Settings:
     cursor_theme: str = "keep"
     cursor_size: int = 0
 
+    # ---- Shell features: lighter glass on battery, apps without glass, the Quick Settings switch ----
+    # On battery or in Power Saver, the glass draws at most at the lighter level (never
+    # heavier than glass_quality or auto picked); back on mains it goes back.
+    lighter_on_battery: bool = True
+    # The user's own apps whose windows get no glass, as the ids the extension matches a
+    # window by (desktop id without ".desktop", WM class, app id). The built-in ones
+    # (render/glass.py WINDOW_SKIP and windows.js NO_GLASS) always apply on top.
+    no_glass_apps: list[str] = field(default_factory=list)
+    # A "Glass" tile in GNOME's Quick Settings that pauses all the glass until the next login.
+    quick_toggle: bool = True
+
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
 
@@ -281,6 +292,10 @@ class Settings:
         raw = dict(self.targets) if isinstance(self.targets, dict) else {}
         for k in OPT_IN_TARGETS & set(s.targets):
             s.targets[k] = raw.get(k) is True
+        # ---- Shell features (lighter glass on battery, apps without glass, Quick Settings switch) ----
+        for k in ("lighter_on_battery", "quick_toggle"):
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
+        s.no_glass_apps = clean_app_ids(s.no_glass_apps)
         return s
 
 
@@ -310,6 +325,30 @@ def clean_message(raw: object) -> str:
         return ""
     text = " ".join(_CONTROL.sub(" ", raw).split())
     return text[:LOCK_MESSAGE_MAX].strip()
+
+
+# The user's apps without window glass: how many ids, and how long each may be. The
+# extension (config.js) takes at most 200 ids of under 200 characters, built-in ones included.
+NO_GLASS_APPS_MAX = 150
+APP_ID_MAX = 199
+
+
+def clean_app_ids(raw: object) -> list[str]:
+    """App ids as the extension compares them with a window's (exactly): strings with no
+    control characters, trimmed, 1..APP_ID_MAX long, each once, at most NO_GLASS_APPS_MAX."""
+    if not isinstance(raw, (list, tuple)):
+        return []
+    out: list[str] = []
+    for v in raw:
+        if not isinstance(v, str):
+            continue
+        v = v.strip()
+        if not v or len(v) > APP_ID_MAX or _CONTROL.search(v) or v in out:
+            continue
+        out.append(v)
+        if len(out) >= NO_GLASS_APPS_MAX:
+            break
+    return out
 
 
 def _clean_parts(raw: object) -> dict[str, dict]:

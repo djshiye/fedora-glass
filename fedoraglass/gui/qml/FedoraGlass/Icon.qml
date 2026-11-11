@@ -88,7 +88,9 @@ Item {
         "bluetooth": "M7 7.5 L17 16.5 L12 21 V3 L17 7.5 L7 16.5",
         "bell": "M6 16.5 V11 A6 6 0 0 1 18 11 V16.5 L19.5 18 H4.5 Z M10 20.5 H14",
         "window": "M4 5.5 H20 V18.5 H4 Z M4 9.5 H20 M6.8 7.5 H6.9 M9 7.5 H9.1",
-        "screen": "M3.5 5 H20.5 V16 H3.5 Z M9 20 H15 M12 16 V20"
+        "screen": "M3.5 5 H20.5 V16 H3.5 Z M9 20 H15 M12 16 V20",
+        // A pane of glass with two light streaks: the extension's Quick Settings tile (glass-symbolic.svg).
+        "glassPane": "M7 3.5 H17 A3.5 3.5 0 0 1 20.5 7 V17 A3.5 3.5 0 0 1 17 20.5 H7 A3.5 3.5 0 0 1 3.5 17 V7 A3.5 3.5 0 0 1 7 3.5 Z M15 7 L7 15 M17 11.5 L12.5 16"
     })
 
     Shape {

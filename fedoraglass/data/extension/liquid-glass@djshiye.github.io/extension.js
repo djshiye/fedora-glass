@@ -7,6 +7,9 @@
 // switched off: no glass on the panel, menus or windows, no copies of windows,
 // no pointer or input handlers, no desktop behaviour. Only lock.js runs, and it
 // copies nothing but the wallpaper.
+//
+// The "Glass" tile in Quick Settings (quicktoggle.js) pauses the glass for the rest of
+// the session: it comes down as in safe mode, and the next login starts with it on again.
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -18,6 +21,7 @@ import {DesktopBehaviour} from './desktop.js';
 import {LockGlass} from './lock.js';
 import {LockWidgets} from './lockwidgets.js';
 import {PopupStyle} from './popupstyle.js';
+import {GlassSwitch} from './quicktoggle.js';
 import {Safety, guarded} from './safety.js';
 import {Speed} from './speed.js';
 import {GlassManager} from './surfaces.js';
@@ -27,6 +31,9 @@ import {effectiveConfig} from './tuning.js';
 export default class FedoraGlassExtension extends Extension {
     enable() {
         this._locked = null;
+        // Paused from Quick Settings: held here only, never written anywhere, so it lasts
+        // through locking the screen and is gone at the next login.
+        this._paused = false;
         // Safe mode: if the glass keeps failing it is turned off (plain panels and
         // menus) until the Fedora Glass app turns it back on.
         this._safety = new Safety(tripped => this._safeMode(tripped));
@@ -38,6 +45,8 @@ export default class FedoraGlassExtension extends Extension {
             this._widgets?.update(cfg);
             this._animations?.update(cfg);
             this._popupStyle?.update(cfg);
+            if (this._locked === false)
+                this._syncSwitch(cfg);
         }));
         this._modeId = Main.sessionMode.connect('updated', () => this._sync());
         // User Themes leaves a listener behind at every lock (see themetidy.js).
@@ -125,6 +134,7 @@ export default class FedoraGlassExtension extends Extension {
                 this._speed = null;
             }
             this._startGlass(cfg);
+            this._syncSwitch(cfg);
             try {
                 this._rescue = new ArcMenuRescue();
             } catch (e) {
@@ -164,6 +174,8 @@ export default class FedoraGlassExtension extends Extension {
     }
 
     _startGlass(cfg) {
+        if (this._paused)
+            return;     // paused from Quick Settings until the user turns it back on
         if (this._safety?.tripped) {
             console.warn('Fedora Glass: safe mode is on, so the glass stays off. Turn it back on in the Fedora Glass app.');
             return;
@@ -219,9 +231,65 @@ export default class FedoraGlassExtension extends Extension {
             this._stopGlass();
         else if (this._locked === false && !this._manager)
             this._startGlass(this._config.value);
+        this._showSwitch();
+    }
+
+    // ---- the Quick Settings switch ----------------------------------------------------
+    /** The tile is there while the setting says so; turned off while paused, the glass comes back. */
+    _syncSwitch(cfg) {
+        const want = cfg?.quickToggle?.enabled !== false;
+        if (!want) {
+            this._dropSwitch();
+            if (this._paused)
+                this._setPaused(false);
+            return;
+        }
+        if (!this._switch) {
+            try {
+                this._switch = new GlassSwitch(this.path, paused => this._setPaused(paused));
+            } catch (e) {
+                console.error(`Fedora Glass: no Glass switch in Quick Settings: ${e}`);
+                this._switch = null;
+            }
+        }
+        this._showSwitch();
+    }
+
+    _showSwitch() {
+        try {
+            this._switch?.setState(this._paused, !!this._safety?.tripped);
+        } catch (e) {
+            logError(e, 'Fedora Glass: the Quick Settings switch');
+        }
+    }
+
+    _dropSwitch() {
+        try {
+            this._switch?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the Quick Settings switch');
+        }
+        this._switch = null;
+    }
+
+    /** Pause the glass (the safe mode path: it all comes down), or start it again. */
+    _setPaused(paused) {
+        if (paused === this._paused)
+            return;
+        this._paused = paused;
+        if (paused) {
+            this._stopGlass();
+            // A Shell that stops while paused is no crash of the glass (safety.js).
+            this._safety?.glassStopped();
+        } else if (this._locked === false && !this._manager) {
+            this._startGlass(this._config.value);
+        }
+        this._showSwitch();
     }
 
     _stopSession() {
+        // No Quick Settings on the lock screen; a pause carries on after it.
+        this._dropSwitch();
         // Glass first, so GNOME's own window animations are back before the lock screen comes up.
         this._stopGlass();
         this._safety?.glassStopped();

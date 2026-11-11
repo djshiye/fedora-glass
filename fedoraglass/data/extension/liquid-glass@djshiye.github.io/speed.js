@@ -12,6 +12,11 @@
 // So does how smoothly the last window drag drew (see _dragEnd), the real thing on
 // this PC rather than the check's redraw-everything test.
 //
+// On battery or in Power Saver (power.js), and with the app's "use lighter glass" switch
+// on, the glass draws at most at the lighter level: never heavier than the setting or
+// auto picked, and back to that once the PC is on mains again. The status then says
+// why ("battery"), so the app can tell the user.
+//
 // Nothing here runs while the screen is locked: the extension destroys it then.
 
 import Gio from 'gi://Gio';
@@ -20,6 +25,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {setQuality, glassRenders, redrawAllPanes, shownPanes} from './glass.js';
+import {PowerWatch} from './power.js';
 import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
 
 const REQUEST = 'speed-check.json';
@@ -38,6 +44,8 @@ const DRAG_KEEP = 7200;
 // A longer wait between two frames of a drag is the pointer held still (nothing to draw),
 // not a frame that came late.
 const DRAG_IDLE_US = 250e3;
+// The level the glass draws at most on battery or in Power Saver.
+const BATTERY_LEVEL = LEVELS.indexOf('lighter');
 
 function now() {
     return GLib.get_monotonic_time();
@@ -49,6 +57,9 @@ export class Speed {
         this._onLevel = onLevel;
         this._tuner = new Tuner();
         this._quality = cleanQuality(cfg?.speed);
+        this._lighterOnBattery = cfg?.speed?.lighterOnBattery !== false;
+        this._power = {battery: false, saver: false};
+        this._powerWatch = null;
         this._level = this._fixedLevel();
         this._since = Math.floor(Date.now() / 1000);
         this._views = new Map();   // view -> {start, last}
@@ -92,6 +103,7 @@ export class Speed {
             console.warn(`Fedora Glass: no speed check: ${e}`);
             this._monitor = null;
         }
+        this._watchPower();
         this._writeStatus();
     }
 
@@ -104,15 +116,53 @@ export class Speed {
         return this._quality === 'auto' ? this._tuner.level : LEVELS.indexOf(this._quality);
     }
 
+    // ---- battery and Power Saver ---------------------------------------------------------
+    /** The lightest the glass must be now for the power state: 0 (no limit) or BATTERY_LEVEL. */
+    _powerLevel() {
+        return this._lighterOnBattery && (this._power.battery || this._power.saver) ? BATTERY_LEVEL : 0;
+    }
+
+    /** What the glass draws at: the setting's (or auto's) level, lighter on battery. */
+    _wanted() {
+        return Math.max(this._fixedLevel(), this._powerLevel());
+    }
+
+    _watchPower() {
+        if (this._lighterOnBattery && !this._powerWatch) {
+            try {
+                this._powerWatch = new PowerWatch(state => this._powerChanged(state));
+            } catch (e) {
+                console.warn(`Fedora Glass: no lighter glass on battery: ${e}`);
+                this._powerWatch = null;
+            }
+        } else if (!this._lighterOnBattery && this._powerWatch) {
+            this._powerWatch.destroy();
+            this._powerWatch = null;
+            this._power = {battery: false, saver: false};
+        }
+    }
+
+    _powerChanged(state) {
+        this._power = {battery: !!state?.battery, saver: !!state?.saver};
+        if (!this._check)
+            this._setLevel(this._wanted());
+        this._writeStatus();
+    }
+
     update(cfg) {
         const q = cleanQuality(cfg?.speed);
-        if (q === this._quality)
+        const battery = cfg?.speed?.lighterOnBattery !== false;
+        if (q === this._quality && battery === this._lighterOnBattery)
             return;
-        this._quality = q;
-        this._tuner.reset();
-        this._stopRetry();
+        if (q !== this._quality) {
+            this._quality = q;
+            this._tuner.reset();
+            this._stopRetry();
+        }
+        this._lighterOnBattery = battery;
+        this._watchPower();
         if (!this._check)
-            this._setLevel(this._fixedLevel());
+            this._setLevel(this._wanted());
         this._writeStatus();
     }
 
@@ -170,12 +220,14 @@ export class Speed {
             this._checkFrame(v, gap, t);
             return;
         }
-        if (this._quality !== 'auto' || !drew)
+        // Auto judges only frames drawn at its own level: held at the lighter level on
+        // battery, a full-glass auto would read lighter glass's frames as its own.
+        if (this._quality !== 'auto' || !drew || this._tuner.level < this._powerLevel())
             return;
         const level = this._tuner.frame(t, frameLate(gap, paint, v.interval));
         if (level === null)
             return;
-        this._setLevel(level);
+        this._setLevel(this._wanted());
         this._scheduleRetry();
         this._writeStatus();
     }
@@ -194,7 +246,7 @@ export class Speed {
             }
             const level = this._tuner.tick(now());
             if (level !== null) {
-                this._setLevel(level);
+                this._setLevel(this._wanted());
                 this._writeStatus();
             }
             this._scheduleRetry();
@@ -376,7 +428,8 @@ export class Speed {
             this._done = this._result;
             this._tuner.limit(deepestFor(this._done), now());
         }
-        this._setLevel(this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel());
+        this._setLevel(Math.max(this._powerLevel(),
+            this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel()));
         this._scheduleRetry();
         this._writeStatus();
     }
@@ -424,11 +477,15 @@ export class Speed {
     _writeNow() {
         const reason = this._writeReason;
         this._writeReason = undefined;
+        // Lighter than the setting or auto would draw, because of the battery or Power Saver.
+        const power = !this._check && this._level > this._fixedLevel() && this._powerLevel() > this._fixedLevel()
+            ? (this._power.battery ? 'battery' : 'saver') : '';
         const status = {
             version: 1,
             quality: this._quality,
             level: LEVELS[this._level],
-            reason: reason ?? (this._quality === 'auto' ? this._tuner.reason : 'setting'),
+            reason: reason ?? (power ? 'battery' : this._quality === 'auto' ? this._tuner.reason : 'setting'),
+            power,
             since: this._since,
             check: this._result,
             lastDone: this._done,
@@ -483,6 +540,8 @@ export class Speed {
             this._monitor.cancel();
             this._monitor = null;
         }
+        this._powerWatch?.destroy();
+        this._powerWatch = null;
         this._views.clear();
         setQuality(0);
         this._onLevel = null;
