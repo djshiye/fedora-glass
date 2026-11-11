@@ -141,6 +141,15 @@ Card {
             text: root.statusText
         }
         Text {
+            objectName: "speedDrag"
+            visible: Backend.glassLive && Backend.speedDrag !== ""
+            width: parent.width
+            wrapMode: Text.WordWrap
+            color: Theme.textDim
+            font.pixelSize: Theme.fsSmall
+            text: Backend.speedDrag
+        }
+        Text {
             visible: root.running
             width: parent.width
             wrapMode: Text.WordWrap

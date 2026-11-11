@@ -880,6 +880,24 @@ class Backend(QObject):
         v = self._speed_status.get("reason")
         return v if v in ("setting", "slow", "retry", "check") else ""
 
+    def _get_speed_drag(self) -> str:
+        """The last window drag the desktop timed (speed.js writes it at the end of a drag), in
+        words: how smooth dragging really is on this PC, with no check to run. "" when none yet."""
+        d = self._speed_status.get("drag")
+        if not isinstance(d, dict):
+            return ""
+        try:
+            median, p95 = float(d["median_ms"]), float(d["p95_ms"])
+            hz, windows = float(d.get("refresh") or 60), int(d.get("windows") or 0)
+        except (KeyError, TypeError, ValueError):
+            return ""
+        if not (0 < median < 10_000 and 0 < p95 < 10_000 and 1 < hz < 1000):
+            return ""
+        fps = min(hz, 1000 / median)
+        word = "smooth" if p95 <= 1.5 * 1000 / hz else "a little uneven" if fps >= 0.6 * hz else "slow"
+        on = f" with {windows} windows open" if windows > 1 else ""
+        return f"Last window drag{on}: about {round(fps)} frames a second, {word}."
+
     def _get_speed_state(self) -> str:
         return self._speed_state
 
@@ -888,6 +906,7 @@ class Backend(QObject):
 
     speedLevel = Property(str, _get_speed_level, notify=speedChanged)
     speedReason = Property(str, _get_speed_reason, notify=speedChanged)
+    speedDrag = Property(str, _get_speed_drag, notify=speedChanged)
     speedState = Property(str, _get_speed_state, notify=speedChanged)
     speedResult = Property("QVariantMap", _get_speed_result, notify=speedChanged)
 
