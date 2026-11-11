@@ -248,7 +248,14 @@ def glass_state(env: Env) -> GlassState:
     if state in (_ERROR, _OUT_OF_DATE) and env.extension_enabled(rg.UUID):
         if state == _OUT_OF_DATE:
             return GlassState("out-of-date", version)
-        return GlassState("error", version, _gvariant_str(r.out, "error") or "")
+        error = _gvariant_str(r.out, "error") or ""
+        if not error:
+            # GNOME marks an extension as failed while it is still loading it at login
+            # (loadExtension starts at ERROR and sets the real state once the code is
+            # imported), and every real failure comes with GNOME's text. Asked in that
+            # moment, the glass is starting, not failed: the Shell parts wait for it.
+            return GlassState("not-started", version)
+        return GlassState("error", version, error)
     return GlassState("not-started", version)
 
 
