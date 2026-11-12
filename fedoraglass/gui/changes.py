@@ -140,6 +140,7 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     "quick_toggle": (N_("Glass switch in Quick Settings"), "glass", "quickToggle", onoff),
     "no_glass_apps": (N_("Apps without glass"), "windows", "noGlassCard",
                       lambda v: _("None") if not v else (_("1 app") if len(v) == 1 else _("{n} apps").format(n=len(v)))),
+    "app_glass": (N_("Glass strength for apps"), "windows", "noGlassCard", lambda v: _app_glass(v)),
 }
 # Not shown: saved the moment it is switched, or bookkeeping that follows another setting.
 HIDDEN = {"undo_on_remove", "tint_own", "accent_own", "wallpaper_match"}
@@ -156,6 +157,21 @@ MOTION_LABELS = {"gnome": N_("GNOME default"), "spring": N_("Spring"), "bounce":
                  "scalefade": N_("Scale and fade"), "off": N_("Off")}
 STYLE_LABELS = {"off": N_("Off"), "calm": N_("Calm"), "gnome": N_("GNOME"), "lively": N_("Lively"), "playful": N_("Playful"),
                 "custom": N_("Your own mix")}
+
+
+APP_GLASS_LABELS = {"solid": N_("More solid"), "clearer": N_("Clearer")}
+
+
+def _app_glass(v: Any) -> str:
+    """Per-app glass strength in words: "More solid: gimp, Code; Clearer: kitty"."""
+    if not v:
+        return _("None")
+    out = []
+    for look, word in APP_GLASS_LABELS.items():
+        ids = [i for i, x in v.items() if x == look]
+        if ids:
+            out.append(_("{look}: {apps}").format(look=tr(word), apps=", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")))
+    return "; ".join(out)
 
 
 def _row(page: str, name: str, label: str, before: str, after: str, key: str) -> dict:

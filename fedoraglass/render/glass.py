@@ -215,6 +215,67 @@ def _window_look(t: Tokens, name: str) -> dict:
     return look
 
 
+# Per-app glass strength (Settings.app_glass): "solid" and "clearer" are the windows'
+# look made more solid or clearer. Only the Shell's glass behind the window changes;
+# the GTK and Qt themes still paint the same window background over it.
+# More solid: a thicker frost, a calmer lens, duller colours, and dark glass held darker
+# (a lower ceiling, more smoke) or light glass kept lighter (more milk, a floor), so text
+# reads over a busy wallpaper. Clearer: a thinner frost and a wider lens, but never past
+# the readability rules: dark glass keeps WINDOW_CEILING, light glass keeps its milk.
+SOLID_BLUR_MIN = 40
+SOLID_CEILING = 0.18
+SOLID_HAZE = 0.35
+SOLID_LIFT = 0.8
+SOLID_FLOOR = 0.45
+CLEARER_BLUR_MIN = 16
+# The ids in shell-glass.json: at most SKIP_MAX, and about this many characters in all, so
+# the file stays far below the 64 KB config.js reads.
+APP_GLASS_CHARS = 8000
+
+
+def window_variants(t: Tokens, base: dict) -> dict[str, dict]:
+    """The look overrides behind an app's windows for "solid" and "clearer", on top of
+    the windows' look `base` (see _window_look)."""
+    blur = base["blur"]
+    solid = {"blur": min(100, max(SOLID_BLUR_MIN, round(blur * 1.6))),
+             "refraction": round(base["refraction"] * 0.5, 1), "bend": round(base["bend"] * 0.5, 1),
+             "dispersion": round(base["dispersion"] * 0.4, 3), "highlight": round(base["highlight"] * 0.8, 3),
+             "saturation": round(max(0.8, min(3.0, t.vibrancy * 0.75)), 3)}
+    clearer = {"blur": min(blur, max(CLEARER_BLUR_MIN, round(blur * 0.65))),
+               "refraction": round(min(80.0, base["refraction"] * 1.3), 1),
+               "bend": round(min(80.0, base["bend"] * 1.3), 1),
+               "dispersion": round(min(1.0, base["dispersion"] * 1.3), 3)}
+    if t.dark:
+        # The ceiling only ever comes down: white text keeps its 4.5:1 or better.
+        solid["ceiling"] = min(base.get("ceiling", WINDOW_CEILING), SOLID_CEILING)
+        solid["haze"] = SOLID_HAZE
+        if "ceiling" in base:
+            clearer["ceiling"] = base["ceiling"]
+    elif "milk" in base:
+        solid["lift"] = max(base.get("lift", 0.0), SOLID_LIFT)
+        solid["floor"] = SOLID_FLOOR
+        clearer["lift"] = base.get("lift", 0.0)      # its milk never thins: dark text stays readable
+    return {"solid": solid, "clearer": clearer}
+
+
+def app_glass(s: Settings) -> dict[str, str]:
+    """The user's per-app glass strength for the extension: lower-case id -> "solid" or
+    "clearer", without the apps on the no-glass list (that list wins), within SKIP_MAX ids
+    and APP_GLASS_CHARS characters."""
+    off = {i.casefold() for i in s.no_glass_apps}
+    out: dict[str, str] = {}
+    size = 0
+    for k, v in s.app_glass.items():
+        k = k.lower()
+        if k.casefold() in off or k in out:
+            continue
+        size += len(k) + 12
+        if len(out) >= SKIP_MAX or size > APP_GLASS_CHARS:
+            break
+        out[k] = v
+    return out
+
+
 def _lock_config(s: Settings, off: bool) -> dict:
     """The glass lock screen: one frosted sheet over the wallpaper, a glass card behind
     the password, and how the sheet slides up on unlock."""
@@ -258,6 +319,7 @@ def config(s: Settings, t: Tokens) -> dict:
               "quicksettings": t.glass_menu_edges, "calendar": t.glass_menu_edges, "overview": False}
     parts = {name: _part_config(t, name, ok) for name, ok in veiled.items()}
     menus_look = _part_config(t, "quicksettings", t.glass_menu_edges)["look"]
+    windows_look = _window_look(t, "windows")
     panel_look = _part_config(t, "panel", t.glass_panel_edges)["look"]
     return {
         "version": 1,
@@ -270,13 +332,16 @@ def config(s: Settings, t: Tokens) -> dict:
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.
         "windows": {"enabled": t.blur_app_windows, "behind": behind, "radius": scale(t.window_radius)["l"],   # the same as the GTK window corners
-                    "skip": window_skip(s), "look": _window_look(t, "windows"),
+                    "skip": window_skip(s), "look": windows_look,
                     # The user's own apps in skip (from this index on; the built-in ones come
                     # first) get a solid backdrop instead of glass, in the window colour the
                     # GTK and Qt themes paint see-through over the glass, made opaque. The
                     # watcher renders this file again on each dark/light switch.
                     "solidFrom": len(WINDOW_SKIP), "solidColor": solid_window_color(t),
-                    "terminalLook": _window_look(t, "terminal")},
+                    "terminalLook": _window_look(t, "terminal"),
+                    # Per-app glass strength: id -> "solid" or "clearer", and those two looks
+                    # (overrides on the windows' look). The no-glass list goes first.
+                    "appGlass": app_glass(s), "appLooks": window_variants(t, windows_look)},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,

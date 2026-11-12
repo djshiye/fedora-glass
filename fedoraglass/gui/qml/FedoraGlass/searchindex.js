@@ -88,7 +88,7 @@ var entries = [
     { en: "Firefox colours", title: qsTr("Firefox colours"), ew: "firefox browser mozilla theme toolbar tabs userchrome", tw: qsTr("firefox browser mozilla theme toolbar tabs userchrome"), page: "apps", name: "appsList" },
     // Shell features: lighter glass on battery, apps without glass, the Quick Settings switch
     { en: "Lighter glass on battery", title: qsTr("Lighter glass on battery"), ew: "battery power saver laptop energy lighter speed quality", tw: qsTr("battery power saver laptop energy lighter speed quality"), page: "glass", name: "lighterOnBattery" },
-    { en: "Apps without glass", title: qsTr("Apps without glass"), ew: "apps windows no glass skip exclude games video steam list", tw: qsTr("apps windows no glass skip exclude games video steam list"), page: "windows", name: "noGlassCard" },
+    { en: "Apps with their own glass", title: qsTr("Apps with their own glass"), ew: "apps without windows no glass skip exclude games video steam list more solid clearer strength per app", tw: qsTr("apps without windows no glass skip exclude games video steam list more solid clearer strength per app"), page: "windows", name: "noGlassCard" },
     { en: "Glass switch in Quick Settings", title: qsTr("Glass switch in Quick Settings"), ew: "quick settings tile pause turn off glass toggle switch menu", tw: qsTr("quick settings tile pause turn off glass toggle switch menu"), page: "glass", name: "quickToggle" },
     // Feature stream "looks"
     { en: "Save this look", title: qsTr("Save this look"), ew: "save my look name keep favourite", tw: qsTr("save my look name keep favourite"), page: "home", name: "saveLook" },

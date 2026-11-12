@@ -1261,7 +1261,7 @@ class Backend(QObject):
         what happens on removal, and the apps without glass (the list picked on this PC,
         kept like the apps that get the look; its card's Reset still empties it)."""
         return Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove,
-                        no_glass_apps=list(self._s.no_glass_apps))
+                        no_glass_apps=list(self._s.no_glass_apps), app_glass=dict(self._s.app_glass))
 
     @Property(bool, notify=settingsChanged)
     def canResetAll(self) -> bool:
@@ -2539,21 +2539,29 @@ class Backend(QObject):
         return [{"id": a["id"], "name": a["name"], "icon": a["iconUrl"], "builtIn": a["builtIn"]} for a in self._apps]
 
     def _get_no_glass_apps(self) -> list[dict]:
-        """The user's apps without glass, one row per app in the order added: {"key", "name",
-        "icon", "ids"}. An id no installed app has (removed since, or typed into the
-        settings file) is a row of its own, named by the id."""
+        """The user's apps with their own glass, one row per app in the order added: {"key",
+        "name", "icon", "ids", "glass"}, glass "none" (on the no-glass list, which wins) or
+        the app's strength, "solid" or "clearer" (Settings.app_glass). An id no installed app
+        has (removed since, or typed into the settings file) is a row of its own, named by
+        the id. A row whose choice changes keeps its place."""
         index = self._app_of()
         rows: list[dict] = []
         by_key: dict[str, dict] = {}
-        for i in self._s.no_glass_apps:
+        for i, glass in [*((i, "none") for i in self._s.no_glass_apps), *self._s.app_glass.items()]:
             a = index.get(i.casefold())
             key = a["id"] if a else i
             if key in by_key:
                 by_key[key]["ids"].append(i)
                 continue
-            row = {"key": key, "name": a["name"] if a else i, "icon": a["iconUrl"] if a else "", "ids": [i]}
+            row = {"key": key, "name": a["name"] if a else i, "icon": a["iconUrl"] if a else "", "ids": [i], "glass": glass}
             by_key[key] = row
             rows.append(row)
+        # By the ids, which stay the same when a row's choice moves them to the other list.
+        order = self.__dict__.setdefault("_app_row_order", {})
+        for r in rows:
+            for i in r["ids"]:
+                order.setdefault(i.casefold(), len(order))
+        rows.sort(key=lambda r: min(order[i.casefold()] for i in r["ids"]))
         return rows
 
     noGlassApps = Property("QVariantList", _get_no_glass_apps, notify=noGlassAppsChanged)
@@ -2563,9 +2571,12 @@ class Backend(QObject):
 
     @Slot(str)
     def addNoGlassApp(self, desktop_id: str) -> None:
-        """Add an installed app (by desktop id): every id its windows may carry."""
+        """Add an installed app (by desktop id): every id its windows may carry, without glass
+        to start with (its row then picks More solid or Clearer). Already on the list: as it is."""
         app = next((a for a in self._apps if a["id"] == desktop_id), None)
         if app is None:
+            return
+        if any(i.casefold() in {k.casefold() for k in self._s.app_glass} for i in app["ids"]):
             return
         have = {i.casefold() for i in self._s.no_glass_apps}
         self._set_no_glass([*self._s.no_glass_apps, *(i for i in app["ids"] if i.casefold() not in have)])
@@ -2574,11 +2585,45 @@ class Backend(QObject):
     def removeNoGlassApp(self, key: str) -> None:
         """Take a row off the list (its key from noGlassApps), with all of its ids. An
         installed app's key is its desktop id, so a row added as that app goes whole."""
+        drop = self._row_ids(key)
+        if drop:
+            self._set_app_lists([i for i in self._s.no_glass_apps if i.casefold() not in drop],
+                                {i: v for i, v in self._s.app_glass.items() if i.casefold() not in drop})
+
+    def _row_ids(self, key: str) -> set[str]:
+        """Every id of a row (its key from noGlassApps) and of the installed app it is, in lower case."""
         row = next((r for r in self._get_no_glass_apps() if r["key"] == key), None)
         app = next((a for a in self._apps if a["id"] == key), None)
-        drop = {i.casefold() for i in [*(row["ids"] if row else []), *(app["ids"] if app else [])]}
-        if drop:
-            self._set_no_glass([i for i in self._s.no_glass_apps if i.casefold() not in drop])
+        return {i.casefold() for i in [*(row["ids"] if row else []), *(app["ids"] if app else [])]}
+
+    def _set_app_lists(self, no_glass: list[str], app_glass: dict[str, str]) -> None:
+        """Both lists at once, as one change."""
+        try:
+            s = replace(self._s, no_glass_apps=settings_mod.clean_app_ids(no_glass),
+                        app_glass=settings_mod.clean_app_glass(app_glass)).normalized()
+        except (TypeError, ValueError):
+            return
+        if s != self._s:
+            self._s = s
+            self._changed()
+
+    @Slot(str, str)
+    def setAppGlass(self, key: str, glass: str) -> None:
+        """A row's choice: "none" (no glass), "solid" (more solid) or "clearer", for every id
+        of the row; the desktop changes on Apply."""
+        if glass not in ("none", *settings_mod.APP_GLASS_LOOKS):
+            return
+        ids = self._row_ids(key)
+        row = next((r for r in self._get_no_glass_apps() if r["key"] == key), None)
+        if row is None:
+            return
+        no_glass = [i for i in self._s.no_glass_apps if i.casefold() not in ids]
+        looks = {i: v for i, v in self._s.app_glass.items() if i.casefold() not in ids}
+        if glass == "none":
+            no_glass += row["ids"]
+        else:
+            looks.update((i, glass) for i in row["ids"])
+        self._set_app_lists(no_glass, looks)
 
     @Slot(str)
     def toggleNoGlassApp(self, desktop_id: str) -> None:
@@ -2586,7 +2631,7 @@ class Backend(QObject):
         app = next((a for a in self._apps if a["id"] == desktop_id), None)
         if app is None:
             return
-        have = {i.casefold() for i in self._s.no_glass_apps}
+        have = {i.casefold() for i in [*self._s.no_glass_apps, *self._s.app_glass]}
         if any(i.casefold() in have for i in app["ids"]):
             self.removeNoGlassApp(desktop_id)
         else:

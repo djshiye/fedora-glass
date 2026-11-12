@@ -2,13 +2,14 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
-// Pick the apps whose windows get no glass: every installed app, searchable, with a tick on
-// the ones already on the list. A click puts an app on the list or takes it off.
+// Pick the apps with their own glass: every installed app, searchable, with a tick on the ones
+// already on the list. A click puts an app on the list (without glass to start with; its row
+// on the card then picks More solid or Clearer) or takes it off.
 Sheet {
     id: sheet
     objectName: "appPicker"
-    title: qsTr("Apps without glass")
-    subtitle: qsTr("Pick the apps whose windows should get no glass. Apply to use them.")
+    title: qsTr("Apps with their own glass")
+    subtitle: qsTr("Pick apps for the list, then choose their glass there. Apply to use it.")
     iconName: "apps"
     initialFocusItem: field
 
