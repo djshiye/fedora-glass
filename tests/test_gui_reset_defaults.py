@@ -90,10 +90,11 @@ def test_every_setting_can_be_put_back(make_backend):
     """resetSettings takes every look setting back, one at a time."""
     b = make_backend()
     for f in fields(Settings):
-        # Not look settings: the apps that get the look, the remove switch (saved at once), and
-        # bookkeeping that follows another setting (what the wallpaper match put back or used).
-        from fedoraglass.gui.backend import _BOOKKEEPING
-        if f.name in ("targets", "undo_on_remove", *_BOOKKEEPING):
+        # Not look settings: the apps that get the look, the remove switch and the day and
+        # night looks (saved at once), and bookkeeping that follows another setting (what
+        # the wallpaper match put back or used).
+        from fedoraglass.gui.backend import _BOOKKEEPING, _SAVED_AT_ONCE
+        if f.name in ("targets", *_SAVED_AT_ONCE, *_BOOKKEEPING):
             continue
         b.resetDefaults()
         changed = {"parts": {"panel": {"radius": 0}}, "motion": {"open": {"preset": "off"}},
@@ -185,10 +186,11 @@ def test_every_slider_and_card_has_a_way_back(qml):
             if rk is not None:
                 keys.update(rk.toVariant() if hasattr(rk, "toVariant") else rk)
         # Settings with their own way back elsewhere: the Auto/Global chips (opacity, blur,
-        # terminal opacity), Reset fine-tune, the presets (frost, highlight), and the
-        # switches on the Apps page and the Remove card (targets, undo_on_remove).
-        own_way = {"frost", "highlight", "opacity", "blur", "terminal_opacity", "reduce_transparency",
-                   "undo_on_remove", "targets"}
+        # terminal opacity), Reset fine-tune, the presets (frost), the switches on the Apps
+        # page and the Remove card (targets, undo_on_remove), and "Same look" in the day and
+        # night pickers (look_for_light, look_for_dark).
+        own_way = {"frost", "opacity", "blur", "terminal_opacity", "reduce_transparency",
+                   "undo_on_remove", "targets", "look_for_light", "look_for_dark"}
         uncovered = {f.name for f in fields(Settings)} - keys - own_way
         assert not uncovered, f"settings no card can reset: {sorted(uncovered)}"
     finally:

@@ -3,8 +3,9 @@ import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
 // The user's own looks, after the built-in ones on Home: a row of tiles, each with a menu
-// (rename, save as a file, delete), and the sheets and file dialogs for saving, renaming,
-// sharing and adding a look. Picking one changes the editor only; Apply still applies it.
+// (update with the editor's settings, rename, save as a file, delete), and the sheets and
+// file dialogs for saving, renaming, sharing and adding a look. Saving under a name a look
+// has already asks first. Picking one changes the editor only; Apply still applies it.
 Column {
     id: root
     objectName: "savedLooks"
@@ -66,7 +67,10 @@ Column {
                 menu.lookName = modelData.name
                 const p = from.mapToItem(root, 0, from.height + 4)
                 menu.x = Math.min(p.x, root.width - menu.width)
-                menu.y = p.y
+                // Under the tile, or above it when the window ends first.
+                const ov = C.Overlay.overlay
+                const low = ov ? from.mapToItem(ov, 0, from.height + 4 + menu.height).y > ov.height - 10 : false
+                menu.y = low ? from.mapToItem(root, 0, -menu.height - 4).y : p.y
                 menu.open()
             }
         }
@@ -78,12 +82,19 @@ Column {
         objectName: "lookMenu"
         property string lookId: ""
         property string lookName: ""
-        width: 210
+        width: 250
         padding: 6
         focus: true
         closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
         background: PopupGlass { owner: menu; radius: Theme.rM; blurRadius: 40; tintAlphaDark: 0.84; tintAlphaLight: 0.88 }
         contentItem: Column {
+            MenuRow {
+                objectName: "lookUpdate"
+                iconName: "refresh"; text: qsTr("Update with current settings")
+                // Nothing to update while the editor holds this look already.
+                enabled: root.activeLook !== menu.lookId
+                onClicked: { menu.close(); Backend.updateLook(menu.lookId) }
+            }
             MenuRow {
                 objectName: "lookRename"
                 iconName: "write"; text: qsTr("Rename…")
@@ -108,7 +119,7 @@ Column {
         id: row
         property string iconName: ""
         property bool danger: false
-        width: 198
+        width: 238
         height: 36
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
@@ -121,6 +132,7 @@ Column {
         contentItem: Row {
             leftPadding: 10
             spacing: 10
+            opacity: row.enabled ? 1 : 0.45
             Icon { anchors.verticalCenter: parent.verticalCenter; name: row.iconName; size: 16; color: row.danger ? Theme.bad : Theme.textDim }
             Text { anchors.verticalCenter: parent.verticalCenter; text: row.text; color: row.danger ? Theme.bad : Theme.text; font.pixelSize: Theme.fsBody }
         }
@@ -146,6 +158,21 @@ Column {
         function done() {
             if (!saveButton.enabled)
                 return
+            // A look with this name already: ask, rather than a second tile with its name.
+            const same = renaming ? "" : Backend.lookNamed(nameField.text)
+            if (same.length) {
+                replaceSheet.lookId = same
+                replaceSheet.lookName = (root.looks.find(l => l.id === same) || {}).name || nameField.text.trim()
+                replaceSheet.typed = nameField.text
+                replaceSheet.openedByKeyboard = nameSheet.openedByKeyboard || nameField.activeFocus
+                replaceSheet.open()
+                // Closing, the replace sheet gives the keyboard back to what opened this one.
+                replaceSheet._returnTo = nameSheet._returnTo
+                replaceSheet._returnReason = nameSheet._returnReason
+                nameSheet._returnTo = null
+                nameSheet.close()
+                return
+            }
             const ok = renaming ? Backend.renameLook(lookId, nameField.text) : Backend.saveLook(nameField.text)
             if (ok.length) nameSheet.close()
         }
@@ -190,6 +217,48 @@ Column {
                 }
             }
         }
+    }
+
+    // ---- a look with that name already ---------------------------------------------------------
+    Sheet {
+        id: replaceSheet
+        objectName: "lookReplaceSheet"
+        property string lookId: ""
+        property string lookName: ""
+        property string typed: ""
+        readonly property string bothName: visible ? Backend.uniqueLookName(typed) : ""
+        title: qsTr("Replace “%1”?").arg(lookName)
+        subtitle: qsTr("You already have a look with this name. Replace puts this look in its place; Keep both saves it as “%1”.").arg(bothName)
+        iconName: "alert"
+        iconColor: Theme.warn
+        width: Math.min(540, (parent ? parent.width : 800) - 64)
+        // Enter keeps both: nothing is lost.
+        initialFocusItem: keepBoth
+        buttons: [
+            LgButton { objectName: "lookReplaceCancel"; text: qsTr("Cancel"); kind: "secondary"; onClicked: replaceSheet.close() },
+            LgButton {
+                id: keepBoth
+                objectName: "lookKeepBoth"
+                text: qsTr("Keep both")
+                kind: "secondary"
+                onClicked: {
+                    const name = replaceSheet.bothName
+                    replaceSheet.close()
+                    Backend.saveLook(name)
+                }
+            },
+            LgButton {
+                objectName: "lookReplace"
+                text: qsTr("Replace")
+                kind: "primary"
+                iconName: "check"
+                onClicked: {
+                    replaceSheet.close()
+                    Backend.replaceLook(replaceSheet.lookId)
+                }
+            }
+        ]
+        Item { width: 1; height: 1 }
     }
 
     // ---- delete -----------------------------------------------------------------------------

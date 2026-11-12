@@ -181,7 +181,7 @@ def test_changes_read_as_plain_words_with_the_page_and_control():
     rows = changes.change_rows(Settings(frost=0.6, accent="purple", blur_app_windows=False),
                                Settings(accent="blue"), system_accent="blue")
     said = {r["label"]: (r["before"], r["after"], r["page"], r["name"]) for r in rows}
-    assert said["Frost"] == ("45 %", "60 %", "glass", "glassFrost")
+    assert said["Frost"] == ("45%", "60%", "glass", "glassFrost")
     assert said["Accent"] == ("Blue", "Purple", "colour", "accentRow")
     assert said["Window glass"] == ("On", "Off", "glass", "glassAppWindows")
     assert [r["page"] for r in rows] == ["colour", "glass", "glass"]     # in sidebar order

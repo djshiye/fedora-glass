@@ -218,6 +218,12 @@ class Settings:
     # Which picture the colours were last taken from ("<path>|<mtime_ns>|<size>"), so the
     # app can say when the wallpaper changed since.
     wallpaper_match: str = ""
+    # ---- day and night looks: a saved look (its id in looks/, "" for none) for GNOME's
+    # light style and one for its dark style. When GNOME switches, the watcher puts the
+    # matching look on the desktop, while Style follows GNOME. They name looks on this PC,
+    # so they are never part of a look; the app saves them the moment they are picked.
+    look_for_light: str = ""
+    look_for_dark: str = ""
 
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
@@ -317,7 +323,20 @@ class Settings:
         if not (s.accent_own in ("", "system") or s.accent_own in GNOME_ACCENTS or _is_hex(s.accent_own)):
             s.accent_own = ""
         s.wallpaper_match = _CONTROL.sub("", s.wallpaper_match)[:4096] if isinstance(s.wallpaper_match, str) else ""
+        # ---- day and night looks ----
+        for k in ("look_for_light", "look_for_dark"):
+            if not is_look_id(getattr(s, k)):
+                setattr(s, k, "")
         return s
+
+
+_LOOK_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")
+
+
+def is_look_id(v: object) -> bool:
+    """A saved look's id: its file name in looks/ without .json. Nothing else gets near a
+    path: no dots, no slashes."""
+    return isinstance(v, str) and _LOOK_ID.fullmatch(v) is not None
 
 
 # ---- Firefox theme (opt-in parts) ----------------------------------------------------

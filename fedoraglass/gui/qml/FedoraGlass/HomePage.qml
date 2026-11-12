@@ -262,7 +262,8 @@ SettingsPage {
                     onMore: Window.window.goTo("pointer", "cursorCard")
                 }
             }
-        }
+        },
+        DayNightCard { width: parent.width }
     ]
 
     // ---- a big switch or shortcut, like a Quick Settings tile ---------------------------

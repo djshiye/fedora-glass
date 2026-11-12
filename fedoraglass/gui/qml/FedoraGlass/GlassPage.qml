@@ -58,7 +58,7 @@ SettingsPage {
                 card: false
                 divider: true
                 title: qsTr("Glass effects")
-                summary: qsTr("Bend, rainbow edge, colour bleed and 2 more")
+                summary: qsTr("Bend, rainbow edge, reflections and 3 more")
                 Column {
                     width: parent.width
                     spacing: 2
@@ -82,7 +82,7 @@ SettingsPage {
                         ResetButton {
                             id: reset
                             objectName: "cardReset"
-                            readonly property var keys: ["refraction", "dispersion", "vibrancy", "bleed", "pointer_light"]
+                            readonly property var keys: ["refraction", "dispersion", "highlight", "vibrancy", "bleed", "pointer_light"]
                             visible: Backend.changedFromDefault.some((k) => keys.indexOf(k) >= 0)
                             anchors.right: parent.right
                             text: qsTr("Reset")
@@ -107,6 +107,15 @@ SettingsPage {
                         defaultValue: Backend.defaults.dispersion
                         onMoved: (v) => { Backend.dispersion = v; page.peek() }
                         tip: qsTr("Splits light into colours along the edge, like real glass. Left is no colour fringe; right is a vivid rainbow edge.")
+                    }
+                    LabeledSlider {
+                        objectName: "edgeReflections"
+                        inline: true
+                        label: qsTr("Edge reflections")
+                        value: Backend.highlight
+                        defaultValue: Backend.defaults.highlight
+                        onMoved: (v) => { Backend.highlight = v; page.peek() }
+                        tip: qsTr("How brightly the edges of the glass catch the light. Left shows no shine; right gives bright, mirror-like edges.")
                     }
                     LabeledSlider {
                         objectName: "colourThroughGlass"
