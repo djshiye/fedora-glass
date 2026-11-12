@@ -424,7 +424,8 @@ def _pinned_check(tmp_path, workflow: str, now: dict[str, str], rc_curl: int = 0
 case "$*" in
   *auth.docker.io*) echo '{{"token":"abc","access_token":"abc"}}' ;;
   *manifests*)
-    ref="${{*##*/library/}}"; name="${{ref%%/manifests/*}}"; tag="${{ref##*/manifests/}}"
+    for url in "$@"; do :; done   # the URL is the last argument (bash and dash differ on ${{*##...}})
+    ref="${{url##*/library/}}"; name="${{ref%%/manifests/*}}"; tag="${{ref##*/manifests/}}"
     d="$(awk -v k="$name:$tag" '$1 == k {{ print $2 }}' {tmp_path}/now.txt)"
     [ -n "$d" ] || exit 22
     printf 'HTTP/2 200\r\ncontent-type: x\r\nDocker-Content-Digest: %s\r\n\r\n' "$d" ;;
