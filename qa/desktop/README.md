@@ -69,6 +69,14 @@ qa/desktop/run.sh --ubuntu-desktop         # a stock Ubuntu desktop instead (add
 qa/desktop/run.sh --stock-desktop          # stock GNOME, no extensions (add --with-dock for Dash to Dock)
 ```
 
+The test desktop image is built once and then reused for as long as nothing it is built
+from changes (`run.sh --image-info` prints its recipe, a hash of the Dockerfile and the files
+it copies; an image with a different recipe is rebuilt). On GitHub one job per GNOME version
+(`image` in `release-checks.yml`, using `.github/actions/test-image`) builds it once a day and
+every lane loads that copy from the cache, so a run no longer builds it eight times
+(`--build-only` builds it and stops). Adding a label to a pull request other than
+`release-checks` neither starts these checks nor cancels a run in progress.
+
 `--gnome 51` builds the test desktop on Ubuntu 26.10, which has GNOME 51 (Fedora 45 has it
 too), and compares against the pictures in `references/gnome51/`. GNOME 50 is the default.
 
