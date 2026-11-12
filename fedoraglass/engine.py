@@ -83,7 +83,7 @@ def pending_path() -> Path:
 def read_pending() -> set[str]:
     try:
         data = json.loads(pending_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):   # nested thousands deep: damaged
         return set()
     return {x for x in data if isinstance(x, str)} if isinstance(data, list) else set()
 
@@ -133,7 +133,7 @@ def _read_failed_parts(env: Env) -> set[str]:
         if p.is_symlink() or p.stat().st_size > 4096:
             return set()
         data = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return set()
     # Noted by another version: its failures are no try of this one's.
     if not isinstance(data, dict) or data.get("version") != __version__ or not isinstance(data.get("failed"), list):

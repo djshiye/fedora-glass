@@ -283,3 +283,11 @@ def test_render_css_high_contrast_changes_only_the_import():
     t = palette.build(Settings(), dark=True)
     plain, hc = rs.render_css(t), rs.render_css(t, high_contrast=True)
     assert hc == plain.replace("gnome-shell-dark.css", "gnome-shell-high-contrast.css")
+
+
+def test_a_pending_file_nested_too_deep_is_damaged_not_a_crash(fake_env):
+    p = engine_mod.pending_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"[" * 100_000 + b"]" * 100_000)
+    assert engine_mod.read_pending() == set()
+    assert [r.status for r in Engine(fake_env, [tg.Flatpak()]).apply(Settings())] == ["applied"]
