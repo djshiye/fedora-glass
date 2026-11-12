@@ -50,7 +50,7 @@ jobs:
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
     steps:
       - name: Tools
-        run: dnf install -y --setopt=install_weak_deps=False rpm-build systemd-rpm-macros python-rpm-macros git gh python3-pytest python3-gobject glib2-devel
+        run: dnf install -y --setopt=install_weak_deps=False rpm-build systemd-rpm-macros python-rpm-macros git gh python3-pytest python3-gobject glib2-devel desktop-file-utils appstream
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:

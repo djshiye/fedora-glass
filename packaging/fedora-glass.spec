@@ -20,6 +20,9 @@ BuildRequires:  python3-gobject
 # glib-compile-resources, the same files the package asks for below); without them they skip.
 BuildRequires:  /usr/bin/gresource
 BuildRequires:  /usr/bin/glib-compile-resources
+# For the store files' checks in %%check.
+BuildRequires:  desktop-file-utils
+BuildRequires:  appstream
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
@@ -166,6 +169,9 @@ install -Dm644 packaging/fedora-glass.repo %{buildroot}%{_sysconfdir}/yum.repos.
 install -Dm644 packaging/RPM-GPG-KEY-fedora-glass %{buildroot}%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %check
+# The files the software centres read must be valid: an invalid one is dropped silently.
+desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
+appstreamcli validate --no-net %{buildroot}%{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 # The same tests a GitHub release runs: a build that fails them never reaches dnf.
 python3 -m pytest -q tests
 

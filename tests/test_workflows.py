@@ -493,6 +493,46 @@ def test_metainfo_matches_the_desktop_file_and_the_licences():
     assert versions == sorted(versions, key=key, reverse=True)
 
 
+def test_metainfo_is_translated_like_the_desktop_file():
+    """The store text comes in the app's five languages. The summaries are the desktop
+    file's Comment[xx] lines word for word; the long text has the same shape in every language."""
+    import xml.etree.ElementTree as ET
+    ns = "{http://www.w3.org/XML/1998/namespace}lang"
+    root = ET.parse(ROOT / "data/io.github.djshiye.LiquidGlass.metainfo.xml").getroot()
+    desktop = (ROOT / "data/io.github.djshiye.LiquidGlass.desktop").read_text()
+    comments = dict(re.findall(r"^Comment\[(\w+)\]=(.*)$", desktop, re.M))
+    langs = sorted(comments)
+    assert langs == ["de", "es", "fr", "it", "pt_BR"]
+    summaries = {s.get(ns): s.text for s in root.findall("summary") if s.get(ns)}
+    assert summaries == comments
+    desc = root.find("description")
+    for tag in ("p", "li"):
+        english = [e for e in desc.iter(tag) if e.get(ns) is None]
+        for lang in langs:
+            tr = [e for e in desc.iter(tag) if e.get(ns) == lang]
+            assert len(tr) == len(english), (tag, lang)
+            assert all(e.text and e.text.strip() and e.text.strip() != en.text.strip() for e, en in zip(tr, english)), (tag, lang)
+    # The release notes stay English (they are written once per release).
+    assert not [e for r in root.iter("release") for e in r.iter() if e.get(ns)]
+
+
+def test_every_package_build_validates_the_store_files():
+    """appstreamcli and desktop-file-validate run in the rpm %check and in the deb and Arch jobs."""
+    spec = (PKG / "fedora-glass.spec").read_text()
+    check = spec.split("\n%check\n", 1)[1].split("\n%post", 1)[0]
+    assert "desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop" in check
+    assert "appstreamcli validate --no-net %{buildroot}%{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml" in check
+    assert "BuildRequires:  desktop-file-utils\n" in spec and "BuildRequires:  appstream\n" in spec
+    packages = _jobs(_text("packages.yml"))
+    for job, tools in (("deb", "appstream desktop-file-utils"), ("arch", "appstream desktop-file-utils")):
+        block = packages[job]
+        assert tools in block, job
+        assert "desktop-file-validate data/io.github.djshiye.LiquidGlass.desktop" in block, job
+        assert "appstreamcli validate --no-net data/io.github.djshiye.LiquidGlass.metainfo.xml" in block, job
+    for wf, job in (("release.yml", "rpm"), ("packages.yml", "rpm")):
+        assert "desktop-file-utils appstream" in _jobs(_text(wf))[job], wf       # rpmbuild checks BuildRequires
+
+
 def test_licences_in_the_notices_match_the_spec_and_the_other_packages():
     spec = (PKG / "fedora-glass.spec").read_text()
     license_tag = re.search(r"^License:\s+(.*)$", spec, re.M).group(1)
