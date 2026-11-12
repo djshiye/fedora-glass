@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.28
+Version:        1.6.0
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -16,6 +16,13 @@ BuildRequires:  python-rpm-macros
 BuildRequires:  python3
 BuildRequires:  python3-pytest
 BuildRequires:  python3-gobject
+# The login screen tests build a theme with the real GLib tools (gresource and
+# glib-compile-resources, the same files the package asks for below); without them they skip.
+BuildRequires:  /usr/bin/gresource
+BuildRequires:  /usr/bin/glib-compile-resources
+# For the store files' checks in %%check.
+BuildRequires:  desktop-file-utils
+BuildRequires:  appstream
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6
@@ -162,6 +169,9 @@ install -Dm644 packaging/fedora-glass.repo %{buildroot}%{_sysconfdir}/yum.repos.
 install -Dm644 packaging/RPM-GPG-KEY-fedora-glass %{buildroot}%{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %check
+# The files the software centres read must be valid: an invalid one is dropped silently.
+desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.djshiye.LiquidGlass.desktop
+appstreamcli validate --no-net %{buildroot}%{_datadir}/metainfo/io.github.djshiye.LiquidGlass.metainfo.xml
 # The same tests a GitHub release runs: a build that fails them never reaches dnf.
 python3 -m pytest -q tests
 
@@ -175,6 +185,14 @@ python3 -m pytest -q tests
 if [ $1 -eq 0 ]; then
     %{_libexecdir}/fedora-glass-undo-for-users || :
     %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+fi
+
+%postun
+# Removing the app (not an upgrade): the login screen helper kept its saved original in
+# /var/lib/liquid-glass, and the undo above deleted the files, so the folder is empty now.
+# Only an empty folder goes (a file left there stays).
+if [ $1 -eq 0 ]; then
+    rmdir %{_sharedstatedir}/liquid-glass 2>/dev/null || :
 fi
 
 %posttrans
@@ -251,6 +269,24 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Thu Nov 12 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.6.0-1
+- New: the box GNOME shows when you drag a window to a screen edge is glass now
+- New: Day and night on the Home page picks one saved look for GNOME's light style and one for dark, and switches by itself
+- New: apps can have their own glass strength (No glass, More solid, Clearer) on the Panel and windows page
+- New: Update with current settings in a saved look's menu, and a question before a second look gets the same name
+- New: an Edge reflections slider on the Glass page
+- New: Kitty, Ghostty, Alacritty, Foot and WezTerm get the glass colours; VSCodium too
+- Obsidian, VS Code, VSCodium, qBittorrent and Ptyxis installed as Flatpaks are found, and so is Firefox from Snap
+- Style set to Dark or Light is now followed by Files, Settings and other modern apps, not only by the panel
+- Apply in the app runs once instead of once per part, and switching dark and light no longer starts dozens of helper programs
+- An update installed while logged out also brings the theme files of a look applied in the app up to date
+- Remove Fedora Glass clicked right after Apply now runs; Restore original clears the warning banner; the app follows GNOME's accent colour while open
+- Sliders move more smoothly, more so with many saved looks
+- App settings folders linked from a dotfiles folder stay linked after Apply
+- High Contrast keeps GNOME's stronger outlines on the panel and menus
+- Removing Fedora Glass no longer leaves an empty folder in /var/lib
+- The store page is in German, French, Spanish, Italian and Brazilian Portuguese
+
 * Thu Nov 12 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.28-1
 - The taskbar's top edge no longer flashes as the pointer passes the middle of it, also while you press and drag
 - The pointer's light turns smoothly across menus and the taskbar instead of snapping at their middle

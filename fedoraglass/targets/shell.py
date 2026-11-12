@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 from ..i18n import _, N_, gettext as tr
 from .. import distro
@@ -20,6 +21,33 @@ SPAWN = "spawn@djshiye.github.io"
 JUST_PERFECTION = "just-perfection-desktop@just-perfection"
 THEME_NAME = "FedoraGlass"
 
+
+
+# GNOME Shell's own theme file, which holds the style sheets ours builds on: in GNOME 47
+# and later gnome-shell-dark.css, gnome-shell-light.css and gnome-shell-high-contrast.css.
+SHELL_THEME_RESOURCE = Path("/usr/share/gnome-shell/gnome-shell-theme.gresource")
+HIGH_CONTRAST_SHEET = "gnome-shell-high-contrast.css"
+_SHEET_CACHE: dict[tuple, bool] = {}
+
+
+def shell_has_sheet(name: str, resource: Path | None = None) -> bool:
+    """Whether GNOME Shell's theme file has the style sheet `name` (an older GNOME has no
+    high-contrast one). The file is read here, not run through `gresource`: the names of
+    its files are stored as they are. A file that can't be read, or doesn't look like the
+    Shell's theme (no gnome-shell-dark.css in it either), counts as not having it."""
+    resource = resource or SHELL_THEME_RESOURCE
+    try:
+        st = resource.stat()
+        if not resource.is_file() or st.st_size > 64 * 1024 * 1024:
+            return False
+        key = (str(resource), st.st_mtime_ns, st.st_size, name)
+        if key not in _SHEET_CACHE:
+            data = resource.read_bytes()
+            _SHEET_CACHE.clear()        # one theme file, one answer per name
+            _SHEET_CACHE[key] = name.encode() in data and b"gnome-shell-dark.css" in data
+        return _SHEET_CACHE[key]
+    except OSError:
+        return False
 
 
 def _need_extension(env: Env, uuid: str, label: str, package: str) -> Detection:
@@ -65,7 +93,8 @@ class GnomeShell(Target):
 
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
-        css = rs.render_css(ctx.tokens)
+        # High Contrast: GNOME's own high-contrast sheet underneath, where this GNOME has one.
+        css = rs.render_css(ctx.tokens, high_contrast=ctx.high_contrast and shell_has_sheet(HIGH_CONTRAST_SHEET))
         path = self.css_path(env)
         try:
             unchanged = path.read_text(encoding="utf-8") == css

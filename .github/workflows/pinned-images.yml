@@ -1,0 +1,30 @@
+# Once a month: are the container images pinned by digest in the workflows still the ones
+# their tags point at? The pins (`container: fedora:44@sha256:...`) keep a build from changing
+# under us, but nothing refreshes them: Dependabot can't update a `container:` line in a
+# workflow file, so the base images' security updates would never arrive. This run fails, with
+# the new digest named in the error, when a pin is out of date: one e-mail, then a one-line
+# change in the file it names (and the usual tests before it is merged). It changes nothing by
+# itself, uses no keys or tokens, only reads, and only asks the registry's public API.
+name: Pinned images
+
+on:
+  schedule:
+    - cron: "41 6 1 * *"     # the 1st of each month, 06:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  digests:
+    name: Are the pinned images current
+    if: github.repository == 'djshiye/fedora-glass'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Compare each pinned digest with the registry's
+        run: sh packaging/check-pinned-images.sh .github/workflows/*.yml

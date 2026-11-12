@@ -1079,7 +1079,7 @@ Item {
                 Row {
                     anchors.centerIn: parent; spacing: root.u(6)
                     Sym { name: "battery"; color: qs.fgQ; anchors.verticalCenter: parent.verticalCenter }
-                    Label { text: "84 %"; color: qs.fgQ; font.pixelSize: root.u(14); anchors.verticalCenter: parent.verticalCenter }
+                    Label { text: "84%"; color: qs.fgQ; font.pixelSize: root.u(14); anchors.verticalCenter: parent.verticalCenter }
                 }
             }
             Item { width: parent.width - root.u(92) - 4 * root.u(40) - 4 * root.u(10); height: 1 }

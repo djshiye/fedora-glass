@@ -44,4 +44,11 @@ if [ "$1" = purge ]; then
           /var/lib/fedora-glass/watch-was-on
     rmdir /var/lib/fedora-glass 2>/dev/null || :
 fi
+
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+    # The login screen helper keeps its saved original here (login_screen.py). prerm's undo
+    # deleted those files if the glass was on there, so on a final removal the folder is
+    # empty: it goes too, and only if it is empty (a file left there stays). Never on upgrade.
+    rmdir /var/lib/liquid-glass 2>/dev/null || :
+fi
 exit 0

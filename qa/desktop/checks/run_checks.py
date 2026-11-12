@@ -2215,7 +2215,207 @@ def check_titlebars(ctx: Ctx) -> Check:
     return c
 
 
-ALL = {"looks": check_looks, "titlebars": check_titlebars, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
+# ---------------------------------------------------------------------------------------------
+# The snap preview: a window dragged to a screen edge
+# ---------------------------------------------------------------------------------------------
+SNAP_JS = """const p = Main.wm._tilePreview; if (!p || !p.mapped || p.opacity < 250) return null;
+ const [x, y] = p.get_transformed_position(), [w, h] = p.get_transformed_size();
+ const kids = p.get_parent().get_children(), i = kids.indexOf(p);
+ const glass = kids.slice(0, i).filter(k => k.constructor.name === 'FedoraGlassPane' && k.visible).length;
+ return {box: [x, y, w, h], glass, marked: p.has_style_class_name('fedora-glass-tile')};"""
+
+_MOVE_BEGIN_JS = """const {Clutter, Meta, GLib} = imports.gi; const be = global.stage.context.get_backend();
+ const v = globalThis._lgqaVp || (globalThis._lgqaVp = be.get_default_seat().create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE));
+ const f = w.get_frame_rect(); w.activate(global.get_current_time());
+ v.notify_absolute_motion(GLib.get_monotonic_time(), f.x + f.width / 2, f.y + 14);
+ return w.begin_grab_op(Meta.GrabOp.MOVING, be.get_pointer_sprite(global.stage), global.get_current_time(), null);"""
+
+
+def _checker_wallpaper(cell: int = 24) -> tuple[dict, Path]:
+    """A sharp checkerboard over both screens: seen through glass it blurs, through a plain
+    tinted box it stays sharp. Gives back the wallpaper keys to put back."""
+    keys = ("picture-uri", "picture-uri-dark", "picture-options")
+    was = {k: lgqa.subprocess.run(["gsettings", "get", "org.gnome.desktop.background", k], env=lgqa.ENV,
+                                  capture_output=True, text=True).stdout.strip() for k in keys}
+    # Its own file per size: GNOME keeps a picture it already shows when the path is the same.
+    wall = HOME_DINO / f"lgqa-checker-{cell}.png"
+    y, x = np.mgrid[0:1440, 0:2560]
+    board = ((x // cell + y // cell) % 2).astype(bool)
+    im = np.zeros((1440, 2560, 3), np.uint8)
+    im[board], im[~board] = (240, 200, 40), (30, 60, 200)
+    lgqa.save(im, wall)
+    for k in keys[:2]:
+        lgqa.subprocess.run(["gsettings", "set", "org.gnome.desktop.background", k, wall.as_uri()], env=lgqa.ENV)
+    return was, wall
+
+
+def _put_back_wallpaper(was: dict) -> None:
+    for k, v in was.items():
+        if v:
+            lgqa.subprocess.run(["gsettings", "set", "org.gnome.desktop.background", k, v.strip("'")], env=lgqa.ENV)
+
+
+def _snap(ctx: Ctx, c: Check, wid: int, to: tuple[float, float], label: str, shot: str) -> None:
+    """Drag window wid by its title bar to the stage point `to` (a screen edge) and look at
+    GNOME's snap preview while the window is still held there."""
+    sh = ctx.sh
+    if sh.win_js(wid, _MOVE_BEGIN_JS) != "true":
+        c.add(False, f"{label}: could not start dragging the window.")
+        return
+    try:
+        w = sh.window_by_id(wid)
+        sx, sy = w["frame"][0] + w["frame"][2] / 2, w["frame"][1] + 14
+        for i in range(1, 13):                       # move in steps, the way a drag does
+            k = i / 12
+            sh.drag_to(sx + (to[0] - sx) * k, sy + (to[1] - sy) * k)
+            time.sleep(0.05)
+        sh.drag_to(*to)
+        p = None
+        end = time.monotonic() + 6
+        while time.monotonic() < end and not (p and p["glass"]):
+            settle(0.3)
+            p = sh.json(SNAP_JS)
+        settle(1.0)                                  # its slide and the glass's first picture
+        p = sh.json(SNAP_JS) or p
+        if not p:
+            c.add(False, f"{label}: GNOME showed no snap preview.")
+            return
+        a = lgqa.load(sh.shot(shot))
+        s = ctx.s
+        x, y, pw, ph = p["box"]
+        f = sh.window_by_id(wid)["frame"]
+        # Inside the preview, below the held window and away from the preview's edges.
+        top = max(y + 30, f[1] + f[3] + 40)
+        inner = (x + 40, top, pw - 80, y + ph - 40 - top)
+        if inner[2] < 80 or inner[3] < 60:          # the window covers it: take the side away from it
+            inner = (x + 40, y + 40, pw - 80, ph - 80)
+        wall = lgqa.crop(a, [v * s for v in (x + pw + 60 if x + pw + 400 < sh.json("return global.stage.width;") else x - 460,
+                                             inner[1], 360, min(inner[3], 300))])
+        seen = lgqa.crop(a, [v * s for v in inner])
+        sharp, ref = _edge_energy(seen), _edge_energy(wall)
+        img = lgqa.save(lgqa.crop(a, [v * s for v in (x - 20, y - 20, pw + 40, ph + 40)]), REPORT / f"{shot}.png")
+        c.add(p["glass"] > 0 and p["marked"],
+              f"{label}: glass sits behind the snap preview, which is marked to be nearly clear." if p["glass"] and p["marked"]
+              else f"{label}: no glass behind the snap preview (glass panes {p['glass']}, marked {p['marked']}): "
+                   "it is GNOME's flat box.", img.name)
+        ok = ref > 1 and sharp < ref * LIMITS["snap"]["max_sharpness_share"]
+        c.add(ok, f"{label}: the desktop under the preview is blurred by the glass (sharpness {sharp:.1f} against "
+              f"{ref:.1f} for the bare wallpaper)." if ok else
+              f"{label}: the desktop shows sharp through the preview (sharpness {sharp:.1f} against {ref:.1f} for the "
+              "bare wallpaper): no glass behind it.", img.name)
+    finally:
+        sh.drag_end()
+        settle(1.2)
+
+
+def check_snap(ctx: Ctx) -> Check:
+    c = Check("snap", "Glass behind the snap preview",
+              "Drags a terminal by its title bar to the left edge of the first screen and to the top edge of the "
+              "second, over a sharp checkerboard wallpaper. GNOME's snap preview (where the window will go) must "
+              "have glass behind it, the checkerboard blurred under it, and the glass must be gone once the "
+              "window is let go.")
+    sh = ctx.sh
+    sh.close_all()
+    lgqa.kill_apps()
+    was, wall = _checker_wallpaper()
+    try:
+        settle(2)
+        mons = sh.json("return Main.layoutManager.monitors.map(m => [m.x, m.y, m.width, m.height]);")
+        lgqa.open_terminal()
+        term = sh.wait_window(r"ptyxis|terminal|dino@|bash")
+        sh.put(term["id"], 300, 200, 640, 380, focus=True)
+        settle(2)
+        m0 = mons[0]
+        _snap(ctx, c, term["id"], (m0[0] + 1, m0[1] + m0[3] / 2), "Left edge of the first screen", "snap-left")
+        gone = sh.wait_for("const p = Main.wm._tilePreview; const kids = p?.get_parent()?.get_children() ?? [];"
+                           " return !kids.some(k => k.constructor.name === 'FedoraGlassPane' && k.visible);", 6)
+        c.add(gone, "Let go, the snap preview's glass is gone with it." if gone else
+              "Let go, the snap preview's glass is still showing.")
+        m1 = mons[1] if len(mons) > 1 else mons[0]
+        sh.put(term["id"], m1[0] + 300, m1[1] + 260, 640, 380, focus=True)
+        settle(1.5)
+        _snap(ctx, c, term["id"], (m1[0] + m1[2] / 2, m1[1]), "Top edge of the second screen (maximize)", "snap-top")
+        settle(1)
+    finally:
+        sh.close_all()
+        lgqa.kill_apps()
+        _put_back_wallpaper(was)
+        wall.unlink(missing_ok=True)
+        settle(2)
+    return c
+
+
+# ---------------------------------------------------------------------------------------------
+# Per-app glass strength
+# ---------------------------------------------------------------------------------------------
+def _glass_only(ctx: Ctx, wid: int, name: str) -> np.ndarray:
+    """The window's glass alone: its own content hidden, only what Fedora Glass draws under it."""
+    sh = ctx.sh
+    sh.win_js(wid, "a.get_children().filter(c => !c.name).forEach(c => c.opacity = 0); return 1;")
+    settle(1.5)
+    a = lgqa.load(sh.shot(name))
+    sh.win_js(wid, "a.get_children().forEach(c => c.opacity = 255); return 1;")
+    return a
+
+
+def check_app_glass(ctx: Ctx) -> Check:
+    c = Check("appglass", "Apps can have their own glass strength",
+              "Puts the terminal on the list as \"More solid\" in the app's settings and applies the glass, then "
+              "compares the glass alone behind a terminal and behind Files over a sharp checkerboard: the "
+              "terminal's must be clearly more frosted. Then the setting is taken off again.")
+    sh = ctx.sh
+    sh.close_all()
+    lgqa.kill_apps()
+    cfg = lgqa.HOME / ".config/liquid-glass/settings.json"
+    before = cfg.read_text()
+    was, wall = _checker_wallpaper(64)     # big squares: window glass blurs small ones away either way
+    try:
+        d = json.loads(before)
+        d["app_glass"] = {"org.gnome.Ptyxis": "solid"}
+        cfg.write_text(json.dumps(d, indent=2))
+        rc, out = run_lg("apply", "--only", "glass")
+        c.add(rc == 0, "Applied with the terminal set to More solid." if rc == 0 else f"Apply failed: {out[-300:]}")
+        rendered = json.loads((lgqa.HOME / ".config/liquid-glass/shell-glass.json").read_text())
+        on = rendered.get("windows", {}).get("appGlass", {}).get("org.gnome.ptyxis") == "solid"
+        c.add(on, "The Shell's glass settings say the terminal gets More solid glass." if on else
+              "The Shell's glass settings do not list the terminal.")
+        settle(2)
+        lgqa.launch(["ptyxis", "--new-window"], log="ptyxis")
+        term = sh.wait_window(r"ptyxis|terminal")
+        sh.put(term["id"], 120, 160, 760, 520)
+        lgqa.open_files()
+        files = sh.wait_window(r"nautilus")
+        sh.put(files["id"], 1000, 160, 760, 520)
+        settle(3)
+        s = ctx.s
+        boxes = {}
+        for name, w in (("terminal", term), ("files", files)):
+            sh.focus(w["id"])        # each on its own, focused, so neither shows the other through its glass
+            settle(1.5)
+            a = _glass_only(ctx, w["id"], f"appglass-{name}")
+            fx, fy, fw, fh = sh.window_by_id(w["id"])["frame"]
+            boxes[name] = lgqa.crop(a, [v * s for v in (fx + fw * 0.2, fy + fh * 0.3, fw * 0.6, fh * 0.5)])
+            lgqa.save(lgqa.crop(a, [v * s for v in (fx - 10, fy - 10, fw + 20, fh + 20)]), REPORT / f"appglass-{name}.png")
+        # How much of the board still shows through: the spread of brightness in the glass.
+        solid, normal = (float(lgqa.lum(boxes[k]).std()) for k in ("terminal", "files"))
+        ok = normal > 3 and solid < normal * LIMITS["appglass"]["max_solid_share"]
+        c.add(ok, f"The terminal's glass is more solid than Files' (the board shows through it at {solid:.1f} "
+              f"against {normal:.1f})." if ok else
+              f"The terminal's glass is not more solid than Files' (the board shows through it at {solid:.1f} "
+              f"against {normal:.1f}).",
+              "appglass-terminal.png", "appglass-files.png")
+    finally:
+        cfg.write_text(before)
+        run_lg("apply", "--only", "glass")
+        sh.close_all()
+        lgqa.kill_apps()
+        _put_back_wallpaper(was)
+        wall.unlink(missing_ok=True)
+        settle(2)
+    return c
+
+
+ALL = {"looks": check_looks, "titlebars": check_titlebars, "snap": check_snap, "appglass": check_app_glass, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
        "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
        "log": check_log, "safe": check_safe, "upgrade": check_upgrade, "spawn": check_spawn}
 

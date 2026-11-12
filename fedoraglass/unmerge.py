@@ -9,6 +9,7 @@ our keys go back to what they were before, and everything else stays as it is no
 A spec (WriteFile.edits) names the format and the keys:
     ("json", ("workbench.colorTheme", ...))     top-level keys of a JSON object
     ("ini", "Section", ("key", ...))            keys inside [Section] (QSettings style)
+    ("inis", (("Section", ("key", ...)), ...))   several [Section]s of one INI file (a Flatpak's GSettings keyfile)
     ("conf", ("key", ...))                      `key = value` lines (btop.conf style)
     ("block", "begin marker", "end marker")      our marked lines (Firefox's userChrome.css, user.js)
 """
@@ -113,6 +114,11 @@ def unmerge(current: str, original: str | None, spec) -> str | None:
             old = ini_get(original, section, k) if original else None
             keep = old is not None and not _names_us(old)
             out = ini_set(out, section, {k: old}) if keep else ini_del(out, section, k)
+        return out
+    if kind == "inis":
+        out = current
+        for section, keys in spec[1]:
+            out = unmerge(out, original, ("ini", section, tuple(keys)))
         return out
     if kind == "conf":
         out = current

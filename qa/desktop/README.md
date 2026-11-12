@@ -37,6 +37,8 @@ quality (which steps down when frames are late) is not exercised here.
 | Extensions come back after restarts | Switches each extension off and on in Dino's order | 1.4.2 ArcMenu red |
 | Restore original and Apply | Restore original and Apply with the start order that broke 1.4.3. After Restore original, every setting must be what it was before the first Apply, the same extensions switched on, and no Fedora Glass file left in the home folder; then only "Fedora Glass effects" turned off and Apply, and back on. Each Apply that brings the glass back must also finish the Shell theme, panel and menus at once | 1.4.3 ArcMenu red after Restore; a Restore that leaves something behind; 1.5.2 ArcMenu red and the glass left on GNOME's list after turning the effects off; 1.5.6 left the Shell theme, panel and menus waiting for a restart after Restore and Apply |
 | Pop-ups and title bars show the glass | The volume pop-up and Alt+Tab (with an app's window previews) under Just Perfection's theme; the screenshot tool's Window mode must show a picture of a window that just opened with its animation; gedit's title bar corners | 1.5.2: Alt+Tab and the volume pop-up near-black with Just Perfection's theme on; square grey corners behind gedit's title bar; 1.5.11: empty boxes instead of window pictures in the screenshot tool |
+| Glass behind the snap preview | Drags a terminal by its title bar to the left edge of the first screen and to the top edge (maximize) of the second, over a sharp checkerboard; GNOME's snap preview must have glass behind it (the board blurred under it), and the glass must go when the window is let go | up to 1.5.28 the snap preview was GNOME's flat accent box |
+| Apps can have their own glass strength | Sets the terminal to "More solid" in the settings, applies the glass, and compares the glass alone behind the terminal and behind Files over a checkerboard: the terminal's must be clearly more frosted; then takes the setting off again | a per-app strength that never reaches the Shell |
 | Locking the screen works | Lock screen and password screen against references, unlock, three times; after that one theme change must reload the Shell theme once; then the screens change scale while locked; the second screen is unplugged and plugged back in and every panel must keep its glass; the login screen's glass must look the same on every screen; GNOME's real login password prompt must be compact with no box behind it | 1.5.2 left part of a screen without lock glass after a screen change; 1.5.2 lit only the main login screen; 1.5.6 drew one big flat box around the login password prompt; 1.5.4: each lock made every later dark/light switch reload the Shell theme once more (GNOME's User Themes leak), and unplugging a screen left the other panel with no glass |
 | Quick restarts keep the glass on | Before the test login the PC restarts twice within seconds of logging in; safe mode must stay off and the glass must draw | 1.5.2 counted a clean restart as a crash and switched the glass off |
 | No errors from Fedora Glass | Apply output and GNOME Shell's log | |
@@ -69,8 +71,28 @@ qa/desktop/run.sh --ubuntu-desktop         # a stock Ubuntu desktop instead (add
 qa/desktop/run.sh --stock-desktop          # stock GNOME, no extensions (add --with-dock for Dash to Dock)
 ```
 
+The test desktop image is built once and then reused for as long as nothing it is built
+from changes (`run.sh --image-info` prints its recipe, a hash of the Dockerfile and the files
+it copies; an image with a different recipe is rebuilt). On GitHub one job per GNOME version
+(`image` in `release-checks.yml`, using `.github/actions/test-image`) builds it once a day and
+every lane loads that copy from the cache, so a run no longer builds it eight times
+(`--build-only` builds it and stops). Adding a label to a pull request other than
+`release-checks` neither starts these checks nor cancels a run in progress.
+
 `--gnome 51` builds the test desktop on Ubuntu 26.10, which has GNOME 51 (Fedora 45 has it
 too), and compares against the pictures in `references/gnome51/`. GNOME 50 is the default.
+
+`--gnome 52` is an EARLY WARNING for the next GNOME, not part of a release. It needs a base
+image that really has GNOME 52: Ubuntu's development series (`ubuntu:devel`, 27.04 "tenacious")
+still ships GNOME 51 today, and GNOME 52 is due in March 2027. `gnome-prerelease.sh` asks the
+archive and prints the base to use (`LGQA_GNOME52_BASE=mirror.gcr.io/library/ubuntu@sha256:...`)
+once Ubuntu uploads gnome-shell 52, an alpha included. The `GNOME 52 early warning` workflow
+(`gnome-52-early-warning.yml`) runs that check every Tuesday, by hand, and on a pull request with
+the `gnome-next` label; until there is a GNOME 52 it only says so on its summary page. When there
+is, it runs this desktop and the stock one on it. Inside the test only, the extension's
+`metadata.json` also lists shell 52 and GNOME Shell does not refuse the other extensions for
+their version. It borrows GNOME 51's harness rules and pictures until GNOME 52 has its own, so
+picture differences are to be expected at first: read them as a warning, not as a verdict.
 
 `--ubuntu-desktop` checks Fedora Glass on Ubuntu's own desktop as a new Ubuntu user has it:
 the Ubuntu session with Ubuntu Dock, Desktop Icons, AppIndicator and Yaru, Ubuntu's default

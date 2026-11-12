@@ -158,9 +158,14 @@ def test_paused_stylesheet_makes_the_theme_surfaces_solid_in_its_own_colours(fro
             assert color.a < 0.9, "the theme paints it see-through, which is the point"
     assert "!important" in sels["#uiGroup #panel"], "the theme's own #panel rule is !important"
     assert "transparent" in sels["#uiGroup #panel:overview"]
-    # Every fill is nearly solid.
-    for m in re.finditer(r"rgba\(\d+,\d+,\d+,([\d.]+)\)", css):
-        assert float(m.group(1)) >= rs.PAUSED_ALPHA
+    # Every fill is nearly solid, but the snap preview: it marks where a dragged window will
+    # go, over the windows there, so it is a half see-through tinted box (as GNOME's own).
+    tile = sels.pop("#uiGroup .tile-preview")
+    sels.pop("#uiGroup .tile-preview.fedora-glass-tile")
+    assert re.search(r"background-color: rgba\(\d+,\d+,\d+,0\.350\)", tile)
+    for body in sels.values():
+        for m in re.finditer(r"rgba\(\d+,\d+,\d+,([\d.]+)\)", body):
+            assert float(m.group(1)) >= rs.PAUSED_ALPHA
 
 
 def test_paused_stylesheet_follows_light_and_dark():

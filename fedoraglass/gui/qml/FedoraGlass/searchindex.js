@@ -9,6 +9,7 @@
 var entries = [
     // Home
     { en: "Look presets", title: qsTr("Look presets"), ew: "liquid clear balanced frosted solid preset style start", tw: qsTr("liquid clear balanced frosted solid preset style start"), page: "home", name: "presetRow" },
+    { en: "Day and night looks", title: qsTr("Day and night looks"), ew: "day night light dark switch automatic saved looks schedule", tw: qsTr("day night light dark switch automatic saved looks schedule"), page: "home", name: "dayNight" },
     // Colour
     { en: "Light or dark style", title: qsTr("Light or dark style"), ew: "dark light auto scheme mode night", tw: qsTr("dark light auto scheme mode night"), page: "colour", name: "schemeChoice" },
     { en: "Accent colour", title: qsTr("Accent colour"), ew: "accent color highlight system custom", tw: qsTr("accent color highlight system custom"), page: "colour", name: "accentRow" },
@@ -19,6 +20,7 @@ var entries = [
     { en: "How much glass", title: qsTr("How much glass"), ew: "frost frosted liquid clear glass amount milky", tw: qsTr("frost frosted liquid clear glass amount milky"), page: "glass", name: "glassFrost" },
     { en: "Bend", title: qsTr("Bend"), ew: "refraction lens bend edge thickness strength", tw: qsTr("refraction lens bend edge thickness strength"), page: "glass", name: "bend" },
     { en: "Rainbow edge", title: qsTr("Rainbow edge"), ew: "dispersion rainbow chromatic fringe colour edge", tw: qsTr("dispersion rainbow chromatic fringe colour edge"), page: "glass", name: "rainbowEdge" },
+    { en: "Edge reflections", title: qsTr("Edge reflections"), ew: "highlight reflections rim shine edge specular", tw: qsTr("highlight reflections rim shine edge specular"), page: "glass", name: "edgeReflections" },
     { en: "Colour through glass", title: qsTr("Colour through glass"), ew: "vibrancy saturation vivid colour through", tw: qsTr("vibrancy saturation vivid colour through"), page: "glass", name: "colourThroughGlass" },
     { en: "Colour bleed", title: qsTr("Colour bleed"), ew: "bleed glow icons light spread", tw: qsTr("bleed glow icons light spread"), page: "glass", name: "colourBleed" },
     { en: "Light follows pointer", title: qsTr("Light follows pointer"), ew: "pointer light mouse highlight follow", tw: qsTr("pointer light mouse highlight follow"), page: "glass", name: "lightFollowsPointer" },
@@ -88,7 +90,7 @@ var entries = [
     { en: "Firefox colours", title: qsTr("Firefox colours"), ew: "firefox browser mozilla theme toolbar tabs userchrome", tw: qsTr("firefox browser mozilla theme toolbar tabs userchrome"), page: "apps", name: "appsList" },
     // Shell features: lighter glass on battery, apps without glass, the Quick Settings switch
     { en: "Lighter glass on battery", title: qsTr("Lighter glass on battery"), ew: "battery power saver laptop energy lighter speed quality", tw: qsTr("battery power saver laptop energy lighter speed quality"), page: "glass", name: "lighterOnBattery" },
-    { en: "Apps without glass", title: qsTr("Apps without glass"), ew: "apps windows no glass skip exclude games video steam list", tw: qsTr("apps windows no glass skip exclude games video steam list"), page: "windows", name: "noGlassCard" },
+    { en: "Apps with their own glass", title: qsTr("Apps with their own glass"), ew: "apps without windows no glass skip exclude games video steam list more solid clearer strength per app", tw: qsTr("apps without windows no glass skip exclude games video steam list more solid clearer strength per app"), page: "windows", name: "noGlassCard" },
     { en: "Glass switch in Quick Settings", title: qsTr("Glass switch in Quick Settings"), ew: "quick settings tile pause turn off glass toggle switch menu", tw: qsTr("quick settings tile pause turn off glass toggle switch menu"), page: "glass", name: "quickToggle" },
     // Feature stream "looks"
     { en: "Save this look", title: qsTr("Save this look"), ew: "save my look name keep favourite", tw: qsTr("save my look name keep favourite"), page: "home", name: "saveLook" },

@@ -130,7 +130,7 @@ C.AbstractButton {
     }
     Rectangle { id: thumbMask; visible: false; layer.enabled: true; width: thumb.width; height: thumb.height; radius: 9 }
 
-    // A saved look's menu: rename, save as a file, delete.
+    // A saved look's menu: update, rename, save as a file, delete.
     C.AbstractButton {
         id: menuBtn
         objectName: "lookMenuButton"

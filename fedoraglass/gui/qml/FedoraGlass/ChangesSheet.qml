@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
 // "See changes": first what you changed and haven't applied yet, in plain words and by
-// page ("Frost: 45 % → 60 %"), each a click away from its control. Below, folded, every
+// page ("Frost: 45% → 60%"), each a click away from its control. Below, folded, every
 // file and setting Apply writes, per part of the desktop.
 Sheet {
     id: sheet
@@ -16,7 +16,9 @@ Sheet {
         for (const p of plan) n += p.actions.length
         return n
     }
-    readonly property var changes: Backend.changeList
+    // Only while the sheet shows (from aboutToShow on): closed, it needn't follow every slider tick.
+    property bool _showing: false
+    readonly property var changes: _showing ? Backend.changeList : []
     // The changes by page, in sidebar order: [{ page, label, rows }].
     readonly property var groups: {
         const out = []
@@ -34,7 +36,11 @@ Sheet {
         return out
     }
     property bool detailsOpen: false
-    onAboutToShow: detailsOpen = changes.length === 0
+    onAboutToShow: {
+        _showing = true
+        detailsOpen = changes.length === 0
+    }
+    onVisibleChanged: if (!visible) _showing = false
     title: qsTr("What Apply will change")
     subtitle: changes.length === 0
         ? qsTr("You haven't changed anything since your last Apply. Apply puts the same look on your desktop again.")

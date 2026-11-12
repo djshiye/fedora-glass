@@ -205,6 +205,10 @@ class Settings:
     # window by (desktop id without ".desktop", WM class, app id). The built-in ones
     # (render/glass.py WINDOW_SKIP and windows.js NO_GLASS) always apply on top.
     no_glass_apps: list[str] = field(default_factory=list)
+    # Apps whose windows get their own glass strength: id -> "clearer" or "solid" (the same
+    # ids as no_glass_apps; "normal" is no entry). Only the Shell's glass behind the window
+    # changes; the GTK and Qt themes stay as they are. The no-glass list wins over this.
+    app_glass: dict[str, str] = field(default_factory=dict)
     # A "Glass" tile in GNOME's Quick Settings that pauses all the glass until the next login.
     quick_toggle: bool = True
     # ---- feature stream "looks": the glass tint (and accent) from the wallpaper ----------
@@ -218,6 +222,12 @@ class Settings:
     # Which picture the colours were last taken from ("<path>|<mtime_ns>|<size>"), so the
     # app can say when the wallpaper changed since.
     wallpaper_match: str = ""
+    # ---- day and night looks: a saved look (its id in looks/, "" for none) for GNOME's
+    # light style and one for its dark style. When GNOME switches, the watcher puts the
+    # matching look on the desktop, while Style follows GNOME. They name looks on this PC,
+    # so they are never part of a look; the app saves them the moment they are picked.
+    look_for_light: str = ""
+    look_for_dark: str = ""
 
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
@@ -310,6 +320,7 @@ class Settings:
         for k in ("lighter_on_battery", "quick_toggle"):
             setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         s.no_glass_apps = clean_app_ids(s.no_glass_apps)
+        s.app_glass = clean_app_glass(s.app_glass)
         # ---- feature stream "looks": colours from the wallpaper ----
         for k in ("tint_from_wallpaper", "accent_from_wallpaper"):
             setattr(s, k, _bool(getattr(s, k), False))
@@ -317,7 +328,20 @@ class Settings:
         if not (s.accent_own in ("", "system") or s.accent_own in GNOME_ACCENTS or _is_hex(s.accent_own)):
             s.accent_own = ""
         s.wallpaper_match = _CONTROL.sub("", s.wallpaper_match)[:4096] if isinstance(s.wallpaper_match, str) else ""
+        # ---- day and night looks ----
+        for k in ("look_for_light", "look_for_dark"):
+            if not is_look_id(getattr(s, k)):
+                setattr(s, k, "")
         return s
+
+
+_LOOK_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")
+
+
+def is_look_id(v: object) -> bool:
+    """A saved look's id: its file name in looks/ without .json. Nothing else gets near a
+    path: no dots, no slashes."""
+    return isinstance(v, str) and _LOOK_ID.fullmatch(v) is not None
 
 
 # ---- Firefox theme (opt-in parts) ----------------------------------------------------
@@ -368,6 +392,30 @@ def clean_app_ids(raw: object) -> list[str]:
             continue
         out.append(v)
         if len(out) >= NO_GLASS_APPS_MAX:
+            break
+    return out
+
+
+# Per-app glass strength (app_glass): the choices besides "normal", and how many ids.
+APP_GLASS_LOOKS = ("clearer", "solid")
+APP_GLASS_MAX = 200
+
+
+def clean_app_glass(raw: object) -> dict[str, str]:
+    """Per-app glass strength: ids checked like clean_app_ids (no control characters,
+    trimmed, 1..APP_ID_MAX long, each once), each to one of APP_GLASS_LOOKS, at most
+    APP_GLASS_MAX. Anything else is dropped."""
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in raw.items():
+        if not isinstance(k, str) or not isinstance(v, str) or v not in APP_GLASS_LOOKS:
+            continue
+        k = k.strip()
+        if not k or len(k) > APP_ID_MAX or _CONTROL.search(k) or k in out:
+            continue
+        out[k] = v
+        if len(out) >= APP_GLASS_MAX:
             break
     return out
 
@@ -514,7 +562,11 @@ class Loaded(NamedTuple):
 
 
 def _parse(raw: bytes) -> dict:
-    data = json.loads(raw.decode("utf-8"))
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except RecursionError as err:
+        # Nested thousands deep: no settings file of ours, and damaged like any other.
+        raise ValueError("not a Fedora Glass settings file") from err
     if not isinstance(data, dict):
         raise ValueError("not a Fedora Glass settings file")
     return data

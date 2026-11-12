@@ -25,9 +25,9 @@ from PySide6.QtCore import Property, QFileSystemWatcher, QObject, QProcess, QThr
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
 from .. import APP_ID, cursors, distro, login_screen, palette
+from .. import looks as looks_mod
 from .. import settings as settings_mod
 from . import changes as changes_mod
-from . import looks as looks_mod
 from . import wallcolour
 from ..color import Color
 from ..env import Env
@@ -240,8 +240,14 @@ def installed_apps(env: Env) -> list[dict]:
     return out
 
 
-# Saved the moment it is switched (removing the package reads it), so never "not applied yet".
-_SAVED_AT_ONCE = ("undo_on_remove",)
+# Saved the moment it is switched, so never "not applied yet": removing the package reads
+# the first, the watcher the day and night looks.
+_SAVED_AT_ONCE = ("undo_on_remove", "look_for_light", "look_for_dark")
+
+
+def _at_once(s: Settings) -> dict:
+    """The settings saved the moment they are switched, to carry over to another look."""
+    return {k: getattr(s, k) for k in _SAVED_AT_ONCE}
 # Bookkeeping that follows other settings (the wallpaper match): never a change of its own.
 _BOOKKEEPING = ("tint_own", "accent_own", "wallpaper_match")
 
@@ -314,11 +320,20 @@ class Backend(QObject):
     lookProblem = Signal(str)       # a look that couldn't be saved, read or written, in plain words
     previousChanged = Signal()
     wallpaperMatchChanged = Signal()
+    systemAccentChanged = Signal()      # GNOME's own accent colour, changed while the app is open
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
                  start: bool = True, parent: QObject | None = None):
         super().__init__(parent)
+        # Worked out once per change (see _memo_get). Connected first, so the old values are
+        # gone before anything else hears of a change and reads them again.
+        self._memo: dict[str, Any] = {}
+        self._memo_inputs: tuple = ()
+        for sig in (self.settingsChanged, self.savedChanged, self.targetsChanged, self.targetStatesChanged,
+                    self.looksChanged, self.partialChanged, self.tokensChanged, self.previewChanged,
+                    self.uiChanged, self.systemAccentChanged):
+            sig.connect(self._forget)
         self._env = env or Env()
         self._engine_factory = engine_factory or self._default_engine
         self._engine: Any = None
@@ -354,6 +369,7 @@ class Backend(QObject):
         self._task_done: Callable[[Any], None] = lambda out: None
         self._task_busy = False
         self._monitor: QProcess | None = None
+        self._accent_monitor: QProcess | None = None
         # Apply, Restore or Review asked for while the app was still busy in the
         # background (checking the system after a start or an Apply): runs right after.
         self._pending_action: str | None = None
@@ -435,6 +451,7 @@ class Backend(QObject):
         if start:
             self.refreshTargets()
             self._watch_scheme()
+            self._watch_accent()
             self._watch_wallpaper()
             self._safe_timer.start()
             self._start_speed_watch()
@@ -535,8 +552,9 @@ class Backend(QObject):
         """settings.json changed on disk: when the only change is the colours the watcher
         took from a new wallpaper (fedora-glass watch), the applied look here takes them too,
         and so does the editor where it still shows the old ones. So the app neither calls
-        them unapplied nor says the wallpaper changed since the last Apply. Any other change
-        is left alone: the app never loads a look under the user's hands."""
+        them unapplied nor says the wallpaper changed since the last Apply. The same for the
+        day or night look the watcher put on the desktop (see _took_day_night_look). Any
+        other change is left alone: the app never loads a look under the user's hands."""
         if self._task is not None or self._applying is not None:
             return      # an Apply or Restore of its own writes the file now
         stamp = self._settings_stamp()
@@ -544,14 +562,18 @@ class Backend(QObject):
             return
         self._saved_stamp = stamp
         old = self._saved
-        if not wallcolour.follows(old):
+        if not (wallcolour.follows(old) or old.look_for_light or old.look_for_dark):
             return
         try:
             loaded = settings_mod.load_checked(self._path)
         except Exception:  # noqa: BLE001 - a file that can't be read now changes nothing here
             return
         new = loaded.settings
-        if not loaded.usable or all(getattr(new, k) == getattr(old, k) for k in self._WALL_KEYS):
+        if not loaded.usable:
+            return
+        if self._took_day_night_look(old, new):
+            return
+        if not wallcolour.follows(old) or all(getattr(new, k) == getattr(old, k) for k in self._WALL_KEYS):
             return
         same = {k: getattr(old, k) for k in self._WALL_KEYS}
         if asdict(replace(new, **same).normalized()) != asdict(old.normalized()):
@@ -565,6 +587,35 @@ class Backend(QObject):
         self.savedChanged.emit()
         self.settingsChanged.emit()
         self.wallpaperMatchChanged.emit()
+
+    def _took_day_night_look(self, old: Settings, new: Settings) -> bool:
+        """Day and night looks: GNOME switched between light and dark, and the watcher put
+        the look picked for it in settings.json and on the desktop. Only the look's own
+        settings may differ (and Style still follows GNOME): anything else is not the
+        watcher's doing. The applied look here becomes that one; the editor follows it only
+        when it held no unapplied changes, so none is ever lost (they then read as changes
+        from the new look, which is what Apply would do to the desktop now)."""
+        if old.scheme != "auto" or new.scheme != "auto" or not (old.look_for_light or old.look_for_dark):
+            return False
+        mine, theirs = asdict(old.normalized()), asdict(new.normalized())
+        allowed = {*looks_mod.LOOK_KEYS, *_BOOKKEEPING}
+        if mine == theirs or any(mine[k] != theirs[k] for k in mine if k not in allowed):
+            return False
+        clean = not self.dirty
+        new = replace(new, **_at_once(old))
+        self._saved = new
+        if self._good is old:
+            self._good = new
+        try:
+            self._saved_at = self._settings_file().stat().st_mtime
+        except OSError:
+            pass
+        if clean:
+            self._replace_editor(replace(new, targets=dict(new.targets)))
+        self.savedChanged.emit()
+        self.settingsChanged.emit()
+        self.wallpaperMatchChanged.emit()
+        return True
 
     # ---- paused from Quick Settings ----------------------------------------------
     def _read_paused(self) -> bool:
@@ -708,6 +759,31 @@ class Backend(QObject):
         self._rebuild_tokens()
         self.settingsChanged.emit()
 
+    # ---- worked out once per change ------------------------------------------------
+    # The unapplied changes, the saved look the editor holds and the like are read by many
+    # bindings on every slider tick (the sidebar's dots, the footer, each look tile). Each
+    # is worked out once after a change and kept until the next: any signal they hang on
+    # forgets them all, and so does a new editor look, applied look, part list or accent
+    # even before its signal goes out.
+    @Slot()
+    def _forget(self) -> None:
+        self._memo.clear()
+
+    def _memo_inputs_now(self) -> tuple:
+        return (self._s, self._saved, self._targets, self._targets_ready, self._has_dtp,
+                self._system_accent, self._looks)
+
+    def _memo_get(self, name: str, work: Callable[[], Any]) -> Any:
+        now = self._memo_inputs_now()
+        if len(now) != len(self._memo_inputs) or any(a is not b for a, b in zip(now, self._memo_inputs)):
+            self._memo.clear()
+        if name not in self._memo:
+            self._memo[name] = work()
+        # Read after the work: the saved looks are only read from disk when first wanted.
+        self._memo_inputs = self._memo_inputs_now()
+        value = self._memo[name]
+        return list(value) if isinstance(value, list) else value
+
     def _set(self, name: str, value: Any) -> None:
         if getattr(self._s, name) == value:
             return
@@ -754,13 +830,44 @@ class Backend(QObject):
                 self._rebuild_tokens()
             self.uiChanged.emit()
 
+    def _watch_accent(self) -> None:
+        """Follow GNOME's accent colour while the app is open: the "System" accent shows it.
+        Where the key doesn't exist (an older GNOME), gsettings just stops and nothing changes."""
+        if not self._env.which("gsettings"):
+            return
+        p = QProcess(self)
+        p.readyReadStandardOutput.connect(self._on_accent_output)
+        p.start("gsettings", ["monitor", "org.gnome.desktop.interface", "accent-color"])
+        self._accent_monitor = p
+
+    def _on_accent_output(self) -> None:
+        if self._accent_monitor is not None:
+            self._accent_lines(bytes(self._accent_monitor.readAllStandardOutput()).decode(errors="replace"))
+
+    def _accent_lines(self, text: str) -> None:
+        """`gsettings monitor` lines ("accent-color: 'teal'"): take the new accent."""
+        accent = None
+        for line in text.splitlines():
+            key, sep, value = line.partition(":")
+            if sep and key.strip() == "accent-color":
+                accent = value.strip().strip("'") or None
+        if accent is None or accent == self._system_accent:
+            return
+        self._system_accent = accent
+        self.systemAccentChanged.emit()
+        self._rebuild_tokens()      # the preview and this window, when they use the system accent
+        if self._looks is not None:
+            self.looksChanged.emit()    # a saved look's tile can show the system accent
+        if self.dirty:
+            self.settingsChanged.emit()     # "System (Blue)" in the list of changes
+
     @Slot()
     def shutdown(self) -> None:
         self._speed_poll.stop()
         self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
-        for name in ("_monitor", "_wall_monitor"):
+        for name in ("_monitor", "_accent_monitor", "_wall_monitor"):
             proc = getattr(self, name)
             if proc is not None:
                 proc.kill()
@@ -1132,6 +1239,9 @@ class Backend(QObject):
 
     @Property(bool, notify=settingsChanged)
     def dirty(self) -> bool:
+        return self._memo_get("dirty", self._work_dirty)
+
+    def _work_dirty(self) -> bool:
         dtp = self.hasDashToPanel
         return _effective(self._s, dtp) != _effective(self._saved.normalized(), dtp)
 
@@ -1139,7 +1249,7 @@ class Backend(QObject):
     def changeCount(self) -> int:
         """How many settings differ from the look applied last (the footer says "3 changes
         not applied yet"): as many as See changes lists, so the two never disagree."""
-        return len(self._change_rows()) if self.dirty else 0
+        return len(self.changeList)
 
     @Property(str, notify=settingsChanged)
     def activePreset(self) -> str:
@@ -1172,7 +1282,7 @@ class Backend(QObject):
     def accents(self) -> list[dict]:
         return [{"id": k, "color": v, "label": changes_mod._accent_name(k)} for k, v in GNOME_ACCENTS.items()]
 
-    @Property(str, constant=True)
+    @Property(str, notify=systemAccentChanged)
     def systemAccent(self) -> str:
         return self._system_accent or "blue"
 
@@ -1190,13 +1300,16 @@ class Backend(QObject):
         """Every setting at its default but this PC's own choices: which apps get the look,
         what happens on removal, and the apps without glass (the list picked on this PC,
         kept like the apps that get the look; its card's Reset still empties it)."""
-        return Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove,
-                        no_glass_apps=list(self._s.no_glass_apps))
+        return Settings(targets=dict(self._s.targets), **_at_once(self._s),
+                        no_glass_apps=list(self._s.no_glass_apps), app_glass=dict(self._s.app_glass))
 
     @Property(bool, notify=settingsChanged)
     def canResetAll(self) -> bool:
         """Whether Reset all would change anything (the apps picked stay, so not always
         when changedFromDefault lists something)."""
+        return self._memo_get("canResetAll", self._work_can_reset_all)
+
+    def _work_can_reset_all(self) -> bool:
         dtp = self.hasDashToPanel
         return _effective(self._all_reset(), dtp) != _effective(self._s, dtp)
 
@@ -1230,6 +1343,9 @@ class Backend(QObject):
     def changedFromDefault(self) -> list[str]:
         """The settings (Settings names) that differ from their defaults; the app's choice
         of apps (targets) isn't a look setting and is never listed."""
+        return self._memo_get("changedFromDefault", self._work_changed_from_default)
+
+    def _work_changed_from_default(self) -> list[str]:
         dtp = self.hasDashToPanel
         d, now = _effective(Settings(), dtp), _effective(self._s, dtp)
         return [f.name for f in fields(Settings) if f.name in now and f.name != "targets" and now[f.name] != d[f.name]]
@@ -1256,7 +1372,7 @@ class Backend(QObject):
         """Undo: back to the look applied last. After an Apply where some parts failed (nothing
         changed since), back to the last look that applied fully, to apply again."""
         back = self._saved if self.dirty or not self._partial else self._good
-        self._s = replace(back, targets=dict(back.targets), undo_on_remove=self._saved.undo_on_remove)
+        self._s = replace(back, targets=dict(back.targets), **_at_once(self._saved))
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
@@ -1854,7 +1970,7 @@ class Backend(QObject):
     def _queued_kind(self) -> str:
         """The asked-for action waiting for the background check to end, as a busy kind."""
         return {"apply": "apply", "revert": "revert", "requestPlan": "plan",
-                "cleanUpOldCopy": "cleanup"}.get(self._pending_action or "", "")
+                "cleanUpOldCopy": "cleanup", "removeApp": "remove"}.get(self._pending_action or "", "")
 
     # Removing the app (Restore original, then the package manager behind pkexec) counts
     # as busy from start to end: Apply, Restore or See changes would run over it.
@@ -1979,19 +2095,20 @@ class Backend(QObject):
             if not ts:
                 report(0.5, _("Writing tokens"))
                 return [], self._backup_exists(engine), self._restart_state(engine, glass_wanted)
+            # One Apply of every part (one lock, one read of the extensions' schemas), which
+            # also says the look is this version's. It tells each part as it starts, for
+            # the progress line. Switching the glass on can finish parts that waited for it
+            # (the Shell theme) at its end: the latest result for a part counts.
             results = {}
-            for i, t in enumerate(ts):
-                report(i / len(ts), tr(t.name))
-                # Switching the glass on can finish parts that waited for it a step
-                # earlier (the Shell theme): the latest result for a part counts.
-                for r in engine.apply(s, only={t.id}):
-                    results[r.target] = r
+            for r in engine.apply(s, progress=lambda i, n, name: report(i / n, name)):
+                results[r.target] = r
             report(1.0, _("Done"))
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
-            # "Remove only" (undoOnRemove) may have been switched while Apply ran: it is saved at once.
-            uor = self._saved.undo_on_remove
+            # "Remove only" (undoOnRemove) and the day and night looks may have been switched
+            # while Apply ran: they are saved at once.
+            uor = _at_once(self._saved)
             self._applying = None
             if isinstance(out, Exception):
                 self._lock_after_apply = False
@@ -2012,7 +2129,7 @@ class Backend(QObject):
                 self.failed.emit(_("Apply stopped: {error}").format(error=out))
                 return
             results, self._has_backup, (self._glass_live, restart) = out
-            self._saved = replace(s, undo_on_remove=uor)
+            self._saved = replace(s, **uor)
             self._usable = True         # settings.json is the look the user applied now
             self._apply_step = ""
             self._keep_previous(was_applied, was_at, step)
@@ -2059,6 +2176,7 @@ class Backend(QObject):
             self.busyChanged.emit()
             return
         # From here on the extension's config is the engine's to remove; stop writing it.
+        was_live = self._glass_live
         self._glass_live = False
         header_changed = _header_key(self._saved) != _header_key(Settings())
 
@@ -2070,7 +2188,11 @@ class Backend(QObject):
 
         def done(out):
             if isinstance(out, Exception):
+                # Nothing may have been restored: the glass runs as it did, until the
+                # check below says otherwise.
+                self._glass_live = was_live
                 self.failed.emit(_("Restore stopped: {error}").format(error=out))
+                self.refreshTargets()
                 return
             problems, self._has_backup = out
             self._glass_live = False
@@ -2081,6 +2203,9 @@ class Backend(QObject):
             if header_changed:
                 self._set_header_note("pending")
             self.revertFinished.emit(problems)
+            # What keeps the glass from running, the old copy and the parts' notes change
+            # with the files Restore took away: checked again, as after an Apply.
+            self.refreshTargets()
         self._run("revert", job, done)
 
     # ---- an Apply where some parts failed ------------------------------------------
@@ -2265,30 +2390,41 @@ class Backend(QObject):
     @undoOnRemove.setter
     def undoOnRemove(self, on: bool) -> None:
         """Saved straight away, without Apply: removing the package reads it from the saved settings."""
-        on = bool(on)
-        if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
-            return
-        saved = replace(self._saved, undo_on_remove=on)
+        self._save_at_once(undo_on_remove=bool(on))
+
+    def _save_at_once(self, **values: Any) -> bool:
+        """Save these settings (from _SAVED_AT_ONCE) straight away, without Apply, in the
+        applied look, the editor's and settings.json. False when they couldn't be saved."""
+        if all(getattr(self._s, k) == v and getattr(self._saved, k) == v for k, v in values.items()):
+            return True
+        # A look the watcher put on the desktop since (day and night) is taken first, so
+        # this save never writes the look before it back.
+        self._poll_saved_colours()
+        saved = replace(self._saved, **values)
         # While Apply runs, settings.json holds the look it applies: keep that one, and keep
         # .bak the look applied before it (the Apply may still fail).
-        on_disk = replace(self._applying, undo_on_remove=on) if self._applying is not None else saved
+        on_disk = replace(self._applying, **values) if self._applying is not None else saved
         try:
             if self._usable or self._applying is not None:
                 settings_mod.save(on_disk, self._path, backup=self._applying is None)
-            if not self._usable:
+            if not self._usable and "undo_on_remove" in values:
                 # Damaged settings.json: only Apply writes it (see _usable). The choice is
                 # kept beside it, where removing the package reads it.
-                settings_mod.save_undo_on_remove(on, self._path)
+                settings_mod.save_undo_on_remove(values["undo_on_remove"], self._path)
         except OSError as e:
             self.failed.emit(_("Could not save settings: {error}").format(error=e))
-            return
+            return False
         if self._applying is not None:
             self._applying = on_disk
+        elif self._usable:
+            # Our own write: not a change the watcher made (see _poll_saved_colours).
+            self._saved_stamp = self._settings_stamp()
         self._saved = saved
-        self._good = replace(self._good, undo_on_remove=on)
-        self._s = replace(self._s, undo_on_remove=on)
+        self._good = replace(self._good, **values)
+        self._s = replace(self._s, **values)
         self.settingsChanged.emit()
         self.savedChanged.emit()
+        return True
 
     APP_DIR = Path("/usr/share/fedora-glass")
 
@@ -2336,7 +2472,13 @@ class Backend(QObject):
     def removeApp(self) -> None:
         """Restore original first (so problems show here, with the app still installed),
         then remove the package: pkexec asks for the password."""
-        if self._task is not None or self._removing or not self._remove_package:
+        if self._removing or not self._remove_package:
+            return
+        if self._task is not None:
+            # The system check after an Apply or a start is still running: remove as soon
+            # as it ends (the click used to do nothing).
+            self._pending_action = "removeApp"
+            self.busyChanged.emit()
             return
         self._set_removing(True)
         self._glass_live = False
@@ -2446,21 +2588,29 @@ class Backend(QObject):
         return [{"id": a["id"], "name": a["name"], "icon": a["iconUrl"], "builtIn": a["builtIn"]} for a in self._apps]
 
     def _get_no_glass_apps(self) -> list[dict]:
-        """The user's apps without glass, one row per app in the order added: {"key", "name",
-        "icon", "ids"}. An id no installed app has (removed since, or typed into the
-        settings file) is a row of its own, named by the id."""
+        """The user's apps with their own glass, one row per app in the order added: {"key",
+        "name", "icon", "ids", "glass"}, glass "none" (on the no-glass list, which wins) or
+        the app's strength, "solid" or "clearer" (Settings.app_glass). An id no installed app
+        has (removed since, or typed into the settings file) is a row of its own, named by
+        the id. A row whose choice changes keeps its place."""
         index = self._app_of()
         rows: list[dict] = []
         by_key: dict[str, dict] = {}
-        for i in self._s.no_glass_apps:
+        for i, glass in [*((i, "none") for i in self._s.no_glass_apps), *self._s.app_glass.items()]:
             a = index.get(i.casefold())
             key = a["id"] if a else i
             if key in by_key:
                 by_key[key]["ids"].append(i)
                 continue
-            row = {"key": key, "name": a["name"] if a else i, "icon": a["iconUrl"] if a else "", "ids": [i]}
+            row = {"key": key, "name": a["name"] if a else i, "icon": a["iconUrl"] if a else "", "ids": [i], "glass": glass}
             by_key[key] = row
             rows.append(row)
+        # By the ids, which stay the same when a row's choice moves them to the other list.
+        order = self.__dict__.setdefault("_app_row_order", {})
+        for r in rows:
+            for i in r["ids"]:
+                order.setdefault(i.casefold(), len(order))
+        rows.sort(key=lambda r: min(order[i.casefold()] for i in r["ids"]))
         return rows
 
     noGlassApps = Property("QVariantList", _get_no_glass_apps, notify=noGlassAppsChanged)
@@ -2470,9 +2620,12 @@ class Backend(QObject):
 
     @Slot(str)
     def addNoGlassApp(self, desktop_id: str) -> None:
-        """Add an installed app (by desktop id): every id its windows may carry."""
+        """Add an installed app (by desktop id): every id its windows may carry, without glass
+        to start with (its row then picks More solid or Clearer). Already on the list: as it is."""
         app = next((a for a in self._apps if a["id"] == desktop_id), None)
         if app is None:
+            return
+        if any(i.casefold() in {k.casefold() for k in self._s.app_glass} for i in app["ids"]):
             return
         have = {i.casefold() for i in self._s.no_glass_apps}
         self._set_no_glass([*self._s.no_glass_apps, *(i for i in app["ids"] if i.casefold() not in have)])
@@ -2481,11 +2634,45 @@ class Backend(QObject):
     def removeNoGlassApp(self, key: str) -> None:
         """Take a row off the list (its key from noGlassApps), with all of its ids. An
         installed app's key is its desktop id, so a row added as that app goes whole."""
+        drop = self._row_ids(key)
+        if drop:
+            self._set_app_lists([i for i in self._s.no_glass_apps if i.casefold() not in drop],
+                                {i: v for i, v in self._s.app_glass.items() if i.casefold() not in drop})
+
+    def _row_ids(self, key: str) -> set[str]:
+        """Every id of a row (its key from noGlassApps) and of the installed app it is, in lower case."""
         row = next((r for r in self._get_no_glass_apps() if r["key"] == key), None)
         app = next((a for a in self._apps if a["id"] == key), None)
-        drop = {i.casefold() for i in [*(row["ids"] if row else []), *(app["ids"] if app else [])]}
-        if drop:
-            self._set_no_glass([i for i in self._s.no_glass_apps if i.casefold() not in drop])
+        return {i.casefold() for i in [*(row["ids"] if row else []), *(app["ids"] if app else [])]}
+
+    def _set_app_lists(self, no_glass: list[str], app_glass: dict[str, str]) -> None:
+        """Both lists at once, as one change."""
+        try:
+            s = replace(self._s, no_glass_apps=settings_mod.clean_app_ids(no_glass),
+                        app_glass=settings_mod.clean_app_glass(app_glass)).normalized()
+        except (TypeError, ValueError):
+            return
+        if s != self._s:
+            self._s = s
+            self._changed()
+
+    @Slot(str, str)
+    def setAppGlass(self, key: str, glass: str) -> None:
+        """A row's choice: "none" (no glass), "solid" (more solid) or "clearer", for every id
+        of the row; the desktop changes on Apply."""
+        if glass not in ("none", *settings_mod.APP_GLASS_LOOKS):
+            return
+        ids = self._row_ids(key)
+        row = next((r for r in self._get_no_glass_apps() if r["key"] == key), None)
+        if row is None:
+            return
+        no_glass = [i for i in self._s.no_glass_apps if i.casefold() not in ids]
+        looks = {i: v for i, v in self._s.app_glass.items() if i.casefold() not in ids}
+        if glass == "none":
+            no_glass += row["ids"]
+        else:
+            looks.update((i, glass) for i in row["ids"])
+        self._set_app_lists(no_glass, looks)
 
     @Slot(str)
     def toggleNoGlassApp(self, desktop_id: str) -> None:
@@ -2493,7 +2680,7 @@ class Backend(QObject):
         app = next((a for a in self._apps if a["id"] == desktop_id), None)
         if app is None:
             return
-        have = {i.casefold() for i in self._s.no_glass_apps}
+        have = {i.casefold() for i in [*self._s.no_glass_apps, *self._s.app_glass]}
         if any(i.casefold() in have for i in app["ids"]):
             self.removeNoGlassApp(desktop_id)
         else:
@@ -2563,24 +2750,19 @@ class Backend(QObject):
         return out
 
     def _get_active_look(self) -> str:
+        return self._memo_get("activeLook", self._work_active_look)
+
+    def _work_active_look(self) -> str:
+        now = looks_mod.compared(self._s)      # once, not once per saved look
         for look in self._look_list():
-            if looks_mod.holds(self._look_values[look["id"]], self._s):
+            if looks_mod.holds(self._look_values[look["id"]], now):
                 return look["id"]
         return ""
 
     activeLook = Property(str, _get_active_look, notify=settingsChanged)
 
     def _with_look(self, values: dict) -> Settings:
-        s = looks_mod.apply_look(self._s, values, self._cursor_installed)
-        if s.tint_from_wallpaper and not self._s.tint_from_wallpaper:
-            s.tint_own = self._s.tint
-        if s.accent_from_wallpaper and not self._s.accent_from_wallpaper:
-            s.accent_own = self._s.accent
-        if not s.tint_from_wallpaper:
-            s.tint_own = ""
-        if not s.accent_from_wallpaper:
-            s.accent_own = ""
-        return s
+        return looks_mod.use_look(self._s, values, self._cursor_installed)
 
     @Slot(str)
     def useLook(self, look_id: str) -> None:
@@ -2640,6 +2822,8 @@ class Backend(QObject):
             self.lookProblem.emit(_("The look couldn't be renamed: {reason}").format(reason=e.strerror or e))
             return ""
         self._looks_changed()
+        # A new name can mean a new file name: day and night follow the look there.
+        self._day_night_moved(look_id, new_id)
         self.settingsChanged.emit()
         return new_id
 
@@ -2652,9 +2836,79 @@ class Backend(QObject):
             self.lookProblem.emit(_("The look couldn't be deleted: {reason}").format(reason=e.strerror or e))
             return
         self._looks_changed()
+        self._day_night_moved(look_id, "")      # a deleted look is picked for neither style
         self.settingsChanged.emit()
         if look is not None:
             self.noticed.emit(_("Deleted “{name}”").format(name=look["name"]))
+
+    @Slot(str, result=str)
+    def lookNamed(self, name: str) -> str:
+        """The id of the saved look with this name, or "": saving under it asks first."""
+        return next((x["id"] for x in self._look_list()
+                     if x["name"].casefold() == looks_mod.clean_name(name).casefold() != ""), "")
+
+    @Slot(str, result=str)
+    def uniqueLookName(self, name: str) -> str:
+        """This name, or numbered ("Evening 2") when a saved look has it: "Keep both"."""
+        return self._library.unique_name(name)
+
+    @Slot(str, result=bool)
+    def updateLook(self, look_id: str) -> bool:
+        """The saved look takes the editor's settings; it keeps its name and its place."""
+        return self._overwrite_look(look_id, _("Updated “{name}”"))
+
+    @Slot(str, result=bool)
+    def replaceLook(self, look_id: str) -> bool:
+        """Saving under a name a look has already, and "Replace": that look takes the
+        editor's settings, in place of a second tile with its name."""
+        return self._overwrite_look(look_id, _("Saved “{name}”"))
+
+    def _overwrite_look(self, look_id: str, said: str) -> bool:
+        try:
+            self._library.update(look_id, self._s)
+        except looks_mod.LookError as e:
+            self.lookProblem.emit(str(e))
+            return False
+        except OSError as e:
+            self.lookProblem.emit(_("The look couldn't be saved: {reason}").format(reason=e.strerror or e))
+            return False
+        self._looks_changed()
+        self.settingsChanged.emit()     # it is the active look now
+        look = next((x for x in self._look_list() if x["id"] == look_id), None)
+        if look is not None:
+            self.noticed.emit(said.format(name=look["name"]))
+        return True
+
+    # ---- day and night looks ---------------------------------------------------------
+    # A saved look for GNOME's light style and one for its dark style: the watcher puts the
+    # matching one on the desktop when GNOME switches (see fedoraglass/looks.py day_night).
+    # Saved at once, like "Remove only": they say what happens later, not how it looks now.
+    def _day_night_moved(self, old_id: str, new_id: str) -> None:
+        moved = {k: new_id for k in ("look_for_light", "look_for_dark") if old_id and getattr(self._saved, k) == old_id}
+        if moved and old_id != new_id:
+            self._save_at_once(**moved)
+
+    def _get_look_for_light(self) -> str:
+        return self._s.look_for_light
+
+    def _set_look_for_light(self, look_id: str) -> None:
+        self._pick_day_night("look_for_light", look_id)
+
+    def _get_look_for_dark(self) -> str:
+        return self._s.look_for_dark
+
+    def _set_look_for_dark(self, look_id: str) -> None:
+        self._pick_day_night("look_for_dark", look_id)
+
+    def _pick_day_night(self, key: str, look_id: str) -> None:
+        look_id = str(look_id or "")
+        if look_id and (not settings_mod.is_look_id(look_id)
+                        or not any(x["id"] == look_id for x in self._look_list())):
+            return
+        self._save_at_once(**{key: look_id})
+
+    lookForLight = Property(str, _get_look_for_light, _set_look_for_light, notify=settingsChanged)
+    lookForDark = Property(str, _get_look_for_dark, _set_look_for_dark, notify=settingsChanged)
 
     @Slot(str, result=str)
     def lookFileName(self, look_id: str) -> str:
@@ -2728,11 +2982,14 @@ class Backend(QObject):
     def changeList(self) -> list[dict]:
         """Every unapplied change: {"page", "name", "label", "before", "after", "key"}, in
         page order. "name" is the control to go to on that page ("" for none)."""
-        return self._change_rows() if self.dirty else []
+        return self._memo_get("changeList", lambda: self._change_rows() if self.dirty else [])
 
     @Property("QStringList", notify=settingsChanged)
     def changedPages(self) -> list[str]:
         """The pages that have unapplied changes (the sidebar puts a dot on each)."""
+        return self._memo_get("changedPages", self._work_changed_pages)
+
+    def _work_changed_pages(self) -> list[str]:
         out: list[str] = []
         for r in self.changeList:
             if r["page"] not in out:
@@ -2788,7 +3045,7 @@ class Backend(QObject):
         p = self._previous
         if p is None or self._removing or self.busy:
             return      # (a background check still running is fine: Apply waits for it)
-        s = replace(p.settings, targets=dict(p.settings.targets), undo_on_remove=self._saved.undo_on_remove)
+        s = replace(p.settings, targets=dict(p.settings.targets), **_at_once(self._saved))
         self._apply_step = "forward" if p.forward else "back"
         self._replace_editor(s)
         self.apply()

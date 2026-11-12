@@ -1,4 +1,4 @@
-"""Unapplied changes in plain words, for "See changes": "Frost: 45 % → 60 %".
+"""Unapplied changes in plain words, for "See changes": "Frost: 45% → 60%".
 
 Each row names the page the setting is on and the control's objectName there (the same
 names searchindex.js uses), so a click on the row goes to it. A setting this table doesn't
@@ -19,7 +19,7 @@ PAGE_ORDER = ("home", "colour", "glass", "windows", "motion", "pointer", "lock",
 
 
 def pct(v: Any) -> str:
-    return f"{round(float(v) * 100)} %"
+    return f"{round(float(v) * 100)}%"
 
 
 def px(v: Any) -> str:
@@ -82,7 +82,7 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     "tint": (N_("Tint"), "colour", "tintButton", colour_hex),
     "tint_strength": (N_("Tint strength"), "colour", "tintStrength", pct),
     "radius": (N_("Corner roundness"), "colour", "cornerRoundness", px),
-    "highlight": (N_("Edge reflections"), "home", "presetRow", pct),
+    "highlight": (N_("Edge reflections"), "glass", "edgeReflections", pct),
     "opacity": (N_("Transparency"), "advanced", "fineOpacity", _auto(pct)),
     "blur": (N_("Blur"), "advanced", "fineBlur", _auto(px)),
     "reduce_transparency": (N_("Reduce transparency"), "advanced", "reduceTransparency", onoff),
@@ -140,9 +140,10 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     "quick_toggle": (N_("Glass switch in Quick Settings"), "glass", "quickToggle", onoff),
     "no_glass_apps": (N_("Apps without glass"), "windows", "noGlassCard",
                       lambda v: _("None") if not v else (_("1 app") if len(v) == 1 else _("{n} apps").format(n=len(v)))),
+    "app_glass": (N_("Glass strength for apps"), "windows", "noGlassCard", lambda v: _app_glass(v)),
 }
 # Not shown: saved the moment it is switched, or bookkeeping that follows another setting.
-HIDDEN = {"undo_on_remove", "tint_own", "accent_own", "wallpaper_match"}
+HIDDEN = {"undo_on_remove", "look_for_light", "look_for_dark", "tint_own", "accent_own", "wallpaper_match"}
 
 PART_LABELS = {"panel": N_("Panel"), "arcmenu": N_("Start menu"), "quicksettings": N_("Quick settings"), "calendar": N_("Calendar"),
                "overview": N_("Overview"), "windows": N_("Windows"), "terminal": N_("Terminal")}
@@ -156,6 +157,21 @@ MOTION_LABELS = {"gnome": N_("GNOME default"), "spring": N_("Spring"), "bounce":
                  "scalefade": N_("Scale and fade"), "off": N_("Off")}
 STYLE_LABELS = {"off": N_("Off"), "calm": N_("Calm"), "gnome": N_("GNOME"), "lively": N_("Lively"), "playful": N_("Playful"),
                 "custom": N_("Your own mix")}
+
+
+APP_GLASS_LABELS = {"solid": N_("More solid"), "clearer": N_("Clearer")}
+
+
+def _app_glass(v: Any) -> str:
+    """Per-app glass strength in words: "More solid: gimp, Code; Clearer: kitty"."""
+    if not v:
+        return _("None")
+    out = []
+    for look, word in APP_GLASS_LABELS.items():
+        ids = [i for i, x in v.items() if x == look]
+        if ids:
+            out.append(_("{look}: {apps}").format(look=tr(word), apps=", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")))
+    return "; ".join(out)
 
 
 def _row(page: str, name: str, label: str, before: str, after: str, key: str) -> dict:
@@ -249,9 +265,9 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
         except (TypeError, ValueError):
             before, after = str(b), str(a)
         if before == after and fmt is pct and isinstance(a, float) and isinstance(b, float):
-            # 45.2 % and 45.4 % both read 45 %: still say it moved.
+            # 45.2% and 45.4% both read 45%: still say it moved.
             digits = next((n for n in (1, 2, 3) if round(a * 100, n) != round(b * 100, n)), 4)
-            before, after = f"{b * 100:.{digits}f} %", f"{a * 100:.{digits}f} %"
+            before, after = f"{b * 100:.{digits}f}%", f"{a * 100:.{digits}f}%"
         elif before == after:
             before, after = str(b), str(a)
         rows.append(_row(page, name, tr(label), before, after, k))

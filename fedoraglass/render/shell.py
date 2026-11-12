@@ -142,6 +142,13 @@ def values(t: Tokens) -> dict[str, str]:
         "fg": t.fg.css, "fg_dim": t.fg_dim.css, "fg_faint": t.fg_faint.css,
         "accent": acc.css, "accent_fg": t.accent_fg.css, "accent_text": t.accent_text.css,
         "accent_edge": acc.mix(WHITE, 0.35).with_alpha(0.7).css,
+        # The snap preview (a window dragged to a screen edge): with the extension's glass
+        # behind it (.fedora-glass-tile) nearly clear with a thin accent rim; without, a
+        # tinted box that still shows where the window will go.
+        "tile_glass_fill": acc.with_alpha(0.10 if t.dark else 0.12).css,
+        "tile_glass_rim": (acc.mix(WHITE, 0.35).with_alpha(0.8) if t.dark else acc.mix(BLACK, 0.08).with_alpha(0.7)).css,
+        "tile_fill": acc.with_alpha(0.35).css,
+        "tile_rim": acc.with_alpha(0.9).css,
         # Light glass is near white: a pale ring would vanish on it, so it takes the accent itself.
         "focus_ring": (acc.mix(WHITE, 0.3).with_alpha(0.75) if t.dark else acc.mix(BLACK, 0.12)).css,
         "selection": t.selection.css, "destructive": t.destructive.css, "success": t.success.css,
@@ -180,9 +187,14 @@ def _boost(match: re.Match) -> str:
     return _RULE.sub(rule, body)
 
 
-def render_css(t: Tokens) -> str:
-    """The whole ~/.local/share/themes/FedoraGlass/gnome-shell/gnome-shell.css."""
-    text = Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(values(t))
+def render_css(t: Tokens, high_contrast: bool = False) -> str:
+    """The whole ~/.local/share/themes/FedoraGlass/gnome-shell/gnome-shell.css.
+    `high_contrast`: built on GNOME's high-contrast sheet instead of its dark or light one
+    (only when the installed GNOME Shell has it: see targets.shell.shell_has_sheet)."""
+    v = values(t)
+    if high_contrast:
+        v["variant"] = "high-contrast"
+    text = Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(v)
     return _BOOST.sub(_boost, text)
 
 
@@ -244,6 +256,10 @@ def render_paused_css(t: Tokens) -> str:
     for sels, color, important in groups:
         out.append(",\n".join("#uiGroup " + s for s in sels)
                    + f" {{\n  background-color: {solid(color).css}{important}; }}\n")
+    # The snap preview: no glass behind it now, so a tinted box (half see-through, as GNOME's
+    # own) that shows where the window will go without hiding what is under it.
+    out.append("#uiGroup .tile-preview,\n#uiGroup .tile-preview.fedora-glass-tile"
+               f" {{\n  background-color: {t.accent.with_alpha(0.35).css};\n  border: 1px solid {t.accent.with_alpha(0.9).css}; }}\n")
     # The panel stays clear over the overview and the lock screen, as the theme has it: the
     # rule above outranks the theme's own (the sheet goes a moment after a lock, see paused.js).
     clear = ("#panel:overview", "#panel.unlock-screen", "#panel.login-screen", "#panel.lock-screen")
