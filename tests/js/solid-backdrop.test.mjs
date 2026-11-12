@@ -96,7 +96,7 @@ const {parse, cleanSkip} = await import(`${EXT}/config.js`);
 const {windowWatch} = await import(`${EXT}/common.js`);
 
 // As the app writes it: the built-in ones first, then the user's own from solidFrom on.
-const BUILT_IN = ['steam', 'Code', 'code', 'firefox'];
+const BUILT_IN = ['steam', 'Code', 'code', 'firefox', 'Slack'];
 function config(own, color = '#1d1e23') {
     return parse(JSON.stringify({windows: {skip: [...BUILT_IN, ...own], solidFrom: BUILT_IN.length,
         solidColor: color, radius: 12}}));
@@ -121,22 +121,27 @@ beforeEach(() => {
     windowWatch.current = {listeners: new Set()};
 });
 
-test('who gets what: the user\'s own apps solid, the built-in ones and Fedora Glass nothing', () => {
+test('who gets what: the user\'s own apps solid, the built-in ones glass behind their title bar, Fedora Glass nothing', () => {
     const c = config(['org.gnome.gedit', 'CODE', 'mpv', 'io.github.djshiye.LiquidGlass']).windows;
     assert.deepEqual(c.solid, ['org.gnome.gedit', 'CODE', 'mpv', 'io.github.djshiye.LiquidGlass']);
     assert.equal(windowKind(['org.gnome.gedit'], c.skip, c.solid), 'solid');
     assert.equal(windowKind(['Org.Gnome.Gedit'], c.skip, c.solid), 'solid', 'whatever the case');
     assert.equal(windowKind(['org.gnome.Ptyxis'], c.skip, c.solid), 'glass');
-    // The built-in list has it too (in another case): as before, nothing.
-    assert.equal(windowKind(['Code', 'code'], c.skip, c.solid), 'none');
+    // The built-in list has it too (in another case): it goes by the built-in list. Those
+    // apps paint their own body, but their title bar may come from the GTK theme: glass
+    // behind the title bar only (Slack's showed the desktop sharp, 1.5.23 to 1.5.27).
+    assert.equal(windowKind(['Code', 'code'], c.skip, c.solid), 'title');
+    assert.equal(windowKind(['slack'], c.skip, c.solid), 'title', 'Slack, whatever the case');
     assert.equal(windowKind(['firefox', 'org.mozilla.firefox'], [...c.skip, 'org.mozilla.firefox'],
-        [...c.solid, 'org.mozilla.firefox']), 'none', 'one of its ids is built in');
+        [...c.solid, 'org.mozilla.firefox']), 'title', 'one of its ids is built in');
+    assert.equal(windowKind(['steam'], c.skip, c.solid), 'none', 'Steam: no title bar of ours');
     assert.equal(windowKind(['mpv'], c.skip, c.solid), 'none', 'a video player');
     assert.equal(windowKind(['io.github.djshiye.LiquidGlass'], c.skip, c.solid), 'none', 'draws its own glass');
-    // A file from before (no solidFrom): the whole list gets nothing, as it did.
+    // A file from before (no solidFrom): the whole list counts as built in.
     const old = parse(JSON.stringify({windows: {skip: ['steam', 'org.gnome.gedit']}})).windows;
     assert.deepEqual(old.solid, []);
-    assert.equal(windowKind(['org.gnome.gedit'], old.skip, old.solid), 'none');
+    assert.equal(windowKind(['org.gnome.gedit'], old.skip, old.solid), 'title');
+    assert.equal(windowKind(['steam'], old.skip, old.solid), 'none');
 });
 
 test('config.js: the user\'s part survives bad entries, and only a plain colour gets through', () => {
@@ -227,14 +232,23 @@ test('taking the app off the list gives it glass again, and putting it back make
     ws.destroy();
 });
 
-test('the built-in apps without glass, and full screen, get nothing in their actor', () => {
+test('Steam and full screen get nothing in their actor; other built-in apps glass behind their title bar only', () => {
     const code = windowAt(0, 100, 100, 800, 600, 'Code');
     const gedit = windowAt(1, 200, 200, 800, 600);
-    actors = [code, gedit];
+    const steam = windowAt(2, 300, 300, 800, 600, 'steam');
+    actors = [code, gedit, steam];
     const ws = new Windows(config(['org.gnome.gedit', 'code']));
     runLaters();
+    assert.equal(solidOf(steam), null);
+    assert.equal(steam.get_children().length, 1, 'only its own surface');
+    // Code paints its own body: glass behind its top band only, no solid backdrop.
     assert.equal(solidOf(code), null);
-    assert.equal(code.get_children().length, 1, 'only its own surface');
+    const glass = ws._glass.get(code);
+    assert.ok(glass?.shown, 'glass behind its title bar');
+    assert.equal(glass._shape.height, 88, 'the top band, not the whole window');
+    assert.equal(glass._shape.width, 800);
+    assert.deepEqual(glass.solidRects().map(r => r.height).sort((x, y) => y - x)[0], 600,
+        'the app\'s own body is opaque: the windows below count as hidden behind all of it');
     assert.ok(solidOf(gedit));
     // Full screen: direct scanout and VRR want nothing but the window in its actor.
     gedit.meta_window.fullscreen = true;
