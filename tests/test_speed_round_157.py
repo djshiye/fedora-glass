@@ -48,7 +48,7 @@ def test_part_shape_is_laid_out_over_the_whole_glass():
 def test_rim_returns_before_the_lens_for_all_but_its_outer_px():
     s = shader()
     early = s.index("if (mode > 2.5 && sd < -2.8)")
-    assert early < s.index("vec2 L = lightDir(toPtr);") < s.index("float band = smoothstep(2.8, 1.2, inside);")
+    assert early < s.index("vec2 L = lightDir(toPtr, h);") < s.index("float band = smoothstep(2.8, 1.2, inside);")
 
 
 def test_ceiling_reads_the_area_only_above_its_knee():
