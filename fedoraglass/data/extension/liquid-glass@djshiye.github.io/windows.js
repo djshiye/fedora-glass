@@ -49,7 +49,7 @@ const CLIENT_CARDS = [
     {app: /^(io\.github\.djshiye\.RGBeast|rgbeast|RGBeast)$/, margin: 14, radius: 15},
     {app: /^(io\.github\.djshiye\.Wheelguard|wheelguard-settings|Wheelguard)$/, margin: 14, radius: 18},
 ];
-const TERMINALS = /^(org\.gnome\.ptyxis|ptyxis|org\.gnome\.console|kgx|gnome-terminal-server|org\.gnome\.terminal)$/i;
+const TERMINALS = /^(org\.gnome\.ptyxis|ptyxis|org\.gnome\.console|kgx|gnome-terminal-server|org\.gnome\.terminal|com\.mitchellh\.ghostty|ghostty|kitty|alacritty|org\.wezfurlong\.wezterm|foot|footclient)$/i;
 
 // Mutter skips drawing the parts of a window that an opaque window above it covers.
 // The glass under the focused window copies the windows below it, and was copied with
