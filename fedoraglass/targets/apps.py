@@ -47,6 +47,21 @@ def installed(env: Env, *, cmds: tuple[str, ...] = (), flatpak: str | None = Non
             or any(has_desktop_file(env, d) for d in desktop))
 
 
+def flatpak_home(env: Env, app_id: str) -> Path:
+    """Where a Flatpak app keeps its files. Inside its sandbox $HOME is the real home and
+    XDG_CONFIG_HOME / XDG_DATA_HOME point at config/ and data/ here, so the same path works
+    for the app as for us."""
+    return env.home / ".var/app" / app_id
+
+
+def which_installs(env: Env, native: bool, app_id: str, *folders: Path) -> tuple[bool, bool]:
+    """(theme the native install, theme the Flatpak). The Flatpak counts when it is installed
+    or its config folder is there; with nothing else to go on the native paths are used.
+    Both are themed when both are there."""
+    fp = env.flatpak_installed(app_id) or any(f.exists() for f in folders)
+    return native or not fp, fp
+
+
 @dataclass
 class AppTarget(Target):
     """A target whose notes can depend on the current tokens (see live_notes)."""
@@ -119,7 +134,11 @@ class Discord(AppTarget):
         return acts
 
 
-# ---- VS Code ------------------------------------------------------------------------
+# ---- VS Code and VSCodium ---------------------------------------------------------------
+VSCODE_FLATPAK = "com.visualstudio.code"
+VSCODIUM_FLATPAK = "com.vscodium.codium"
+
+
 @dataclass
 class VSCode(AppTarget):
     id: str = "vscode"
@@ -131,46 +150,92 @@ class VSCode(AppTarget):
         N_("If settings.json contains comments, Fedora Glass leaves it alone: pick Fedora Glass Dark/Light "
         "yourself under Preferences > Color Theme."),
     ])
+    # What differs between VS Code and VSCodium (names are under ~/.config, ~/ and the Flatpak's data/).
+    cmd: str = "code"
+    config_name: str = "Code"
+    ext_home: str = ".vscode/extensions"
+    flatpak: str = VSCODE_FLATPAK
+    flatpak_data: str = "vscode"
+    vsix_dir: str = "vscode"
+
+    def native_dirs(self, env: Env) -> tuple[Path, ...]:
+        return (env.config / self.config_name, env.home / self.ext_home.split("/")[0])
 
     def detect(self, env: Env) -> Detection:
-        if installed(env, cmds=("code",), dirs=(env.config / "Code", env.home / ".vscode")):
+        fp = flatpak_home(env, self.flatpak) / "config" / self.config_name
+        if installed(env, cmds=(self.cmd,), flatpak=self.flatpak, dirs=(*self.native_dirs(env), fp)):
             return Detection(True)
-        return Detection(False, _("{name} is not installed").format(name="VS Code"))
+        return Detection(False, _("{name} is not installed").format(name=self.name))
+
+    def installs(self, env: Env) -> list[tuple[Path, Path, Path, tuple[str, ...]]]:
+        """Each install to theme: (settings.json, extensions folder, where the .vsix is kept,
+        the command that runs it). The Flatpak keeps everything under its own folder, and the
+        .vsix goes there too: the sandbox reads that folder whatever its other permissions are."""
+        fh = flatpak_home(env, self.flatpak)
+        native = bool(env.which(self.cmd)) or any(d.exists() for d in self.native_dirs(env))
+        use_native, use_fp = which_installs(env, native, self.flatpak, fh / "config" / self.config_name)
+        out = []
+        if use_native:
+            out.append((env.config / self.config_name / "User/settings.json", env.home / self.ext_home,
+                        env.data / f"liquid-glass/{self.vsix_dir}/liquid-glass.vsix", (self.cmd,)))
+        if use_fp:
+            out.append((fh / "config" / self.config_name / "User/settings.json",
+                        fh / "data" / self.flatpak_data / "extensions",
+                        fh / "data/liquid-glass/liquid-glass.vsix", ("flatpak", "run", self.flatpak)))
+        return out
 
     def plan(self, ctx: Context) -> list[Action]:
         env, t = ctx.env, ctx.tokens
-        vsix = env.data / "liquid-glass/vscode/liquid-glass.vsix"
         data = ra.vsix_bytes(ctx.dark, ctx.light)
-        acts: list[Action] = [WriteFile(vsix, data)]
-        ext_dir = env.home / ".vscode/extensions"
-        try:
-            have = any(ext_dir.glob(f"{ra.VSCODE_ID}-*"))
-            same = vsix.is_file() and vsix.read_bytes() == data
-        except OSError:
-            have = same = False
-        if not (have and same):
-            acts.append(Command(("code", "--install-extension", str(vsix), "--force"),
-                                "install the Fedora Glass colour themes",
-                                undo=("code", "--uninstall-extension", ra.VSCODE_ID)))
-        updates: dict = {"workbench.colorTheme": ra.VSCODE_LABELS[t.dark]}
-        if ctx.settings.scheme == "auto":
-            updates.update({"window.autoDetectColorScheme": True,
-                            "workbench.preferredDarkColorTheme": ra.VSCODE_LABELS[True],
-                            "workbench.preferredLightColorTheme": ra.VSCODE_LABELS[False]})
-        edit = _json_edit(env.config / "Code/User/settings.json", updates)
-        if edit is not None:
-            acts.append(edit)
+        acts: list[Action] = []
+        for settings, ext_dir, vsix, run in self.installs(env):
+            acts.append(WriteFile(vsix, data))
+            try:
+                have = any(ext_dir.glob(f"{ra.VSCODE_ID}-*"))
+                same = vsix.is_file() and vsix.read_bytes() == data
+            except OSError:
+                have = same = False
+            if not (have and same):
+                acts.append(Command((*run, "--install-extension", str(vsix), "--force"),
+                                    "install the Fedora Glass colour themes",
+                                    undo=(*run, "--uninstall-extension", ra.VSCODE_ID)))
+            updates: dict = {"workbench.colorTheme": ra.VSCODE_LABELS[t.dark]}
+            if ctx.settings.scheme == "auto":
+                updates.update({"window.autoDetectColorScheme": True,
+                                "workbench.preferredDarkColorTheme": ra.VSCODE_LABELS[True],
+                                "workbench.preferredLightColorTheme": ra.VSCODE_LABELS[False]})
+            edit = _json_edit(settings, updates)
+            if edit is not None:
+                acts.append(edit)
         return acts
 
     def live_notes(self, ctx: Context) -> list[str]:
-        path = ctx.env.config / "Code/User/settings.json"
         out = list(self.notes)
-        if path.exists() and ra.merge_json_text(ra.read_text(path), {}) is None:
-            out.insert(0, _("settings.json has comments, so it was not changed: select the theme manually."))
+        for settings, *_rest in self.installs(ctx.env):
+            if settings.exists() and ra.merge_json_text(ra.read_text(settings), {}) is None:
+                out.insert(0, _("settings.json has comments, so it was not changed: select the theme manually."))
+                break
         return out
 
 
+@dataclass
+class VSCodium(VSCode):
+    id: str = "vscodium"
+    plain: str = N_("Installs Fedora Glass Dark and Light colour themes in VSCodium and selects the one that fits.")
+    name: str = "VSCodium"
+    summary: str = N_("Fedora Glass Dark and Light colour themes, installed as a local extension.")
+    cmd: str = "codium"
+    config_name: str = "VSCodium"
+    ext_home: str = ".vscode-oss/extensions"
+    flatpak: str = VSCODIUM_FLATPAK
+    flatpak_data: str = "codium"
+    vsix_dir: str = "vscodium"
+
+
 # ---- Obsidian ----------------------------------------------------------------------------
+OBSIDIAN_FLATPAK = "md.obsidian.Obsidian"
+
+
 @dataclass
 class Obsidian(AppTarget):
     id: str = "obsidian"
@@ -182,22 +247,28 @@ class Obsidian(AppTarget):
         N_("Restart Obsidian (or reload with Ctrl+R) to see the theme. Obsidian's window is opaque.")])
 
     def detect(self, env: Env) -> Detection:
-        if installed(env, cmds=("obsidian",), dirs=(env.config / "obsidian",), appimage="obsidian"):
+        if installed(env, cmds=("obsidian",), flatpak=OBSIDIAN_FLATPAK, dirs=tuple(self.config_dirs(env)),
+                     appimage="obsidian"):
             return Detection(True)
         return Detection(False, _("{name} is not installed").format(name="Obsidian"))
 
+    def config_dirs(self, env: Env) -> list[Path]:
+        """Obsidian's own settings folder: the normal one and the Flatpak's."""
+        return [env.config / "obsidian", flatpak_home(env, OBSIDIAN_FLATPAK) / "config/obsidian"]
+
     def vaults(self, env: Env) -> list[Path]:
-        text = ra.read_text(env.config / "obsidian/obsidian.json")
-        try:
-            vaults = json.loads(text or "")["vaults"]
-        except (ValueError, KeyError, TypeError):
-            return []
         out: list[Path] = []
-        if isinstance(vaults, dict):
-            for v in vaults.values():
-                p = v.get("path") if isinstance(v, dict) else None
-                if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out:
-                    out.append(Path(p))
+        for d in self.config_dirs(env):
+            text = ra.read_text(d / "obsidian.json")
+            try:
+                vaults = json.loads(text or "")["vaults"]
+            except (ValueError, KeyError, TypeError):
+                continue
+            if isinstance(vaults, dict):
+                for v in vaults.values():
+                    p = v.get("path") if isinstance(v, dict) else None
+                    if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out:
+                        out.append(Path(p))
         return out
 
     def plan(self, ctx: Context) -> list[Action]:
@@ -218,6 +289,9 @@ class Obsidian(AppTarget):
 
 
 # ---- qBittorrent ---------------------------------------------------------------------------
+QBITTORRENT_FLATPAK = "org.qbittorrent.qBittorrent"
+
+
 @dataclass
 class QBittorrent(AppTarget):
     id: str = "qbittorrent"
@@ -232,29 +306,46 @@ class QBittorrent(AppTarget):
         N_("Colours and style sheet follow the GNOME dark or light style; restart qBittorrent after a switch."),
     ])
 
+    def config_dirs(self, env: Env) -> list[Path]:
+        return [env.config / "qBittorrent", flatpak_home(env, QBITTORRENT_FLATPAK) / "config/qBittorrent"]
+
     def detect(self, env: Env) -> Detection:
-        if installed(env, cmds=("qbittorrent",), dirs=(env.config / "qBittorrent",), appimage="qbittorrent"):
+        if installed(env, cmds=("qbittorrent",), flatpak=QBITTORRENT_FLATPAK, dirs=tuple(self.config_dirs(env)),
+                     appimage="qbittorrent"):
             return Detection(True)
         return Detection(False, _("{name} is not installed").format(name="qBittorrent"))
 
+    def installs(self, env: Env) -> list[tuple[Path, Path]]:
+        """Each install to theme: (its qBittorrent.conf, the folder for our theme files). The
+        Flatpak reads only its own folders by default, so its theme lives there."""
+        fh = flatpak_home(env, QBITTORRENT_FLATPAK)
+        native = bool(env.which("qbittorrent")) or (env.config / "qBittorrent").exists() or has_appimage(env, "qbittorrent")
+        use_native, use_fp = which_installs(env, native, QBITTORRENT_FLATPAK, fh / "config/qBittorrent")
+        out = []
+        if use_native:
+            out.append((env.config / "qBittorrent/qBittorrent.conf", env.data / "liquid-glass/qbittorrent"))
+        if use_fp:
+            out.append((fh / "config/qBittorrent/qBittorrent.conf", fh / "data/liquid-glass/qbittorrent"))
+        return out
+
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
-        d = env.data / "liquid-glass/qbittorrent"
-        conf = env.config / "qBittorrent/qBittorrent.conf"
-        text = ra.read_text(conf) if conf.exists() else ""
-        acts: list[Action] = [
-            # Both blocks from the scheme in use: qBittorrent picks its block by its own
-            # idea of dark mode, which need not match the style sheet's (a white side list).
-            WriteFile(d / "config.json", ra.qbittorrent_config(ctx.tokens, ctx.tokens)),
-            WriteFile(d / "stylesheet.qss", ra.qt_qss(ctx.tokens)),
-        ]
-        if text is not None:
-            keys = {
-                "General\\UseCustomUITheme": "true",
-                "General\\CustomUIThemePath": str(d / "config.json"),
-            }
-            new = ra.ini_set(text, "Preferences", keys)
-            acts.append(WriteFile(conf, new, edits=("ini", "Preferences", tuple(keys))))
+        acts: list[Action] = []
+        for conf, d in self.installs(env):
+            text = ra.read_text(conf) if conf.exists() else ""
+            acts += [
+                # Both blocks from the scheme in use: qBittorrent picks its block by its own
+                # idea of dark mode, which need not match the style sheet's (a white side list).
+                WriteFile(d / "config.json", ra.qbittorrent_config(ctx.tokens, ctx.tokens)),
+                WriteFile(d / "stylesheet.qss", ra.qt_qss(ctx.tokens)),
+            ]
+            if text is not None:
+                keys = {
+                    "General\\UseCustomUITheme": "true",
+                    "General\\CustomUIThemePath": str(d / "config.json"),
+                }
+                new = ra.ini_set(text, "Preferences", keys)
+                acts.append(WriteFile(conf, new, edits=("ini", "Preferences", tuple(keys))))
         return acts
 
 
@@ -334,10 +425,11 @@ FIREFOX_FLATPAK = "org.mozilla.firefox"
 
 def firefox_roots(env: Env) -> list[Path]:
     """Folders that hold a profiles.ini: the classic one, the XDG one newer Firefox uses,
-    and the same two inside the Flatpak's own home."""
+    and the same two inside the Flatpak's own home, and the Snap's (Ubuntu's Firefox)."""
     fp = env.home / ".var/app" / FIREFOX_FLATPAK
     return [env.home / ".mozilla/firefox", env.config / "mozilla/firefox",
-            fp / ".mozilla/firefox", fp / "config/mozilla/firefox"]
+            fp / ".mozilla/firefox", fp / "config/mozilla/firefox",
+            env.home / "snap/firefox/common/.mozilla/firefox"]
 
 
 def firefox_profiles(env: Env) -> list[Path]:
@@ -485,7 +577,7 @@ class Slack(NotesOnly):
 
 
 TARGETS: list[Target] = [
-    Discord(), VSCode(), Obsidian(), QBittorrent(), Prism(), Browsers(),
+    Discord(), VSCode(), VSCodium(), Obsidian(), QBittorrent(), Prism(), Browsers(),
     Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",),
           summary=N_("No theme file; a ready-made sidebar theme string is shown to paste."),
           plain=N_("Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead."),

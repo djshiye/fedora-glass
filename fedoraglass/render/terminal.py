@@ -9,6 +9,7 @@ background so text stays legible whatever the frost slider does.
 from __future__ import annotations
 
 import colorsys
+import re
 from dataclasses import dataclass
 
 from ..color import Color
@@ -253,3 +254,119 @@ def micro_colorscheme(t: Tokens) -> str:
     ]
     body = "\n".join(f"color-link {k} {v}" for k, v in links)
     return f"# Fedora Glass for micro\n{body}\n"
+
+
+# ---- terminals with an include line (Kitty, Ghostty, Alacritty, Foot, WezTerm) --------------
+# Each gets a file of its own with the colours and opacity, and (except WezTerm) one marked
+# block in the user's own settings that points at it. Restore takes exactly that block away.
+BLOCK_BEGIN = "Fedora Glass: begin"
+BLOCK_END = "Fedora Glass: end"
+_BLOCK_NOTE = " (Restore original in Fedora Glass takes these lines away)"
+_HEAD = "# Fedora Glass colours for {name}. Written by Fedora Glass; Restore original takes it away.\n"
+
+
+def _fmt_opacity(o: float) -> str:
+    return f"{o:g}"
+
+
+def kitty_conf(p: TermPalette, opacity: float) -> str:
+    rows = [("foreground", p.fg.hex6), ("background", p.bg.hex6),
+            ("selection_foreground", p.selection_fg.hex6), ("selection_background", p.selection_bg.hex6),
+            ("cursor", p.cursor.hex6), ("cursor_text_color", p.cursor_fg.hex6)]
+    rows += [(f"color{i}", c.hex6) for i, c in enumerate(p.ansi)]
+    rows.append(("background_opacity", _fmt_opacity(opacity)))
+    return _HEAD.format(name="Kitty") + "".join(f"{k} {v}\n" for k, v in rows)
+
+
+def ghostty_conf(p: TermPalette, opacity: float) -> str:
+    rows = [("background", p.bg.hex6), ("foreground", p.fg.hex6),
+            ("cursor-color", p.cursor.hex6), ("cursor-text", p.cursor_fg.hex6),
+            ("selection-background", p.selection_bg.hex6), ("selection-foreground", p.selection_fg.hex6)]
+    rows += [("palette", f"{i}={c.hex6}") for i, c in enumerate(p.ansi)]
+    rows.append(("background-opacity", _fmt_opacity(opacity)))
+    return _HEAD.format(name="Ghostty") + "".join(f"{k} = {v}\n" for k, v in rows)
+
+
+def alacritty_toml(p: TermPalette, opacity: float) -> str:
+    names = ANSI_NAMES
+
+    def table(title: str, rows: list[tuple[str, str]]) -> str:
+        return f"[{title}]\n" + "".join(f'{k} = "{v}"\n' for k, v in rows) + "\n"
+
+    return (_HEAD.format(name="Alacritty")
+            + "\n" + table("colors.primary", [("background", p.bg.hex6), ("foreground", p.fg.hex6)])
+            + table("colors.cursor", [("text", p.cursor_fg.hex6), ("cursor", p.cursor.hex6)])
+            + table("colors.selection", [("text", p.selection_fg.hex6), ("background", p.selection_bg.hex6)])
+            + table("colors.normal", [(n, p.ansi[i].hex6) for i, n in enumerate(names)])
+            + table("colors.bright", [(n, p.ansi[i + 8].hex6) for i, n in enumerate(names)])
+            + f"[window]\nopacity = {_fmt_opacity(opacity)}\n")
+
+
+def foot_ini(p: TermPalette, opacity: float) -> str:
+    def h(c: Color) -> str:
+        return c.hex6.lstrip("#")
+
+    rows = [("alpha", _fmt_opacity(opacity)), ("foreground", h(p.fg)), ("background", h(p.bg))]
+    rows += [(f"regular{i}", h(p.ansi[i])) for i in range(8)]
+    rows += [(f"bright{i}", h(p.ansi[i + 8])) for i in range(8)]
+    rows += [("selection-foreground", h(p.selection_fg)), ("selection-background", h(p.selection_bg))]
+    return (_HEAD.format(name="Foot") + "[colors]\n" + "".join(f"{k}={v}\n" for k, v in rows)
+            + f"\n[cursor]\ncolor={h(p.cursor_fg)} {h(p.cursor)}\n")
+
+
+WEZTERM_SCHEME_NAME = "Fedora Glass"
+
+
+def wezterm_scheme(p: TermPalette) -> str:
+    def lst(cs) -> str:
+        return "[" + ", ".join(f'"{c.hex6}"' for c in cs) + "]"
+
+    return (_HEAD.format(name="WezTerm") + "[colors]\n"
+            f'foreground = "{p.fg.hex6}"\nbackground = "{p.bg.hex6}"\n'
+            f'cursor_bg = "{p.cursor.hex6}"\ncursor_fg = "{p.cursor_fg.hex6}"\ncursor_border = "{p.cursor.hex6}"\n'
+            f'selection_fg = "{p.selection_fg.hex6}"\nselection_bg = "{p.selection_bg.hex6}"\n'
+            f"ansi = {lst(p.ansi[:8])}\nbrights = {lst(p.ansi[8:])}\n\n"
+            f'[metadata]\nname = "{WEZTERM_SCHEME_NAME}"\n')
+
+
+def with_block(text: str, body: list[str], where: str = "top") -> str:
+    """`text` with one marked block of `body` lines, replacing any block of ours already in it.
+    The user's own lines are kept exactly, with their line endings; `where` is "top" or "end"."""
+    from .apps import without_block
+    rest = without_block(text, BLOCK_BEGIN, BLOCK_END)
+    nl = "\r\n" if "\r\n" in rest else "\n"
+    block = nl.join([f"# {BLOCK_BEGIN}{_BLOCK_NOTE}", *body, f"# {BLOCK_END}"]) + nl
+    if where == "top":
+        return block + rest
+    if rest and not rest.endswith(("\n", "\r")):
+        rest += nl
+    return rest + block
+
+
+_GENERAL = re.compile(r"^\s*\[general\]\s*(#.*)?$")
+_IMPORT = re.compile(r"^\s*(?:general\.)?import\s*=")
+
+
+def toml_string(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def alacritty_with_import(text: str, path: str) -> str | None:
+    """Alacritty's settings with `import = [path]` in the [general] table (made at the end when
+    there is none). None when the user already has an import list of their own: two of
+    them would be an error, so that file is left alone."""
+    from .apps import without_block
+    rest = without_block(text, BLOCK_BEGIN, BLOCK_END)
+    if any(_IMPORT.match(ln) for ln in rest.splitlines()):
+        return None
+    nl = "\r\n" if "\r\n" in rest else "\n"
+    imp = f"import = [{toml_string(path)}]"
+    lines = rest.splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        if _GENERAL.match(ln.rstrip("\r\n")):
+            if not ln.endswith(("\n", "\r")):
+                lines[i] += nl
+            block = nl.join([f"# {BLOCK_BEGIN}{_BLOCK_NOTE}", imp, f"# {BLOCK_END}"]) + nl
+            lines.insert(i + 1, block)
+            return "".join(lines)
+    return with_block(rest, ["[general]", imp], "end")
