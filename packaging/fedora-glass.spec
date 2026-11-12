@@ -16,6 +16,10 @@ BuildRequires:  python-rpm-macros
 BuildRequires:  python3
 BuildRequires:  python3-pytest
 BuildRequires:  python3-gobject
+# The login screen tests build a theme with the real GLib tools (gresource and
+# glib-compile-resources, the same files the package asks for below); without them they skip.
+BuildRequires:  /usr/bin/gresource
+BuildRequires:  /usr/bin/glib-compile-resources
 Requires:       python3
 Requires:       python3-gobject
 Requires:       python3-pyside6

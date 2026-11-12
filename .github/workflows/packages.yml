@@ -12,17 +12,21 @@ on:
 permissions:
   contents: read
 
-# A newer push to a pull request replaces the run before it. A release's package builds are
-# never cancelled by another run (a called workflow's group must differ from its caller's).
+# A newer push to a pull request replaces the run before it, and so does adding the "packages"
+# label. Adding ANY OTHER label does nothing: it starts no builds and must not cancel the ones
+# running. A run that is skipped by a job's `if` would still join the concurrency group and
+# cancel the running one, so such an event gets a group of its own (named after its run id):
+# it cancels nothing, and every job of it is skipped. A release's package builds are never
+# cancelled by another run (a called workflow's group must differ from its caller's).
 concurrency:
-  group: packages-${{ github.ref }}
+  group: packages-${{ github.ref }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'packages' && format('-other-label-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # The Ubuntu package, built once and installed on Ubuntu 26.04 to prove its
   # dependencies resolve there.
   deb:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'packages')
+    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'packages') && (github.event.action != 'labeled' || github.event.label.name == 'packages'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container: ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c  # pinned; bump on purpose
@@ -77,7 +81,7 @@ jobs:
   # The Fedora package, on pull requests only (the Release workflow builds its own): built with
   # rpmbuild, its tests run, then installed and removed on Fedora 44.
   rpm:
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'packages')
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'packages') && (github.event.action != 'labeled' || github.event.label.name == 'packages')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80  # pinned; bump on purpose
@@ -85,9 +89,13 @@ jobs:
       contents: read
     steps:
       - name: Tools
-        run: dnf install -y -q --setopt=install_weak_deps=False rpm-build systemd-rpm-macros python-rpm-macros git python3-pytest python3-gobject >/dev/null
+        run: dnf install -y -q --setopt=install_weak_deps=False rpm-build systemd-rpm-macros python-rpm-macros git python3-pytest python3-gobject glib2-devel >/dev/null
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: Build
+        # The tests run in %check; glib2-devel (installed above) has the GLib tools the login
+        # screen tests need, and a test that needs one must fail here, not skip.
+        env:
+          FEDORAGLASS_REQUIRE: glib
         run: |
           git config --global --add safe.directory "$PWD"
           ver="$(awk '/^Version:/ { print $2; exit }' packaging/fedora-glass.spec)"
@@ -113,7 +121,7 @@ jobs:
 
   # The Arch package, built with makepkg and installed on Arch the same way.
   arch:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'packages')
+    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'packages') && (github.event.action != 'labeled' || github.event.label.name == 'packages'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container: archlinux@sha256:b1c2fe6e717bfd5673af8fc217e1e1c3ce0dcbb1d53c3414c8425e7ce79fc6d9  # pinned; bump on purpose

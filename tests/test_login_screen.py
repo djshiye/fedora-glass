@@ -15,9 +15,19 @@ from pathlib import Path
 import pytest
 
 from fedoraglass import login_screen as ls
+from tests.ci_guard import required
 
 TOOLS = shutil.which("gresource") and shutil.which("glib-compile-resources")
 needs_tools = pytest.mark.skipif(not TOOLS, reason="needs gresource and glib-compile-resources")
+
+
+def test_ci_has_the_glib_tools_so_the_tests_below_do_not_skip():
+    """Where CI says the tools are installed (FEDORAGLASS_REQUIRE=glib: Ubuntu libglib2.0-bin
+    and libglib2.0-dev-bin, Fedora glib2-devel), their absence is a failure, not a skip."""
+    if not required("glib"):
+        pytest.skip("not a CI run that installs the GLib tools")
+    assert shutil.which("gresource"), "gresource is missing: install libglib2.0-bin / glib2"
+    assert shutil.which("glib-compile-resources"), "glib-compile-resources is missing: install libglib2.0-dev-bin / glib2-devel"
 
 GDM = "#lockDialogGroup { background-color: #222226; }\n"
 OTHER = b"<svg xmlns='http://www.w3.org/2000/svg'/>"

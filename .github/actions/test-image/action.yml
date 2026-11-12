@@ -1,0 +1,75 @@
+name: Test desktop image
+description: >
+  The base image of the release checks' test desktop (qa/desktop/Dockerfile), built ONCE per
+  GNOME version and shared with every lane through GitHub's cache, instead of each lane
+  building it from scratch. mode "build" (the image job) builds it and saves it; mode "load"
+  (every lane) takes today's copy. The cache entry is named after the image's recipe
+  (qa/desktop/run.sh --image-info: a hash of everything it is built from) and the day, so a
+  change to the recipe rebuilds it at once and Ubuntu's package updates come in at least once
+  a day. A lane that finds no copy builds the image itself (run.sh does that), and run.sh also
+  rebuilds any image whose recipe label does not match the checkout, so a stale copy can never
+  be tested by mistake.
+inputs:
+  gnome:
+    description: GNOME version of the test desktop, 50 or 51
+    required: true
+  mode:
+    description: "build: build and save the image. load: load the saved image."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Name the image
+      id: info
+      shell: bash
+      env:
+        GNOME: ${{ inputs.gnome }}
+      run: |
+        qa/desktop/run.sh --gnome "$GNOME" --image-info >> "$GITHUB_OUTPUT"
+        echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+    # --- build: the image job ---
+    - name: Already built today?
+      id: built
+      if: inputs.mode == 'build'
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      with:
+        path: ${{ runner.temp }}/lgqa-image.tar.zst
+        key: lgqa-image-gnome${{ inputs.gnome }}-${{ steps.info.outputs.recipe }}-${{ steps.info.outputs.day }}
+        lookup-only: true
+
+    - name: Build the image
+      if: inputs.mode == 'build' && steps.built.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        GNOME: ${{ inputs.gnome }}
+        IMAGE: ${{ steps.info.outputs.image }}
+      run: |
+        qa/desktop/run.sh --gnome "$GNOME" --build-only
+        docker save "$IMAGE" | zstd -T0 -3 -q -o "$RUNNER_TEMP/lgqa-image.tar.zst"
+
+    - name: Share the image
+      if: inputs.mode == 'build' && steps.built.outputs.cache-hit != 'true'
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      with:
+        path: ${{ runner.temp }}/lgqa-image.tar.zst
+        key: lgqa-image-gnome${{ inputs.gnome }}-${{ steps.info.outputs.recipe }}-${{ steps.info.outputs.day }}
+
+    # --- load: every lane ---
+    # Today's image from the image job (or yesterday's, if the day turned in between).
+    - name: Get the shared image
+      id: shared
+      if: inputs.mode == 'load'
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      with:
+        path: ${{ runner.temp }}/lgqa-image.tar.zst
+        key: lgqa-image-gnome${{ inputs.gnome }}-${{ steps.info.outputs.recipe }}-${{ steps.info.outputs.day }}
+        restore-keys: lgqa-image-gnome${{ inputs.gnome }}-${{ steps.info.outputs.recipe }}-
+
+    - name: Load the shared image
+      if: inputs.mode == 'load' && steps.shared.outputs.cache-matched-key != ''
+      shell: bash
+      run: |
+        zstd -dc "$RUNNER_TEMP/lgqa-image.tar.zst" | docker load -q
+        rm -f "$RUNNER_TEMP/lgqa-image.tar.zst"
