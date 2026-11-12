@@ -181,6 +181,14 @@ if [ $1 -eq 0 ]; then
     %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
 fi
 
+%postun
+# Removing the app (not an upgrade): the login screen helper kept its saved original in
+# /var/lib/liquid-glass, and the undo above deleted the files, so the folder is empty now.
+# Only an empty folder goes (a file left there stays).
+if [ $1 -eq 0 ]; then
+    rmdir %{_sharedstatedir}/liquid-glass 2>/dev/null || :
+fi
+
 %posttrans
 # The old repository file (added by hand from the Liquid Glass instructions) only lets
 # through the old name, and fedora-glass.repo now does its job: set it aside, but only

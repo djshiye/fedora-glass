@@ -20,3 +20,10 @@ pre_remove() {
     /usr/libexec/fedora-glass-undo-for-users || :
     /usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :
 }
+
+post_remove() {
+    # Only on removal, never on an upgrade. The login screen helper kept its saved original
+    # in this folder; the undo above deleted the files, so it is empty now. Only an empty
+    # folder goes (a file left there stays).
+    rmdir /var/lib/liquid-glass 2>/dev/null || :
+}
