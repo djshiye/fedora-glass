@@ -200,6 +200,7 @@ console.log(JSON.stringify({{
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
     out = json.loads(r.stdout.strip().splitlines()[-1])
-    assert out.pop("kinds") == ["solid", "none", "glass", "none"], "the user's own app solid, the built-in ones nothing"
+    assert out.pop("kinds") == ["solid", "title", "glass", "none"], \
+        "the user's own app solid, built-in apps glass behind their title bar only, Steam nothing"
     assert out.pop("color") == palette.build(s.normalized(), dark=True).window.with_alpha(1).hex6
     assert out == {"nautilus": True, "code": True, "ptyxis": False, "steam": True, "battery": True}

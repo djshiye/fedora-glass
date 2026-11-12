@@ -22,6 +22,16 @@ const WINDOW_TYPES = new Set([Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Me
 // Games and video players: they paint their whole window, and every frame they
 // show would re-render glass nobody sees.
 const NO_GLASS = /^(steam_app_\d+|steam_proton|gamescope|mpv|vlc|celluloid|io\.github\.celluloid_player\.celluloid|totem|org\.gnome\.totem|org\.gnome\.showtime|com\.github\.rafostar\.clapper|io\.mpv\.mpv|org\.videolan\.vlc|retroarch|org\.libretro\.retroarch)$/i;
+// Built-in apps without glass that have no title bar of their own to show: a dock, a
+// desktop widget, and Steam (its games come and go with it). The other built-in ones
+// (Electron and Chromium apps, Firefox, LibreOffice) paint their own solid window body,
+// but many draw their title bar from the GTK theme, which Fedora Glass makes see-through
+// for the glass behind it: with no glass there, the bar showed the desktop sharp
+// (Slack's, 1.5.23 to 1.5.27). They get glass behind their top band only (see 'title').
+const NO_TITLE = /^(plank|conky|steam)$/i;
+// How tall that band is, in logical px: the tallest title bar Fedora Glass sets (64) and
+// a browser's tab strip, with room to spare. Below the bar the app's own body covers it.
+const TITLE_BAND = 88;
 // A window that moved or changed size this long ago counts as still moving (see _moved).
 const SETTLE_MS = 250;
 // Fedora Glass's own window draws its glass, rim and shadow itself, and leaves a clear
@@ -110,23 +120,25 @@ function builtInSet(skip, solid) {
 }
 
 /**
- * What goes behind an app's windows: 'glass'; 'none' for the built-in apps without glass
- * (games, video players, apps that paint their own solid windows) and Fedora Glass itself;
- * 'solid' for an app on the user's own list (solid, the tail of skip, see config.js).
+ * What goes behind an app's windows: 'glass'; 'none' for games, video players, docks and
+ * desktop widgets (NO_GLASS, NO_TITLE) and Fedora Glass itself; 'title' for the other
+ * built-in apps without glass, which paint their own solid body: glass behind their
+ * title bar only (TITLE_BAND); 'solid' for an app on the user's own list (solid, the
+ * tail of skip, see config.js).
  * Fedora Glass's GTK and Qt themes paint a window's background partly see-through, for
  * the glass behind it to blur what lies under it: without the glass that showed the
  * desktop sharp through the window. A solid backdrop makes it look like a plain window.
- * An app the built-in list has too stays 'none', as before.
+ * An app the built-in list has too goes by the built-in list.
  */
 export function windowKind(ids, skip, solid = []) {
     if (!withoutGlass(ids, skip))
         return 'glass';
-    if (!solid.length || ids.some(id => NO_GLASS.test(id) || OWN_APP.test(id)))
+    if (ids.some(id => NO_GLASS.test(id) || OWN_APP.test(id)))
         return 'none';
-    const builtIn = builtInSet(skip, solid), own = skipSet(solid);
-    if (ids.some(id => builtIn.has(id.toLowerCase())))
-        return 'none';
-    return ids.some(id => own.has(id.toLowerCase())) ? 'solid' : 'none';
+    const builtIn = builtInSet(skip, solid);
+    if (!solid.length || ids.some(id => builtIn.has(id.toLowerCase())))
+        return ids.some(id => NO_TITLE.test(id)) ? 'none' : 'title';
+    return ids.some(id => skipSet(solid).has(id.toLowerCase())) ? 'solid' : 'none';
 }
 
 /** The card a frameless app draws inside its window ({margin, radius}), or null. */
@@ -420,6 +432,7 @@ class WindowGlass {
         this._coverKey = '';       // what it hid from the windows below when last asked (see _noteCover)
         this._coverRect = null;
         this.frame = null;         // its frame when last seen (see Windows._changed)
+        this._titleOnly = false;   // glass behind its title bar only (see windowKind)
         // An app on the user's list: a solid backdrop instead of glass (see _showSolid).
         this._solid = null;
         this._solidSignals = new Signals();
@@ -688,6 +701,7 @@ class WindowGlass {
             return 'out';
         // Full screen stays 'out' (above): nothing may sit in a full-screen window's actor.
         const kind = windowKind(this.appIds(), s.skip, s.solid ?? []);
+        this._titleOnly = kind === 'title';
         if (kind === 'none')
             return 'out';
         if (kind === 'solid')
@@ -834,7 +848,7 @@ class WindowGlass {
     _frameShape() {
         const w = this.win;
         const card = glassFrame(w.get_frame_rect(), clientCard(this.appIds()), isMaximized(w));
-        const frame = card.rect;
+        let frame = card.rect;
         // Maximized and tiled windows have square corners and no rim on the sides
         // that meet the screen, the panel or the next tile; a floating window loses
         // only the sides that sit exactly on the screen edge.
@@ -843,6 +857,12 @@ class WindowGlass {
         const onWa = [near(frame.x, wa.x), near(frame.y, wa.y), near(frame.x + frame.width, wa.x + wa.width),
             near(frame.y + frame.height, wa.y + wa.height)];
         const snapped = isMaximized(w) || (onWa[1] && onWa[3]) || (onWa[0] && onWa[2]);
+        // An app that paints its own body: glass behind its title bar only, its bottom
+        // edge hidden under that body.
+        if (this._titleOnly && frame.height > Math.ceil(TITLE_BAND * cssScale())) {
+            frame = {...frame, height: Math.ceil(TITLE_BAND * cssScale())};
+            onWa[3] = true;   // a cut edge, like one on the screen's: no rim, no lens there
+        }
         return {frame, onWa, snapped, r: snapped ? 0 : card.radius ?? this.settings.radius};
     }
 
@@ -912,6 +932,10 @@ class WindowGlass {
         const buf = w.get_buffer_rect();
         const scr = screenEdges(this.actor, frame.x, frame.y, frame.width, frame.height);
         const edges = snapped ? onWa.map((e, i) => e || scr[i]) : scr;
+        if (this._titleOnly)
+            edges[3] = edges[3] || onWa[3];
+        // A title band's bottom lies under the app's body: square, no rim strip there.
+        const radii = this._titleOnly ? [r, r, 0, 0] : [r, r, r, r];
         const p = pane.pad;
         const rp = rims[0].pad;
         const q = Math.max(p, rp);
@@ -935,7 +959,7 @@ class WindowGlass {
         // pane lay out and render again, though nothing behind it changed.
         pane.setSources(sources, moved);
         pane.setEdges(edges);
-        pane.place(p, p, W, H, [r, r, r, r], frame.x, frame.y);
+        pane.place(p, p, W, H, radii, frame.x, frame.y);
         pane.show();
         // The rim's strips, in the px of the whole rim (W + 2 rp by H + 2 rp): top and
         // bottom tall enough to hold the rounded corners, the sides a few px into the
@@ -947,7 +971,7 @@ class WindowGlass {
         const rimOn = (rims[0]._look?.highlight ?? 1) > 0;
         rims.forEach((g, i) => {
             const [ax, ay, aw, ah] = parts[i];
-            if (!rimOn || aw < 1 || ah < 1) {
+            if (!rimOn || aw < 1 || ah < 1 || (i === 1 && this._titleOnly)) {
                 g.hide();
                 g.setSources([]);
                 return;
@@ -958,7 +982,7 @@ class WindowGlass {
             g.setPart(parts[i]);
             g.setSources(sources, moved);
             g.setEdges(edges);
-            g.place(rp - ax, rp - ay, W, H, [r, r, r, r], frame.x, frame.y);
+            g.place(rp - ax, rp - ay, W, H, radii, frame.x, frame.y);
             g.show();
         });
         this._syncHolder();
