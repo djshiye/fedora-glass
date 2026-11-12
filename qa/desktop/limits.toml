@@ -82,5 +82,6 @@ max_sharpness_share = 0.25
 
 [appglass]
 # The glass alone behind a "More solid" app (the terminal) against an app with normal glass
-# (Files), over a sharp checkerboard: how sharp the solid one may be, as a share of the other's.
+# (Files), over a big checkerboard: how much of the board may show through it (spread of
+# brightness), as a share of the other's.
 max_solid_share = 0.8

@@ -71,8 +71,15 @@ export class TileGlass {
             this._shown();
     }
 
+    // The menus' glass, without the light its content casts into it: the preview's only
+    // content is its own accent tint, which lit the whole pane up bright blue.
     _settings() {
-        return this.cfg.parts?.quicksettings ?? this.cfg.menus;
+        const base = this.cfg.parts?.quicksettings ?? this.cfg.menus;
+        if (this._base !== base) {
+            this._base = base;
+            this._own = {...base, look: {...base.look, bleed: 0}};
+        }
+        return this._own;
     }
 
     _shown() {
@@ -87,7 +94,7 @@ export class TileGlass {
                 f = new Follower(preview, preview, this._settings(), () => {
                     if (this._follower === f)
                         this._gone();
-                }, {sources: () => this._sources(preview)});
+                }, {sources: () => this._sources(preview), plainParent: true});
             } catch (e) {
                 report('snap preview shown without glass', e);
                 return;

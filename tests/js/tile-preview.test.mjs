@@ -171,6 +171,7 @@ test('the glass goes right below the preview, which is marked nearly clear', () 
     const t = new TileGlass(cfg());
     const p = showPreview(b);
     assert.ok(t._follower, 'glass built on the first showing');
+    assert.equal(t._follower.settings.look.bleed, 0, 'its own accent tint never lights the glass up');
     assert.ok(p.has_style_class_name(GLASS_CLASS));
     const kids = windowGroup.get_children();
     const at = kids.indexOf(p);

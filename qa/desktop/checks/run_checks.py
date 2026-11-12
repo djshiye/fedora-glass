@@ -2237,7 +2237,8 @@ def _checker_wallpaper(cell: int = 24) -> tuple[dict, Path]:
     keys = ("picture-uri", "picture-uri-dark", "picture-options")
     was = {k: lgqa.subprocess.run(["gsettings", "get", "org.gnome.desktop.background", k], env=lgqa.ENV,
                                   capture_output=True, text=True).stdout.strip() for k in keys}
-    wall = HOME_DINO / "lgqa-checker.png"
+    # Its own file per size: GNOME keeps a picture it already shows when the path is the same.
+    wall = HOME_DINO / f"lgqa-checker-{cell}.png"
     y, x = np.mgrid[0:1440, 0:2560]
     board = ((x // cell + y // cell) % 2).astype(bool)
     im = np.zeros((1440, 2560, 3), np.uint8)
@@ -2395,10 +2396,13 @@ def check_app_glass(ctx: Ctx) -> Check:
             fx, fy, fw, fh = sh.window_by_id(w["id"])["frame"]
             boxes[name] = lgqa.crop(a, [v * s for v in (fx + fw * 0.2, fy + fh * 0.3, fw * 0.6, fh * 0.5)])
             lgqa.save(lgqa.crop(a, [v * s for v in (fx - 10, fy - 10, fw + 20, fh + 20)]), REPORT / f"appglass-{name}.png")
-        solid, normal = _edge_energy(boxes["terminal"]), _edge_energy(boxes["files"])
-        ok = solid < normal * LIMITS["appglass"]["max_solid_share"]
-        c.add(ok, f"The terminal's glass is more frosted than Files' (sharpness {solid:.2f} against {normal:.2f})."
-              if ok else f"The terminal's glass is not more solid than Files' (sharpness {solid:.2f} against {normal:.2f}).",
+        # How much of the board still shows through: the spread of brightness in the glass.
+        solid, normal = (float(lgqa.lum(boxes[k]).std()) for k in ("terminal", "files"))
+        ok = normal > 3 and solid < normal * LIMITS["appglass"]["max_solid_share"]
+        c.add(ok, f"The terminal's glass is more solid than Files' (the board shows through it at {solid:.1f} "
+              f"against {normal:.1f})." if ok else
+              f"The terminal's glass is not more solid than Files' (the board shows through it at {solid:.1f} "
+              f"against {normal:.1f}).",
               "appglass-terminal.png", "appglass-files.png")
     finally:
         cfg.write_text(before)
