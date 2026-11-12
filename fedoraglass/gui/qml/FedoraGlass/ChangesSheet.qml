@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
 // "See changes": first what you changed and haven't applied yet, in plain words and by
-// page ("Frost: 45 % → 60 %"), each a click away from its control. Below, folded, every
+// page ("Frost: 45% → 60%"), each a click away from its control. Below, folded, every
 // file and setting Apply writes, per part of the desktop.
 Sheet {
     id: sheet

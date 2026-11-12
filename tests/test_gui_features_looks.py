@@ -225,7 +225,7 @@ def test_change_list_counts_like_the_footer_and_names_the_pages(qml, fake_env, t
     b.setProperty("blurAppWindows", False)
     rows = b.property("changeList")
     assert [(r["label"], r["before"], r["after"]) for r in rows] == [
-        ("Accent", "System (Blue)", "Purple"), ("Frost", "45 %", "60 %"), ("Window glass", "On", "Off")]
+        ("Accent", "System (Blue)", "Purple"), ("Frost", "45%", "60%"), ("Window glass", "On", "Off")]
     assert b.property("changeCount") == 3
     assert b.property("changedPages") == ["colour", "glass"]
     b.setMotionStyle("playful")
@@ -259,7 +259,7 @@ def test_see_changes_lists_each_change_and_a_click_goes_to_it(qml):
         groups = sheet.property("groups")
         groups = groups.toVariant() if hasattr(groups, "toVariant") else groups
         assert [g["label"] for g in groups] == ["Glass", "Lock and login"]
-        assert [r["after"] for r in groups[0]["rows"]] == ["60 %"]
+        assert [r["after"] for r in groups[0]["rows"]] == ["60%"]
         row = _find(win, "change_frost")
         assert row is not None
         row.clicked.emit()
