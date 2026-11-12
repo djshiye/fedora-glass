@@ -1221,6 +1221,12 @@ class Engine:
         backup.save()
 
     def _run(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+        # This part's settings go out together at its end, one change per schema, written
+        # in this process (see Env.gsettings_batch).
+        with self.env.gsettings_batch():
+            return self._run_actions(tid, actions, backup)
+
+    def _run_actions(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
         errs: list[str] = []
         self._record_originals(tid, actions, backup)
         for a in actions:
