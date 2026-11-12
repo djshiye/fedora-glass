@@ -17,6 +17,7 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import asdict
 
 from . import __version__, settings as settings_mod, wallcolour
 
@@ -423,16 +424,44 @@ class Watcher:
         # After Restore original, stay out of the way.
         if not _guarded("checking the look", self.eng.look_on):
             return
-        if wall and (new := _guarded("taking the wallpaper's colours", self.rematch, s)) is not None:
-            recoloured = (new.tint, new.accent) != (s.tint, s.accent)
-            if _guarded("saving the wallpaper's colours", self._save, new) is None:
+        # Day and night looks: the user picked a saved look for the style GNOME shows now.
+        looked = _guarded("taking the look for this style", self.day_night, s) if scheme else None
+        new = looked
+        if looked is not None:
+            wall = wallcolour.follows(looked)
+        if wall and (taken := _guarded("taking the wallpaper's colours", self.rematch, new or s)) is not None:
+            was = new or s
+            if (taken.tint, taken.accent) != (was.tint, was.accent):
+                accent = True       # a new tint or accent is in every part
+            new = taken
+        if new is not None:
+            what = "saving the look for this style" if looked is not None else "saving the wallpaper's colours"
+            if _guarded(what, self._save, new) is None:
                 return      # not saved: applying a look settings.json doesn't hold would be lost
             s = new
-            if recoloured:
-                accent = True       # a new tint or accent is in every part
         if scheme or contrast or accent:
-            _guarded("Apply", self.eng.apply, s, only=None if contrast or accent else self.only,
+            # Another look changes every part, not only the ones that follow dark and light.
+            _guarded("Apply", self.eng.apply, s, only=None if contrast or accent or looked is not None else self.only,
                      if_applied=True, applied_only=True)
+
+    def _env(self):
+        env = getattr(self.eng, "env", None)
+        if env is None:
+            from .env import Env
+            env = Env()
+        return env
+
+    def day_night(self, s):
+        """The saved look picked for the style GNOME shows now, on the user's settings (as
+        picking its tile in the app and pressing Apply would), or None: none picked, Style
+        doesn't follow GNOME, the look is gone or unreadable, or it is the look already."""
+        from . import cursors, looks
+        env = self._env()
+        new = looks.day_night(s, env.prefers_dark(), looks.Library(looks.looks_dir()),
+                              lambda style: cursors.theme_dir(env, style) is not None)
+        if new is None or asdict(new.normalized()) == asdict(s.normalized()):
+            return None
+        return new
 
     def rematch(self, s):
         """The look with the colours of the wallpaper GNOME shows now, or None when nothing
@@ -444,10 +473,7 @@ class Watcher:
                           "wallpaper only when you press Apply in the app", key="pixbuf")
                 return None
             read = wallcolour.pixbuf_pixels
-        env = getattr(self.eng, "env", None)
-        if env is None:
-            from .env import Env
-            env = Env()
+        env = self._env()
         dark = env.prefers_dark() if s.scheme == "auto" else s.scheme == "dark"
         return wallcolour.rematch(s, wallcolour.wallpaper_path(env, dark), dark, read)
 
@@ -489,6 +515,8 @@ def cmd_watch(args: argparse.Namespace) -> int:
     A look whose tint or accent matches the wallpaper takes the new picture's colours when
     the wallpaper changes (or a dark/light switch shows the other picture), saves them in
     settings.json as the app would, and applies them.
+    Day and night looks: when the user picked a saved look for the style GNOME switches
+    to (Style following GNOME), that look goes into settings.json and is applied whole.
     Exits 75 when a new version is installed, 1 when it can no longer watch."""
     mods = _gio()
     if mods is not None:

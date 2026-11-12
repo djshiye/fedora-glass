@@ -25,9 +25,9 @@ from PySide6.QtCore import Property, QFileSystemWatcher, QObject, QProcess, QThr
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
 from .. import APP_ID, cursors, distro, login_screen, palette
+from .. import looks as looks_mod
 from .. import settings as settings_mod
 from . import changes as changes_mod
-from . import looks as looks_mod
 from . import wallcolour
 from ..color import Color
 from ..env import Env
@@ -240,8 +240,14 @@ def installed_apps(env: Env) -> list[dict]:
     return out
 
 
-# Saved the moment it is switched (removing the package reads it), so never "not applied yet".
-_SAVED_AT_ONCE = ("undo_on_remove",)
+# Saved the moment it is switched, so never "not applied yet": removing the package reads
+# the first, the watcher the day and night looks.
+_SAVED_AT_ONCE = ("undo_on_remove", "look_for_light", "look_for_dark")
+
+
+def _at_once(s: Settings) -> dict:
+    """The settings saved the moment they are switched, to carry over to another look."""
+    return {k: getattr(s, k) for k in _SAVED_AT_ONCE}
 # Bookkeeping that follows other settings (the wallpaper match): never a change of its own.
 _BOOKKEEPING = ("tint_own", "accent_own", "wallpaper_match")
 
@@ -546,8 +552,9 @@ class Backend(QObject):
         """settings.json changed on disk: when the only change is the colours the watcher
         took from a new wallpaper (fedora-glass watch), the applied look here takes them too,
         and so does the editor where it still shows the old ones. So the app neither calls
-        them unapplied nor says the wallpaper changed since the last Apply. Any other change
-        is left alone: the app never loads a look under the user's hands."""
+        them unapplied nor says the wallpaper changed since the last Apply. The same for the
+        day or night look the watcher put on the desktop (see _took_day_night_look). Any
+        other change is left alone: the app never loads a look under the user's hands."""
         if self._task is not None or self._applying is not None:
             return      # an Apply or Restore of its own writes the file now
         stamp = self._settings_stamp()
@@ -555,14 +562,18 @@ class Backend(QObject):
             return
         self._saved_stamp = stamp
         old = self._saved
-        if not wallcolour.follows(old):
+        if not (wallcolour.follows(old) or old.look_for_light or old.look_for_dark):
             return
         try:
             loaded = settings_mod.load_checked(self._path)
         except Exception:  # noqa: BLE001 - a file that can't be read now changes nothing here
             return
         new = loaded.settings
-        if not loaded.usable or all(getattr(new, k) == getattr(old, k) for k in self._WALL_KEYS):
+        if not loaded.usable:
+            return
+        if self._took_day_night_look(old, new):
+            return
+        if not wallcolour.follows(old) or all(getattr(new, k) == getattr(old, k) for k in self._WALL_KEYS):
             return
         same = {k: getattr(old, k) for k in self._WALL_KEYS}
         if asdict(replace(new, **same).normalized()) != asdict(old.normalized()):
@@ -576,6 +587,35 @@ class Backend(QObject):
         self.savedChanged.emit()
         self.settingsChanged.emit()
         self.wallpaperMatchChanged.emit()
+
+    def _took_day_night_look(self, old: Settings, new: Settings) -> bool:
+        """Day and night looks: GNOME switched between light and dark, and the watcher put
+        the look picked for it in settings.json and on the desktop. Only the look's own
+        settings may differ (and Style still follows GNOME): anything else is not the
+        watcher's doing. The applied look here becomes that one; the editor follows it only
+        when it held no unapplied changes, so none is ever lost (they then read as changes
+        from the new look, which is what Apply would do to the desktop now)."""
+        if old.scheme != "auto" or new.scheme != "auto" or not (old.look_for_light or old.look_for_dark):
+            return False
+        mine, theirs = asdict(old.normalized()), asdict(new.normalized())
+        allowed = {*looks_mod.LOOK_KEYS, *_BOOKKEEPING}
+        if mine == theirs or any(mine[k] != theirs[k] for k in mine if k not in allowed):
+            return False
+        clean = not self.dirty
+        new = replace(new, **_at_once(old))
+        self._saved = new
+        if self._good is old:
+            self._good = new
+        try:
+            self._saved_at = self._settings_file().stat().st_mtime
+        except OSError:
+            pass
+        if clean:
+            self._replace_editor(replace(new, targets=dict(new.targets)))
+        self.savedChanged.emit()
+        self.settingsChanged.emit()
+        self.wallpaperMatchChanged.emit()
+        return True
 
     # ---- paused from Quick Settings ----------------------------------------------
     def _read_paused(self) -> bool:
@@ -1260,7 +1300,7 @@ class Backend(QObject):
         """Every setting at its default but this PC's own choices: which apps get the look,
         what happens on removal, and the apps without glass (the list picked on this PC,
         kept like the apps that get the look; its card's Reset still empties it)."""
-        return Settings(targets=dict(self._s.targets), undo_on_remove=self._s.undo_on_remove,
+        return Settings(targets=dict(self._s.targets), **_at_once(self._s),
                         no_glass_apps=list(self._s.no_glass_apps))
 
     @Property(bool, notify=settingsChanged)
@@ -1332,7 +1372,7 @@ class Backend(QObject):
         """Undo: back to the look applied last. After an Apply where some parts failed (nothing
         changed since), back to the last look that applied fully, to apply again."""
         back = self._saved if self.dirty or not self._partial else self._good
-        self._s = replace(back, targets=dict(back.targets), undo_on_remove=self._saved.undo_on_remove)
+        self._s = replace(back, targets=dict(back.targets), **_at_once(self._saved))
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
@@ -2069,8 +2109,9 @@ class Backend(QObject):
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
         def done(out):
-            # "Remove only" (undoOnRemove) may have been switched while Apply ran: it is saved at once.
-            uor = self._saved.undo_on_remove
+            # "Remove only" (undoOnRemove) and the day and night looks may have been switched
+            # while Apply ran: they are saved at once.
+            uor = _at_once(self._saved)
             self._applying = None
             if isinstance(out, Exception):
                 self._lock_after_apply = False
@@ -2091,7 +2132,7 @@ class Backend(QObject):
                 self.failed.emit(_("Apply stopped: {error}").format(error=out))
                 return
             results, self._has_backup, (self._glass_live, restart) = out
-            self._saved = replace(s, undo_on_remove=uor)
+            self._saved = replace(s, **uor)
             self._usable = True         # settings.json is the look the user applied now
             self._apply_step = ""
             self._keep_previous(was_applied, was_at, step)
@@ -2352,30 +2393,41 @@ class Backend(QObject):
     @undoOnRemove.setter
     def undoOnRemove(self, on: bool) -> None:
         """Saved straight away, without Apply: removing the package reads it from the saved settings."""
-        on = bool(on)
-        if self._s.undo_on_remove == on and self._saved.undo_on_remove == on:
-            return
-        saved = replace(self._saved, undo_on_remove=on)
+        self._save_at_once(undo_on_remove=bool(on))
+
+    def _save_at_once(self, **values: Any) -> bool:
+        """Save these settings (from _SAVED_AT_ONCE) straight away, without Apply, in the
+        applied look, the editor's and settings.json. False when they couldn't be saved."""
+        if all(getattr(self._s, k) == v and getattr(self._saved, k) == v for k, v in values.items()):
+            return True
+        # A look the watcher put on the desktop since (day and night) is taken first, so
+        # this save never writes the look before it back.
+        self._poll_saved_colours()
+        saved = replace(self._saved, **values)
         # While Apply runs, settings.json holds the look it applies: keep that one, and keep
         # .bak the look applied before it (the Apply may still fail).
-        on_disk = replace(self._applying, undo_on_remove=on) if self._applying is not None else saved
+        on_disk = replace(self._applying, **values) if self._applying is not None else saved
         try:
             if self._usable or self._applying is not None:
                 settings_mod.save(on_disk, self._path, backup=self._applying is None)
-            if not self._usable:
+            if not self._usable and "undo_on_remove" in values:
                 # Damaged settings.json: only Apply writes it (see _usable). The choice is
                 # kept beside it, where removing the package reads it.
-                settings_mod.save_undo_on_remove(on, self._path)
+                settings_mod.save_undo_on_remove(values["undo_on_remove"], self._path)
         except OSError as e:
             self.failed.emit(_("Could not save settings: {error}").format(error=e))
-            return
+            return False
         if self._applying is not None:
             self._applying = on_disk
+        elif self._usable:
+            # Our own write: not a change the watcher made (see _poll_saved_colours).
+            self._saved_stamp = self._settings_stamp()
         self._saved = saved
-        self._good = replace(self._good, undo_on_remove=on)
-        self._s = replace(self._s, undo_on_remove=on)
+        self._good = replace(self._good, **values)
+        self._s = replace(self._s, **values)
         self.settingsChanged.emit()
         self.savedChanged.emit()
+        return True
 
     APP_DIR = Path("/usr/share/fedora-glass")
 
@@ -2668,16 +2720,7 @@ class Backend(QObject):
     activeLook = Property(str, _get_active_look, notify=settingsChanged)
 
     def _with_look(self, values: dict) -> Settings:
-        s = looks_mod.apply_look(self._s, values, self._cursor_installed)
-        if s.tint_from_wallpaper and not self._s.tint_from_wallpaper:
-            s.tint_own = self._s.tint
-        if s.accent_from_wallpaper and not self._s.accent_from_wallpaper:
-            s.accent_own = self._s.accent
-        if not s.tint_from_wallpaper:
-            s.tint_own = ""
-        if not s.accent_from_wallpaper:
-            s.accent_own = ""
-        return s
+        return looks_mod.use_look(self._s, values, self._cursor_installed)
 
     @Slot(str)
     def useLook(self, look_id: str) -> None:
@@ -2737,6 +2780,8 @@ class Backend(QObject):
             self.lookProblem.emit(_("The look couldn't be renamed: {reason}").format(reason=e.strerror or e))
             return ""
         self._looks_changed()
+        # A new name can mean a new file name: day and night follow the look there.
+        self._day_night_moved(look_id, new_id)
         self.settingsChanged.emit()
         return new_id
 
@@ -2749,9 +2794,79 @@ class Backend(QObject):
             self.lookProblem.emit(_("The look couldn't be deleted: {reason}").format(reason=e.strerror or e))
             return
         self._looks_changed()
+        self._day_night_moved(look_id, "")      # a deleted look is picked for neither style
         self.settingsChanged.emit()
         if look is not None:
             self.noticed.emit(_("Deleted “{name}”").format(name=look["name"]))
+
+    @Slot(str, result=str)
+    def lookNamed(self, name: str) -> str:
+        """The id of the saved look with this name, or "": saving under it asks first."""
+        return next((x["id"] for x in self._look_list()
+                     if x["name"].casefold() == looks_mod.clean_name(name).casefold() != ""), "")
+
+    @Slot(str, result=str)
+    def uniqueLookName(self, name: str) -> str:
+        """This name, or numbered ("Evening 2") when a saved look has it: "Keep both"."""
+        return self._library.unique_name(name)
+
+    @Slot(str, result=bool)
+    def updateLook(self, look_id: str) -> bool:
+        """The saved look takes the editor's settings; it keeps its name and its place."""
+        return self._overwrite_look(look_id, _("Updated “{name}”"))
+
+    @Slot(str, result=bool)
+    def replaceLook(self, look_id: str) -> bool:
+        """Saving under a name a look has already, and "Replace": that look takes the
+        editor's settings, in place of a second tile with its name."""
+        return self._overwrite_look(look_id, _("Saved “{name}”"))
+
+    def _overwrite_look(self, look_id: str, said: str) -> bool:
+        try:
+            self._library.update(look_id, self._s)
+        except looks_mod.LookError as e:
+            self.lookProblem.emit(str(e))
+            return False
+        except OSError as e:
+            self.lookProblem.emit(_("The look couldn't be saved: {reason}").format(reason=e.strerror or e))
+            return False
+        self._looks_changed()
+        self.settingsChanged.emit()     # it is the active look now
+        look = next((x for x in self._look_list() if x["id"] == look_id), None)
+        if look is not None:
+            self.noticed.emit(said.format(name=look["name"]))
+        return True
+
+    # ---- day and night looks ---------------------------------------------------------
+    # A saved look for GNOME's light style and one for its dark style: the watcher puts the
+    # matching one on the desktop when GNOME switches (see fedoraglass/looks.py day_night).
+    # Saved at once, like "Remove only": they say what happens later, not how it looks now.
+    def _day_night_moved(self, old_id: str, new_id: str) -> None:
+        moved = {k: new_id for k in ("look_for_light", "look_for_dark") if old_id and getattr(self._saved, k) == old_id}
+        if moved and old_id != new_id:
+            self._save_at_once(**moved)
+
+    def _get_look_for_light(self) -> str:
+        return self._s.look_for_light
+
+    def _set_look_for_light(self, look_id: str) -> None:
+        self._pick_day_night("look_for_light", look_id)
+
+    def _get_look_for_dark(self) -> str:
+        return self._s.look_for_dark
+
+    def _set_look_for_dark(self, look_id: str) -> None:
+        self._pick_day_night("look_for_dark", look_id)
+
+    def _pick_day_night(self, key: str, look_id: str) -> None:
+        look_id = str(look_id or "")
+        if look_id and (not settings_mod.is_look_id(look_id)
+                        or not any(x["id"] == look_id for x in self._look_list())):
+            return
+        self._save_at_once(**{key: look_id})
+
+    lookForLight = Property(str, _get_look_for_light, _set_look_for_light, notify=settingsChanged)
+    lookForDark = Property(str, _get_look_for_dark, _set_look_for_dark, notify=settingsChanged)
 
     @Slot(str, result=str)
     def lookFileName(self, look_id: str) -> str:
@@ -2888,7 +3003,7 @@ class Backend(QObject):
         p = self._previous
         if p is None or self._removing or self.busy:
             return      # (a background check still running is fine: Apply waits for it)
-        s = replace(p.settings, targets=dict(p.settings.targets), undo_on_remove=self._saved.undo_on_remove)
+        s = replace(p.settings, targets=dict(p.settings.targets), **_at_once(self._saved))
         self._apply_step = "forward" if p.forward else "back"
         self._replace_editor(s)
         self.apply()
