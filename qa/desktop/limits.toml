@@ -73,3 +73,15 @@ max_corner_lift = 6
 # The screenshot tool's Window mode: the least share of the terminal's picture box that must show its
 # green fill (about 70-80 % with the title bar and the box's border; 1.5.11's empty boxes showed 0 %).
 min_picker_fill = 0.4
+
+[snap]
+# The snap preview (a window dragged to a screen edge) over a sharp checkerboard: how sharp the
+# board may look through it, as a share of the bare wallpaper's sharpness. GNOME's own flat
+# box (half see-through accent) keeps about half of it; the glass blurs it to a few %.
+max_sharpness_share = 0.25
+
+[appglass]
+# The glass alone behind a "More solid" app (the terminal) against an app with normal glass
+# (Files), over a big checkerboard: how much of the board may show through it (spread of
+# brightness), as a share of the other's.
+max_solid_share = 0.8

@@ -98,7 +98,7 @@ def test_every_setting_can_be_put_back(make_backend):
             continue
         b.resetDefaults()
         changed = {"parts": {"panel": {"radius": 0}}, "motion": {"open": {"preset": "off"}},
-                   "no_glass_apps": ["org.gnome.Nautilus"]}.get(f.name)
+                   "no_glass_apps": ["org.gnome.Nautilus"], "app_glass": {"org.gnome.Nautilus": "solid"}}.get(f.name)
         if changed is None:
             v = getattr(Settings(), f.name)
             changed = (not v if isinstance(v, bool) else

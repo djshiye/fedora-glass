@@ -50,6 +50,7 @@ CHANGES: dict[str, dict] = {
     "header_height": {"header_height": 60}, "header_opacity": {"header_opacity": 0.9},
     "terminal_colors": {"terminal_colors": True}, "terminal_follows_style": {"terminal_follows_style": True},
     "qt_gnome_titlebars": {"qt_gnome_titlebars": True},
+    "app_glass": {"app_glass": {"org.gnome.Nautilus": "solid", "org.gnome.Ptyxis": "clearer"}},
     "motion": {"motion": {"open": {"preset": "off"}, "hover": {"preset": "jelly", "speed": 2.0}}},
     "motion_dtp_hover_off": {"motion_dtp_hover_off": True}, "hover_glide": {"hover_glide": False},
     "lock_glass": {"lock_glass": False}, "lock_look": {"lock_blur": 10, "lock_dim": 0.6, "lock_tint": 1.0, "lock_card": False,

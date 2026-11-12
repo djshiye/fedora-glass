@@ -124,6 +124,44 @@ export function cleanSkip(raw) {
         solidColor: typeof w.solidColor === 'string' && HEX6.test(w.solidColor) ? w.solidColor.toLowerCase() : DEFAULTS.windows.solidColor};
 }
 
+// Per-app glass strength: the looks an app can pick besides the windows' own.
+export const APP_LOOKS = ['solid', 'clearer'];
+
+/**
+ * The apps with their own glass strength (windows.appGlass): at most SKIP_MAX ids of under
+ * 200 characters, in lower case (windows.js compares them so), each to 'solid' or 'clearer';
+ * anything else is dropped. A Map, so an id like "__proto__" is just an id.
+ */
+export function cleanAppGlass(raw) {
+    const out = new Map();
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        return out;
+    for (const [id, look] of Object.entries(raw)) {
+        if (out.size >= SKIP_MAX)
+            break;
+        if (typeof id !== 'string' || !id.length || id.length >= 200 || !APP_LOOKS.includes(look))
+            continue;
+        const key = id.toLowerCase();
+        if (!out.has(key))
+            out.set(key, look);
+    }
+    return out;
+}
+
+/**
+ * The two per-app looks (windows.appLooks), each the windows' look `base` with that look's
+ * overrides, every value checked like the rest (cleanLook); a missing one is the windows' look.
+ */
+export function cleanAppLooks(raw, base) {
+    const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const out = {};
+    for (const name of APP_LOOKS) {
+        const o = r[name];
+        out[name] = o && typeof o === 'object' && !Array.isArray(o) ? cleanLook({...base, ...o}, base) : base;
+    }
+    return out;
+}
+
 const MESSAGE_MAX = 120;
 
 /** The owner's lock screen message: plain text on one or two lines, short, no control characters. */
@@ -171,6 +209,10 @@ export function parse(text) {
     // Terminal windows can have their own look; it starts from the app windows' one.
     const tl = raw.windows && typeof raw.windows === 'object' ? raw.windows.terminalLook : null;
     cfg.windows.terminalLook = tl && typeof tl === 'object' ? cleanLook({...cfg.windows.look, ...tl}, cfg.windows.look) : null;
+    // Apps with their own glass strength (more solid or clearer), and those two looks.
+    const rw = raw.windows && typeof raw.windows === 'object' ? raw.windows : {};
+    cfg.windows.appGlass = cleanAppGlass(rw.appGlass);
+    cfg.windows.appLooks = cleanAppLooks(rw.appLooks, cfg.windows.look);
     // Window and panel animations: unknown names fall back to the defaults, numbers are clamped.
     cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);

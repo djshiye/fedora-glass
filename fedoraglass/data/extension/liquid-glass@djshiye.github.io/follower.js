@@ -26,9 +26,13 @@ export class Follower {
      * can't copy from inside it, so it shows the wallpaper the overview blurs.
      * glow: what lights the glass instead of the anchor (the overview's dash, not the
      * whole overview with its windows).
+     * plainParent: the anchor's parent is never moved, scaled or turned (the window group),
+     * so a place in it is the stage place less its own. The window group cannot map stage
+     * points into itself (transform_stage_point fails there), which left the glass hidden.
      */
-    constructor(target, anchor, settings, onGone, {onlyBehind = false, sources = null, glow = null} = {}) {
+    constructor(target, anchor, settings, onGone, {onlyBehind = false, sources = null, glow = null, plainParent = false} = {}) {
         this.target = target;
+        this._plainParent = plainParent;
         this._onlyBehind = onlyBehind;
         this._sources = sources;
         this._glow = glow;
@@ -216,7 +220,11 @@ export class Follower {
         const box = target.get_allocation_box();
         const far = target.apply_transform_to_point(new Graphene.Point3D({x: box.get_width(), y: box.get_height(), z: 0}));
         const [w, h] = [far.x - sx, far.y - sy];
-        const [ok, lx, ly] = parent.transform_stage_point(sx, sy);
+        let [ok, lx, ly] = parent.transform_stage_point(sx, sy);
+        if (!ok && this._plainParent) {
+            const [px, py] = parent.get_transformed_position();
+            [ok, lx, ly] = [true, sx - px, sy - py];
+        }
         // A menu that has just opened is mapped a frame before it is allocated.
         if (!ok || ![sx, sy, w, h, lx, ly].every(Number.isFinite)) {
             hide();

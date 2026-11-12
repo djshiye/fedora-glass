@@ -459,6 +459,18 @@ StScrollBar > .vhandle:hover, StScrollBar > .hhandle:hover {
   border: 1px solid ${glass_edge};
   border-top-color: ${glass_rim};
   box-shadow: 0 2px 6px 0 ${shadow}; }
+/* The snap preview, where a window dragged to a screen edge will go. The extension puts
+   glass behind it and marks it .fedora-glass-tile: then the box is nearly clear, with a
+   thin accent rim and the menus' corners. Without that glass (paused, safe mode, menu glass
+   off) it stays a tinted box, so it still shows where the window will land. */
+.tile-preview {
+  background-color: ${tile_fill};
+  border: 1px solid ${tile_rim};
+  border-radius: ${r_m}px; }
+.tile-preview.fedora-glass-tile {
+  background-color: ${tile_glass_fill};
+  border: 1px solid ${tile_glass_rim};
+  border-radius: ${r_m}px; }
 .workspace-switcher, .resize-popup, .screenshot-ui-panel, #LookingGlassDialog {
   color: ${fg};
   background-color: ${osd};

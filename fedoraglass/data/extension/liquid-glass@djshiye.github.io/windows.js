@@ -141,6 +141,23 @@ export function windowKind(ids, skip, solid = []) {
     return ids.some(id => skipSet(solid).has(id.toLowerCase())) ? 'solid' : 'none';
 }
 
+/**
+ * The glass look behind an app's windows. An app on the no-glass list gets none at all
+ * (see windowKind), so here the first that holds: the user's own strength for the app
+ * (appGlass, 'solid' or 'clearer', by any of its ids, whatever their case, like the
+ * no-glass list), then the terminals' own look, then the windows' look.
+ */
+export function lookFor(ids, s) {
+    const mine = s.appGlass instanceof Map && s.appGlass.size
+        ? ids.map(id => s.appGlass.get(id.toLowerCase())).find(Boolean) : undefined;
+    const own = mine ? s.appLooks?.[mine] : null;
+    if (own)
+        return own;
+    if (s.terminalLook && ids.some(id => TERMINALS.test(id)))
+        return s.terminalLook;
+    return s.look;
+}
+
 /** The card a frameless app draws inside its window ({margin, radius}), or null. */
 export function clientCard(ids) {
     return CLIENT_CARDS.find(c => ids.some(id => c.app.test(id))) ?? null;
@@ -674,9 +691,7 @@ class WindowGlass {
     _applyLook() {
         if (!this.pane || !this.settings)
             return;
-        const ids = this.appIds();
-        const term = this.settings.terminalLook && ids.some(id => TERMINALS.test(id));
-        const look = term ? this.settings.terminalLook : this.settings.look;
+        const look = lookFor(this.appIds(), this.settings);
         this.pane.setLook(look);
         this.rims.forEach(r => r.setLook(look));
     }
