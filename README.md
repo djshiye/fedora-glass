@@ -6,7 +6,8 @@
 <p align="center">A glass look for the whole GNOME desktop, with an app to tune it from liquid to frosted.</p>
 
 <!-- Demo video: paste the GitHub video link on the line below this comment, then delete the demo.webp line. -->
-<p align="center"><img src="docs/screenshots/demo.webp" width="860" alt="Fedora Glass in motion: sliding the app to Liquid and applying it, pressing and dragging the liquid taskbar, light following the pointer in the Spawn menu, the glass snap preview, Quick Settings and the lock screen"></p>
+
+https://github.com/user-attachments/assets/e523a812-8b07-4e61-8f05-ac63be60f7a3
 
 <p align="center">Made for <b>GNOME 50 and 51</b> on <b>Fedora</b> (44, 45), <b>Ubuntu</b> (26.04 LTS, 26.10) and <b>Arch Linux</b>.</p>
 
