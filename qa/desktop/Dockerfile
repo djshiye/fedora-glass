@@ -36,6 +36,14 @@ RUN set -e; n=1; \
     done; \
     rm -rf /var/lib/apt/lists/* /tmp/apt.log
 
+# The early-warning image for the next GNOME (run.sh --gnome 52): the third-party extensions
+# below list GNOME 50 and 51 only, so GNOME Shell must not refuse them for their version.
+ARG PRERELEASE=
+RUN if [ -n "$PRERELEASE" ]; then \
+      printf '[org.gnome.shell]\ndisable-extension-version-validation=true\n' > /usr/share/glib-2.0/schemas/99-lgqa-prerelease.gschema.override; \
+      glib-compile-schemas /usr/share/glib-2.0/schemas; \
+    fi
+
 # ---- Pinned third-party pieces ------------------------------------------------------------
 ARG DTP=db578c4f0061686609ed0bd1422967dfee2554d6        # Dash to Panel v74
 ARG ARCMENU=c0b8a4d3e303e1d8abce1cf069b01ec6a6fa7b80    # ArcMenu v70.0

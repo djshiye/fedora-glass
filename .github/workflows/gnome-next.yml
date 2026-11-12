@@ -28,7 +28,7 @@ jobs:
     container: fedora:rawhide@sha256:78bb31de333664aa76c4bf54306791cd294c0bd4fbcfc4346e2286261de544c4
     steps:
       - name: Tools
-        run: dnf install -y -q --setopt=install_weak_deps=False git python3 python3-pytest python3-gobject gjs nodejs >/dev/null
+        run: dnf install -y -q --setopt=install_weak_deps=False git python3 python3-pytest python3-pyyaml python3-gobject glib2-devel gjs nodejs >/dev/null
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -42,6 +42,8 @@ jobs:
       # Both run even when the version check failed, so one red run says everything.
       - name: Python tests
         if: ${{ !cancelled() }}
+        env:
+          FEDORAGLASS_REQUIRE: glib yaml     # installed above: a test that needs one must fail, not skip
         run: python3 -m pytest -q -p no:cacheprovider tests
 
       - name: JavaScript tests

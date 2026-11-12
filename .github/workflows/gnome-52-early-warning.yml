@@ -1,0 +1,112 @@
+# EARLY WARNING for the next GNOME (52, due March 2027): the desktop release checks and the
+# stock GNOME checks on a pre-release GNOME Shell, so a break shows months before Fedora 46 and
+# Ubuntu 27.04 ship it. It is NOT part of a release (release.yml never calls it) and nothing
+# waits for it: a red run here is a warning, not a stop.
+#
+# It starts only when someone asks (the Actions tab, or the "gnome-next" label on a pull
+# request) and once a week to notice the day a base image with GNOME 52 appears. Until then
+# the first job finds that Ubuntu's development series ("devel", the next Ubuntu) still ships
+# GNOME 51, says so on the run's summary, and nothing else runs: the lane activates itself
+# when the archive gets gnome-shell 52 (an alpha counts). Fedora Rawhide's gnome-shell is
+# watched by gnome-next.yml; the test desktop is built on Ubuntu, so this lane needs Ubuntu's.
+#
+# Inside the test only: the extension's metadata.json also lists shell 52, and GNOME Shell is
+# told not to refuse the other extensions for their version (run.sh --gnome 52).
+#
+# On a pull request, only the "gnome-next" label starts or cancels a run (a push to a labelled
+# pull request starts one; any other label neither starts nor cancels one: it gets a group of
+# its own, because a run skipped by its `if` would otherwise still cancel the one in progress).
+name: GNOME 52 early warning
+
+on:
+  schedule:
+    - cron: "47 5 * * 2"     # Tuesdays, 05:47 UTC (the day after gnome-next.yml)
+  workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gnome-52-${{ github.ref }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'gnome-next' && format('-other-label-{0}', github.run_id) || '' }}
+  cancel-in-progress: true
+
+jobs:
+  base:
+    name: Is there a GNOME 52 base image yet
+    if: github.repository == 'djshiye/fedora-glass' && (github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gnome-next') && (github.event.action != 'labeled' || github.event.label.name == 'gnome-next')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      ready: ${{ steps.probe.outputs.ready }}
+      base: ${{ steps.probe.outputs.base }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Which gnome-shell Ubuntu's development series ships
+        id: probe
+        run: |
+          sh qa/desktop/gnome-prerelease.sh 52 | tee probe.txt >> "$GITHUB_OUTPUT"
+          {
+            echo "### GNOME 52 early warning"
+            if grep -qx 'ready=true' probe.txt; then
+              echo "Ubuntu's development series ($(sed -n 's/^series=//p' probe.txt)) ships gnome-shell $(sed -n 's/^shell=//p' probe.txt): the checks run below."
+            else
+              echo "Not yet: Ubuntu's development series ($(sed -n 's/^series=//p' probe.txt)) still ships gnome-shell $(sed -n 's/^shell=//p' probe.txt). Nothing to test until it ships 52; this lane starts by itself then."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  desktop:
+    name: Early warning, GNOME 52
+    needs: base
+    if: needs.base.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Build the test desktop on GNOME 52
+        env:
+          LGQA_GNOME52_BASE: ${{ needs.base.outputs.base }}
+        run: qa/desktop/run.sh --gnome 52 --build-only
+
+      - name: Dino's desktop checks
+        env:
+          LGQA_GNOME52_BASE: ${{ needs.base.outputs.base }}
+        run: qa/desktop/run.sh --gnome 52 --out "$RUNNER_TEMP/qa-report"
+
+      - name: Stock GNOME checks
+        if: ${{ !cancelled() }}
+        env:
+          LGQA_GNOME52_BASE: ${{ needs.base.outputs.base }}
+        run: qa/desktop/run.sh --gnome 52 --stock-desktop --out "$RUNNER_TEMP/qa-report-stock"
+
+      - name: Summary
+        if: always()
+        run: |
+          for d in qa-report qa-report-stock; do
+            if [ -f "$RUNNER_TEMP/$d/report/report.md" ]; then
+              echo "#### Early warning, GNOME 52 ($d)" >> "$GITHUB_STEP_SUMMARY"
+              cat "$RUNNER_TEMP/$d/report/report.md" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: gnome-52-early-warning
+          path: |
+            ${{ runner.temp }}/qa-report/report/
+            ${{ runner.temp }}/qa-report/*.log
+            ${{ runner.temp }}/qa-report/*.txt
+            ${{ runner.temp }}/qa-report-stock/report/
+            ${{ runner.temp }}/qa-report-stock/*.log
+            ${{ runner.temp }}/qa-report-stock/*.txt
+          retention-days: 14
+          if-no-files-found: warn

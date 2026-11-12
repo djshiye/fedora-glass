@@ -6,6 +6,11 @@
   <id>io.github.djshiye.LiquidGlass</id>
   <name>Fedora Glass</name>
   <summary>A glass look for GNOME and your apps, from clear to frosted</summary>
+  <summary xml:lang="de">Ein Glas-Look für GNOME und Ihre Apps, von klar bis milchig</summary>
+  <summary xml:lang="es">Un aspecto de cristal para GNOME y tus aplicaciones, de transparente a esmerilado</summary>
+  <summary xml:lang="fr">Un style verre pour GNOME et vos applications, du transparent au dépoli</summary>
+  <summary xml:lang="it">Un aspetto in vetro per GNOME e le tue app, da trasparente a satinato</summary>
+  <summary xml:lang="pt_BR">Um visual de vidro para o GNOME e seus aplicativos, do transparente ao fosco</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT AND Apache-2.0 AND GPL-3.0-only AND GPL-2.0-only AND CC-BY-SA-4.0</project_license>
   <developer id="io.github.djshiye">
@@ -17,17 +22,72 @@
       extension: the top bar, menus, the overview, the lock screen and the windows. A customizer
       app tunes it from clear liquid glass to calm frost.
     </p>
+    <p xml:lang="de">
+      Fedora Glass gibt GNOME Shell sowie GTK- und Qt-Apps einen Glas-Look, gezeichnet von einer eigenen GNOME-Shell-Erweiterung: obere Leiste, Menüs, Übersicht, Sperrbildschirm und Fenster. Eine Anpassungs-App stellt ihn von klarem Flüssigglas bis zu ruhigem Milchglas ein.
+    </p>
+    <p xml:lang="es">
+      Fedora Glass da a GNOME Shell y a las aplicaciones GTK y Qt un aspecto de cristal, dibujado por su propia extensión de GNOME Shell: la barra superior, los menús, la vista de actividades, la pantalla de bloqueo y las ventanas. Una aplicación de personalización lo ajusta desde el cristal líquido transparente hasta el esmerilado suave.
+    </p>
+    <p xml:lang="fr">
+      Fedora Glass donne à GNOME Shell et aux applications GTK et Qt un style verre, dessiné par sa propre extension de GNOME Shell : la barre supérieure, les menus, la vue d’ensemble, l’écran de verrouillage et les fenêtres. Une application de personnalisation permet de le régler, du verre liquide transparent au verre dépoli.
+    </p>
+    <p xml:lang="it">
+      Fedora Glass dà a GNOME Shell e alle app GTK e Qt un aspetto in vetro, disegnato da una propria estensione di GNOME Shell: la barra superiore, i menu, la panoramica, la schermata di blocco e le finestre. Un’app di personalizzazione lo regola dal vetro liquido trasparente al satinato.
+    </p>
+    <p xml:lang="pt_BR">
+      O Fedora Glass dá ao GNOME Shell e aos aplicativos GTK e Qt um visual de vidro, desenhado por uma extensão própria do GNOME Shell: a barra superior, os menus, a visão geral, a tela de bloqueio e as janelas. Um aplicativo de personalização ajusta o efeito, do vidro líquido transparente ao vidro fosco.
+    </p>
     <p>
       It changes only your own user settings, can put your original look back at any time, and
       works with Dash to Panel, Dash to Dock, ArcMenu and Spawn, or on stock GNOME with none of
       them.
     </p>
+    <p xml:lang="de">
+      Es ändert nur Ihre eigenen Benutzereinstellungen, kann Ihren ursprünglichen Stil jederzeit wiederherstellen und arbeitet mit Dash to Panel, Dash to Dock, ArcMenu und Spawn zusammen – oder auf einem unveränderten GNOME ganz ohne sie.
+    </p>
+    <p xml:lang="es">
+      Solo cambia tus propios ajustes de usuario, puede devolver tu aspecto original en cualquier momento y funciona con Dash to Panel, Dash to Dock, ArcMenu y Spawn, o en un GNOME sin modificar y sin ninguno de ellos.
+    </p>
+    <p xml:lang="fr">
+      Il ne modifie que vos propres réglages d’utilisateur, peut rétablir votre style d’origine à tout moment et fonctionne avec Dash to Panel, Dash to Dock, ArcMenu et Spawn, ou sur un GNOME standard sans aucun d’eux.
+    </p>
+    <p xml:lang="it">
+      Modifica solo le tue impostazioni utente, può ripristinare il tuo aspetto originale in qualsiasi momento e funziona con Dash to Panel, Dash to Dock, ArcMenu e Spawn, oppure su un GNOME standard senza nessuno di essi.
+    </p>
+    <p xml:lang="pt_BR">
+      Ele altera apenas as suas próprias configurações de usuário, pode devolver o seu visual original a qualquer momento e funciona com Dash to Panel, Dash to Dock, ArcMenu e Spawn, ou em um GNOME padrão sem nenhum deles.
+    </p>
     <ul>
       <li>Looks, colours, accent and dark or light, with a live preview</li>
+      <li xml:lang="de">Stile, Farben, Akzent sowie Dunkel oder Hell, mit Live-Vorschau</li>
+      <li xml:lang="es">Estilos, colores, acento y modo oscuro o claro, con vista previa en vivo</li>
+      <li xml:lang="fr">Styles, couleurs, accent et mode sombre ou clair, avec aperçu en direct</li>
+      <li xml:lang="it">Stili, colori, accento e scuro o chiaro, con anteprima dal vivo</li>
+      <li xml:lang="pt_BR">Visuais, cores, destaque e escuro ou claro, com visualização ao vivo</li>
       <li>Motion styles for opening, closing and minimizing windows</li>
+      <li xml:lang="de">Bewegungsstile zum Öffnen, Schließen und Minimieren von Fenstern</li>
+      <li xml:lang="es">Estilos de movimiento al abrir, cerrar y minimizar ventanas</li>
+      <li xml:lang="fr">Styles d’animation pour ouvrir, fermer et réduire les fenêtres</li>
+      <li xml:lang="it">Stili di movimento per aprire, chiudere e minimizzare le finestre</li>
+      <li xml:lang="pt_BR">Estilos de movimento ao abrir, fechar e minimizar janelas</li>
       <li>Mouse pointer styles, including glass ones</li>
+      <li xml:lang="de">Mauszeigerstile, auch aus Glas</li>
+      <li xml:lang="es">Estilos de puntero del ratón, también de cristal</li>
+      <li xml:lang="fr">Styles de pointeur de souris, y compris en verre</li>
+      <li xml:lang="it">Stili del puntatore del mouse, anche in vetro</li>
+      <li xml:lang="pt_BR">Estilos de ponteiro do mouse, inclusive de vidro</li>
       <li>Optional glass on the login screen</li>
+      <li xml:lang="de">Optional Glas auf dem Anmeldebildschirm</li>
+      <li xml:lang="es">Cristal opcional en la pantalla de inicio de sesión</li>
+      <li xml:lang="fr">Verre facultatif sur l’écran de connexion</li>
+      <li xml:lang="it">Vetro facoltativo sulla schermata di accesso</li>
+      <li xml:lang="pt_BR">Vidro opcional na tela de login</li>
       <li>Restore original and Remove in one click</li>
+      <li xml:lang="de">Original wiederherstellen und Entfernen mit einem Klick</li>
+      <li xml:lang="es">Restaurar el original y quitar con un solo clic</li>
+      <li xml:lang="fr">Rétablir l’original et retirer en un clic</li>
+      <li xml:lang="it">Ripristina originale e rimuovi con un clic</li>
+      <li xml:lang="pt_BR">Restaurar o original e remover com um clique</li>
     </ul>
   </description>
   <launchable type="desktop-id">io.github.djshiye.LiquidGlass.desktop</launchable>

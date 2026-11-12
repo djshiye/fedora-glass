@@ -5,8 +5,18 @@
 # Runs before every release (release.yml calls it, next to the package builds, and only
 # publishes the release when it passes), by hand from the Actions tab, and on a pull
 # request only when it has the "release-checks" label, so ordinary pushes cost nothing.
-# The test desktop's base image is built once per job group with a layer cache kept by
-# GitHub (.github/actions/base-image), not from scratch in each of the eight jobs.
+# The test desktop's base image is built once per GNOME version (the "image" job) and shared
+# with every lane through GitHub's cache (.github/actions/test-image), not built again in each
+# of the eight lanes.
+#
+# When a pull request's run starts (the "release-checks" label):
+#   - a push (synchronize) starts a run when the pull request has the label, and replaces
+#     the run before it;
+#   - adding the "release-checks" label starts a run, and replaces the run before it;
+#   - adding ANY OTHER label does nothing: it starts no checks, and it must not cancel the
+#     checks that are running. A run that is skipped by a job's `if` would still join the
+#     concurrency group and cancel the running one, so such an event gets a group of its own
+#     (named after its run id): it cancels nothing, and every job of it is skipped.
 name: Release checks
 
 on:
@@ -19,13 +29,35 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-checks-${{ github.ref }}
+  group: release-checks-${{ github.ref }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'release-checks' && format('-other-label-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
+  # The test desktop image for each GNOME, built once and shared by every lane below through
+  # GitHub's cache (see .github/actions/test-image). The lanes need this job, so when its gate
+  # skips it (a pull request without the label, or an unrelated label just added) they are
+  # skipped too.
+  image:
+    name: Test desktop image, GNOME ${{ matrix.gnome }}
+    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'release-checks') && (github.event.action != 'labeled' || github.event.label.name == 'release-checks'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        gnome: ["50", "51"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/test-image
+        with:
+          gnome: ${{ matrix.gnome }}
+          mode: build
+
   desktop:
+    needs: image
     name: Dino's desktop, GNOME ${{ matrix.gnome }}
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-checks')
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     strategy:
@@ -48,13 +80,12 @@ jobs:
           git archive "$last" | tar -x -C "$RUNNER_TEMP/last-release"
           echo "LGQA_FROM=$RUNNER_TEMP/last-release" >> "$GITHUB_ENV"
 
-      - uses: ./.github/actions/base-image
+      - uses: ./.github/actions/test-image
         with:
           gnome: ${{ matrix.gnome }}
+          mode: load
 
       - name: Run the checks
-        env:
-          LGQA_BASE_PREBUILT: "1"
         run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" ${LGQA_FROM:+--from "$LGQA_FROM"} --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary
@@ -95,8 +126,8 @@ jobs:
   # Apply and Restore original from the running desktop. Ubuntu 26.04 has GNOME 50,
   # Ubuntu 26.10 GNOME 51.
   ubuntu:
+    needs: image
     name: Stock Ubuntu desktop, GNOME ${{ matrix.gnome }}
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-checks')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -108,13 +139,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/base-image
+      - uses: ./.github/actions/test-image
         with:
           gnome: ${{ matrix.gnome }}
+          mode: load
 
       - name: Run the Ubuntu checks
-        env:
-          LGQA_BASE_PREBUILT: "1"
         run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" --ubuntu-desktop --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary
@@ -152,8 +182,8 @@ jobs:
   # overview's dash and search), alone and with Dash to Dock: Apply, use the overview,
   # Restore original.
   stock:
+    needs: image
     name: Stock GNOME ${{ matrix.gnome }}${{ matrix.dock && ' with Dash to Dock' || '' }}
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-checks')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -166,13 +196,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/base-image
+      - uses: ./.github/actions/test-image
         with:
           gnome: ${{ matrix.gnome }}
+          mode: load
 
       - name: Run the stock GNOME checks
-        env:
-          LGQA_BASE_PREBUILT: "1"
         run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" --stock-desktop ${{ matrix.dock && '--with-dock' || '' }} --out "$RUNNER_TEMP/qa-report"
 
       - name: Summary

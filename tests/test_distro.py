@@ -237,6 +237,7 @@ exit 0
         return (text.replace("/etc/apt/", f"{tmp_path}/etc/apt/")
                     .replace("/usr/share/fedora-glass/apt/", f"{share}/")
                     .replace("/var/lib/fedora-glass", f"{tmp_path}/var/lib/fedora-glass")
+                    .replace("/var/lib/liquid-glass", f"{tmp_path}/var/lib/liquid-glass")
                     .replace("@SOURCES_SUM@", entries_sum(PKG / "deb/fedora-glass.sources"))
                     .replace("@PREF_SUM@", entries_sum(PKG / "deb/fedora-glass.pref")))
     scripts = {}
@@ -292,6 +293,73 @@ def test_deb_apt_source_lifecycle(tmp_path):
     assert not pref.exists() and not mark.exists()
     run("postrm", "purge")
     assert not (tmp_path / "var/lib/fedora-glass").exists()
+
+
+def _login_state(tmp_path, files=()):
+    """A stand-in for /var/lib/liquid-glass, with the given files in it."""
+    state = tmp_path / "var/lib/liquid-glass"
+    state.mkdir(parents=True)
+    for name in files:
+        (state / name).write_text("x")
+    return state
+
+
+def test_deb_removal_takes_the_empty_login_screen_folder_but_never_on_upgrade(tmp_path):
+    run, src, pref, mark = _deb_scripts(tmp_path)
+    state = _login_state(tmp_path)
+    run("postinst", "configure", "")
+    run("postrm", "upgrade", "1.5.29-1")
+    assert state.is_dir()                                    # an upgrade keeps it
+    run("postrm", "remove")
+    assert not state.exists()                                # final removal: empty, so it goes
+    # Files left in it (the saved original of a glass that could not be undone) are never deleted.
+    state = _login_state(tmp_path, ["login-screen-original.gresource"])
+    run("postrm", "remove")
+    run("postrm", "purge")
+    assert (state / "login-screen-original.gresource").is_file()
+    # A removal when the folder was never made is fine too.
+    (state / "login-screen-original.gresource").unlink()
+    state.rmdir()
+    run("postrm", "purge")
+
+
+def _sh(script: str, *args: str, state: Path):
+    script = script.replace("%{_sharedstatedir}/liquid-glass", "/var/lib/liquid-glass").replace("/var/lib/liquid-glass", str(state))
+    return subprocess.run(["sh", "-c", script, "sh", *args], capture_output=True, text=True, timeout=30)
+
+
+def _spec_section(name: str) -> str:
+    """The body of one scriptlet of the main package (not -n liquid-glass) in the spec."""
+    spec = (PKG / "fedora-glass.spec").read_text()
+    m = re.search(r"^%" + name + r"\n(.*?)(?=^%[a-z])", spec, re.M | re.S)
+    assert m, name
+    return m.group(1)
+
+
+def test_rpm_removal_takes_the_empty_login_screen_folder_but_never_on_upgrade(tmp_path):
+    body = _spec_section("postun")
+    state = _login_state(tmp_path)
+    # rpm passes $1 = the number of copies left: 1 on an upgrade, 0 on the final removal.
+    assert _sh(body, "1", state=state).returncode == 0 and state.is_dir()
+    assert _sh(body, "0", state=state).returncode == 0 and not state.exists()
+    state = _login_state(tmp_path, ["login-screen.json"])
+    assert _sh(body, "0", state=state).returncode == 0 and (state / "login-screen.json").is_file()
+    # Only the app that has the login screen helper does it (the liquid-glass stand-in is replaced by it).
+    assert not re.search(r"^%postun -n liquid-glass", (PKG / "fedora-glass.spec").read_text(), re.M)
+
+
+def test_arch_removal_takes_the_empty_login_screen_folder_but_never_on_upgrade(tmp_path):
+    text = (PKG / "arch/fedora-glass.install").read_text()
+    m = re.search(r"^post_remove\(\) \{\n(.*?)^\}", text, re.M | re.S)
+    assert m
+    assert "post_remove" not in re.search(r"^post_upgrade\(\) \{\n(.*?)^\}", text, re.M | re.S).group(1)
+    state = _login_state(tmp_path)
+    assert _sh(m.group(1), state=state).returncode == 0 and not state.exists()
+    state = _login_state(tmp_path, ["login-screen-original.gresource"])
+    assert _sh(m.group(1), state=state).returncode == 0 and state.is_dir()    # not empty: stays
+    # pacman runs post_remove on removal only; an upgrade runs post_upgrade, which leaves the folder alone.
+    up = re.search(r"^post_upgrade\(\) \{\n(.*?)^\}", text, re.M | re.S).group(1)
+    assert "rmdir" not in up
 
 
 def test_deb_keeps_a_source_you_changed(tmp_path):

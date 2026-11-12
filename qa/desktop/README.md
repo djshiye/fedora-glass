@@ -69,8 +69,28 @@ qa/desktop/run.sh --ubuntu-desktop         # a stock Ubuntu desktop instead (add
 qa/desktop/run.sh --stock-desktop          # stock GNOME, no extensions (add --with-dock for Dash to Dock)
 ```
 
+The test desktop image is built once and then reused for as long as nothing it is built
+from changes (`run.sh --image-info` prints its recipe, a hash of the Dockerfile and the files
+it copies; an image with a different recipe is rebuilt). On GitHub one job per GNOME version
+(`image` in `release-checks.yml`, using `.github/actions/test-image`) builds it once a day and
+every lane loads that copy from the cache, so a run no longer builds it eight times
+(`--build-only` builds it and stops). Adding a label to a pull request other than
+`release-checks` neither starts these checks nor cancels a run in progress.
+
 `--gnome 51` builds the test desktop on Ubuntu 26.10, which has GNOME 51 (Fedora 45 has it
 too), and compares against the pictures in `references/gnome51/`. GNOME 50 is the default.
+
+`--gnome 52` is an EARLY WARNING for the next GNOME, not part of a release. It needs a base
+image that really has GNOME 52: Ubuntu's development series (`ubuntu:devel`, 27.04 "tenacious")
+still ships GNOME 51 today, and GNOME 52 is due in March 2027. `gnome-prerelease.sh` asks the
+archive and prints the base to use (`LGQA_GNOME52_BASE=mirror.gcr.io/library/ubuntu@sha256:...`)
+once Ubuntu uploads gnome-shell 52, an alpha included. The `GNOME 52 early warning` workflow
+(`gnome-52-early-warning.yml`) runs that check every Tuesday, by hand, and on a pull request with
+the `gnome-next` label; until there is a GNOME 52 it only says so on its summary page. When there
+is, it runs this desktop and the stock one on it. Inside the test only, the extension's
+`metadata.json` also lists shell 52 and GNOME Shell does not refuse the other extensions for
+their version. It borrows GNOME 51's harness rules and pictures until GNOME 52 has its own, so
+picture differences are to be expected at first: read them as a warning, not as a verdict.
 
 `--ubuntu-desktop` checks Fedora Glass on Ubuntu's own desktop as a new Ubuntu user has it:
 the Ubuntu session with Ubuntu Dock, Desktop Icons, AppIndicator and Yaru, Ubuntu's default
