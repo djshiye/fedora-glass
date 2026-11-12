@@ -2130,7 +2130,92 @@ def check_spawn(ctx: Ctx) -> Check:
     return c
 
 
-ALL = {"looks": check_looks, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
+# ---------------------------------------------------------------------------------------------
+# Title bars of apps on the built-in "no glass" list
+# ---------------------------------------------------------------------------------------------
+# Electron and Chromium apps (Slack, Discord, Brave...) paint their own solid body but draw
+# their title bar from the GTK theme, which Fedora Glass makes see-through for the glass
+# behind it. In 1.5.23 to 1.5.27 those apps got no glass, so Slack's title bar showed the
+# desktop sharp. Their windows get glass behind the title bar only.
+HOME_DINO = Path("/home/dino")
+
+
+def _edge_energy(a: np.ndarray) -> float:
+    """How sharp a picture is: the mean step between neighbouring pixels. A checkerboard seen
+    plainly through a see-through title bar scores high; the glass's blur makes it low."""
+    g = lgqa.lum(a).astype(float)
+    return float(np.abs(np.diff(g, axis=1)).mean() + np.abs(np.diff(g, axis=0)).mean())
+
+
+def check_titlebars(ctx: Ctx) -> Check:
+    c = Check("titlebars", "Title bars of Electron apps without glass match the theme",
+              "Opens an Electron window named like Slack (an app on the built-in list without glass) over a "
+              "sharp checkerboard wallpaper. Its title bar comes from the GTK theme, which is see-through: there "
+              "must be glass behind it (the checkerboard blurred), never the desktop sharp, and the glass must "
+              "only cover the top of the window, not the app's own solid body.")
+    sh = ctx.sh
+    sh.close_all()
+    lgqa.kill_apps()
+    keys = ("picture-uri", "picture-uri-dark")
+    was = {k: lgqa.subprocess.run(["gsettings", "get", "org.gnome.desktop.background", k], env=lgqa.ENV,
+                                  capture_output=True, text=True).stdout.strip() for k in keys}
+    app = HOME_DINO / "slack-standin"
+    try:
+        wall = HOME_DINO / "lgqa-checker.png"
+        y, x = np.mgrid[0:1440, 0:2560]
+        board = ((x // 24 + y // 24) % 2).astype(bool)
+        im = np.zeros((1440, 2560, 3), np.uint8)
+        im[board], im[~board] = (240, 200, 40), (30, 60, 200)
+        lgqa.save(im, wall)
+        for k in keys:
+            lgqa.subprocess.run(["gsettings", "set", "org.gnome.desktop.background", k, wall.as_uri()], env=lgqa.ENV)
+        lgqa.subprocess.run(["rm", "-rf", str(app)])
+        lgqa.subprocess.run(["cp", "-r", "/opt/lgqa/suite/electron-app", str(app)], check=True)
+        pkg = app / "package.json"
+        pkg.write_text(pkg.read_text().replace("lgqa-electron", "Slack"))
+        settle(2)
+        lgqa.launch(["/opt/electron/electron", "--no-sandbox", "--disable-gpu-sandbox", "--ozone-platform=wayland", str(app)],
+                    {"LGQA_TITLE": "Slack stand-in"}, log="electron-slack")
+        w = sh.wait_window("Slack stand-in")
+        sh.put(w["id"], 300, 240, 900, 520, focus=True)
+        settle(3)
+        w = sh.window_by_id(w["id"])
+        c.add(w["wm_class"].lower() == "slack", f"The window says it is Slack (WM class {w['wm_class']!r}), so the "
+              "built-in list counts it." if w["wm_class"].lower() == "slack" else
+              f"The stand-in's WM class is {w['wm_class']!r}, not Slack: the check can't test the built-in list.")
+        holders = sh.json("const a = global.get_window_actors().find(a => a.meta_window.get_id() == %d);"
+                          " return a ? a.get_children().filter(k => k.name === 'fedora-glass-holder' && k.visible)"
+                          ".map(k => [k.width, k.height]) : [];" % w["id"])
+        fx, fy, fw, fh = w["frame"]
+        tall = max((h for _, h in holders), default=0)
+        c.add(bool(holders), f"Glass sits behind the window ({len(holders)} glass parts)." if holders else
+              "No glass behind the window: its see-through title bar shows the desktop.")
+        c.add(0 < tall < fh * 0.6, f"The glass covers only the top of the window ({tall:.0f} px of its {fh} px with the "
+              "edges), not the app's own solid body." if 0 < tall < fh * 0.6 else
+              f"The glass is {tall:.0f} px tall on a {fh} px window: it should only cover the title bar.")
+        a = lgqa.load(sh.shot("titlebar-slack"))
+        s = ctx.s
+        # The title bar: the window's top 24 px, away from the title text and the buttons.
+        bar = lgqa.crop(a, ((fx + 16) * s, (fy + 6) * s, 280 * s, 18 * s))
+        wall_now = lgqa.crop(a, ((fx + fw + 40) * s, (fy + 6) * s, 280 * s, 18 * s))
+        sharp, ref = _edge_energy(bar), _edge_energy(wall_now)
+        p = lgqa.save(lgqa.crop(a, ((fx - 10) * s, (fy - 10) * s, (fw + 20) * s, 100 * s)), REPORT / "titlebar-slack.png")
+        ok = sharp < ref * 0.25
+        c.add(ok, f"The title bar shows the desktop through glass, blurred (sharpness {sharp:.1f} against "
+              f"{ref:.1f} for the bare wallpaper)." if ok else
+              f"The title bar shows the desktop sharp (sharpness {sharp:.1f} against {ref:.1f} for the bare "
+              "wallpaper): no glass behind it.", p.name)
+    finally:
+        lgqa.kill_apps()
+        for k, v in was.items():
+            if v:
+                lgqa.subprocess.run(["gsettings", "set", "org.gnome.desktop.background", k, v.strip("'")], env=lgqa.ENV)
+        lgqa.subprocess.run(["rm", "-rf", str(app)])
+        settle(2)
+    return c
+
+
+ALL = {"looks": check_looks, "titlebars": check_titlebars, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
        "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
        "log": check_log, "safe": check_safe, "upgrade": check_upgrade, "spawn": check_spawn}
 
