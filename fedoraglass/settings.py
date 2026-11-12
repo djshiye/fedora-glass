@@ -514,7 +514,11 @@ class Loaded(NamedTuple):
 
 
 def _parse(raw: bytes) -> dict:
-    data = json.loads(raw.decode("utf-8"))
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except RecursionError as err:
+        # Nested thousands deep: no settings file of ours, and damaged like any other.
+        raise ValueError("not a Fedora Glass settings file") from err
     if not isinstance(data, dict):
         raise ValueError("not a Fedora Glass settings file")
     return data

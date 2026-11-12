@@ -314,11 +314,20 @@ class Backend(QObject):
     lookProblem = Signal(str)       # a look that couldn't be saved, read or written, in plain words
     previousChanged = Signal()
     wallpaperMatchChanged = Signal()
+    systemAccentChanged = Signal()      # GNOME's own accent colour, changed while the app is open
 
     def __init__(self, *, env: Env | None = None, engine_factory: Callable[[], Any] | None = None,
                  settings_path: Path | None = None, ui_dark: bool | None = None,
                  start: bool = True, parent: QObject | None = None):
         super().__init__(parent)
+        # Worked out once per change (see _memo_get). Connected first, so the old values are
+        # gone before anything else hears of a change and reads them again.
+        self._memo: dict[str, Any] = {}
+        self._memo_inputs: tuple = ()
+        for sig in (self.settingsChanged, self.savedChanged, self.targetsChanged, self.targetStatesChanged,
+                    self.looksChanged, self.partialChanged, self.tokensChanged, self.previewChanged,
+                    self.uiChanged, self.systemAccentChanged):
+            sig.connect(self._forget)
         self._env = env or Env()
         self._engine_factory = engine_factory or self._default_engine
         self._engine: Any = None
@@ -354,6 +363,7 @@ class Backend(QObject):
         self._task_done: Callable[[Any], None] = lambda out: None
         self._task_busy = False
         self._monitor: QProcess | None = None
+        self._accent_monitor: QProcess | None = None
         # Apply, Restore or Review asked for while the app was still busy in the
         # background (checking the system after a start or an Apply): runs right after.
         self._pending_action: str | None = None
@@ -435,6 +445,7 @@ class Backend(QObject):
         if start:
             self.refreshTargets()
             self._watch_scheme()
+            self._watch_accent()
             self._watch_wallpaper()
             self._safe_timer.start()
             self._start_speed_watch()
@@ -708,6 +719,31 @@ class Backend(QObject):
         self._rebuild_tokens()
         self.settingsChanged.emit()
 
+    # ---- worked out once per change ------------------------------------------------
+    # The unapplied changes, the saved look the editor holds and the like are read by many
+    # bindings on every slider tick (the sidebar's dots, the footer, each look tile). Each
+    # is worked out once after a change and kept until the next: any signal they hang on
+    # forgets them all, and so does a new editor look, applied look, part list or accent
+    # even before its signal goes out.
+    @Slot()
+    def _forget(self) -> None:
+        self._memo.clear()
+
+    def _memo_inputs_now(self) -> tuple:
+        return (self._s, self._saved, self._targets, self._targets_ready, self._has_dtp,
+                self._system_accent, self._looks)
+
+    def _memo_get(self, name: str, work: Callable[[], Any]) -> Any:
+        now = self._memo_inputs_now()
+        if len(now) != len(self._memo_inputs) or any(a is not b for a, b in zip(now, self._memo_inputs)):
+            self._memo.clear()
+        if name not in self._memo:
+            self._memo[name] = work()
+        # Read after the work: the saved looks are only read from disk when first wanted.
+        self._memo_inputs = self._memo_inputs_now()
+        value = self._memo[name]
+        return list(value) if isinstance(value, list) else value
+
     def _set(self, name: str, value: Any) -> None:
         if getattr(self._s, name) == value:
             return
@@ -754,13 +790,44 @@ class Backend(QObject):
                 self._rebuild_tokens()
             self.uiChanged.emit()
 
+    def _watch_accent(self) -> None:
+        """Follow GNOME's accent colour while the app is open: the "System" accent shows it.
+        Where the key doesn't exist (an older GNOME), gsettings just stops and nothing changes."""
+        if not self._env.which("gsettings"):
+            return
+        p = QProcess(self)
+        p.readyReadStandardOutput.connect(self._on_accent_output)
+        p.start("gsettings", ["monitor", "org.gnome.desktop.interface", "accent-color"])
+        self._accent_monitor = p
+
+    def _on_accent_output(self) -> None:
+        if self._accent_monitor is not None:
+            self._accent_lines(bytes(self._accent_monitor.readAllStandardOutput()).decode(errors="replace"))
+
+    def _accent_lines(self, text: str) -> None:
+        """`gsettings monitor` lines ("accent-color: 'teal'"): take the new accent."""
+        accent = None
+        for line in text.splitlines():
+            key, sep, value = line.partition(":")
+            if sep and key.strip() == "accent-color":
+                accent = value.strip().strip("'") or None
+        if accent is None or accent == self._system_accent:
+            return
+        self._system_accent = accent
+        self.systemAccentChanged.emit()
+        self._rebuild_tokens()      # the preview and this window, when they use the system accent
+        if self._looks is not None:
+            self.looksChanged.emit()    # a saved look's tile can show the system accent
+        if self.dirty:
+            self.settingsChanged.emit()     # "System (Blue)" in the list of changes
+
     @Slot()
     def shutdown(self) -> None:
         self._speed_poll.stop()
         self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
             self._task.wait(30000)    # let a running Apply or Restore finish first
-        for name in ("_monitor", "_wall_monitor"):
+        for name in ("_monitor", "_accent_monitor", "_wall_monitor"):
             proc = getattr(self, name)
             if proc is not None:
                 proc.kill()
@@ -1132,6 +1199,9 @@ class Backend(QObject):
 
     @Property(bool, notify=settingsChanged)
     def dirty(self) -> bool:
+        return self._memo_get("dirty", self._work_dirty)
+
+    def _work_dirty(self) -> bool:
         dtp = self.hasDashToPanel
         return _effective(self._s, dtp) != _effective(self._saved.normalized(), dtp)
 
@@ -1139,7 +1209,7 @@ class Backend(QObject):
     def changeCount(self) -> int:
         """How many settings differ from the look applied last (the footer says "3 changes
         not applied yet"): as many as See changes lists, so the two never disagree."""
-        return len(self._change_rows()) if self.dirty else 0
+        return len(self.changeList)
 
     @Property(str, notify=settingsChanged)
     def activePreset(self) -> str:
@@ -1172,7 +1242,7 @@ class Backend(QObject):
     def accents(self) -> list[dict]:
         return [{"id": k, "color": v, "label": changes_mod._accent_name(k)} for k, v in GNOME_ACCENTS.items()]
 
-    @Property(str, constant=True)
+    @Property(str, notify=systemAccentChanged)
     def systemAccent(self) -> str:
         return self._system_accent or "blue"
 
@@ -1197,6 +1267,9 @@ class Backend(QObject):
     def canResetAll(self) -> bool:
         """Whether Reset all would change anything (the apps picked stay, so not always
         when changedFromDefault lists something)."""
+        return self._memo_get("canResetAll", self._work_can_reset_all)
+
+    def _work_can_reset_all(self) -> bool:
         dtp = self.hasDashToPanel
         return _effective(self._all_reset(), dtp) != _effective(self._s, dtp)
 
@@ -1230,6 +1303,9 @@ class Backend(QObject):
     def changedFromDefault(self) -> list[str]:
         """The settings (Settings names) that differ from their defaults; the app's choice
         of apps (targets) isn't a look setting and is never listed."""
+        return self._memo_get("changedFromDefault", self._work_changed_from_default)
+
+    def _work_changed_from_default(self) -> list[str]:
         dtp = self.hasDashToPanel
         d, now = _effective(Settings(), dtp), _effective(self._s, dtp)
         return [f.name for f in fields(Settings) if f.name in now and f.name != "targets" and now[f.name] != d[f.name]]
@@ -1854,7 +1930,7 @@ class Backend(QObject):
     def _queued_kind(self) -> str:
         """The asked-for action waiting for the background check to end, as a busy kind."""
         return {"apply": "apply", "revert": "revert", "requestPlan": "plan",
-                "cleanUpOldCopy": "cleanup"}.get(self._pending_action or "", "")
+                "cleanUpOldCopy": "cleanup", "removeApp": "remove"}.get(self._pending_action or "", "")
 
     # Removing the app (Restore original, then the package manager behind pkexec) counts
     # as busy from start to end: Apply, Restore or See changes would run over it.
@@ -1986,6 +2062,9 @@ class Backend(QObject):
                 # earlier (the Shell theme): the latest result for a part counts.
                 for r in engine.apply(s, only={t.id}):
                     results[r.target] = r
+            # Every part was applied, one call each: say the look is this version's
+            # (no single call above did), so an update knows what to bring up to date.
+            engine.stamp_applied(list(results.values()))
             report(1.0, _("Done"))
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 
@@ -2059,6 +2138,7 @@ class Backend(QObject):
             self.busyChanged.emit()
             return
         # From here on the extension's config is the engine's to remove; stop writing it.
+        was_live = self._glass_live
         self._glass_live = False
         header_changed = _header_key(self._saved) != _header_key(Settings())
 
@@ -2070,7 +2150,11 @@ class Backend(QObject):
 
         def done(out):
             if isinstance(out, Exception):
+                # Nothing may have been restored: the glass runs as it did, until the
+                # check below says otherwise.
+                self._glass_live = was_live
                 self.failed.emit(_("Restore stopped: {error}").format(error=out))
+                self.refreshTargets()
                 return
             problems, self._has_backup = out
             self._glass_live = False
@@ -2081,6 +2165,9 @@ class Backend(QObject):
             if header_changed:
                 self._set_header_note("pending")
             self.revertFinished.emit(problems)
+            # What keeps the glass from running, the old copy and the parts' notes change
+            # with the files Restore took away: checked again, as after an Apply.
+            self.refreshTargets()
         self._run("revert", job, done)
 
     # ---- an Apply where some parts failed ------------------------------------------
@@ -2336,7 +2423,13 @@ class Backend(QObject):
     def removeApp(self) -> None:
         """Restore original first (so problems show here, with the app still installed),
         then remove the package: pkexec asks for the password."""
-        if self._task is not None or self._removing or not self._remove_package:
+        if self._removing or not self._remove_package:
+            return
+        if self._task is not None:
+            # The system check after an Apply or a start is still running: remove as soon
+            # as it ends (the click used to do nothing).
+            self._pending_action = "removeApp"
+            self.busyChanged.emit()
             return
         self._set_removing(True)
         self._glass_live = False
@@ -2563,8 +2656,12 @@ class Backend(QObject):
         return out
 
     def _get_active_look(self) -> str:
+        return self._memo_get("activeLook", self._work_active_look)
+
+    def _work_active_look(self) -> str:
+        now = looks_mod.compared(self._s)      # once, not once per saved look
         for look in self._look_list():
-            if looks_mod.holds(self._look_values[look["id"]], self._s):
+            if looks_mod.holds(self._look_values[look["id"]], now):
                 return look["id"]
         return ""
 
@@ -2728,11 +2825,14 @@ class Backend(QObject):
     def changeList(self) -> list[dict]:
         """Every unapplied change: {"page", "name", "label", "before", "after", "key"}, in
         page order. "name" is the control to go to on that page ("" for none)."""
-        return self._change_rows() if self.dirty else []
+        return self._memo_get("changeList", lambda: self._change_rows() if self.dirty else [])
 
     @Property("QStringList", notify=settingsChanged)
     def changedPages(self) -> list[str]:
         """The pages that have unapplied changes (the sidebar puts a dot on each)."""
+        return self._memo_get("changedPages", self._work_changed_pages)
+
+    def _work_changed_pages(self) -> list[str]:
         out: list[str] = []
         for r in self.changeList:
             if r["page"] not in out:

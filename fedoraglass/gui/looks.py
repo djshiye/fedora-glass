@@ -161,10 +161,17 @@ def look_values(look: dict, cursor_installed: Callable[[str], bool] = lambda _id
     return {k: d[k] for k in taken}
 
 
-def holds(values: dict, s: Settings) -> bool:
+def compared(s: Settings) -> dict:
+    """The editor settings as `holds` compares them: worked out once, then held against
+    every saved look."""
+    return _compared(s.normalized())
+
+
+def holds(values: dict, s: Settings | dict) -> bool:
     """Whether the editor settings `s` already are the look with these `look_values`
-    (as same_look(s, apply_look(s, look)) says, but cheap)."""
-    d = _compared(s.normalized())
+    (as same_look(s, apply_look(s, look)) says, but cheap). `s` may already be what
+    `compared` made of it."""
+    d = s if isinstance(s, dict) else compared(s)
     return all(_close(d[k], v) for k, v in values.items())
 
 

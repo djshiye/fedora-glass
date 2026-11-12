@@ -134,7 +134,7 @@ The edge shape builds on Kyant's [AndroidLiquidGlass](https://github.com/Kyant0/
 - It runs as you, with no network access, and changes only your own settings. The one exception is
   the opt-in login screen glass, which asks for your password and changes only the login screen's
   part of GNOME Shell's theme.
-- Every file and setting is backed up before its first change, and **Show changes** lists
+- Every file and setting is backed up before its first change, and **See changes** lists
   everything before **Apply** touches it.
 
 ## Command line

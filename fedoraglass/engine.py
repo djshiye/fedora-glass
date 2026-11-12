@@ -275,7 +275,11 @@ class Backup:
 
     @classmethod
     def _parse(cls, raw: bytes) -> dict[str, dict]:
-        loaded = json.loads(raw.decode("utf-8"))
+        try:
+            loaded = json.loads(raw.decode("utf-8"))
+        except RecursionError as err:
+            # Nested thousands deep: unreadable like any other damaged file, not a crash.
+            raise ValueError("not a Fedora Glass backup") from err
         if not isinstance(loaded, dict) or not all(isinstance(loaded.get(k, {}), dict) for k in cls.SECTIONS):
             raise ValueError("not a Fedora Glass backup")
         return {k: dict(loaded.get(k, {})) for k in cls.SECTIONS}
@@ -1069,6 +1073,17 @@ class Engine:
         if full and not self.env.dry_run:
             self._stamp(results)
         return results
+
+    def stamp_applied(self, results: list[Result]) -> None:
+        """For a caller that applied every part itself, one `only={part}` call at a time
+        (the app does, to show its progress): none of those calls is "an Apply of every
+        part", so none stamped the version. Without the stamp, an update installed while
+        logged out left the theme files of a look applied in the app on the old version
+        (update_after_upgrade had nothing to compare with)."""
+        if self.env.dry_run:
+            return
+        with self._locked():
+            self._stamp(results)
 
     def _stamp(self, results: list[Result]) -> None:
         """After an Apply of every part: say the look is this version's, so the upgrade step

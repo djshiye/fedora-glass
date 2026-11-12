@@ -10,6 +10,8 @@ Column {
     objectName: "savedLooks"
     property real tileW: 120
     readonly property var looks: Backend.savedLooks
+    // Read once here for every tile, not twice per tile on every slider tick.
+    readonly property string activeLook: Backend.activeLook
     readonly property bool menuOpen: menu.opened
     readonly property bool problemOpen: problemSheet.opened
     readonly property string problemText: problemSheet.subtitle
@@ -53,10 +55,10 @@ Column {
             tintHex: modelData.tint
             accentHex: modelData.accent
             hasMenu: true
-            selected: Backend.activeLook === modelData.id
+            selected: root.activeLook === modelData.id
             tip: qsTr("Your look. Pick it to see it here; Apply puts it on your desktop.")
             rovingGroup: list
-            rovingStop: selected || (index === 0 && Backend.activeLook === "")
+            rovingStop: selected || (index === 0 && root.activeLook === "")
             onClicked: Backend.useLook(modelData.id)
             onActiveFocusChanged: if (activeFocus) list.positionViewAtIndex(index, ListView.Contain)
             onMenuRequested: (from) => {

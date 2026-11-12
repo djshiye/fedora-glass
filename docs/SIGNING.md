@@ -117,13 +117,12 @@ want), checks that it can sign, and saves the public key to
 `~/.config/fedora-glass-signing/RPM-GPG-KEY-fedora-glass`. That public key goes into
 `packaging/RPM-GPG-KEY-fedora-glass` on `main`.
 
-## Update the signer (once, before the next release)
+## Update the signer (when the signer script changes)
 
-The Release workflow now makes each release as a **draft**, and `fedora-glass-sign` publishes it
-after signing. The signer you have now knows nothing about drafts: it never sees one, so the
-release would stay a draft, unsigned and unpublished, until you replace it. Replace it once
-before the next release. Automatic signing keeps working (the timer runs the same file),
-nothing else changes:
+The signer on your PC is a copy of `packaging/fedora-glass-sign`. When that file changes on
+`main`, replace your copy once. Automatic signing keeps working (the timer runs the same file),
+nothing else changes. Since 1.5.20 the Release workflow makes each release as a **draft**, and the
+signer checks the build's attestation, signs, and then publishes it:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/djshiye/fedora-glass/main/packaging/fedora-glass-sign -o ~/.local/bin/fedora-glass-sign.new &&

@@ -12,11 +12,12 @@ on:
       - "tests/**"
       - "packaging/**"
       - "data/**"
-      - "qa/package-smoke.sh"
+      - "qa/**"
       - "install.sh"
       - "uninstall.sh"
       - "README.md"
-      - "docs/SIGNING.md"
+      - "SECURITY.md"
+      - "docs/**"
       - ".github/**"
   push:
     branches: [main]
@@ -25,11 +26,12 @@ on:
       - "tests/**"
       - "packaging/**"
       - "data/**"
-      - "qa/package-smoke.sh"
+      - "qa/**"
       - "install.sh"
       - "uninstall.sh"
       - "README.md"
-      - "docs/SIGNING.md"
+      - "SECURITY.md"
+      - "docs/**"
       - ".github/**"
 
 permissions:
