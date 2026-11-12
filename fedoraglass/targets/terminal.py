@@ -76,10 +76,11 @@ class Ptyxis(Target):
 
     def plan(self, ctx: Context) -> list[Action]:
         opacity = window_opacity(ctx)
+        dark, light = ctx.switching()
         titlebar = {name: headerbar.ptyxis_titlebar(ctx.settings, t, opacity)
-                    for name, t in (("dark", ctx.dark), ("light", ctx.light))}
+                    for name, t in (("dark", dark), ("light", light))}
         acts: list[Action] = [WriteFile(self.palette_path(ctx.env),
-                                        rt.ptyxis_palette(ctx.dark, ctx.light, titlebar))]
+                                        rt.ptyxis_palette(dark, light, titlebar))]
         for u in self.profiles(ctx.env):
             path = f"/org/gnome/Ptyxis/Profiles/{u}/"
             if ctx.settings.terminal_colors:

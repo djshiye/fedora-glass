@@ -117,6 +117,17 @@ class Context:
     # Whether GNOME Shell is running our glass extension right now. The Shell only
     # loads a new extension at login, so right after the first Apply it is False.
     glass_running: bool = True
+    # GNOME's High Contrast switch is on (see Engine.context).
+    high_contrast: bool = False
+
+    def switching(self) -> tuple["Tokens", "Tokens"]:
+        """(dark, light) for output that switches by itself with GNOME's light/dark setting
+        (GTK 4's prefers-color-scheme, Firefox, Discord, Ptyxis). With a style the user
+        picked (Dark or Light, not "Follow the system") both are that style, so those apps
+        stay in it whatever GNOME says."""
+        if getattr(self.settings, "scheme", "auto") != "auto":
+            return self.tokens, self.tokens
+        return self.dark, self.light
 
 
 @dataclass
@@ -133,8 +144,8 @@ class Target:
     summary: str = ""
     # Manual follow-up the user has to do once (shown in the app), if any.
     notes: list[str] = field(default_factory=list)
-    # False when the output already covers dark and light by itself, so the
-    # dark/light watcher can skip it.
+    # False when the output already covers dark and light by itself (or doesn't depend on
+    # them at all), so the dark/light watcher can skip it.
     scheme_dependent: bool = True
     # True for Shell parts (Shell theme, Dash to Panel, ArcMenu, Spawn) whose look only works
     # with the glass behind it. They wait until the glass extension runs.

@@ -180,9 +180,14 @@ def _boost(match: re.Match) -> str:
     return _RULE.sub(rule, body)
 
 
-def render_css(t: Tokens) -> str:
-    """The whole ~/.local/share/themes/FedoraGlass/gnome-shell/gnome-shell.css."""
-    text = Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(values(t))
+def render_css(t: Tokens, high_contrast: bool = False) -> str:
+    """The whole ~/.local/share/themes/FedoraGlass/gnome-shell/gnome-shell.css.
+    `high_contrast`: built on GNOME's high-contrast sheet instead of its dark or light one
+    (only when the installed GNOME Shell has it: see targets.shell.shell_has_sheet)."""
+    v = values(t)
+    if high_contrast:
+        v["variant"] = "high-contrast"
+    text = Template(_TEMPLATE.read_text(encoding="utf-8")).substitute(v)
     return _BOOST.sub(_boost, text)
 
 

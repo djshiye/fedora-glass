@@ -12,16 +12,20 @@ from fedoraglass import __version__
 DEEP = b"[" * 100_000 + b"]" * 100_000
 
 
-def test_part_by_part_apply_can_be_stamped(fake_env):
-    """The app applies one part at a time; none of those calls stamps the version."""
+def test_the_apps_apply_is_stamped(fake_env):
+    """The app applies every part in one call, told of each part as it starts, and that
+    one call stamps the version (one `only=` call per part never did)."""
     eng = Engine(fake_env)
     s = Settings()
-    results = []
-    for t in eng.targets:
-        results += eng.apply(s, only={t.id})
+    for t in eng.targets[:3]:
+        eng.apply(s, only={t.id})
     assert read_applied_version(fake_env) is None
-    eng.stamp_applied(results)
+    told = []
+    eng.apply(s, progress=lambda i, n, name: told.append((i, n, name)))
     assert read_applied_version(fake_env) == __version__
+    n = len(eng.targets)
+    assert [(i, total) for i, total, _name in told] == [(i, n) for i in range(n)]
+    assert all(isinstance(name, str) and name for _i, _n, name in told)
 
 
 def test_deeply_nested_settings_are_damaged_not_a_crash(fake_env, tmp_path):

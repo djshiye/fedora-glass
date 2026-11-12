@@ -23,7 +23,7 @@ import os
 import shutil
 import stat
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,6 +49,10 @@ class Result:
 # Shown for a Shell part that waits for the glass extension (see Engine._apply).
 WAITING = N_("Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, "
            "and this part needs the glass behind it.")
+
+
+# Shown for a part whose folder is a link Apply doesn't write through (see Backup.unsafe_link).
+LINK_LEFT = N_("Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours.")
 
 
 # The name in the header of every file Apply generates. Files written before the rename
@@ -195,6 +199,10 @@ def write_if_changed(path: Path, data: bytes, mode: int = 0o644) -> None:
         atomic_write(path, data, mode)
 
 
+def _tilde(path: Path, home: Path) -> str:
+    return "~/" + str(path.relative_to(home)) if path.is_relative_to(home) else str(path)
+
+
 def _remove_empty(dirs: set[str]) -> None:
     """Take away folders an Apply created, deepest first, and only while empty."""
     for d in sorted(dirs, key=len, reverse=True):
@@ -327,6 +335,39 @@ class Backup:
             d = d / part
             if d.is_symlink():
                 return d
+        return None
+
+    def swaps(self, folder: Path) -> bool:
+        """Whether a linked `folder` is one of the theme folders a theme installer links into
+        its own theme (gtk-3.0, gtk-4.0, Kvantum, themes), which Apply turns into a real folder
+        (see unlink_folder). Any other linked folder is the user's own on purpose (a dotfiles
+        tool linking ~/.config/btop, Code/User or micro): it stays a link (see unsafe_link)."""
+        roots = (self.env.config / "gtk-3.0", self.env.config / "gtk-4.0", self.env.config / "Kvantum",
+                 self.env.data / "themes")
+        return any(folder == r or folder.is_relative_to(r) for r in roots)
+
+    def unsafe_link(self, path: Path) -> Path | None:
+        """The linked folder above `path` when writing through it isn't safe, else None. An
+        app's own linked folder is written through when it leads to a folder of the user's
+        inside their home folder; one that leads outside it, to someone else's folder, or
+        nowhere, is left alone (the part says so). Theme folders are swapped instead."""
+        folder = self.linked_folder(path)
+        if folder is None or self.swaps(folder):
+            return None
+        try:
+            home, uid = self.env.home.resolve(), os.getuid()
+            real = folder.resolve(strict=True)
+            # Deeper links count too: the folder the file lands in, once every link is followed.
+            d = path.parent
+            while not d.exists() and d != d.parent:
+                d = d.parent
+            lands = d.resolve(strict=True)
+            for p in (real, lands):
+                st = p.stat()
+                if not stat.S_ISDIR(st.st_mode) or st.st_uid != uid or not p.is_relative_to(home):
+                    return folder
+        except (OSError, RuntimeError):     # a link that leads nowhere, or round in a loop
+            return folder
         return None
 
     def unlink_folder(self, target: str, folder: Path) -> None:
@@ -488,8 +529,11 @@ class Backup:
     def record_file(self, target: str, path: Path, generated: bool = False) -> None:
         """Store what `path` holds before a write. `generated`: the write is a whole file of
         ours (not a few keys in an app's own settings file)."""
-        if (folder := self.linked_folder(path)) is not None:
+        if (folder := self.linked_folder(path)) is not None and self.swaps(folder):
             self.unlink_folder(target, folder)
+        elif folder is not None and self.unsafe_link(path) is not None:
+            # Engine._apply leaves such a part alone; never write through it all the same.
+            raise PermissionError(tr(LINK_LEFT).format(folder=folder))
         key = str(path)
         if self.env.dry_run:
             return
@@ -842,7 +886,9 @@ def _flatpak_read(path: Path) -> configparser.RawConfigParser:
 def _flatpak_write(path: Path, cp: configparser.RawConfigParser) -> None:
     buf = io.StringIO()
     cp.write(buf, space_around_delimiters=False)
-    atomic_write(path, buf.getvalue().encode("utf-8", "surrogateescape"), 0o644)
+    # Unchanged (every Apply after the first): Flatpak and whatever watches the file are
+    # not woken for nothing.
+    write_if_changed(path, buf.getvalue().encode("utf-8", "surrogateescape"), 0o644)
 
 
 def _fs_list(cp: configparser.RawConfigParser) -> list[str]:
@@ -904,6 +950,10 @@ def _flatpak_undo(env: Env, rec: dict) -> None:
     _flatpak_write(path, cp)
 
 
+# Told as each part of an Apply starts: (index from 0, number of parts, the part's name).
+Progress = Callable[[int, int, str], None]
+
+
 class Engine:
     def __init__(self, env: Env | None = None, targets: list[Target] | None = None):
         self.env = env or Env()
@@ -930,7 +980,8 @@ class Engine:
         return GlassEffects.running(self.env)
 
     def context(self, settings: Settings, check_glass: bool = False) -> Context:
-        if self.env.high_contrast() and not settings.reduce_transparency:
+        high_contrast = self.env.high_contrast()
+        if high_contrast and not settings.reduce_transparency:
             # High Contrast asks for solid surfaces: no see-through glass anywhere, for
             # as long as it is on. The user's own setting is left as it is.
             settings = dataclasses.replace(settings, reduce_transparency=True)
@@ -943,7 +994,8 @@ class Engine:
             use_dark = settings.scheme == "dark"
         return Context(settings=settings, tokens=dark if use_dark else light,
                        dark=dark, light=light, env=self.env,
-                       glass_running=self.glass_running(settings) if check_glass else True)
+                       glass_running=self.glass_running(settings) if check_glass else True,
+                       high_contrast=high_contrast)
 
     def plan(self, settings: Settings) -> dict[str, list[Action]]:
         ctx = self.context(settings)
@@ -972,12 +1024,14 @@ class Engine:
             and not restored_path(self.env).exists()
 
     def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False,
-              applied_only: bool = False) -> list[Result]:
+              applied_only: bool = False, progress: Progress | None = None) -> list[Result]:
         """`if_applied`: only while the look is on (see look_on), checked once the lock is
         held (the dark/light watcher can wait on a Restore or `dnf remove` and must not
         re-apply after). Without it, this is the user's own Apply, which turns the look on.
         `applied_only`: only the targets that are applied now (the watcher: a part the user
-        never applied, or restored on its own, stays as it is)."""
+        never applied, or restored on its own, stays as it is).
+        `progress(index, total, name)`: told as each part starts (the app shows it), so one
+        call does every part: one lock, one read of the extensions' schemas."""
         with self._locked():
             if if_applied and not self.look_on():
                 return []
@@ -995,9 +1049,10 @@ class Engine:
             if not if_applied and not self.env.dry_run:
                 with contextlib.suppress(FileNotFoundError):
                     restored_path(self.env).unlink()
-            return self._apply(settings, only, full=full)
+            return self._apply(settings, only, full=full, progress=progress)
 
-    def _apply(self, settings: Settings, only: set[str] | None, full: bool = False) -> list[Result]:
+    def _apply(self, settings: Settings, only: set[str] | None, full: bool = False,
+               progress: Progress | None = None) -> list[Result]:
         try:
             ctx = self.context(settings, check_glass=True)
             backup = Backup(self.env)
@@ -1009,9 +1064,11 @@ class Engine:
         results: list[Result] = []
         pending = read_pending()
         waiting = set(pending)
-        for t in self.targets:
-            if only and t.id not in only:
-                continue
+        todo = [t for t in self.targets if not only or t.id in only]
+        for i, t in enumerate(todo):
+            if progress is not None:
+                with contextlib.suppress(Exception):    # the app's progress line never stops an Apply
+                    progress(i, len(todo), tr(t.name))
             if not settings.target_enabled(t.id):
                 waiting.discard(t.id)           # turned off: nothing left to finish at login
                 if t.id in backup.targets_with_changes():
@@ -1043,6 +1100,10 @@ class Engine:
             actions: list[Action] = []
             try:
                 actions = t.plan(ctx)
+                if (left := self._unsafe_links(actions, backup)):
+                    results.append(Result(t.id, tr(t.name), "skipped", " ".join(
+                        tr(LINK_LEFT).format(folder=_tilde(f, self.env.home)) for f in left)))
+                    continue
                 errs = self._run(t.id, actions, backup)
                 if not errs:
                     backup.retire(t.id, {str(a.path) for a in actions if isinstance(a, WriteFile)})
@@ -1073,17 +1134,6 @@ class Engine:
         if full and not self.env.dry_run:
             self._stamp(results)
         return results
-
-    def stamp_applied(self, results: list[Result]) -> None:
-        """For a caller that applied every part itself, one `only={part}` call at a time
-        (the app does, to show its progress): none of those calls is "an Apply of every
-        part", so none stamped the version. Without the stamp, an update installed while
-        logged out left the theme files of a look applied in the app on the old version
-        (update_after_upgrade had nothing to compare with)."""
-        if self.env.dry_run:
-            return
-        with self._locked():
-            self._stamp(results)
 
     def _stamp(self, results: list[Result]) -> None:
         """After an Apply of every part: say the look is this version's, so the upgrade step
@@ -1146,6 +1196,13 @@ class Engine:
             return problems
 
     # ---- internals ------------------------------------------------------------
+    @staticmethod
+    def _unsafe_links(actions: list[Action], backup: Backup) -> list[Path]:
+        """The linked folders these actions would write through that aren't safe to."""
+        paths = [a.path for a in actions if isinstance(a, WriteFile)]
+        paths += [p for a in actions if isinstance(a, Command) for p in a.touches]
+        return sorted({f for p in paths if (f := backup.unsafe_link(p)) is not None})
+
     def _record_originals(self, tid: str, actions: list[Action], backup: Backup) -> None:
         """Record what every file and setting of this target holds now, and save that,
         before the first change. An Apply stopped half way (the app killed, the PC off)
