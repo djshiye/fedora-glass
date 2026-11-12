@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.27
+Version:        1.5.28
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -251,6 +251,11 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Thu Nov 12 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.28-1
+- The taskbar's top edge no longer flashes as the pointer passes the middle of it, also while you press and drag
+- The pointer's light turns smoothly across menus and the taskbar instead of snapping at their middle
+- Slack, Discord, VS Code and other apps that draw their own window get glass behind their title bar again, instead of a see-through bar showing the desktop
+
 * Wed Nov 11 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.27-1
 - The taskbar no longer flickers when you press and drag along it over a maximized window
 - A new How liquid slider on the Motion page makes the taskbar press firmer or more liquid

@@ -71,6 +71,12 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.5.28" date="2026-11-12">
+      <description>
+        <p>The taskbar no longer flashes as the pointer passes its middle, and the pointer's light turns smoothly across menus and the taskbar.</p>
+        <p>Slack, Discord, VS Code and other apps that draw their own window get glass behind their title bar again, instead of a see-through bar showing the desktop.</p>
+      </description>
+    </release>
     <release version="1.5.27" date="2026-11-11">
       <description>
         <p>The taskbar no longer flickers when you drag along it, and a new How liquid slider makes the press effect firmer or more liquid.</p>

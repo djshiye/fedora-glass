@@ -194,8 +194,14 @@ vec2 jitter(vec2 p) {
 
 // Where the light comes from: the room's light, turned towards the pointer
 // while it is near, so the shadow, caustic and reflections answer to one light.
-vec2 lightDir(vec2 toPtr) {
-    vec2 Lp = toPtr / max(length(toPtr), 1.0);
+// The turn is measured against the pane's own half size (h), so it is gradual
+// all the way across: the light comes from the side only with the pointer at or
+// past an end, and is the room's light with the pointer in the middle. Up to
+// 1.5.27 it pointed straight at the pointer from the middle: on a long, thin
+// bar it swung from the side to straight above within a few px as the pointer
+// passed the middle, and the taskbar's whole top edge flashed.
+vec2 lightDir(vec2 toPtr, vec2 h) {
+    vec2 Lp = clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0);
     return normalize(mix(vec2(hl_x, hl_y), Lp, ptr_k) + vec2(1e-4));
 }
 
@@ -392,7 +398,7 @@ void main() {
         return;
     }
     vec2 toPtr = vec2(ptr_x, ptr_y) + at0 - whole * 0.5;
-    vec2 L = lightDir(toPtr);
+    vec2 L = lightDir(toPtr, h);
 
     // Outside the pane: only its soft contact shadow, cast away from the light.
     // It also lies under the edge's partly covered pixels, so the rounded edge
