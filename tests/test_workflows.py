@@ -387,6 +387,79 @@ def test_the_guard_reads_fedoraglass_require(monkeypatch):
     assert required("glib")
 
 
+def test_pinned_images_workflow_is_monthly_read_only_and_changes_nothing():
+    text = _text("pinned-images.yml")
+    assert re.search(r'cron: "\d+ \d+ 1 \* \*"', text) and "workflow_dispatch:" in text
+    assert re.search(r"^permissions:\n  contents: read\n", text, re.M) and "write" not in text
+    assert "secrets." not in text and "GH_TOKEN" not in text and "persist-credentials: false" in text
+    assert "sh packaging/check-pinned-images.sh .github/workflows/*.yml" in text
+    for token in ("git commit", "git push", "gh pr", "create-pull-request"):
+        assert token not in text                      # no bot that commits: it only tells the owner
+
+
+def test_every_container_in_a_workflow_is_pinned_by_digest_in_the_form_the_checker_reads():
+    seen = 0
+    for wf in WF.glob("*.yml"):
+        for line in wf.read_text().splitlines():
+            m = re.match(r"\s*container:\s*(\S+)", line)
+            if m:
+                seen += 1
+                assert re.fullmatch(r"[a-z]+(:[\w.]+)?@sha256:[0-9a-f]{64}", m.group(1)), (wf.name, line)
+    assert seen >= 6
+
+
+def _pinned_check(tmp_path, workflow: str, now: dict[str, str], rc_curl: int = 0):
+    """Runs the checker with a fake `curl` that serves `now` ("name:tag" -> digest) as the registry."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir(exist_ok=True)
+    table = "\n".join(f"{k} {v}" for k, v in now.items())
+    (tmp_path / "now.txt").write_text(table + "\n")
+    (bin_ / "curl").write_text(f"""#!/bin/sh
+[ {rc_curl} -eq 0 ] || exit {rc_curl}
+case "$*" in
+  *auth.docker.io*) echo '{{"token":"abc","access_token":"abc"}}' ;;
+  *manifests*)
+    ref="${{*##*/library/}}"; name="${{ref%%/manifests/*}}"; tag="${{ref##*/manifests/}}"
+    d="$(awk -v k="$name:$tag" '$1 == k {{ print $2 }}' {tmp_path}/now.txt)"
+    [ -n "$d" ] || exit 22
+    printf 'HTTP/2 200\r\ncontent-type: x\r\nDocker-Content-Digest: %s\r\n\r\n' "$d" ;;
+esac
+""")
+    (bin_ / "curl").chmod(0o755)
+    wf = tmp_path / "wf.yml"
+    wf.write_text(workflow)
+    return subprocess.run(["sh", str(PKG / "check-pinned-images.sh"), str(wf)], capture_output=True, text=True, timeout=60,
+                          env={"PATH": f"{bin_}:/usr/bin:/bin", "TMPDIR": str(tmp_path)})
+
+
+OLD = "sha256:" + "a" * 64
+NEW = "sha256:" + "b" * 64
+
+
+def test_pinned_images_checker_is_quiet_when_the_pins_are_current(tmp_path):
+    wf = f"jobs:\n  a:\n    container: fedora:44@{OLD}  # pinned\n  b:\n    container: archlinux@{OLD}\n"
+    r = _pinned_check(tmp_path, wf, {"fedora:44": OLD, "archlinux:latest": OLD})
+    assert r.returncode == 0 and "::error" not in r.stdout and "fedora:44 is current" in r.stdout
+
+
+def test_pinned_images_checker_names_the_new_digest_and_where_to_put_it(tmp_path):
+    wf = f"jobs:\n  a:\n    container: fedora:44@{OLD}  # pinned\n  b:\n    container: ubuntu:26.04@{OLD}\n"
+    r = _pinned_check(tmp_path, wf, {"fedora:44": NEW, "ubuntu:26.04": OLD})
+    assert r.returncode == 1
+    assert "::error" in r.stdout and f"change {OLD} to {NEW}" in r.stdout and "line=3" in r.stdout
+    assert "title=fedora:44 has a newer image" in r.stdout and "ubuntu:26.04 is current" in r.stdout
+
+
+def test_pinned_images_checker_refuses_what_it_cannot_check(tmp_path):
+    unpinned = _pinned_check(tmp_path, "jobs:\n  a:\n    container: fedora:44\n", {})
+    assert unpinned.returncode == 1 and "not pinned by digest" in unpinned.stdout
+    other = _pinned_check(tmp_path, f"jobs:\n  a:\n    container: ghcr.io/x/y:1@{OLD}\n", {})
+    assert other.returncode == 1 and "Registry not supported" in other.stdout
+    # A registry that can't be reached is its own exit code, not "up to date".
+    down = _pinned_check(tmp_path, f"jobs:\n  a:\n    container: fedora:44@{OLD}\n", {}, rc_curl=7)
+    assert down.returncode == 2 and "Could not ask the registry" in down.stdout
+
+
 def test_dependabot_and_issue_form_and_security_policy():
     dep = (ROOT / ".github/dependabot.yml").read_text()
     for eco in ("github-actions", "docker"):
