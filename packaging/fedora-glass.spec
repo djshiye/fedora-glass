@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.5.28
+Version:        1.6.0
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -269,6 +269,24 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Thu Nov 12 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.6.0-1
+- New: the box GNOME shows when you drag a window to a screen edge is glass now
+- New: Day and night on the Home page picks one saved look for GNOME's light style and one for dark, and switches by itself
+- New: apps can have their own glass strength (No glass, More solid, Clearer) on the Panel and windows page
+- New: Update with current settings in a saved look's menu, and a question before a second look gets the same name
+- New: an Edge reflections slider on the Glass page
+- New: Kitty, Ghostty, Alacritty, Foot and WezTerm get the glass colours; VSCodium too
+- Obsidian, VS Code, VSCodium, qBittorrent and Ptyxis installed as Flatpaks are found, and so is Firefox from Snap
+- Style set to Dark or Light is now followed by Files, Settings and other modern apps, not only by the panel
+- Apply in the app runs once instead of once per part, and switching dark and light no longer starts dozens of helper programs
+- An update installed while logged out also brings the theme files of a look applied in the app up to date
+- Remove Fedora Glass clicked right after Apply now runs; Restore original clears the warning banner; the app follows GNOME's accent colour while open
+- Sliders move more smoothly, more so with many saved looks
+- App settings folders linked from a dotfiles folder stay linked after Apply
+- High Contrast keeps GNOME's stronger outlines on the panel and menus
+- Removing Fedora Glass no longer leaves an empty folder in /var/lib
+- The store page is in German, French, Spanish, Italian and Brazilian Portuguese
+
 * Thu Nov 12 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.5.28-1
 - The taskbar's top edge no longer flashes as the pointer passes the middle of it, also while you press and drag
 - The pointer's light turns smoothly across menus and the taskbar instead of snapping at their middle

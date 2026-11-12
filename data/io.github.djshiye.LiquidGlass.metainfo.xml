@@ -131,6 +131,13 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.6.0" date="2026-11-12">
+      <description>
+        <p>New: the box shown when you drag a window to a screen edge is glass, Day and night switches between two saved looks with GNOME's light and dark style, apps can have their own glass strength, saved looks can be updated, and there is an Edge reflections slider.</p>
+        <p>More apps get the look: Kitty, Ghostty, Alacritty, Foot, WezTerm and VSCodium, and Flatpak or Snap installs of Obsidian, VS Code, qBittorrent, Ptyxis and Firefox are found.</p>
+        <p>Apply and the switch between dark and light are faster, sliders are smoother, Style set to Dark or Light is followed by all apps, and several smaller bugs are fixed.</p>
+      </description>
+    </release>
     <release version="1.5.28" date="2026-11-12">
       <description>
         <p>The taskbar no longer flashes as the pointer passes its middle, and the pointer's light turns smoothly across menus and the taskbar.</p>

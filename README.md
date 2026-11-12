@@ -81,8 +81,8 @@ to your desktop.
 It draws its own glass, so if you use **Blur my Shell** you can simply remove it. While it is still
 installed, Fedora Glass switches off the parts that would blur the same things twice.
 
-It also themes GTK 3, GTK 4 and libadwaita apps (Files included), Flatpak apps, Ptyxis and GNOME
-Terminal, Qt apps (through Kvantum), the lock screen and, if you opt in, the login screen. The app's
+It also themes GTK 3, GTK 4 and libadwaita apps (Files included), Flatpak apps, Ptyxis, GNOME
+Terminal, Kitty, Ghostty, Alacritty, Foot and WezTerm, Qt apps (through Kvantum), the lock screen and, if you opt in, the login screen. The app's
 **Apps** page lists every part, shows which ones you have, and has a switch for each.
 
 <p align="center"><img src="docs/screenshots/app.png" width="860" alt="The Fedora Glass app: Home page with the live preview, looks, glass slider and colour"></p>
