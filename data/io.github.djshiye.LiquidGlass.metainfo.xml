@@ -100,11 +100,11 @@
   <screenshots>
     <screenshot type="default">
       <caption>The customizer, with a live preview of the glass</caption>
-      <image type="source" width="1645" height="1070">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/app.png</image>
+      <image type="source" width="1616" height="1036">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/app.png</image>
     </screenshot>
     <screenshot>
       <caption>Glass on the top bar, menus and windows</caption>
-      <image type="source" width="1920" height="1080">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/glass-desktop.jpg</image>
+      <image type="source" width="1920" height="1080">https://raw.githubusercontent.com/djshiye/fedora-glass/main/docs/screenshots/desktop.jpg</image>
     </screenshot>
     <screenshot>
       <caption>The edge of a glass pane, close up</caption>

@@ -5,9 +5,24 @@
 
 <p align="center">A glass look for the whole GNOME desktop, with an app to tune it from liquid to frosted.</p>
 
-<p align="center"><img src="docs/screenshots/glass-desktop.jpg" width="860" alt="Fedora Glass on a GNOME desktop: glass panel, ArcMenu and app windows"></p>
+<p align="center"><img src="docs/screenshots/demo.webp" width="860" alt="Fedora Glass in motion: ArcMenu opening, the glass snap preview, the liquid taskbar, Quick Settings, the calendar and the lock screen"></p>
 
-Made for **GNOME 50 and 51** on **Fedora** (44, 45), **Ubuntu** (26.04 LTS, 26.10) and **Arch Linux**.
+<p align="center">Made for <b>GNOME 50 and 51</b> on <b>Fedora</b> (44, 45), <b>Ubuntu</b> (26.04 LTS, 26.10) and <b>Arch Linux</b>.</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/desktop.jpg" alt="Files and the terminal on glass over a purple starfield, with the glass taskbar"><br><sub><b>Your desktop in glass.</b> Apps, terminal and taskbar.</sub></td>
+    <td width="50%"><img src="docs/screenshots/arcmenu.jpg" alt="ArcMenu open as a glass panel over Files and the terminal"><br><sub><b>Menus made of glass.</b> ArcMenu and every pop-up.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/snap-preview.jpg" alt="A window dragged to the left edge: the snap preview is a pane of glass that blurs Files behind it"><br><sub><b>Glass snap preview.</b> New in 1.6.</sub></td>
+    <td><img src="docs/screenshots/calendar.jpg" alt="The calendar and notifications as glass over the terminal"><br><sub><b>Calendar and notifications.</b> The terminal shows through.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/quick-settings.jpg" alt="Quick Settings as glass, with the Glass quick toggle"><br><sub><b>Quick Settings.</b> With a Glass toggle.</sub></td>
+    <td><img src="docs/screenshots/lock-screen.jpg" alt="The lock screen password card as glass over the starfield"><br><sub><b>Lock screen.</b> A glass card for your password.</sub></td>
+  </tr>
+</table>
 
 ## Install
 
@@ -123,7 +138,7 @@ blurred copy of what's behind it, seen through a slab of glass with a rounded ed
   (Fresnel), so the rim catches light the way a real pane does.
 - **Absorption:** light crossing more glass near the edge comes out a shade darker (Beer-Lambert).
 
-<p align="center"><img src="docs/screenshots/glass-edge.png" width="860" alt="Close-up: the rounded glass edge of ArcMenu bending the starfield behind it"></p>
+<p align="center"><img src="docs/screenshots/glass-edge.png" width="860" alt="Close-up: the rounded glass edge of the calendar bending the terminal colours behind it"></p>
 
 Idle glass costs nothing, and **Reduce animation** turns the motion off.
 
