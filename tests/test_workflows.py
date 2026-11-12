@@ -260,7 +260,8 @@ def _fill(text: str, ctx: dict) -> str:
 
 def _event(name, action=None, label=None, labels=()):
     ev = {"action": action, "label": {"name": label}, "pull_request": {"labels": [{"name": n} for n in labels]}}
-    return {"github": {"event_name": name, "ref": "refs/pull/7/merge", "run_id": "4242", "event": ev}}
+    return {"github": {"event_name": name, "ref": "refs/pull/7/merge", "run_id": "4242", "event": ev,
+                       "repository": "djshiye/fedora-glass"}}
 
 
 def _yaml(name):
@@ -281,14 +282,15 @@ def _job_runs(job, ctx):
     return _evaluate(cond, ctx) not in (None, False, "", 0)
 
 
-@pytest.mark.parametrize("name, label, jobs", [
-    ("release-checks.yml", "release-checks", ["image"]),
-    ("packages.yml", "packages", ["deb", "arch", "rpm"]),
+@pytest.mark.parametrize("name, label, jobs, group", [
+    ("release-checks.yml", "release-checks", ["image"], "release-checks"),
+    ("packages.yml", "packages", ["deb", "arch", "rpm"], "packages"),
+    ("gnome-52-early-warning.yml", "gnome-next", ["base"], "gnome-52"),
 ])
-def test_only_the_workflows_own_label_starts_or_cancels_a_run(name, label, jobs):
+def test_only_the_workflows_own_label_starts_or_cancels_a_run(name, label, jobs, group):
     doc = _yaml(name)
     assert doc[True]["pull_request"]["types"] == ["labeled", "synchronize"]    # YAML reads a bare `on` as true
-    base = f"{name.split('.')[0]}-refs/pull/7/merge"
+    base = f"{group}-refs/pull/7/merge"
 
     def run(event, **kw):
         ctx = _event(event, **kw)
@@ -311,13 +313,16 @@ def test_only_the_workflows_own_label_starts_or_cancels_a_run(name, label, jobs)
     assert not any(started.values())
     # Not a pull request (a release, a hand-started run, a call from the Release workflow).
     first = jobs[0]
-    for event in ("workflow_dispatch", "push", "workflow_call"):
+    for event in ("workflow_dispatch", "push", "workflow_call", "schedule"):
         started, group = run(event)
         assert started[first] and group == base
     if name == "release-checks.yml":
         for lane in ("desktop", "ubuntu", "stock"):
             assert doc["jobs"][lane]["needs"] == "image"           # skipped together with the image job
             assert "if" not in doc["jobs"][lane]
+    elif name == "gnome-52-early-warning.yml":
+        assert doc["jobs"]["desktop"]["needs"] == "base"           # skipped together with the probe
+        assert _job_runs(doc["jobs"]["base"], _event("schedule"))  # the weekly look for a GNOME 52 image
     else:
         assert doc["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
 
@@ -458,6 +463,91 @@ def test_pinned_images_checker_refuses_what_it_cannot_check(tmp_path):
     # A registry that can't be reached is its own exit code, not "up to date".
     down = _pinned_check(tmp_path, f"jobs:\n  a:\n    container: fedora:44@{OLD}\n", {}, rc_curl=7)
     assert down.returncode == 2 and "Could not ask the registry" in down.stdout
+
+
+# ---- the GNOME 52 early-warning lane --------------------------------------------------------
+
+def test_gnome_52_lane_is_opt_in_read_only_and_not_part_of_a_release():
+    text = _text("gnome-52-early-warning.yml")
+    doc = _yaml("gnome-52-early-warning.yml")
+    assert doc[True]["pull_request"]["types"] == ["labeled", "synchronize"] and "workflow_dispatch" in doc[True]
+    assert re.search(r"^permissions:\n  contents: read\n", text, re.M) and "write" not in text
+    assert "persist-credentials: false" in text and "secrets." not in text
+    assert "gnome-52-early-warning" not in _text("release.yml") and "gnome-52" not in _text("release-checks.yml")
+    assert "early warning" in text.lower() and "Early warning, GNOME 52" in text
+    lane = doc["jobs"]["desktop"]
+    assert lane["needs"] == "base" and lane["if"] == "needs.base.outputs.ready == 'true'"
+    assert "continue-on-error" not in text                 # a failure is shown, not hidden; it blocks nothing
+    for step in lane["steps"]:
+        if "run" in step and "run.sh" in step["run"]:
+            assert "--gnome 52" in step["run"]
+
+
+def _fake_archive(tmp_path, shell_version: str):
+    """A fake Ubuntu archive and registry behind a fake curl, for gnome-prerelease.sh."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir(exist_ok=True)
+    packages = f"Package: gnome-shell-common\nVersion: 9\n\nPackage: gnome-shell\nSource: gnome-shell\nVersion: {shell_version}\n\nPackage: other\nVersion: 1\n"
+    (tmp_path / "Packages.gz").write_bytes(gzip.compress(packages.encode()))
+    (tmp_path / "Release").write_text("Origin: Ubuntu\nSuite: tenacious\nCodename: tenacious\n")
+    (bin_ / "curl").write_text(f"""#!/bin/sh
+case "$*" in
+  *dists/devel/Release*) cat {tmp_path}/Release ;;
+  *Packages.gz*) cat {tmp_path}/Packages.gz ;;
+  *auth.docker.io*) echo '{{"token":"abc"}}' ;;
+  *manifests/devel*) printf 'HTTP/2 200\\r\\nDocker-Content-Digest: sha256:{"c" * 64}\\r\\n\\r\\n' ;;
+  *) exit 22 ;;
+esac
+""")
+    (bin_ / "curl").chmod(0o755)
+    return subprocess.run(["sh", str(ROOT / "qa/desktop/gnome-prerelease.sh"), "52"], capture_output=True, text=True, timeout=60,
+                          env={"PATH": f"{bin_}:/usr/bin:/bin"})
+
+
+@pytest.mark.parametrize("version", ["51.0-2ubuntu3", "1:51.1-1", "50.2"])
+def test_gnome_52_lane_waits_while_ubuntu_devel_has_an_older_gnome(tmp_path, version):
+    r = _fake_archive(tmp_path, version)
+    assert r.returncode == 0, r.stderr
+    assert "ready=false" in r.stdout and "series=tenacious" in r.stdout and "base=" not in r.stdout
+
+
+@pytest.mark.parametrize("version", ["52~alpha-1ubuntu1", "52.beta-1", "1:52.0-1", "53~alpha-1"])
+def test_gnome_52_lane_starts_by_itself_when_ubuntu_devel_has_gnome_52(tmp_path, version):
+    r = _fake_archive(tmp_path, version)
+    assert r.returncode == 0, r.stderr
+    assert "ready=true" in r.stdout
+    assert f"base=mirror.gcr.io/library/ubuntu@sha256:{'c' * 64}" in r.stdout
+
+
+def test_gnome_52_lane_fails_visibly_when_the_archive_cannot_be_read(tmp_path):
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "curl").write_text("#!/bin/sh\nexit 22\n")
+    (bin_ / "curl").chmod(0o755)
+    r = subprocess.run(["sh", str(ROOT / "qa/desktop/gnome-prerelease.sh")], capture_output=True, text=True, timeout=60,
+                       env={"PATH": f"{bin_}:/usr/bin:/bin"})
+    assert r.returncode == 2 and "could not read gnome-shell" in r.stderr
+
+
+def test_run_sh_gnome_52_needs_a_digest_pinned_ubuntu_base_and_borrows_the_51_harness():
+    no_base = subprocess.run(["bash", str(ROOT / "qa/desktop/run.sh"), "--gnome", "52", "--image-info"],
+                             capture_output=True, text=True, timeout=30, env={"PATH": "/usr/bin:/bin"})
+    assert no_base.returncode == 64 and "LGQA_GNOME52_BASE" in no_base.stderr
+    for bad in ("ubuntu:devel", "mirror.gcr.io/library/ubuntu@sha256:abc", "evil.example/ubuntu@sha256:" + "a" * 64):
+        r = subprocess.run(["bash", str(ROOT / "qa/desktop/run.sh"), "--gnome", "52", "--image-info"], capture_output=True,
+                           text=True, timeout=30, env={"PATH": "/usr/bin:/bin", "LGQA_GNOME52_BASE": bad})
+        assert r.returncode == 64, bad
+    ok = subprocess.run(["bash", str(ROOT / "qa/desktop/run.sh"), "--gnome", "52", "--image-info"], capture_output=True, text=True,
+                        timeout=30, env={"PATH": "/usr/bin:/bin", "LGQA_GNOME52_BASE": "mirror.gcr.io/library/ubuntu@sha256:" + "a" * 64})
+    assert ok.returncode == 0 and ok.stdout.startswith("image=lgqa-desktop-52\n")
+    run = (ROOT / "qa/desktop/run.sh").read_text()
+    # The checks run as GNOME 51 (their harness rules and pictures), the extension copy lists 52, the tree is untouched.
+    assert 'HARNESS_GNOME=51' in run and '-e LGQA_GNOME="$HARNESS_GNOME"' in run
+    assert 'shell-version": [\\1, "52"]' in run and 'SRC=$PRE_SRC' in run
+    assert "disable-extension-version-validation" in (ROOT / "qa/desktop/Dockerfile").read_text()
+    # The extension on disk is not changed by the lane.
+    meta = (ROOT / "fedoraglass/data/extension/liquid-glass@djshiye.github.io/metadata.json").read_text()
+    assert '"52"' not in meta
 
 
 def test_dependabot_and_issue_form_and_security_policy():

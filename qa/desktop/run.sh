@@ -16,8 +16,14 @@
 # --screen WxH          size of each of the two screens in real pixels (default 2000x1125).
 #                       --screen 2560x1440 is Dino's PC. Pictures are compared only at sizes
 #                       that have their own reference pictures (references/WxH/).
-# --gnome 50|51         the GNOME version (default 50: Ubuntu 26.04; 51: Ubuntu 26.10). GNOME 51 keeps
+# --gnome 50|51|52      the GNOME version (default 50: Ubuntu 26.04; 51: Ubuntu 26.10). GNOME 51 keeps
 #                       its own reference pictures in references/gnome51/ (and gnome51/WxH/).
+# --gnome 52            EARLY WARNING for the next GNOME, only once Ubuntu's development release ships it
+#                       (qa/desktop/gnome-prerelease.sh says when). The base image is given as
+#                       LGQA_GNOME52_BASE=mirror.gcr.io/library/ubuntu@sha256:<digest of ubuntu:devel>;
+#                       the extension under test is a copy whose metadata.json also lists shell 52,
+#                       and GNOME Shell is told not to refuse other extensions for their version.
+#                       It borrows GNOME 51's pictures and harness rules until GNOME 52 has its own.
 # --ubuntu-desktop      instead of Dino's desktop: the stock Ubuntu desktop (Ubuntu Dock, Desktop
 #                       Icons, Yaru, Ubuntu's defaults) on that GNOME's Ubuntu, one screen at 100 %,
 #                       and the Ubuntu checks (Apply and Restore original from the running desktop).
@@ -70,8 +76,19 @@ case $GNOME in
         GNOME_ARGS=(--build-arg BASE=mirror.gcr.io/library/ubuntu@sha256:262df65c0ec6bf8d9dcc87454f4330a05fae4b97825f45854af3b136666584c2
                     --build-arg EXTLIST=c0c996c7bdf538e777ecfadef04f5a8fd771e88c     # Extension List 51.1
                     --build-arg EXTLIST_SHELL=51) ;;
-    *) echo "--gnome needs 50 or 51" >&2; exit 64 ;;
+    52) # The next GNOME, before it is released: Ubuntu's development series, given by digest (see above).
+        [[ ${LGQA_GNOME52_BASE:-} =~ ^mirror\.gcr\.io/library/ubuntu@sha256:[0-9a-f]{64}$ ]] \
+            || { echo "--gnome 52 needs LGQA_GNOME52_BASE=mirror.gcr.io/library/ubuntu@sha256:<64 hex> (qa/desktop/gnome-prerelease.sh prints it once Ubuntu's development release has GNOME 52)" >&2; exit 64; }
+        IMAGE=lgqa-desktop-52
+        GNOME_ARGS=(--build-arg BASE="$LGQA_GNOME52_BASE"
+                    --build-arg EXTLIST=c0c996c7bdf538e777ecfadef04f5a8fd771e88c     # Extension List 51.1, its metadata is rewritten to 52
+                    --build-arg EXTLIST_SHELL=52
+                    --build-arg PRERELEASE=1) ;;
+    *) echo "--gnome needs 50, 51 or 52" >&2; exit 64 ;;
 esac
+# The checks know GNOME 50 and 51. GNOME 52 behaves like 51 for them (the harness API changes
+# of 51 stay) and compares with 51's pictures, so it is told to be 51 until it has its own.
+HARNESS_GNOME=$GNOME; [ "$GNOME" != 52 ] || HARNESS_GNOME=51
 
 # The recipe: everything the base image is built from. An image carrying the same recipe label
 # is used as it is; any change to it rebuilds the image. (What the image installs from Ubuntu's
@@ -106,11 +123,20 @@ fi
 if [ -n "$BUILD_ONLY" ]; then echo "The $IMAGE image is ready."; exit 0; fi
 
 rm -rf "$OUT"; mkdir -p "$OUT"; chmod 0777 "$OUT"
-cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+cleanup() { [ -n "$KEEP" ] || docker rm -f "$NAME" >/dev/null 2>&1 || true; [ -z "${PRE_SRC:-}" ] || rm -rf "$PRE_SRC"; }
+if [ "$GNOME" = 52 ]; then
+    # Only inside the test: the extension's metadata.json also lists GNOME 52 (it lists 50 and 51
+    # until a release has been tested on 52). The tree being tested is not changed.
+    PRE_SRC=$(mktemp -d); tar -C "$SRC" --exclude=./.git --exclude=./qa-report -cf - . | tar -C "$PRE_SRC" -xf -
+    meta=$(ls "$PRE_SRC"/fedoraglass/data/extension/*/metadata.json)
+    sed -i 's/"shell-version": \[\([^]]*\)\]/"shell-version": [\1, "52"]/' "$meta"
+    grep -q '"52"' "$meta" || { echo "could not add GNOME 52 to $meta" >&2; exit 1; }
+    SRC=$PRE_SRC
+fi
 trap cleanup EXIT
 
 # No network inside: nothing at run time needs it.
-docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" -e LGQA_GNOME="$GNOME" -e LGQA_SESSION="$SESSION" -e LGQA_STOCK_EXTS="$STOCK_EXTS" ${LGQA_RUN_ARGS:-} \
+docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" -e LGQA_GNOME="$HARNESS_GNOME" -e LGQA_SESSION="$SESSION" -e LGQA_STOCK_EXTS="$STOCK_EXTS" ${LGQA_RUN_ARGS:-} \
     -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out ${FROM:+-v "$FROM":/from:ro} \
     "$IMAGE" /opt/lgqa/suite/container/start.sh >/dev/null
 

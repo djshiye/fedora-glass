@@ -72,6 +72,18 @@ qa/desktop/run.sh --stock-desktop          # stock GNOME, no extensions (add --w
 `--gnome 51` builds the test desktop on Ubuntu 26.10, which has GNOME 51 (Fedora 45 has it
 too), and compares against the pictures in `references/gnome51/`. GNOME 50 is the default.
 
+`--gnome 52` is an EARLY WARNING for the next GNOME, not part of a release. It needs a base
+image that really has GNOME 52: Ubuntu's development series (`ubuntu:devel`, 27.04 "tenacious")
+still ships GNOME 51 today, and GNOME 52 is due in March 2027. `gnome-prerelease.sh` asks the
+archive and prints the base to use (`LGQA_GNOME52_BASE=mirror.gcr.io/library/ubuntu@sha256:...`)
+once Ubuntu uploads gnome-shell 52, an alpha included. The `GNOME 52 early warning` workflow
+(`gnome-52-early-warning.yml`) runs that check every Tuesday, by hand, and on a pull request with
+the `gnome-next` label; until there is a GNOME 52 it only says so on its summary page. When there
+is, it runs this desktop and the stock one on it. Inside the test only, the extension's
+`metadata.json` also lists shell 52 and GNOME Shell does not refuse the other extensions for
+their version. It borrows GNOME 51's harness rules and pictures until GNOME 52 has its own, so
+picture differences are to be expected at first: read them as a warning, not as a verdict.
+
 `--ubuntu-desktop` checks Fedora Glass on Ubuntu's own desktop as a new Ubuntu user has it:
 the Ubuntu session with Ubuntu Dock, Desktop Icons, AppIndicator and Yaru, Ubuntu's default
 settings, one screen at 100 %, and none of Dino's extensions. It takes pictures of the stock
