@@ -7,6 +7,7 @@ argument list (never through a shell) and never with elevated rights.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
@@ -41,6 +42,10 @@ class Env:
     # and starting a `gsettings get` for each was most of its time.
     _sources: dict = field(default_factory=dict, repr=False, compare=False)
     _gio: object = field(default=None, repr=False, compare=False)
+    _glib: object = field(default=None, repr=False, compare=False)
+    # Settings set inside gsettings_batch, not written yet: (schema, path) -> the delayed
+    # Gio.Settings and the text of each key set in it. None outside a batch.
+    _batch: dict | None = field(default=None, repr=False, compare=False)
 
     def forget_cache(self) -> None:
         self._schemadirs.clear()
@@ -270,6 +275,8 @@ class Env:
         return set(keys)
 
     def gsettings_get(self, schema: str, key: str, path: str | None = None) -> str | None:
+        if self._batch and key in (pending := self._batch.get((schema, path), {})).get("values", {}):
+            return pending["values"][key]       # set in this batch, not written yet
         found = self._schema_here(schema, path)
         if found is None:
             return None
@@ -289,6 +296,8 @@ class Env:
         argv, sid = self._gs(schema, path)
         if self.dry_run:
             return RunResult(0, "", "")
+        if self._batch is not None and (r := self._set_here(schema, key, value, path)) is not None:
+            return r
         return self.run(argv + ["set", sid, key, value])
 
     def gsettings_reset(self, schema: str, key: str, path: str | None = None) -> RunResult:
@@ -296,7 +305,96 @@ class Env:
         argv, sid = self._gs(schema, path)
         if self.dry_run:
             return RunResult(0, "", "")
+        self._flush_batch()     # what was set before it goes out first, in its order
         return self.run(argv + ["reset", sid, key])
+
+    # ---- writing settings in this process ------------------------------------
+    # A dark/light switch sets some 40 keys (Dash to Panel, ArcMenu, Spawn, User Themes),
+    # and starting a `gsettings set` for each was most of its time. Inside a batch they are
+    # set here instead, through GNOME's own store (dconf only, as for reading), and go out
+    # together at its end: one change per schema, so Dash to Panel hears of them once.
+    # Whatever can't be done here (no PyGObject, a value or schema only gsettings can tell
+    # about, a key that is locked) goes through `gsettings`, which says why it failed.
+    @contextlib.contextmanager
+    def gsettings_batch(self):
+        if self._batch is not None or self.dry_run:
+            yield               # already in one: it goes out at the end of that one
+            return
+        self._batch = {}
+        try:
+            yield
+        finally:
+            try:
+                self._flush_batch()
+            finally:
+                self._batch = None
+
+    def _glib_module(self):
+        if self._glib is None:
+            try:
+                import gi
+                gi.require_version("GLib", "2.0")
+                from gi.repository import GLib
+                self._glib = GLib
+            except Exception:
+                self._glib = False
+        return self._glib or None
+
+    def _set_here(self, schema: str, key: str, value: str, path: str | None) -> RunResult | None:
+        """Set one key in the batch, as `gsettings set` would. None: gsettings does it."""
+        found = self._schema_here(schema, path)
+        if found is None or found is self._NOT_HERE:
+            return None
+        Gio, GLib = self._gio_module(), self._glib_module()
+        if Gio is None or GLib is None:
+            return None
+        try:
+            if not found.has_key(key) or (path is None and found.get_path() is None):
+                return None
+            k = found.get_key(key)
+            try:
+                v = GLib.Variant.parse(k.get_value_type(), value, None, None)
+            except Exception:
+                return None     # gsettings says what is wrong with the value
+            if not k.range_check(v):
+                return None
+            entry = self._batch.get((schema, path))
+            if entry is not None and key in entry["values"]:
+                # The same key twice (User Themes' name, away and back so it loads the new
+                # style sheet): the first value goes out on its own first. In one change
+                # dconf would see only the last, which it already has, and drop it.
+                self._flush_batch()
+                entry = None
+            if entry is None:
+                gs = Gio.Settings.new_full(found, None, path)
+                gs.delay()
+                entry = {"settings": gs, "values": {}}
+            gs = entry["settings"]
+            if not gs.is_writable(key) or not gs.set_value(key, v):
+                return None     # locked by the administrator: gsettings says so
+            entry["values"][key] = v.print_(True)
+            self._batch[(schema, path)] = entry
+        except Exception:
+            return None
+        return RunResult(0, "", "")
+
+    def _flush_batch(self) -> None:
+        """Write what the batch holds now, and wait until GNOME's store has it."""
+        batch = self._batch
+        if not batch:
+            return
+        self._batch = {}
+        try:
+            for entry in batch.values():
+                entry["settings"].apply()
+            self._gio_module().Settings.sync()
+        except Exception:
+            # Written here or not, `gsettings` sets them again (the same value twice
+            # changes nothing).
+            for (schema, path), entry in batch.items():
+                argv, sid = self._gs(schema, path)
+                for key, text in entry["values"].items():
+                    self.run(argv + ["set", sid, key, text])
 
     def gsettings_is_default(self, schema: str, key: str, value: str, path: str | None = None) -> bool | None:
         """Whether `value` (as `gsettings get` prints it) is the key's default. None when

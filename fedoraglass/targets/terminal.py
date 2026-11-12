@@ -111,12 +111,12 @@ class Ptyxis(Target):
 
     def _titlebars(self, ctx: Context, opacity: float) -> dict:
         return {name: headerbar.ptyxis_titlebar(ctx.settings, t, opacity)
-                for name, t in (("dark", ctx.dark), ("light", ctx.light))}
+                for name, t in zip(("dark", "light"), ctx.switching())}
 
     def plan(self, ctx: Context) -> list[Action]:
         opacity = window_opacity(ctx)
         titlebar = self._titlebars(ctx, opacity)
-        palette = rt.ptyxis_palette(ctx.dark, ctx.light, titlebar)
+        palette = rt.ptyxis_palette(*ctx.switching(), titlebar)
         fp = ptyxis_flatpak(ctx.env)
         acts: list[Action] = []
         if ptyxis_native(ctx.env) or fp is None:

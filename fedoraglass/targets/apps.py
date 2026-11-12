@@ -111,7 +111,7 @@ class Discord(AppTarget):
 
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
-        css = ra.discord_css(ctx.dark, ctx.light)
+        css = ra.discord_css(*ctx.switching())
         for d in self.vencord_dirs(ctx.env):
             acts.append(WriteFile(d / "themes" / ra.DISCORD_THEME_FILE, css))
             sp = d / "settings/settings.json"
@@ -273,7 +273,7 @@ class Obsidian(AppTarget):
 
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
-        css = ra.obsidian_css(ctx.dark, ctx.light)
+        css = ra.obsidian_css(*ctx.switching())
         for v in self.vaults(ctx.env):
             base = v / ".obsidian"
             theme = base / "themes/Fedora Glass"
@@ -512,8 +512,8 @@ class Firefox(AppTarget):
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
         block = ("block", ra.FIREFOX_BEGIN, ra.FIREFOX_END)
-        chrome_css = ra.firefox_chrome_css(ctx.dark, ctx.light)
-        content_css = ra.firefox_content_css(ctx.dark, ctx.light)
+        chrome_css = ra.firefox_chrome_css(*ctx.switching())
+        content_css = ra.firefox_content_css(*ctx.switching())
         for prof in firefox_profiles(ctx.env):
             if self._skipped(prof):
                 continue

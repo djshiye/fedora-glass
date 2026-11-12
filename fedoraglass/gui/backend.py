@@ -2095,16 +2095,13 @@ class Backend(QObject):
             if not ts:
                 report(0.5, _("Writing tokens"))
                 return [], self._backup_exists(engine), self._restart_state(engine, glass_wanted)
+            # One Apply of every part (one lock, one read of the extensions' schemas), which
+            # also says the look is this version's. It tells each part as it starts, for
+            # the progress line. Switching the glass on can finish parts that waited for it
+            # (the Shell theme) at its end: the latest result for a part counts.
             results = {}
-            for i, t in enumerate(ts):
-                report(i / len(ts), tr(t.name))
-                # Switching the glass on can finish parts that waited for it a step
-                # earlier (the Shell theme): the latest result for a part counts.
-                for r in engine.apply(s, only={t.id}):
-                    results[r.target] = r
-            # Every part was applied, one call each: say the look is this version's
-            # (no single call above did), so an update knows what to bring up to date.
-            engine.stamp_applied(list(results.values()))
+            for r in engine.apply(s, progress=lambda i, n, name: report(i / n, name)):
+                results[r.target] = r
             report(1.0, _("Done"))
             return list(results.values()), self._backup_exists(engine), self._restart_state(engine, glass_wanted)
 

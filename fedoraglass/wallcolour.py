@@ -204,6 +204,15 @@ def mark(key: str, dark: bool) -> str:
     return key + ("|dark" if dark else "|light")
 
 
+def picture_of(match: str) -> str:
+    """The picture's key in a wallpaper_match, without the style it was noted in (1.5.24
+    noted none)."""
+    for tag in ("|dark", "|light"):
+        if match.endswith(tag):
+            return match[:-len(tag)]
+    return match
+
+
 def follows(s) -> bool:
     """The look takes its tint or accent from the wallpaper."""
     return bool(getattr(s, "tint_from_wallpaper", False) or getattr(s, "accent_from_wallpaper", False))
@@ -222,7 +231,10 @@ def rematch(s, path: str, dark: bool, read: Callable[[str], list[tuple[int, int,
     if not key:
         return None
     m = mark(key, dark)
-    if m == s.wallpaper_match:
+    if m == s.wallpaper_match or picture_of(s.wallpaper_match) == key:
+        # The same picture, maybe noted in the other style (GNOME shows one picture in
+        # both): its colours are the ones the look has, so it isn't decoded again and
+        # settings.json isn't written for nothing at each dark/light switch.
         return None
     c = colours_of(path, read)
     if c.get("unreadable") or c.get("key") != key:

@@ -213,12 +213,34 @@ def test_a_dark_light_switch_to_the_other_picture_takes_its_colour(wall):
 
 
 def test_a_dark_light_switch_with_the_same_picture_is_the_usual_one(wall):
+    """GNOME shows the same picture in both styles: it is not decoded again, and
+    settings.json is not written for nothing (its match keeps the style it was noted in)."""
     env, eng, w, red, _ = wall
     w.only = {"shell"}
+    decoded = []
+    read = w.read_pixels
+    w.read_pixels = lambda p: decoded.append(p) or read(p)
+    path = settings_mod.settings_path()
+    before = path.read_bytes(), path.stat().st_mtime_ns
     env.gs[("org.gnome.desktop.interface", None)]["color-scheme"] = "'default'"
     w.changed({cli.SCHEME})
     assert [a["only"] for a in eng.applied] == [{"shell"}]
-    assert _saved().wallpaper_match.endswith("|light"), "noted for this style"
+    assert decoded == []
+    assert (path.read_bytes(), path.stat().st_mtime_ns) == before, "settings.json untouched"
+    # Back to dark, and once more to light: still nothing to take.
+    env.gs[("org.gnome.desktop.interface", None)]["color-scheme"] = "'prefer-dark'"
+    w.changed({cli.SCHEME})
+    assert decoded == [] and _saved().wallpaper_match.endswith("|dark")
+
+
+def test_the_same_picture_noted_by_1_5_24_is_not_taken_again(wall):
+    env, eng, w, red, _ = wall
+    settings_mod.save(replace(_saved(), wallpaper_match=wallcolour.picture_key(str(red))))
+    decoded = []
+    w.read_pixels = lambda p: decoded.append(p)
+    env.gs[("org.gnome.desktop.interface", None)]["color-scheme"] = "'default'"
+    w.changed({cli.SCHEME})
+    assert decoded == []
 
 
 def test_without_gdkpixbuf_it_says_so_once_and_changes_nothing(wall, monkeypatch, capsys):

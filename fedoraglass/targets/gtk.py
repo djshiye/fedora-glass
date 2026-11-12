@@ -26,11 +26,15 @@ class Gtk4(Target):
                     "GTK 4 app. Follows the system light/dark switch live."),
             plain=N_("Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, "
                   "read when they open."),
+            # The file switches by itself (prefers-color-scheme), or holds the one style the
+            # user picked: the same for GNOME's dark and light.
+            scheme_dependent=False,
         )
 
     def plan(self, ctx: Context) -> list[Action]:
         d = ctx.env.config / "gtk-4.0"
-        css = gtk4.render(ctx.dark, ctx.light) + headerbar.gtk4_css(ctx.settings, ctx.dark, ctx.light)
+        dark, light = ctx.switching()
+        css = gtk4.render(dark, light) + headerbar.gtk4_css(ctx.settings, dark, light)
         # Plain GTK 4 apps may read gtk-dark.css instead of gtk.css in dark mode, and
         # an old gtk-dark.css (often a link into another theme) must not linger.
         return [WriteFile(d / "gtk.css", css), WriteFile(d / "gtk-dark.css", css)]
@@ -155,6 +159,7 @@ class Flatpak(Target):
             summary=N_("Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files."),
             plain=N_("Lets Flatpak apps read the Fedora Glass style files, so they get the same look. "
                   "They can read them, not change them."),
+            scheme_dependent=False,     # the same grants in dark and light
             notes=[N_("GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: "
                    "flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark")],
         )
