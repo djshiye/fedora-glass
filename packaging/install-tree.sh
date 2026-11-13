@@ -45,6 +45,49 @@ python3 -I "$src/packaging/cursors/unpack.py" "$src" "$dest/usr/share/icons"
 install -Dm755 "$src/fedoraglass/login_screen.py" "$dest/usr/libexec/liquid-glass-login-screen"
 install -Dm644 "$src/data/io.github.djshiye.LiquidGlass.policy" "$dest/usr/share/polkit-1/actions/io.github.djshiye.LiquidGlass.policy"
 
+# The glass login screen (opt-in; the contract of the pieces is in the helper's header).
+# The root helper, one self-contained file, run by pkexec, by the boot-time guard and by
+# `sudo fedora-glass login-screen`. The polkit file above names it for its second action.
+install -Dm755 "$src/fedoraglass/login_glass.py" "$dest/usr/libexec/fedora-glass-login"
+
+# The add-on the login screen's own GNOME Shell loads (GDM puts /usr/share/gdm/greeter
+# first in the greeter's data folders, so normal sessions never see it). Root-owned, as
+# the greeter only reads it.
+login_ext=fedora-glass-login@djshiye.github.io
+login_dir="$dest/usr/share/gdm/greeter/gnome-shell/extensions/$login_ext"
+install -d "$login_dir"
+cp -r "$src/fedoraglass/data/login-extension/$login_ext/." "$login_dir/"
+# Files it shares with the desktop extension are copied in, one name per line in the list
+# (blank lines and # comments ignored). A name that is missing, or that tries to leave
+# the folder, stops the build: a half-built add-on must never ship.
+shared_list="$src/fedoraglass/data/login-extension/shared-modules.txt"
+shared_dir="$src/fedoraglass/data/extension/liquid-glass@djshiye.github.io"
+shared_count=0
+while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    case "$name" in */*|.*) echo "bad name in shared-modules.txt: $name" >&2; exit 1 ;; esac
+    [ -f "$shared_dir/$name" ] || { echo "shared module missing: $name" >&2; exit 1; }
+    install -m644 "$shared_dir/$name" "$login_dir/$name"
+    shared_count=$((shared_count + 1))
+done <<LIST
+$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$shared_list")
+LIST
+[ "$shared_count" -gt 0 ] || { echo "shared-modules.txt lists nothing" >&2; exit 1; }
+find "$login_dir" -name '__pycache__' -prune -exec rm -rf {} +
+find "$login_dir" -type d -exec chmod 755 {} +
+find "$login_dir" -type f -exec chmod 644 {} +
+
+# The boot-time guard: before the display manager it turns the login screen glass off by
+# itself if the last start crashed, nobody could log in, or fedora-glass-login=off is on
+# the kernel line. Both units do nothing unless the feature is on (ConditionPathExists),
+# and the links are shipped, so no `systemctl enable` is needed, also on an upgrade.
+for unit in fedora-glass-login-guard.service fedora-glass-login-guard-check.path fedora-glass-login-guard-check.service; do
+    install -Dm644 "$src/data/systemd/$unit" "$dest/usr/lib/systemd/system/$unit"
+done
+install -d "$dest/usr/lib/systemd/system/graphical.target.wants"
+ln -sf ../fedora-glass-login-guard.service "$dest/usr/lib/systemd/system/graphical.target.wants/fedora-glass-login-guard.service"
+ln -sf ../fedora-glass-login-guard-check.path "$dest/usr/lib/systemd/system/graphical.target.wants/fedora-glass-login-guard-check.path"
+
 # Removing the package runs this first: Restore original for each person, as them.
 install -Dm755 "$src/packaging/undo-for-users.sh" "$dest/usr/libexec/fedora-glass-undo-for-users"
 # And this: stops the dark/light watcher in running sessions (the rpm's macros do it there).

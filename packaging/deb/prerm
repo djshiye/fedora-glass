@@ -15,5 +15,9 @@ if [ "$1" = remove ]; then
     # turned that off in the app, and the normal login screen if the glass was on there.
     /usr/libexec/fedora-glass-undo-for-users || :
     /usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+    # The glass login screen back to plain GNOME while its add-on still exists, so no
+    # setting is left pointing at a missing add-on. Not on an upgrade: the boot-time guard
+    # notices a changed add-on by itself.
+    /usr/libexec/fedora-glass-login off >/dev/null 2>&1 || :
 fi
 exit 0

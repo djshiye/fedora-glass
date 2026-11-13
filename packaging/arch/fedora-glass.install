@@ -19,6 +19,9 @@ pre_remove() {
     # turned that off in the app, and the normal login screen if the glass was on there.
     /usr/libexec/fedora-glass-undo-for-users || :
     /usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+    # The glass login screen back to plain GNOME while its add-on still exists (pre_remove
+    # runs on removal only, never on an upgrade; the boot-time guard handles those).
+    /usr/libexec/fedora-glass-login off >/dev/null 2>&1 || :
 }
 
 post_remove() {
