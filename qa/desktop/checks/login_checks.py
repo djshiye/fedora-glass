@@ -96,6 +96,29 @@ STATE_JS = """const g = Main.screenShield._lockDialogGroup, kids = g.get_childre
    prompt: box(Main.screenShield._dialog._authPrompt), list: box(Main.screenShield._dialog._userList),
    state: Main.extensionManager.lookup('""" + UUID + """')?.state ?? null};"""
 CENSUS_JS = "let n = 0; const w = a => { n++; a.get_children().forEach(w); }; w(global.stage); return n;"
+# A picture that is laid out before what is around it, as GNOME Shell does at a slow start (it lays
+# the children of its uiGroup out on their own): its box is set while the new actor above it has
+# none yet, then that one is laid out and the picture's box stays the same, so nothing tells the glass.
+LATE_MAKE_JS = """const {Clutter} = imports.gi;
+ const L = Main.screenShield._lockDialogGroup.get_children().find(k => k.name === 'fedora-glass-login');
+ const sheet = L.get_children().find(k => k.name === 'fedora-glass-login-sheet');
+ const outer = new Clutter.Actor({name: 'lgqa-late-outer', opacity: 0, x: 0, y: 0, width: 300, height: 200});
+ const src = new Clutter.Actor({x: 0, y: 0, width: 300, height: 200});
+ let pane = null;
+ try {
+   outer.add_child(src); L.add_child(outer);
+   pane = new sheet.constructor('full'); pane.name = 'lgqa-late-pane'; L.add_child(pane);
+   pane.setSources([src]); pane.place(100, 100, 300, 200, [0, 0, 0, 0], 100, 100);
+   src.allocate(new Clutter.ActorBox({x1: 0, y1: 0, x2: 300, y2: 200}));
+   return {before: [...pane._clones.values()][0].visible};
+ } catch (e) { pane?.destroy(); outer.destroy(); throw e; }"""
+# Reads the copy and takes the staging away again, whatever happens.
+LATE_READ_JS = """const kids = Main.screenShield._lockDialogGroup.get_children().find(k => k.name === 'fedora-glass-login').get_children();
+ const pane = kids.find(k => k.name === 'lgqa-late-pane'), outer = kids.find(k => k.name === 'lgqa-late-outer');
+ try {
+   const copy = [...pane._clones.values()][0];
+   return {shown: copy.visible, clipped: copy.has_clip, at: [copy.x, copy.y], pad: pane.pad};
+ } finally { pane?.destroy(); outer?.destroy(); }"""
 KEYS_JS = """(async () => { const {Clutter, GLib} = imports.gi;
  const seat = global.stage.context.get_backend().get_default_seat();
  const k = globalThis._lgqaKb ??= seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
@@ -431,6 +454,18 @@ def check_glass(lane: Lane) -> Check:
           f"the glass renders at most {renders:.2f} times a second." if idle["frames"] <= base + 3 and renders <= 0.5 else
           f"At rest the login screen keeps drawing: {idle['frames']} frames in {idle['seconds']:.0f} s ({base} without), "
           f"glass {renders:.2f} renders a second.")
+    # A slow start: GNOME lays the picture out before the screen around it. The glass kept its copy
+    # of the picture hidden for good then, and the login screen stayed dark behind the glass.
+    staged = sh.json(LATE_MAKE_JS)
+    time.sleep(1)
+    copy = sh.json(LATE_READ_JS)
+    if staged["before"]:
+        c.info("A picture laid out before the screen around it has its place at once on this GNOME: nothing to wait for.")
+    else:
+        c.add(copy["shown"] and copy["clipped"], "A picture laid out before the screen around it (a slow start) still "
+              "shows through the glass: its copy is placed once the rest is laid out." if copy["shown"] else
+              "A picture laid out before the screen around it never shows through the glass: a dark login screen "
+              f"after a slow start ({copy}).")
     lk = keys(sh, [TAB, TAB, TAB, DOWN, UP, SHIFT_TAB])
     if "list_keys" in lane.base:
         c.add(lk == lane.base["list_keys"], "Tab and the arrow keys move through the user list exactly as without "
