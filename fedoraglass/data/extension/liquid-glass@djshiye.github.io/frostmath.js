@@ -128,6 +128,15 @@ export function stale(atUs, nowUs) {
 // (shaders/glass.frag) use this same text, word for word (a test checks), so the preview
 // frosts exactly like the desktop. Lengths are desktop px. Plain GLSL that both GLSL 1.10
 // (GNOME Shell) and 4.40 (the app) take.
+//
+// Below freezing the glass is under a sheet of ice, and ice is told from mist by its
+// optics, not by being white (clear "glaze" ice against white "rime"):
+//   - it has thickness: most at the glass's edges and corners, ending in a rounded front;
+//   - what is behind bends as it comes through, most at that front (ice's index is 1.31);
+//   - its top is wet and glassy, so the front catches the light in a soft highlight;
+//   - clear ice is a cool blue (it takes the red out of light), and only where it is
+//     thickest and full of caught air, right at the edge, is it white.
+// No pattern in it: one smooth sheet with a soft, uneven front.
 export const ICE_GLSL = `
 // ---- weather frost (frostmath.js) ----
 // A hash with no sin(), so it is the same on every GPU (Dave Hoskins, MIT).
@@ -144,20 +153,71 @@ float iceNoise(vec2 p) {
                mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-// How thick the ice is, 0..1, below freezing. A window ices over from its edges, the
-// coldest glass, and thickest in the corners, where two edges meet; the ice's inner edge
-// is soft and a little uneven, never a pattern. Its crystals are far too small to see one
-// by one: together they are a smooth frosted sheen. c: px from the pane's middle; h: half
-// its size; inside: px in from the edge; q: px on the glass, fixed to it; reach: how far
-// in the ice can grow; grow 0..1 how far it has.
-float iceGlaze(vec2 c, vec2 h, float inside, vec2 q, float reach, float grow) {
+// How thick the ice is, 0..1. A window ices over from its edges, the coldest glass, and
+// thickest in the corners, where two edges meet. The sheet thins a little on its way in
+// and ends in a rounded front, a little uneven, never a pattern. On a thin bar (a panel)
+// there is no room for a front: there the ice just thins out towards the middle.
+// c: px from the pane's middle; h: half its size; q: px on the glass, fixed to it;
+// reach: how far in the ice can grow; grow 0..1 how far it has.
+float iceSheet(vec2 c, vec2 h, vec2 q, float reach, float grow) {
     // Distance in from the edges, softly rounded where two meet: so the ice runs round the
     // corners in a curve, thicker there, with no seam.
     float sm = 0.35 * reach;
     float u = -sm * log(exp(-(h.x - abs(c.x)) / sm) + exp(-(h.y - abs(c.y)) / sm));
-    u = max(u, inside - sm);
-    float n = 0.7 * iceNoise(q * 0.02) + 0.3 * iceNoise(q * 0.05);
-    float edge = (0.3 + 0.45 * n) * reach * (0.35 + 0.65 * grow);
-    return 1.0 - smoothstep(0.1 * edge, edge + 6.0, u);
+    float n = 0.7 * iceNoise(q * 0.009) + 0.3 * iceNoise(q * 0.021);
+    float edge = (0.6 + 0.28 * n) * reach * (0.35 + 0.65 * grow);
+    float roomy = smoothstep(12.0, 44.0, reach);
+    float front = 1.0 - smoothstep(edge - mix(0.9 * edge, clamp(0.32 * edge, 5.0, 13.0), roomy), edge + 2.0, u);
+    float body = 1.0 - 0.45 * smoothstep(-0.3 * edge, edge, u);
+    return front * body;
+}
+
+// The ice at a point: x its thickness 0..1, yz how that changes per px (its slope).
+vec3 iceField(vec2 c, vec2 h, vec2 q, float reach, float grow) {
+    float t0 = iceSheet(c, h, q, reach, grow);
+    float tx = iceSheet(c + vec2(2.0, 0.0), h, q + vec2(2.0, 0.0), reach, grow);
+    float ty = iceSheet(c + vec2(0.0, 2.0), h, q + vec2(0.0, 2.0), reach, grow);
+    return vec3(t0, (tx - t0) * 0.5, (ty - t0) * 0.5);
+}
+
+const float ICE_DEEP = 16.0;     // px: the ice at its thickest, drawn deeper than life
+
+// How far (px) what is behind is moved as it comes through the ice: bent at its sloping
+// top, more the more ice lies under the slope.
+vec2 iceBend(vec3 f) {
+    return -f.yz * ICE_DEEP * (4.0 + ICE_DEEP * f.x) * 0.5;
+}
+
+// The ice over under (what shows behind it, straight rgb). f: iceField; L: towards the
+// light; lightGlass 0..1; inside: px in from the glass's edge; reach: as for iceSheet;
+// lit: -1..1, how far this part of the pane lies towards the light.
+vec3 iceLook(vec3 under, vec3 f, vec2 L, float lightGlass, float inside, float reach, float lit) {
+    float T = f.x;
+    vec3 N = normalize(vec3(-f.yz * ICE_DEEP, 1.0));
+    float on = smoothstep(0.0, 0.12, T);
+    float roomy = smoothstep(12.0, 44.0, reach);     // 0 on a thin bar: no lines along it
+    // Clear ice is a cool blue: it takes the red out of the light that crosses it. Its
+    // polished top is a shade lighter on the side of the pane that faces the light.
+    vec3 deep = mix(vec3(0.40, 0.67, 1.0), vec3(0.52, 0.76, 1.0), lightGlass);
+    vec3 col = mix(under, deep, (0.26 + 0.07 * lit * (1.0 - lightGlass)) * T);
+    // At the glass's edge the ice is thickest and full of caught air: a white crust that
+    // fades fast into the clear ice. A bright line at the very edge only where there is
+    // room for it; a thin bar keeps the soft part alone.
+    float crust = (0.6 * exp(-inside / 6.0) * roomy + 0.32 * exp(-inside / (0.35 * reach + 2.0))) * on;
+    col = vec3(1.0) - (vec3(1.0) - col) * (vec3(1.0) - vec3(0.86, 0.94, 1.0) * crust);
+    // The rounded front: lighter where it faces the light. Past it on the far side the
+    // light that crossed it gathers in a faint line (dark glass) or leaves a soft shade
+    // (light glass, which has no room left to get lighter).
+    float facing = dot(N.xy, L);
+    float edgy = on * roomy;
+    col *= 1.0 + mix(0.45, 0.2, lightGlass) * max(facing, 0.0) * edgy;
+    float lee = smoothstep(0.12, 0.6, -facing) * edgy;
+    col *= 1.0 - 0.09 * lee * lightGlass;
+    vec3 gather = vec3(0.80, 0.90, 1.0) * 0.14 * lee * (1.0 - lightGlass);
+    // Its wet, glassy top catches the light: one soft highlight along the front.
+    vec3 H = normalize(normalize(vec3(L * 0.75, 0.66)) + vec3(0.0, 0.0, 1.0));
+    float nh = max(dot(N, H), 0.0);
+    float shine = (0.9 * pow(nh, 70.0) + 0.1 * pow(nh, 12.0)) * mix(1.0, 0.6, lightGlass) * edgy;
+    return vec3(1.0) - (vec3(1.0) - col) * (vec3(1.0) - gather) * (vec3(1.0) - vec3(0.95, 0.98, 1.0) * min(shine, 1.0));
 }
 `;

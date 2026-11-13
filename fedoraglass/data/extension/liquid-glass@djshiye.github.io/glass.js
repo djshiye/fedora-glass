@@ -577,6 +577,21 @@ void main() {
         return;
     }
 
+    // Weather frost, below freezing: the glass is under a sheet of ice that has grown in
+    // from its edges (frostmath.js). Where the ice is and how it slopes is worked out
+    // first, because what is behind bends as it comes through it. Only the band the ice
+    // can reach is worked out; weather frost off, or above freezing: skipped. No ice grows
+    // in from a side that lies on the screen's edge (cc, hh: those sides are far away).
+    float shortIce = 2.0 * min(h.x, h.y);
+    float iceReach = min(0.3 * shortIce, 72.0);
+    float iceOn = smoothstep(0.0, 0.25, flakes);     // it sets in softly at freezing
+    vec3 iceF = vec3(0.0);
+    vec2 pxi = px;
+    if (flakes > OFF && mode < 1.5 && inside < iceReach * 1.2 + 4.0) {
+        iceF = iceField(cc, hh, px + at0, iceReach, flakes);
+        pxi += iceBend(iceF) * iceOn;
+    }
+
     // The ray refracted at IOR: the main tap and Beer-Lambert below share it.
     vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
     float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bevel, lens_share) : 1.0;
@@ -586,9 +601,9 @@ void main() {
         if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5 && lite > 0.5) {
             // Lighter glass: three wavelengths keep the rainbow edge at 3/5 of the reads.
             float B = 0.08 * dispersion;
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
-            vec4 s550 = at(px + thru);
-            vec4 s630 = at(px + throughGlass(N, cauchy(0.63, B), th) * keep);
+            vec4 s450 = at(pxi + throughGlass(N, cauchy(0.45, B), th) * keep);
+            vec4 s550 = at(pxi + thru);
+            vec4 s630 = at(pxi + throughGlass(N, cauchy(0.63, B), th) * keep);
             col.r = (0.15 * s550.r + s630.r) / 1.15;
             col.g = s550.g;
             col.b = (s450.b + 0.15 * s550.b) / 1.15;
@@ -596,20 +611,20 @@ void main() {
         } else if (dispersion > 0.001 && slope > 0.02 && cheap < 0.5) {
             // Five wavelengths, each refracted by its own index, then mixed back to RGB.
             float B = 0.08 * dispersion;   // crown glass is ~0.004, dense flint ~0.015: exaggerated, as Apple does
-            vec4 s450 = at(px + throughGlass(N, cauchy(0.45, B), th) * keep);
-            vec4 s500 = at(px + throughGlass(N, cauchy(0.50, B), th) * keep);
-            vec4 s550 = at(px + thru);
-            vec4 s600 = at(px + throughGlass(N, cauchy(0.60, B), th) * keep);
-            vec4 s650 = at(px + throughGlass(N, cauchy(0.65, B), th) * keep);
+            vec4 s450 = at(pxi + throughGlass(N, cauchy(0.45, B), th) * keep);
+            vec4 s500 = at(pxi + throughGlass(N, cauchy(0.50, B), th) * keep);
+            vec4 s550 = at(pxi + thru);
+            vec4 s600 = at(pxi + throughGlass(N, cauchy(0.60, B), th) * keep);
+            vec4 s650 = at(pxi + throughGlass(N, cauchy(0.65, B), th) * keep);
             col.r = (0.05 * s450.r + 0.15 * s550.r + 0.85 * s600.r + s650.r) / 2.05;
             col.g = (0.6 * s500.g + s550.g + 0.35 * s600.g) / 1.95;
             col.b = (s450.b + 0.4 * s500.b) / 1.4;
             col.a = (s450.a + s500.a + s550.a + s600.a + s650.a) / 5.0;
         } else {
-            col = at(px + thru);
+            col = at(pxi + thru);
         }
     } else {
-        col = at(px);
+        col = at(pxi);
     }
 
     // A full-screen sheet has nothing behind it to show: where the blur thinned the
@@ -678,11 +693,11 @@ void main() {
     // Weather frost: cold outside, the glass mists over, whiter towards its edges where
     // it is coldest, its colours cooler and paler, with the fine even grain of frosted
     // glass. Before the ceiling, so white text on dark glass keeps its contrast; dark glass
-    // mists less for that too. Weather frost off, or warm enough out: skipped.
-    float shortIce = 2.0 * min(h.x, h.y);
+    // mists less for that too. Below freezing the mist at the edges has frozen into the
+    // ice there, which is clear. Weather frost off, or warm enough out: skipped.
     if (frost > OFF && mode < 1.5) {
         vec3 st = col.rgb / max(col.a, 1e-3);
-        float rimF = 1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside);
+        float rimF = (1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside)) * (1.0 - 0.7 * flakes);
         vec3 ice = light_glass > 0.5 ? vec3(0.93, 0.965, 1.0) : vec3(0.58, 0.66, 0.76);
         float k = frost * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
         st = mix(vivid(st, 1.0 - 0.5 * frost), ice, k);
@@ -775,15 +790,15 @@ void main() {
         }
     }
 
-    // Below freezing the glass ices over from its edges: a smooth, translucent sheen of ice,
-    // thickest in the corners (frostmath.js iceGlaze), no pattern in it. Drawn so it reads
-    // through the theme's veil. Only the edge band is worked out: the middle, where text
-    // sits, stays clear.
-    float iceReach = min(0.3 * shortIce, 56.0);
-    if (flakes > OFF && mode < 1.5 && inside < iceReach + 8.0) {
-        float fa = iceGlaze(c, h, inside, px + at0, iceReach, flakes) * (0.36 + 0.3 * flakes);
-        vec3 glaze = light_glass > 0.5 ? vec3(0.80, 0.87, 0.95) : vec3(0.86, 0.92, 1.0);
-        col.rgb = mix(col.rgb, throughVeil(glaze) * col.a, fa);
+    // Below freezing, the ice itself (frostmath.js iceLook): clear and cool blue, a white
+    // crust at the glass's edge, and a rounded front that catches the light. Worked out on
+    // what shows through the theme's veil, and drawn so it reads through it. The middle,
+    // where text sits, has no ice and stays clear.
+    if (iceF.x > OFF) {
+        vec3 seen = col.rgb / max(col.a, 1e-3) * (1.0 - veil_a) + vec3(veil_r, veil_g, veil_b) * veil_a;
+        vec2 sqi = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
+        vec3 iced = iceLook(seen, iceF, L, light_glass, inside, iceReach, clamp(dot(sqi, L), -1.0, 1.0));
+        col.rgb = throughVeil(mix(seen, iced, iceOn)) * col.a;
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge

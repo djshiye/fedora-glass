@@ -99,7 +99,7 @@ def test_the_preview_draws_the_same_frost_as_the_desktop():
         pytest.skip("needs node")
     script = f"import('{(EXT / 'frostmath.js').as_uri()}').then(M => process.stdout.write(M.ICE_GLSL))"
     ice = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, check=True).stdout
-    assert "float iceGlaze(" in ice
+    assert "float iceSheet(" in ice and "vec3 iceLook(" in ice
     frag = (ROOT / "fedoraglass/gui/qml/FedoraGlass/shaders/glass.frag").read_text()
     assert ice in frag, "glass.frag's frost differs from frostmath.js ICE_GLSL: copy it over"
     assert "${ICE_GLSL}" in (EXT / "glass.js").read_text()
@@ -186,6 +186,11 @@ def test_frost_is_skipped_entirely_when_off():
     assert "if (frost > OFF && mode < 1.5)" in src
     assert "if (flakes > OFF && mode < 1.5 && inside < iceReach" in src
     assert "let frostNow = {frost: 0, flakes: 0, blur: 0};" in src
+    # Without ice nothing is bent (the taps read where they always did) and nothing is drawn over.
+    assert "vec2 pxi = px;" in src and "pxi += iceBend(iceF) * iceOn;" in src
+    assert "if (iceF.x > OFF) {" in src
+    # No ice grows in from a side of the glass that lies on the screen's edge.
+    assert "iceF = iceField(cc, hh, px + at0, iceReach, flakes);" in src
 
 
 # ---------------------------------------------------------------- the app
