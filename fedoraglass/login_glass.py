@@ -55,6 +55,7 @@ MAX_NOTE = 4096
 MAX_SMALL = 64 << 10                          # profiles, metadata, state, keyfiles
 MAX_DB = 64 << 20                             # a compiled dconf db, kept for undo
 MAX_ADDON = 64 << 20
+GUARD_LOCK_WAIT = 10.0                        # seconds the boot guard waits for a change still running
 
 WHY = ("", "no-gdm", "not-gdm", "no-addon", "no-dconf", "gnome-version", "policy")
 STOPPED = ("", "no-login", "crash", "silent", "kernel-arg", "gnome-version", "error")
@@ -167,6 +168,9 @@ _PATHS = {
     "state": "/var/lib/fedora-glass/login/state.json",
     "stopped": "/var/lib/fedora-glass/login/stopped.json",
     "trial": "/var/lib/fedora-glass/login/trial",
+    # There from the first step of an off until nothing of the switch is left: while it is,
+    # the guard and `on` only finish that off, so a half-done off never comes back on.
+    "leaving": "/var/lib/fedora-glass/login/leaving",
     "lock": "/var/lib/fedora-glass/login/.lock",
     "old_state": "/var/lib/liquid-glass/login-screen.json",
     "old_helper": "/usr/libexec/liquid-glass-login-screen",
@@ -591,6 +595,48 @@ def active_profile(paths: Paths) -> str | None:
     return None
 
 
+def shared_dbs(paths: Paths) -> set[str] | None:
+    """The system dbs that a dconf profile other than GDM's names, or None for "every db"
+    (a profile that cannot be read or understood: fail closed). Our locks must never land
+    in a db that desktop users read too, or their own settings would be locked to ours."""
+    gdm = set(paths.profile_candidates)
+    folders = [paths.p("/etc/dconf/profile"), paths.p("/usr/share/dconf/profile")]
+    for c in paths.profile_candidates:
+        if os.path.dirname(c) not in folders:
+            folders.append(os.path.dirname(c))
+    names: set[str] = set()
+    for folder in folders:
+        try:
+            entries = sorted(os.listdir(folder))
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError:
+            return None
+        for name in entries:
+            full = os.path.join(folder, name)
+            if full in gdm:
+                continue
+            try:
+                st = os.stat(full)
+            except FileNotFoundError:
+                continue                          # a dangling link: dconf cannot open it either
+            except OSError:
+                return None
+            if stat.S_ISDIR(st.st_mode):
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                return None
+            try:
+                text = _profile_text(full)
+                if text is None:
+                    continue
+                entries_of = parse_profile(text)
+            except (Unavailable, Failed, OSError):
+                return None
+            names.update(v for k, v in entries_of if k == "system-db")
+    return names
+
+
 def without_our_line(text: str) -> str:
     return "".join(x for x in text.splitlines(keepends=True) if x.strip() != PROFILE_LINE)
 
@@ -753,16 +799,16 @@ DUE_KEY = "/org/gnome/shell/disable-user-extensions"
 DIS_KEY = "/org/gnome/shell/disabled-extensions"
 
 
-def _sources(paths: Paths, entries: list[tuple[str, str]], work: str, target: str | None,
+def _sources(paths: Paths, entries: list[tuple[str, str]], work: str, strip: set[str],
              skip_own: bool) -> list[str]:
-    """The db files of a profile, in its order, for a probe. `target`: the db our keyfile
-    goes in, read as it will be compiled without our keyfile."""
+    """The db files of a profile, in its order, for a probe. `strip`: the dbs read as they
+    will be compiled without our keyfile (the one it goes in, and any it moves out of)."""
     out = []
     for kind, value in entries:
         if kind == "system-db":
             if skip_own and value == OWN_DB:
                 continue
-            if value == target and _is_real_dir(os.path.join(paths.db_dir, value + ".d")):
+            if value in strip and _is_real_dir(os.path.join(paths.db_dir, value + ".d")):
                 copy = os.path.join(work, f"base-{value}.d")
                 shutil.rmtree(copy, ignore_errors=True)
                 _copy_without_ours(os.path.join(paths.db_dir, value + ".d"), copy)
@@ -817,9 +863,12 @@ def make_plan(paths: Paths, st: dict | None) -> Plan:
     if base is None:
         raise Unavailable("no-gdm", "GDM's dconf profile is not there")
     plan.entries = parse_profile(base)
+    shared = shared_dbs(paths)
     for kind, value in plan.entries:
         if kind != "system-db" or value == OWN_DB:
             continue
+        if shared is None or value in shared:
+            continue                              # read by desktop users too: never ours to lock
         d = os.path.join(paths.db_dir, value + ".d")
         if _is_real_dir(d) or not os.path.lexists(os.path.join(paths.db_dir, value)):
             if os.path.lexists(d) and not _is_real_dir(d):
@@ -870,7 +919,8 @@ def assess(paths: Paths, st: dict | None, work: str) -> Assessment:
             raise Unavailable("gnome-version")
         a.addon = addon_hash(paths)
         plan = make_plan(paths, st)
-        base = probe_read(paths, work, _sources(paths, plan.entries, work, plan.db, skip_own=True),
+        strip = {plan.db} | {n for n in _d_dirs(paths) if _ours_in(paths, n)}
+        base = probe_read(paths, work, _sources(paths, plan.entries, work, strip, skip_own=True),
                           [EXT_KEY, DUE_KEY, DIS_KEY])
         if base[DUE_KEY] == "true":
             raise Unavailable("policy", "an administrator switched off extensions on the login screen")
@@ -1066,7 +1116,7 @@ def post_check(paths: Paths, work: str) -> None:
     text = active_profile(paths)
     if text is None:
         raise Unavailable("policy", "no dconf profile after the change")
-    got = probe_read(paths, work, _sources(paths, parse_profile(text), work, None, skip_own=False),
+    got = probe_read(paths, work, _sources(paths, parse_profile(text), work, set(), skip_own=False),
                      [EXT_KEY, DUE_KEY, DIS_KEY])
     if UUID not in parse_strv(got[EXT_KEY]) or got[DUE_KEY] != "false" or UUID in parse_strv(got[DIS_KEY]):
         raise Unavailable("policy", "another setting overrides ours, so the add-on would not start")
@@ -1336,6 +1386,12 @@ def _new_state(values: dict, a: Assessment, kind: str, pic_sha: str) -> dict:
 def turn_on(paths: Paths, values: dict, picture: tuple[bytes, str] | None) -> tuple[int, str]:
     """Returns (exit code, message)."""
     with Lock(paths), Scratch(paths) as work:
+        if os.path.lexists(paths.leaving):
+            # An off that did not get all the way: it is finished first, and only a system
+            # with nothing of the switch left starts again from scratch.
+            problems = _off_locked(paths, None, keep_stopped=True)
+            if os.path.lexists(paths.leaving):
+                return 4, "an earlier off is not finished: " + "; ".join(problems)
         try:
             st_prev = read_state(paths)
         except Garbled:
@@ -1352,6 +1408,7 @@ def turn_on(paths: Paths, values: dict, picture: tuple[bytes, str] | None) -> tu
         same = (st_prev is not None and st_prev["addon_sha256"] == a.addon and st_prev["gnome"] == a.gnome
                 and st_prev.get("gnome_full", "") == a.gnome_full)
         if same:
+            # A new look keeps "on" (no new trial), by choice: bounded values, crash notes still count.
             st = {**st_prev, "values": values, "picture": kind, "picture_sha256": pic_sha, "gnome_full": a.gnome_full}
         else:
             st = _new_state(values, a, kind, pic_sha)
@@ -1387,14 +1444,28 @@ def _take_off_painted_glass(paths: Paths) -> None:
         raise Failed("the painted login glass of an earlier version could not be taken off")
 
 
-def _arm_check(paths: Paths) -> None:
-    """Best effort: start the path unit now, for a trial that starts in this boot."""
-    if not (paths.real and os.path.isdir(paths.run_systemd)):
+def _watch(paths: Paths, verb: str) -> None:
+    """Best effort: start or stop the path unit that watches for the first login. Only
+    where systemd runs (not in a chroot, a container or an image being built)."""
+    if not os.path.isdir(paths.run_systemd):
         return
     try:
-        _run([paths.systemctl, "--no-block", "start", CHECK_PATH_UNIT], timeout=10)
-    except (OSError, subprocess.SubprocessError):
+        _run([paths.systemctl, "--no-block", verb, CHECK_PATH_UNIT], timeout=10)
+    except (OSError, subprocess.SubprocessError, Failed):
         pass
+
+
+def _arm_check(paths: Paths) -> None:
+    """Start the watching now, for a trial that starts in this boot."""
+    _watch(paths, "start")
+
+
+def _disarm_check(paths: Paths) -> None:
+    """No trial is left, so there is nothing to watch for. Left running, the path unit
+    would go on starting a check that has nothing to do at every change of the session
+    list, with a line in the journal each time."""
+    if not os.path.lexists(paths.trial):
+        _watch(paths, "stop")
 
 
 # ---- off ------------------------------------------------------------------------------
@@ -1406,22 +1477,24 @@ def _step(problems: list[str], what: str, fn, *args) -> None:
         problems.append(f"{what}: {e}")
 
 
-def _remove_switch(paths: Paths, made: list[str], db: str = "") -> None:
-    """Our keyfile and locks out of every db folder, and those dbs compiled again. The db
-    on record is compiled again even with no file of ours left in it: an earlier off may
-    have been stopped before its compile."""
+def _remove_switch(paths: Paths, made: list[str], again: set[str] | frozenset[str] = frozenset()) -> None:
+    """Our keyfile and locks out of every db folder, and those dbs compiled again. The dbs
+    in `again` (the one on record, and those an unfinished off noted) are compiled again
+    even with no file of ours left in them: an earlier off may have been stopped before
+    its compile. Our own db goes whether or not a file of ours is left in it (a route move
+    cut short by a power loss can leave it empty)."""
     problems = []
     for name in _d_dirs(paths):
         ours = _ours_in(paths, name)
-        if not ours and not (name == db and os.path.isfile(os.path.join(paths.db_dir, name))):
+        compiled = os.path.join(paths.db_dir, name)
+        if not (ours or name == OWN_DB or (name in again and os.path.isfile(compiled))):
             continue
         for p in ours:
             _unlink(p)
         d = os.path.join(paths.db_dir, name + ".d")
-        db = os.path.join(paths.db_dir, name)
         made_db = name == OWN_DB or f"/etc/dconf/db/{name}" in made
         if made_db and not _has_other_files(d):
-            _unlink(db)
+            _unlink(compiled)
             if name == OWN_DB or f"/etc/dconf/db/{name}.d/locks" in made:
                 _rmdir_if_empty(os.path.join(d, "locks"))
             if name == OWN_DB or f"/etc/dconf/db/{name}.d" in made:
@@ -1467,13 +1540,40 @@ def switch_gone(paths: Paths) -> list[str]:
     return left
 
 
-def _off_locked(paths: Paths, reason: str | None) -> list[str]:
+def _leaving_dbs(paths: Paths) -> set[str]:
+    """The dbs an unfinished off noted in its flag (any other contents: none)."""
+    try:
+        data = _read_regular(paths.leaving)
+        x = json.loads(data.decode("utf-8")) if data else {}
+    except (Failed, ValueError, UnicodeDecodeError):
+        return set()
+    dbs = x.get("dbs") if isinstance(x, dict) else None
+    if not isinstance(dbs, list):
+        return set()
+    return {n for n in dbs[:64] if isinstance(n, str) and NAME.fullmatch(n)}
+
+
+def _mark_leaving(paths: Paths, dbs: set[str]) -> None:
+    _make_state_dirs(paths)
+    write_atomic(paths.leaving, (json.dumps({"dbs": sorted(dbs)}) + "\n").encode())
+
+
+def _off_locked(paths: Paths, reason: str | None, keep_stopped: bool = False) -> list[str]:
     """Every step on its own, as far as each gets, on a damaged system too. Returns the
-    problems; "still there: ..." among them means the switch is not (verifiably) gone."""
+    problems; "still there: ..." among them means the switch is not (verifiably) gone.
+    reason: why the guard turned it off (None: a person did). keep_stopped: finishing an
+    earlier off, whose stopped.json (its reason, or none) stays as it is."""
     problems: list[str] = []
     st = _lenient_state(paths)
     made = st.get("made", [])
-    _step(problems, "the dconf switch", _remove_switch, paths, made, st.get("db", ""))
+    # First, before anything is taken away: an off that stops half way stays an off, and
+    # the flag names every db that holds the switch now, so finishing it compiles each one
+    # again even once our files are out of it and state.json is lost.
+    again = _leaving_dbs(paths) | {n for n in _d_dirs(paths) if _ours_in(paths, n)}
+    if st.get("db"):
+        again.add(st["db"])
+    _step(problems, "the leaving flag", _mark_leaving, paths, again)
+    _step(problems, "the dconf switch", _remove_switch, paths, made, again)
     compiled = not problems                       # a db that could not be recompiled still holds our keys
     _step(problems, "the dconf profile", _fix_profile, paths, st.get("profile"), made)
     for d in ("/etc/dconf/db", "/etc/dconf"):
@@ -1485,32 +1585,42 @@ def _off_locked(paths: Paths, reason: str | None) -> list[str]:
         problems.append("still there: " + ", ".join(left))
     for name in ("picture.jpg", "picture.png"):
         _step(problems, "root's copy of the picture", _unlink, os.path.join(paths.state_dir, name))
-    if reason is None:
+    if reason is None and not keep_stopped:
         _step(problems, "stopped.json", _unlink, paths.stopped)
-    else:
+    elif not keep_stopped:
         _step(problems, "stopped.json", write_atomic, paths.stopped,
               (json.dumps({"reason": reason, "when": _now()}) + "\n").encode())
     if not left:
         # Kept while any of the switch is left, so the guard tries again at the next boot.
         _step(problems, "state.json", _unlink, paths.state)
         _step(problems, "the trial flag", _unlink, paths.trial)
+        # Last, and only once state.json is gone: without the flag a state.json left behind
+        # would read as "on" again.
+        if not os.path.lexists(paths.state):
+            _step(problems, "the leaving flag", _unlink, paths.leaving)
     return problems
 
 
 def turn_off(paths: Paths, reason: str | None = None) -> list[str]:
     with Lock(paths):
-        return _off_locked(paths, reason)
+        problems = _off_locked(paths, reason)
+    _disarm_check(paths)
+    return problems
 
 
 # ---- the guard ------------------------------------------------------------------------
 
 def guard_boot(paths: Paths) -> str:
-    """Every boot before the display manager, while state.json is there. Returns what it did."""
+    """Every boot before the display manager, while state.json (or the leaving flag) is
+    there. Returns what it did."""
     try:
-        lock = Lock(paths, wait=10)
+        lock = Lock(paths, wait=GUARD_LOCK_WAIT)
         lock.__enter__()
     except Exception:  # noqa: BLE001 - never hold up the boot
-        return "busy"
+        try:
+            return _guard_boot_unlocked(paths)
+        except Exception:  # noqa: BLE001
+            return "busy"
     try:
         try:
             return _guard_boot(paths)
@@ -1521,7 +1631,38 @@ def guard_boot(paths: Paths) -> str:
         lock.__exit__()
 
 
+def _crashed(notes: list[dict], boot: str) -> bool:
+    """A note (of the token on record) says the last start crashed or failed; a `starting`
+    still there from an earlier boot never finished."""
+    return any(n["phase"] in ("safe", "error") or (n["phase"] == "starting" and n["boot"] != boot) for n in notes)
+
+
+def _guard_boot_unlocked(paths: Paths) -> str:
+    """The lock could not be taken (a change hung, or root's state folder is damaged): the
+    signs that must never wait still count, and turn it off without the lock."""
+    if os.path.lexists(paths.leaving):
+        _off_locked(paths, None, keep_stopped=True)
+        return "off: leaving"
+    if not os.path.lexists(paths.state):
+        return "busy"
+    if kernel_says_off(paths):
+        _off_locked(paths, "kernel-arg")
+        return "off: kernel-arg"
+    try:
+        st = read_state(paths)
+    except Garbled:
+        st = None
+    if st is not None and _crashed([n for n in read_notes(paths) if n["token"] == st["token"]], boot_id(paths)):
+        _off_locked(paths, "crash")
+        return "off: crash"
+    return "busy"
+
+
 def _guard_boot(paths: Paths) -> str:
+    if os.path.lexists(paths.leaving):
+        # An off was asked for and did not finish: finish it, never put anything back.
+        _off_locked(paths, None, keep_stopped=True)
+        return "off: leaving"
     try:
         st = read_state(paths)
     except Garbled:
@@ -1541,14 +1682,15 @@ def _guard_boot(paths: Paths) -> str:
             return f"off: {reason}"
         boot = boot_id(paths)
         notes = [n for n in read_notes(paths) if n["token"] == st["token"]]
-        if any(n["phase"] in ("safe", "error") or (n["phase"] == "starting" and n["boot"] != boot) for n in notes):
+        if _crashed(notes, boot):
             _off_locked(paths, "crash")
             return "off: crash"
         did = "kept"
         if a.addon != st["addon_sha256"] or a.gnome_full != st.get("gnome_full", ""):
-            # A new add-on or any new GNOME Shell (a point release too): a fresh trial,
-            # judged from the next boot on.
-            st.update(token=secrets.token_hex(16), state="trial", trial_boots=0, silent_boots=0,
+            # A new add-on or any new GNOME Shell (a point release too): a fresh trial. This
+            # boot already shows it, so it counts as the trial's one boot without a login (as
+            # the first boot after `on` does): the next boot without one turns it off.
+            st.update(token=secrets.token_hex(16), state="trial", trial_boots=1, silent_boots=0,
                       addon_sha256=a.addon, gnome=a.gnome, gnome_full=a.gnome_full)
             did = "new trial"
         elif st["state"] == "trial":
@@ -1585,9 +1727,18 @@ def _guard_boot(paths: Paths) -> str:
 
 def guard_check(paths: Paths) -> str:
     """While a trial runs, when a login session appears: a login through the glass ends the
-    trial; a crash note turns it off."""
+    trial; a crash note turns it off. Once no trial is left, the watching stops."""
+    did = _guard_check(paths)
+    _disarm_check(paths)
+    return did
+
+
+def _guard_check(paths: Paths) -> str:
     try:
         with Lock(paths, wait=10):
+            if os.path.lexists(paths.leaving):
+                _off_locked(paths, None, keep_stopped=True)
+                return "off: leaving"
             try:
                 st = read_state(paths)
             except Garbled:

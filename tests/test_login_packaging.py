@@ -270,7 +270,7 @@ def test_rpm_turns_the_login_screen_off_only_on_removal():
     spec = _spec()
     preun = _section(spec, "%preun")
     block = preun.split("if [ $1 -eq 0 ]; then\n", 1)[1].split("\nfi\n", 1)[0]
-    assert "%{_libexecdir}/fedora-glass-login off >/dev/null 2>&1 || :" in block
+    assert "if ! %{_libexecdir}/fedora-glass-login off >/dev/null 2>&1; then" in block
     # before the files go: it is in %preun, not %postun
     assert "fedora-glass-login" not in preun.replace(block, "")
     # the old helper's undo is still there, unchanged
@@ -288,7 +288,7 @@ def test_deb_turns_the_login_screen_off_only_on_removal():
     prerm = (deb / "prerm").read_text()
     assert prerm.count('if [ "$1" = remove ]; then') == 1
     block = prerm.split('if [ "$1" = remove ]; then\n', 1)[1].split("\nfi\n", 1)[0]
-    assert f"{OFF} >/dev/null 2>&1 || :" in block
+    assert f"if ! {OFF} >/dev/null 2>&1; then" in block
     assert "/usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :" in block
     assert "fedora-glass-login" not in prerm.replace(block, "")
     for name in ("postinst", "postrm", "preinst"):
@@ -298,13 +298,134 @@ def test_deb_turns_the_login_screen_off_only_on_removal():
 def test_arch_turns_the_login_screen_off_only_on_removal():
     text = (PKG / "arch/fedora-glass.install").read_text()
     funcs = dict(re.findall(r"^(\w+)\(\) \{\n(.*?)^\}", text, re.M | re.S))
-    assert f"{OFF} >/dev/null 2>&1 || :" in funcs["pre_remove"]
+    assert f"if ! {OFF} >/dev/null 2>&1; then" in funcs["pre_remove"]
     assert "/usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :" in funcs["pre_remove"]
     for name, body in funcs.items():
         if name != "pre_remove":
             assert "fedora-glass-login" not in body, name
     assert "pre_upgrade" not in funcs
     assert "/usr/libexec/liquid-glass-login-screen refresh >/dev/null 2>&1 || :" in funcs["post_upgrade"]
+
+
+HAND_LINES = (
+    "fedora-glass: the glass login screen could not be switched off completely.",
+    "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login and "
+    "/etc/dconf/db/*.d/locks/90-fedora-glass-login, then run: dconf update",
+)
+
+
+def _off_blocks():
+    """The `if ! ... off ...; then ... fi` step of each removal scriptlet, as written."""
+    spec = _section(_spec(), "%preun")
+    deb = (PKG / "deb/prerm").read_text()
+    arch = (PKG / "arch/fedora-glass.install").read_text()
+    out = {}
+    for name, text in (("rpm", spec), ("deb", deb), ("arch", arch)):
+        m = re.search(r"^( *)if ! \S*fedora-glass-login off .*?\n\1fi\n", text, re.M | re.S)
+        assert m, name
+        out[name] = _expand(m.group(0))
+    return out
+
+
+@pytest.mark.parametrize("works", [True, False])
+def test_a_failed_off_at_removal_says_how_to_finish_and_never_fails_the_removal(tmp_path, works):
+    """The removal goes on either way; only a failed off prints the two lines (stderr). After
+    an off that worked, root's own folder for it (only its lock file by then) goes too; after
+    one that failed it stays, with whatever the helper kept there to finish later."""
+    helper = tmp_path / "fedora-glass-login"
+    helper.write_text("#!/bin/sh\n" + ("exit 0\n" if works else "echo noise; exit 4\n"))
+    helper.chmod(0o755)
+
+    def run(name, block, helper_path):
+        var = tmp_path / f"var-{name}-{Path(helper_path).name}"
+        (var / "login").mkdir(parents=True)
+        (var / "login/.lock").write_text("")
+        if not works or "missing" in str(helper_path):
+            (var / "login/state.json").write_text("{}")     # what a failed off keeps
+        assert block.count("/var/lib/fedora-glass") >= 3, name
+        body = block.replace("/usr/libexec/fedora-glass-login", str(helper_path)).replace("/var/lib/fedora-glass", str(var))
+        assert "/var/lib/" not in body, name                # the test never touches the real folder
+        r = subprocess.run(["sh", "-e", "-c", body + "echo after\n"], capture_output=True, text=True, timeout=30)
+        return r, var
+
+    for name, block in _off_blocks().items():
+        r, var = run(name, block, helper)
+        assert r.returncode == 0 and r.stdout == "after\n", name
+        assert r.stderr.splitlines() == ([] if works else list(HAND_LINES)), name
+        if works:
+            assert not var.exists(), name
+        else:
+            assert (var / "login/.lock").exists() and (var / "login/state.json").exists(), name
+    # A missing helper (or one that cannot run) counts as a failed off too.
+    for name, block in _off_blocks().items():
+        r, var = run(name, block, tmp_path / "missing")
+        assert r.returncode == 0 and r.stdout == "after\n" and HAND_LINES[0] in r.stderr, name
+        assert (var / "login/.lock").exists() and (var / "login/state.json").exists(), name
+
+
+def test_a_folder_with_something_else_in_it_stays_at_removal(tmp_path):
+    """The clean-up only takes the lock file and empty folders: anything else stays."""
+    helper = tmp_path / "fedora-glass-login"
+    helper.write_text("#!/bin/sh\nexit 0\n")
+    helper.chmod(0o755)
+    for name, block in _off_blocks().items():
+        var = tmp_path / f"var-{name}"
+        (var / "login").mkdir(parents=True)
+        (var / "login/.lock").write_text("")
+        (var / "watch-was-on").write_text("")
+        body = block.replace("/usr/libexec/fedora-glass-login", str(helper)).replace("/var/lib/fedora-glass", str(var))
+        r = subprocess.run(["sh", "-e", "-c", body + "echo after\n"], capture_output=True, text=True, timeout=30)
+        assert r.returncode == 0 and r.stdout == "after\n" and r.stderr == "", name
+        assert not (var / "login").exists() and (var / "watch-was-on").exists(), name
+
+
+def test_the_three_scriptlets_say_the_same():
+    blocks = {k: re.sub(r"(?m)^ +", "", v) for k, v in _off_blocks().items()}
+    assert blocks["rpm"] == blocks["deb"] == blocks["arch"]
+
+
+# ---- the units -------------------------------------------------------------------------
+
+def _unit(name: str) -> str:
+    return (ROOT / "data/systemd" / name).read_text()
+
+
+def _sections(text: str) -> dict:
+    out, cur = {}, ""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("["):
+            cur = line
+            out.setdefault(cur, [])
+        else:
+            out[cur].append(line)
+    return out
+
+
+def test_the_boot_guard_has_time_for_its_worst_case_and_runs_while_an_off_is_unfinished():
+    g = _sections(_unit("fedora-glass-login-guard.service"))
+    assert "TimeoutStartSec=45" in g["[Service]"]
+    conds = [x for x in g["[Unit]"] if x.startswith("ConditionPathExists=")]
+    assert conds == ["ConditionPathExists=|/var/lib/fedora-glass/login/state.json",
+                     "ConditionPathExists=|/var/lib/fedora-glass/login/leaving"]
+
+
+def test_the_check_has_no_start_limit_and_waits_a_second_with_the_same_sandbox():
+    c = _sections(_unit("fedora-glass-login-guard-check.service"))
+    g = _sections(_unit("fedora-glass-login-guard.service"))
+    assert "StartLimitIntervalSec=0" in c["[Unit]"]
+    svc = c["[Service]"]
+    assert svc.index("ExecStartPre=/usr/bin/sleep 1") < svc.index("ExecStart=/usr/libexec/fedora-glass-login guard check")
+    assert "TimeoutStartSec=15" in svc
+    # Every sandbox line of the guard, the same, and nothing that loosens it.
+    sandbox = [x for x in g["[Service]"] if not x.startswith(("ExecStart", "Type=", "TimeoutStartSec=", "UMask="))]
+    assert sandbox and [x for x in svc if x in sandbox] == sandbox
+    assert [x for x in svc if not x.startswith(("ExecStart", "Type=", "TimeoutStartSec=", "UMask="))] == sandbox
+    # The path unit watches the session list as before.
+    p = _sections(_unit("fedora-glass-login-guard-check.path"))
+    assert p["[Path]"] == ["PathChanged=/run/systemd/sessions", "Unit=fedora-glass-login-guard-check.service"]
 
 
 def test_no_scriptlet_enables_or_starts_the_guard():
@@ -330,3 +451,14 @@ def test_the_smoke_check_looks_at_the_login_screen_parts():
     for needle in ("/usr/libexec/fedora-glass-login", "root 755", "metadata.json", "extension.js", "shared-modules.txt",
                    "graphical.target.wants", "fedora-glass-login-guard-check.path", '"off"'):
         assert needle in smoke, needle
+
+
+def test_the_boot_guard_starts_the_watcher_again_for_a_trial_it_began():
+    """A trial the guard starts at boot comes after the path unit's condition was looked at:
+    the guard starts the path unit again, without waiting for it and without failing on it."""
+    service = _sections(_unit("fedora-glass-login-guard.service"))["[Service]"]
+    start = service.index("ExecStart=/usr/libexec/fedora-glass-login guard boot")
+    post = "ExecStartPost=-/usr/bin/systemctl --no-block start fedora-glass-login-guard-check.path"
+    assert post in service and service.index(post) > start
+    assert _sections(_unit("fedora-glass-login-guard-check.path"))["[Unit]"].count(
+        "ConditionPathExists=/var/lib/fedora-glass/login/trial") == 1

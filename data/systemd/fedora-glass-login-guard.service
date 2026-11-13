@@ -7,7 +7,10 @@
 [Unit]
 Description=Fedora Glass: check the glass login screen before it starts
 Documentation=https://github.com/djshiye/fedora-glass
-ConditionPathExists=/var/lib/fedora-glass/login/state.json
+# Either file: state.json while it is on, `leaving` while an off has not got all the way
+# (then the guard only finishes that off).
+ConditionPathExists=|/var/lib/fedora-glass/login/state.json
+ConditionPathExists=|/var/lib/fedora-glass/login/leaving
 After=local-fs.target
 Before=display-manager.service gdm.service gdm3.service
 RequiresMountsFor=/var/lib/fedora-glass /etc/dconf
@@ -15,7 +18,15 @@ RequiresMountsFor=/var/lib/fedora-glass /etc/dconf
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/fedora-glass-login guard boot
-TimeoutStartSec=15
+# A trial the guard itself starts at boot (after an update of the add-on or of GNOME Shell)
+# comes after the watcher for the first login was looked at in this boot, when there was no
+# trial yet. So the watcher is started again here; without a trial it does nothing.
+ExecStartPost=-/usr/bin/systemctl --no-block start fedora-glass-login-guard-check.path
+# Its worst case: up to 10 s waiting for a change that is still running, then GNOME Shell's
+# version, a few dconf reads and compiles, each with its own time limit, on a slow first
+# boot. Stopped by this timeout anyway, it rolls everything back and turns the glass off,
+# and the plain login screen comes up.
+TimeoutStartSec=45
 UMask=0022
 
 # What it needs: read GDM's working folder, whose seat state folders (mode 0700) belong to

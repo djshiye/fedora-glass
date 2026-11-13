@@ -229,7 +229,16 @@ if [ $1 -eq 0 ]; then
     # The glass login screen goes back to plain GNOME while its add-on still exists, so no
     # setting is left pointing at a missing add-on. Not on an upgrade: the boot-time guard
     # notices a changed add-on by itself.
-    %{_libexecdir}/fedora-glass-login off >/dev/null 2>&1 || :
+    # A failed off must never fail the removal, but leaves locked keys behind and no tool
+    # to take them away: say how to finish by hand.
+    if ! %{_libexecdir}/fedora-glass-login off >/dev/null 2>&1; then
+        echo "fedora-glass: the glass login screen could not be switched off completely." >&2 || :
+        echo "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login and /etc/dconf/db/*.d/locks/90-fedora-glass-login, then run: dconf update" >&2 || :
+    else
+        # Nothing of it is left: root's own folder for it (now only its lock file) goes too.
+        rm -f /var/lib/fedora-glass/login/.lock || :
+        rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || :
+    fi
 fi
 
 %postun
