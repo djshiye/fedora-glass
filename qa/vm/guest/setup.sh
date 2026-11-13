@@ -34,8 +34,9 @@ fedora)
     say "Installing GDM and GNOME Shell (dnf)"
     dnf -y -q --setopt=install_weak_deps=False install \
         gdm gnome-shell gnome-session gnome-settings-daemon mesa-dri-drivers dconf rpm-build tar
-    # Names that moved between releases: whichever exist.
-    dnf -y -q --setopt=install_weak_deps=False --skip-unavailable install \
+    # Names that moved between releases: whichever exist. (dnf 5 takes --skip-unavailable
+    # only after the word install.)
+    dnf -y -q --setopt=install_weak_deps=False install --skip-unavailable \
         gnome-session-wayland-session adwaita-sans-fonts cantarell-fonts audit policycoreutils kernel-modules
     say "Installing what the spec builds with"
     mapfile -t breq < <(awk '/^BuildRequires:/ { print $2 }' "$tree/packaging/fedora-glass.spec")

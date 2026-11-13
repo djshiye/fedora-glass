@@ -16,6 +16,8 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import http.client
+import io
 import json
 import os
 import re
@@ -43,6 +45,18 @@ SSH_PORT = 2222
 GUEST_DIR = f"/home/{USER}/lgv"
 ADDON_DIR = f"/usr/share/gdm/greeter/gnome-shell/extensions/{UUID}"
 GUARD = "fedora-glass-login-guard.service"
+# What watches the trial: the path unit waits for the login, the service it starts confirms it.
+CHECK_PATH = "fedora-glass-login-guard-check.path"
+CHECK_SERVICE = "fedora-glass-login-guard-check.service"
+# The trial must be confirmed this many seconds after the login; the wait goes on past it (for
+# the log only) to show how late it was.
+CONFIRM_WITHIN = 20
+# The steps that restart GDM or reboot: GDM's retries are counted in these.
+GDM_STEPS = ("glass", "restart", "addon-update", "off", "crash", "broken-addon", "no-login", "removal")
+CONFIRM_LOOK_UNTIL = 60
+# Once the trial has ended nothing is left to watch: the helper stops the path unit, and it
+# must be inactive this many seconds later.
+WATCHER_STOPS_WITHIN = 10
 
 # How different two screen pictures are (mean difference per colour channel, 0..255, of the
 # pictures shrunk to 160 px wide). The glass login screen over the bright test picture must be
@@ -52,12 +66,25 @@ CLEARLY_DIFFERENT = 12.0
 ABOUT_THE_SAME = 6.0
 
 T0 = time.monotonic()
+# While a step runs, what it logs is also kept here, for the digest of a failed step that is
+# printed at the very end of the job log (see failure_digest).
+_CAPTURE: list[str] | None = None
 
 
-def log(msg: str = "") -> None:
-    s = int(time.monotonic() - T0)
+def capture_into(sink: list[str] | None) -> None:
+    global _CAPTURE
+    _CAPTURE = sink
+
+
+def log(msg: str = "", keep: bool = True) -> None:
+    """Prints a line with the time. `keep=False` marks bulk the digest should skip (a journal
+    or the serial console): it is printed as usual but not kept for the digest."""
+    s = max(0, int(time.monotonic() - T0))
     for line in str(msg).splitlines() or [""]:
-        print(f"[{s // 60:02d}:{s % 60:02d}] {line}", flush=True)
+        text = f"[{s // 60:02d}:{s % 60:02d}] {line}"
+        print(text, flush=True)
+        if keep and _CAPTURE is not None:
+            _CAPTURE.append(text)
 
 
 class StepFailed(Exception):
@@ -92,8 +119,19 @@ UBUNTU_KEY = "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81"
 # qa/vm/keys/arch-boxes.asc. Primary key fingerprint (uid arch-boxes <arch-boxes@archlinux.org>):
 ARCH_BOXES_KEY = "1B9A16984A4E8CB448712D2AE0B78BF4326C6F8F"
 # Fedora's published keyring (all current release keys). The key that signed a CHECKSUM file
-# must carry the uid "Fedora (<release>)": its fingerprint is printed, not pinned (TO CONFIRM).
+# must be the pinned primary key of that release and carry the uid "Fedora (<release>)". Seen
+# on the CHECKSUM signatures of the first run, and checked against the key files of the
+# distribution-gpg-keys collection (RPM-GPG-KEY-fedora-44-primary and -45-primary) on 2026-11-13:
 FEDORA_KEYRING_URL = "https://fedoraproject.org/fedora.gpg"
+FEDORA_KEYS = {
+    "44": "36F612DCF27F7D1A48A835E4DBFCF71C6D9F90A6",   # Fedora (44) <fedora-44-primary@fedoraproject.org>
+    "45": "4F50A6114CD5C6976A7F1179655A4B02F577861E",   # Fedora (45) <fedora-45-primary@fedoraproject.org>
+}
+# The signed lists come from the master only. The image itself is tried from the mirror
+# redirector first (it answers 302 to a mirror near the runner, which is faster and spares the
+# master), then from the master. A mirror is never trusted: only the SHA-256 in the signed list is.
+FEDORA_MASTER = "https://dl.fedoraproject.org/"
+FEDORA_REDIRECTOR = "https://download.fedoraproject.org/"
 ARCH_IMAGES = "https://geo.mirror.pkgbuild.com/images/latest/"
 
 
@@ -102,6 +140,25 @@ def fedora_index_urls(release: str) -> list[str]:
     base = "https://dl.fedoraproject.org/pub/fedora/linux"
     return [f"{base}/releases/{release}/Cloud/x86_64/images/",
             f"{base}/development/{release}/Cloud/x86_64/images/"]
+
+
+def fedora_image_urls(index: str, image: str) -> list[str]:
+    """Where to download a Fedora image from, in order: the redirector, then the master."""
+    assert index.startswith(FEDORA_MASTER), index
+    path = index[len(FEDORA_MASTER):] + image
+    return [FEDORA_REDIRECTOR + path, FEDORA_MASTER + path]
+
+
+def check_fedora_signer(release: str, primary: str, uids: list[str]) -> None:
+    """The CHECKSUM must be signed by the pinned primary key of that release (which must also
+    carry the uid "Fedora (<release>)"); any other key, even one in Fedora's keyring, is refused."""
+    pinned = FEDORA_KEYS.get(release)
+    if pinned is None:
+        raise RuntimeError(f"no pinned signing key for Fedora {release}")
+    if primary != pinned:
+        raise RuntimeError(f"CHECKSUM was signed by {primary}, not Fedora {release}'s key {pinned}")
+    if not any(f"Fedora ({release})" in u for u in uids):
+        raise RuntimeError(f"CHECKSUM was signed by a key that is not Fedora {release}'s: {uids}")
 
 
 def ubuntu_base_url(codename: str) -> str:
@@ -181,35 +238,96 @@ def parse_gpg_status(text: str) -> dict:
 
 # ===== Downloads and signatures ==================================================================
 
-def fetch(url: str, dest: Path | None = None, tries: int = 3) -> bytes | str:
-    """Downloads `url` (into `dest` when given, returning its SHA-256), with a few tries."""
-    for n in range(1, tries + 1):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "login-boot-test"})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                if dest is None:
-                    return r.read()
-                h, done, shown = hashlib.sha256(), 0, 0
-                with open(dest, "wb") as f:
+def _content_range(value: str | None) -> tuple[int, int, int | None] | None:
+    """(first, last, total) from a `Content-Range: bytes 100-199/1000` header; total None for `*`."""
+    m = re.fullmatch(r"\s*bytes\s+(\d+)-(\d+)/(\d+|\*)\s*", value or "")
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2)), None if m.group(3) == "*" else int(m.group(3))
+
+
+def fetch(url: str, dest: Path | None = None, tries: int = 3, rounds: int = 5, pause: float = 5) -> bytes | str:
+    """Downloads `url` (into `dest` when given, returning its SHA-256), with a few tries.
+
+    A server that ends the body early (the first run saw an image stop at 149 MiB with no error)
+    is not believed: the bytes received are compared with what the server promised, and when
+    short the rest is asked for with a Range request, up to `rounds` times. If the server
+    ignores the Range and sends everything again, we start over from zero. Everything is hashed
+    exactly once, in order; the caller still compares the hash with the signed list."""
+    name = url.rsplit("/", 1)[-1]
+    h, done, total, shown = hashlib.sha256(), 0, None, 0
+    opened = resumed = 0
+    sink = open(dest, "wb") if dest is not None else io.BytesIO()
+    try:
+        while True:
+            headers = {"User-Agent": "login-boot-test"}
+            if done:
+                headers["Range"] = f"bytes={done}-"
+            problem = ""
+            try:
+                with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
+                    length = r.headers.get("Content-Length")
+                    length = int(length) if length and length.isdigit() else None
+                    if done and r.status == 206:
+                        cr = _content_range(r.headers.get("Content-Range"))
+                        if cr is None or cr[0] != done or (total is not None and cr[2] not in (None, total)):
+                            raise ValueError(f"unexpected Content-Range {r.headers.get('Content-Range')!r}")
+                        total = cr[2] if cr[2] is not None else total
+                    elif done:
+                        # 200: the server does not do ranges and is sending the whole file again.
+                        log(f"  {name}: the server answered {r.status} to a Range request, starting again from zero")
+                        h, done, shown = hashlib.sha256(), 0, 0
+                        sink.seek(0)
+                        sink.truncate()
+                        total = length
+                    else:
+                        total = length
                     while chunk := r.read(1 << 20):
-                        f.write(chunk)
+                        sink.write(chunk)
                         h.update(chunk)
                         done += len(chunk)
-                        if done - shown >= 200 << 20:
+                        if dest is not None and done - shown >= 200 << 20:
                             shown = done
                             log(f"  ... {done >> 20} MiB")
-                log(f"  got {dest.name}: {done >> 20} MiB")
-                return h.hexdigest()
-        except urllib.error.HTTPError as e:
-            if e.code == 404 or n == tries:
-                raise
-            log(f"  {url}: HTTP {e.code}, trying again")
-        except (urllib.error.URLError, OSError) as e:
-            if n == tries:
-                raise
-            log(f"  {url}: {e}, trying again")
-        time.sleep(5 * n)
-    raise AssertionError("unreachable")
+                if total is None or done == total:
+                    break
+                problem = f"the body ended after {done} of {total} bytes"
+            except urllib.error.HTTPError as e:
+                if e.code == 416 and done:
+                    log(f"  {name}: HTTP 416 to a Range request, starting again from zero")
+                    h, done, shown, total = hashlib.sha256(), 0, 0, None
+                    sink.seek(0)
+                    sink.truncate()
+                    problem = "HTTP 416"
+                elif e.code == 404 or (not done and opened + 1 >= tries):
+                    raise
+                else:
+                    problem = f"HTTP {e.code}"
+            except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as e:
+                if not done and not isinstance(e, ValueError) and opened + 1 >= tries:
+                    raise
+                problem = str(e)
+            # Something went wrong; before any byte it counts as one of `tries`, after that as a resume round.
+            if done:
+                resumed += 1
+                if resumed > rounds:
+                    raise RuntimeError(f"{url}: still {problem} after {rounds} resumes ({done} bytes received)")
+                log(f"  {name}: {problem}; resuming at byte {done} (resume {resumed} of {rounds})")
+                time.sleep(pause)
+            else:
+                opened += 1
+                if opened >= tries:               # an empty body every time: give up, never loop for ever
+                    raise RuntimeError(f"{url}: still {problem} after {tries} tries")
+                log(f"  {url}: {problem}, trying again")
+                time.sleep(pause * opened)
+    except BaseException:
+        sink.close()
+        raise
+    if dest is None:
+        return sink.getvalue()
+    sink.close()
+    log(f"  got {dest.name}: {done >> 20} MiB")
+    return h.hexdigest()
 
 
 def dearmor(data: bytes) -> bytes:
@@ -313,11 +431,10 @@ def find_image(distro: str, work: Path) -> dict:
         ring = gpg.keyring([published], "fedora")
         st = gpg.verify(ring, signed, plain_out=work / (checksum + ".signed"))
         uids = gpg.uids(ring).get(st["primary"], [])
-        log(f"  CHECKSUM signed by {st['primary']} ({'; '.join(uids)})  [TO CONFIRM ON FIRST RUN]")
-        if not any(f"Fedora ({d['release']})" in u for u in uids):
-            raise RuntimeError(f"CHECKSUM was signed by a key that is not Fedora {d['release']}'s: {uids}")
+        log(f"  CHECKSUM signed by {st['primary']} ({'; '.join(uids)}) (expected {FEDORA_KEYS.get(d['release'])})")
+        check_fedora_signer(d["release"], st["primary"], uids)
         sums = parse_checksums((work / (checksum + ".signed")).read_text())
-        url = index + image
+        urls = fedora_image_urls(index, image)
     elif d["family"] == "ubuntu":
         base = ubuntu_base_url(d["codename"])
         image = f"ubuntu-{d['release']}-server-cloudimg-amd64.img"
@@ -329,7 +446,7 @@ def find_image(distro: str, work: Path) -> dict:
         if st["primary"] != UBUNTU_KEY:
             raise RuntimeError(f"SHA256SUMS signed by {st['primary']}, not Ubuntu's cloud image key")
         sums = parse_checksums((work / "SHA256SUMS").read_text())
-        url = base + image
+        urls = [base + image]
     else:
         names = links(fetch(ARCH_IMAGES).decode("utf-8", "replace"))
         image = pick_arch(names)
@@ -339,29 +456,46 @@ def find_image(distro: str, work: Path) -> dict:
         sig.write_bytes(fetch(url + ".sig"))
         log(f"  image {url}")
         # The signature is checked once the image is here; its SHA-256 is printed for the log.
-        return {"url": url, "name": image, "sha256": None, "gpg": gpg, "ring": ring, "sig": sig}
+        return {"url": url, "urls": [url], "name": image, "sha256": None, "gpg": gpg, "ring": ring, "sig": sig}
     if image not in sums:
         raise RuntimeError(f"{image} is not in the signed checksum list")
     log(f"  sha256 {sums[image]} (from the signed list)")
-    return {"url": url, "name": image, "sha256": sums[image]}
+    return {"url": urls[0], "urls": urls, "name": image, "sha256": sums[image]}
+
+
+def download_checked(info: dict, dest: Path) -> None:
+    """Downloads the image from the first source that gives a file the check accepts: the
+    SHA-256 from the signed list (Fedora, Ubuntu) or the signature (Arch). A source that fails
+    or gives a file that does not match is logged and the next one is tried; the run fails only
+    when every source did."""
+    failures = []
+    for url in info["urls"]:
+        log(f"Downloading {url}")
+        try:
+            got = fetch(url, dest)
+            log(f"  sha256 of the download: {got}")
+            if info["sha256"] is not None:
+                if got != info["sha256"]:
+                    raise RuntimeError(f"{dest.name}: sha256 {got}, the signed list says {info['sha256']}")
+                log("  matches the signed list")
+            else:
+                st = info["gpg"].verify(info["ring"], dest, sig=info["sig"])
+                log(f"  signed by {st['fpr']} (primary {st['primary']}, expected {ARCH_BOXES_KEY})")
+                if st["primary"] != ARCH_BOXES_KEY:
+                    raise RuntimeError(f"{dest.name} was signed by {st['primary']}, not the arch-boxes key")
+            return
+        except (RuntimeError, OSError, urllib.error.URLError, http.client.HTTPException) as e:
+            failures.append(f"{url}: {e}")
+            dest.unlink(missing_ok=True)
+            log(f"  {url} did not give a good image ({e})" + ("; trying the next source" if url != info["urls"][-1] else ""))
+    raise RuntimeError("no source gave an image that passes the check:\n" + "\n".join(failures))
 
 
 def get_image(distro: str, work: Path) -> Path:
     log(f"Finding the official {distro} cloud image")
     info = find_image(distro, work)
     dest = work / info["name"]
-    log(f"Downloading {info['url']}")
-    got = fetch(info["url"], dest)
-    log(f"  sha256 of the download: {got}")
-    if info["sha256"] is not None:
-        if got != info["sha256"]:
-            raise RuntimeError(f"{dest.name}: sha256 {got}, the signed list says {info['sha256']}")
-        log("  matches the signed list")
-    else:
-        st = info["gpg"].verify(info["ring"], dest, sig=info["sig"])
-        log(f"  signed by {st['fpr']} (primary {st['primary']}, expected {ARCH_BOXES_KEY})")
-        if st["primary"] != ARCH_BOXES_KEY:
-            raise RuntimeError(f"{dest.name} was signed by {st['primary']}, not the arch-boxes key")
+    download_checked(info, dest)
     return dest
 
 
@@ -550,6 +684,7 @@ STEPS: list[tuple[str, tuple[str, ...]]] = [
     ("login", ("glass",)),
     ("update", ("login",)),
     ("restart", ("update",)),
+    ("addon-update", ("restart",)),
     ("off", ("on",)),
     ("crash", ("baseline",)),
     ("broken-addon", ("baseline",)),
@@ -744,10 +879,11 @@ class VM:
         if not quiet:
             text = "\n".join(x for x in (r.out, r.err) if x)
             lines = text.splitlines()
+            keep = "journalctl" not in cmd         # a journal dump is bulk: not for the digest
             for line in lines[:40]:
-                log(f"    {line}")
+                log(f"    {line}", keep=keep)
             if len(lines) > 40:
-                log(f"    ... ({len(lines) - 40} more lines)")
+                log(f"    ... ({len(lines) - 40} more lines)", keep=keep)
         if check and r.returncode != 0:
             raise StepFailed(f"`{cmd}` exited {r.returncode}")
         return r
@@ -852,13 +988,76 @@ class Lane:
         self.baseline: dict = {}
         self.plain: Picture | None = None
         self.first_failure_shown = False
+        self.captured: dict[str, list[str]] = {}
+        self.step_epoch: int | None = None         # the guest's clock when the running step began
+        self.cur_step: str | None = None
+        self.retries: dict[str, dict] = {}
 
     # --- what the guest says ---
-    def status(self) -> dict:
-        r = self.vm.sh(f"{HELPER} status", check=False)
+    def status(self, quiet: bool = False) -> dict:
+        r = self.vm.sh(f"{HELPER} status", check=False, quiet=quiet)
         if r.returncode != 0:
             raise StepFailed(f"status exited {r.returncode}")
         return json.loads(r.out)
+
+    def guest_epoch(self) -> int | None:
+        r = self.vm.sh("date +%s", check=False, quiet=True, timeout=30)
+        return int(r.out) if r.returncode == 0 and r.out.strip().isdigit() else None
+
+    def no_addon_errors(self) -> None:
+        """The glass is showing: the add-on must not have logged errors of its own to GNOME
+        Shell's journal since the step began."""
+        if self.step_epoch is None:
+            log("  (no guest clock: the journal check for add-on errors is skipped)")
+            return
+        r = self.vm.sh(f'sudo journalctl -b _COMM=gnome-shell --since "@{self.step_epoch}" --no-pager -o cat',
+                       check=False, quiet=True, timeout=120)
+        errs = addon_errors(r.out)
+        log(f"  gnome-shell journal since the step began: {len(r.out.splitlines())} lines, {len(errs)} of them errors of the add-on")
+        for line in errs[:20]:
+            log(f"    {line[:300]}")
+        check(not errs, "no error of the add-on in the login screen's journal")
+
+    def collect_gdm_retries(self) -> None:
+        """Counts this boot's "Session never registered" lines of GDM since the step began, and
+        the glass state now (on or off). Only reported, never judged."""
+        if self.step_epoch is None or self.cur_step is None:
+            return
+        try:
+            label = "on" if self.status(quiet=True).get("state") in ("trial", "on") else "off"
+            r = self.vm.sh(f'sudo journalctl -b -u gdm.service -u gdm3.service --since "@{self.step_epoch}" '
+                           f"--no-pager -o short-precise", check=False, quiet=True, timeout=120)
+        except Exception as e:
+            log(f"  (could not count GDM's retries: {e})")
+            return
+        lines, users = gdm_retries(r.out)
+        rec = self.retries.setdefault(self.cur_step, {"on": 0, "off": 0, "lines": [], "users": [], "last": label})
+        rec[label] += len(lines)
+        rec["lines"] += lines
+        rec["users"] += users
+        rec["last"] = label
+
+    def report_gdm_retries(self, step: str) -> None:
+        self.collect_gdm_retries()
+        rec = self.retries.get(step)
+        if not rec:
+            return
+        said = 'GDM said "Session never registered" {} times in this step (glass {})'
+        for label in ("on", "off"):
+            if rec[label]:
+                log(said.format(rec[label], label))
+        total = rec["on"] + rec["off"]
+        if not total:
+            log(said.format(0, rec["last"]))
+            return
+        for line in rec["lines"]:
+            log(f"    {line[:300]}")
+        log(f"    greeter users seen: {', '.join(sorted(set(rec['users']))) or 'none in the journal'}")
+        self.notes[step] = f"greeter retried {total}×" + (f"; {self.notes[step]}" if self.notes.get(step) else "")
+
+    def reboot(self, label: str) -> None:
+        self.collect_gdm_retries()               # this boot's retries, before it is gone
+        self.vm.reboot(label)
 
     def look_token(self) -> str:
         r = self.vm.sh("sudo cat /etc/fedora-glass/login/look.json", check=False, quiet=True)
@@ -994,6 +1193,21 @@ class Lane:
         check(st.get("state") == "trial", f"status says trial (it says {st.get('state')})")
         self.token = self.look_token()
         check(re.fullmatch(r"[0-9a-f]{32}", self.token or ""), f"look.json has a token ({self.token})")
+        self.notes["on"] = self.route_note()
+
+    def route_note(self) -> str:
+        """Which dconf route the helper took here, and the gdm profile it works with. Only
+        reported: either route is fine, but the log should say which one this Linux gets."""
+        r = self.vm.sh("sudo cat /var/lib/fedora-glass/login/state.json", check=False)
+        try:
+            state = json.loads(r.out)
+            route, db = state.get("route", ""), state.get("db", "")
+        except (ValueError, AttributeError):
+            route = db = ""
+        log(f"  dconf route: {route or '?'}, db: {db or '?'}")
+        self.vm.sh('for f in /etc/dconf/profile/gdm /usr/share/dconf/profile/gdm; do '
+                   'if [ -e "$f" ]; then echo "== $f"; cat "$f"; fi; done', check=False)
+        return route_text(route, db)
 
     def step_glass(self):
         self.restart_gdm()
@@ -1013,18 +1227,65 @@ class Lane:
         if self.vm.family == "fedora":
             check(den["selinux"] == "Enforcing", f"SELinux is enforcing (it is {den['selinux'] or 'missing'})")
         check(not ours, f"no SELinux or AppArmor denial for gnome-shell, dconf or fedora-glass ({len(ours)} new)")
+        self.no_addon_errors()
 
     def step_login(self):
         self.login()
+        self.wait_trial_confirmed()
+
+    def wait_trial_confirmed(self) -> None:
+        """After a real login: the trial must end (state on) within CONFIRM_WITHIN s, and the
+        path unit that watches it must not be failed. Shows the watch units whatever happens."""
         start = time.monotonic()
-        st = {}
-        while time.monotonic() - start < 20:
-            st = self.status()
+        st, seen_on = {}, None
+        # The limit that fails the step is CONFIRM_WITHIN; the wait goes on a while longer so
+        # that a late confirmation shows up in the log as late, not as never.
+        while time.monotonic() - start < CONFIRM_LOOK_UNTIL:
+            st = self.status(quiet=True)
             if st.get("state") == "on":
+                seen_on = time.monotonic() - start
                 break
-            time.sleep(2)
+            time.sleep(1)
         log(f"  status: {json.dumps(st)}")
-        check(st.get("state") == "on", f"within 20 s of the login the trial was confirmed (state {st.get('state')})")
+        if seen_on is None:
+            log(f"  the state never became on in {CONFIRM_LOOK_UNTIL} s after the login")
+        else:
+            log(f"  the state became on {seen_on:.0f} s after the login (limit {CONFIRM_WITHIN} s)")
+        show = f"systemctl show -p Id,ActiveState,SubState,Result {CHECK_PATH} {CHECK_SERVICE}"
+        stopped_after = None
+        if seen_on is not None:
+            # The watcher is stopped from inside the check service, a moment after the state turns on.
+            t = time.monotonic()
+            while True:
+                now = parse_show_blocks(self.vm.sh(show, check=False, quiet=True).out)
+                if now.get(CHECK_PATH, {}).get("ActiveState") in ("inactive", "failed"):
+                    break
+                if time.monotonic() - t >= WATCHER_STOPS_WITHIN:
+                    break
+                time.sleep(1)
+            stopped_after = time.monotonic() - t
+            log(f"  waited {stopped_after:.0f} s for {CHECK_PATH} to stop (limit {WATCHER_STOPS_WITHIN} s)")
+        # Whatever the outcome: how the trial watch ended, in the units' own words.
+        r = self.vm.sh(show, check=False)
+        units = parse_show_blocks(r.out)
+        self.vm.sh(f"sudo journalctl -b -u {CHECK_PATH} -u {CHECK_SERVICE} --no-pager -n 40", check=False)
+        path_state = units.get(CHECK_PATH, {}).get("ActiveState", "")
+        problems = []
+        for ok, msg in (
+                (seen_on is not None and seen_on <= CONFIRM_WITHIN,
+                 f"within {CONFIRM_WITHIN} s of the login the trial was confirmed (state {st.get('state')})"),
+                (path_state != "failed",
+                 f"{CHECK_PATH} is not failed (ActiveState {path_state or 'unknown'}, "
+                 f"Result {units.get(CHECK_PATH, {}).get('Result', '-')})"),
+                (seen_on is None or path_state == "inactive",
+                 f"the watcher stopped once the trial ended (ActiveState {path_state or 'unknown'}, "
+                 f"Result {units.get(CHECK_PATH, {}).get('Result', '-')})")):
+            try:
+                check(ok, msg)
+            except StepFailed as e:
+                problems.append(str(e))
+        if problems:
+            raise StepFailed("; ".join(problems))
 
     def step_update(self):
         r = self.turn_on({"picture": "glow", "clock": "thin"}, picture=False)
@@ -1040,7 +1301,7 @@ class Lane:
     def _still_on_after_reboot(self, label: str) -> None:
         """A plain reboot with the glass on: the boot guard runs in its real systemd sandbox and
         must leave the feature on (the only place that is proven on each Linux)."""
-        self.vm.reboot(label)
+        self.reboot(label)
         self.wait_greeter()
         boot = self.vm.boot_id()
         st = self.status()
@@ -1064,10 +1325,56 @@ class Lane:
             silent = None
         log(f"  silent_boots: {silent}")
         check(silent == 0, f"the guard's silent counter stays at zero (it is {silent})")
+        self.no_addon_errors()
 
     def step_restart(self):
         self._still_on_after_reboot("stays-on-1")
         self._still_on_after_reboot("stays-on-2")
+
+    def step_addon_update(self):
+        """What every package update does: the add-on's files change, so at the next boot the
+        guard starts a new trial, and the first login ends it in that same boot."""
+        ext = f"{ADDON_DIR}/extension.js"
+        saved = "/root/lgv-extension.js.saved"
+        old_token = self.token
+        self.vm.sh(f"sudo cp -a {ext} {saved}")
+        try:
+            self.vm.sh(f"sudo sh -c 'echo \"// lane test: the add-on changed\" >> {ext}'")
+            self.end_sessions()
+            self.reboot("addon-update")
+            self.wait_greeter()
+            boot = self.vm.boot_id()
+            st = self.status()
+            log(f"  status: {json.dumps(st)}")
+            r = self.vm.sh("sudo cat /var/lib/fedora-glass/login/state.json", check=False)
+            try:
+                state = json.loads(r.out)
+            except ValueError:
+                state = {}
+            token = self.look_token()
+            check(st.get("state") == "trial" and st.get("stopped") == "",
+                  f"after the add-on changed, the boot guard started a new trial "
+                  f"(state {st.get('state')}, stopped {st.get('stopped')!r})")
+            if token:
+                self.token = token                # the later steps compare with the current one
+            check(bool(token) and token != old_token, f"a new token (was {old_token}, is {token})")
+            check(state.get("trial_boots") == 1, f"the trial counts this boot (trial_boots {state.get('trial_boots')})")
+            note = self.wait_phase(("ok",), token, boot=boot)
+            check(note.get("phase") == "ok" and note.get("boot") == boot,
+                  f"the health note says ok with the new token for this boot {boot} "
+                  f"(phase {note.get('phase')}, boot {note.get('boot')})")
+            self.vm.wake_screen()
+            pic = self.vm.picture("03-addon-update-glass")
+            d = difference(self.plain, pic)
+            check(d >= CLEARLY_DIFFERENT,
+                  f"the glass still shows (difference {d:.1f}, at least {CLEARLY_DIFFERENT})")
+            self.no_addon_errors()
+            self.vm.sh(f"systemctl show -p Id,ActiveState,SubState,Result {CHECK_PATH} {GUARD}", check=False)
+            self.vm.sh(f"sudo journalctl -b -u {GUARD} -u {CHECK_PATH} -u {CHECK_SERVICE} --no-pager -n 40", check=False)
+            self.login()
+            self.wait_trial_confirmed()
+        finally:
+            self.vm.sh(f"sudo cp -a {saved} {ext} && sudo rm -f {saved}", check=False)
 
     def step_off(self):
         self.vm.sh(f"sudo fedora-glass login-screen off")
@@ -1119,7 +1426,7 @@ class Lane:
         check(note.get("phase") == "safe", f"the add-on found the crash and stayed out (phase {note.get('phase')})")
         self.plain_again("07-crash-plain")
         self.login()
-        self.vm.reboot("after-crash")
+        self.reboot("after-crash")
         self.wait_greeter()
         self._after_reboot_off("crash")
 
@@ -1138,7 +1445,7 @@ class Lane:
             check(note.get("phase") == "error", f"the add-on noted its error (phase {note.get('phase')})")
             self.plain_again("08-broken-plain")
             self.login()
-            self.vm.reboot("after-broken-addon")
+            self.reboot("after-broken-addon")
             self.wait_greeter()
             self._after_reboot_off("crash")
         finally:
@@ -1147,10 +1454,10 @@ class Lane:
     def step_no_login(self):
         self.reset()
         self._on_trial()
-        self.vm.reboot("no-login-1")
+        self.reboot("no-login-1")
         self.wait_greeter()
         log(f"  status after the first reboot: {json.dumps(self.status())}")
-        self.vm.reboot("no-login-2")
+        self.reboot("no-login-2")
         self.wait_greeter()
         self._after_reboot_off("no-login")
         self.plain_again("09-no-login-plain")
@@ -1167,6 +1474,9 @@ class Lane:
         log(f"  left on the disk: {json.dumps(o)}")
         check(not o["dconf_files"], f"no file under /etc/dconf has our switch ({o['dconf_files']})")
         check(not o["etc_login"], "/etc/fedora-glass/login is gone")
+        if o["var_login"]:
+            self.vm.sh("ls -la /var/lib/fedora-glass 2>&1", check=False)
+        check(not o["var_login"], "root's state folder /var/lib/fedora-glass/login is gone")
         now = self.vm.probe("dconf-state")
         check(UUID not in now["gsettings"]["org.gnome.shell enabled-extensions"],
               f"the login screen's extension list is {now['gsettings']['org.gnome.shell enabled-extensions']}")
@@ -1186,7 +1496,7 @@ class Lane:
             log(f"  no picture: {e}")
         log("  serial log, last 60 lines:")
         for line in self.vm.serial_tail(60).splitlines():
-            log(f"    | {line}")
+            log(f"    | {line}", keep=False)
         extra = ()
         if step == "restart":
             # The guard in its sandbox is what this step proves: its journal and how tight the
@@ -1213,6 +1523,9 @@ class Lane:
                 log(f"SKIP step {num} {step}: it builds on {blocker}, which did not pass")
                 continue
             print(f"::group::Step {num}: {step}", flush=True)
+            self.captured[step] = []
+            self.cur_step, self.step_epoch = step, self.guest_epoch()
+            capture_into(self.captured[step])
             log(f"=== step {num}: {step} ===")
             try:
                 getattr(self, "step_" + step.replace("-", "_"))()
@@ -1227,6 +1540,10 @@ class Lane:
                 finally:
                     print("::endgroup::", flush=True)
                 log(f"FAIL step {num} {step}: {e}")
+            capture_into(None)
+            if step in GDM_STEPS:
+                self.report_gdm_retries(step)
+            self.cur_step = None
             (self.out / "results.json").write_text(json.dumps({"results": self.results, "notes": self.notes}, indent=1))
         return all(self.results.get(s) == "PASS" for s in steps)
 
@@ -1236,6 +1553,88 @@ def summary(distro: str, steps: list[str], results: dict, notes: dict) -> str:
     for s in steps:
         lines.append(f"| {ORDER.index(s) + 1}. {s} | {results.get(s, 'not run')} | {notes.get(s, '').replace('|', '/')[:200]} |")
     return "\n".join(lines) + "\n"
+
+
+_ADDON_ERROR = re.compile(r"JS ERROR|had error|extension.*error|error.*extension", re.I)
+
+
+def addon_errors(journal: str) -> list[str]:
+    """The lines of GNOME Shell's journal (plain `-o cat` text) that are errors of our add-on:
+    a line naming it that also says JS ERROR, "had error" or an extension error; or any JS ERROR
+    whose stack lines (the lines after it that end in line:column) name its folder."""
+    lines = journal.splitlines()
+    found = []
+    for i, line in enumerate(lines):
+        if "fedora-glass-login" in line and _ADDON_ERROR.search(line):
+            found.append(line)
+        elif "JS ERROR" in line:
+            for follow in lines[i + 1:i + 16]:
+                if not (follow[:1].isspace() or re.search(r":\d+:\d+\s*$", follow)):
+                    break                       # not a stack line any more
+                if "fedora-glass-login" in follow:
+                    found.append(line)
+                    break
+    return found
+
+
+def gdm_retries(journal: str) -> tuple[list[str], list[str]]:
+    """From gdm's journal: the "Session never registered" lines, and the greeter users seen
+    (`session opened for user gdm-greeter...`)."""
+    lines = [l for l in journal.splitlines() if "never registered" in l]
+    users = re.findall(r"session opened for user (gdm-greeter[\w.-]*?)\(", journal)
+    return lines, users
+
+
+def retry_summary(retries: dict) -> str:
+    """The closing line after the table: retries of the greeter with the glass on and off."""
+    if not retries:
+        return ""
+    on = sum(r["on"] for r in retries.values())
+    off = sum(r["off"] for r in retries.values())
+    return f'GDM greeter retries ("Session never registered"): {on} in steps with the glass on, {off} with it off'
+
+
+def route_text(route: str, db: str) -> str:
+    """For the summary table: which dconf route the helper took on this Linux."""
+    if route == "a":
+        return f"route a (db {db})" if db else "route a"
+    if route == "b":
+        return "route b"
+    return "route unknown"
+
+
+def parse_show_blocks(text: str) -> dict[str, dict[str, str]]:
+    """`systemctl show` of several units: a block of Key=Value lines per unit, told apart by Id."""
+    units, block = {}, {}
+    for line in text.splitlines() + [""]:
+        if "=" in line:
+            k, v = line.split("=", 1)
+            block[k] = v
+        elif not line.strip() and block:
+            if block.get("Id"):
+                units[block["Id"]] = block
+            block = {}
+    return units
+
+
+def failure_digest(steps: list[str], results: dict, captured: dict, tail: int = 25, width: int = 400) -> str:
+    """For each failed step: its FAIL lines and the last `tail` lines it logged (thumbnails,
+    journal and serial dumps were never kept), so a failure can be read from the end of the job
+    log. With tail 0 only the FAIL lines: that is the short form for the step summary."""
+    out = []
+    for s in steps:
+        if results.get(s) != "FAIL":
+            continue
+        lines = captured.get(s, [])
+        fails = [l for l in lines if re.match(r"\[\d+:\d+\]\s+FAIL\b", l)]
+        out.append(f"--- step {ORDER.index(s) + 1} {s}: FAIL ---")
+        out += [l[:width] for l in fails] or ["(no FAIL line was logged)"]
+        if tail:
+            out.append(f"last {min(tail, len(lines))} lines of the step:")
+            out += ["  " + l[:width] for l in lines[-tail:]]
+    if not out:
+        return ""
+    return "\n".join(["=== Failure digest ==="] + out) + "\n"
 
 
 def tools_missing() -> list[str]:
@@ -1266,7 +1665,7 @@ def main(argv=None) -> int:
             info = find_image(args.distro, work)
         finally:
             shutil.rmtree(work, ignore_errors=True)
-        log(f"Image: {info['url']}")
+        log(f"Image: {', '.join(info['urls'])}")
         return 0
     missing = tools_missing()
     if missing:
@@ -1279,6 +1678,7 @@ def main(argv=None) -> int:
     vm = VM(args.distro, out, work)
     lane = Lane(vm, out)
     ok = False
+    setup_digest = ""
     try:
         image = args.image.resolve() if args.image else get_image(args.distro, work)
         vm.prepare(image)
@@ -1298,8 +1698,11 @@ def main(argv=None) -> int:
         print("::endgroup::", flush=True)
         if rc != 0:
             log(f"Guest setup failed (exit {rc}); its whole output is in setup.log")
-            for line in (out / "setup.log").read_text(errors="replace").splitlines()[-40:]:
+            tail = (out / "setup.log").read_text(errors="replace").splitlines()[-40:]
+            for line in tail:
                 log(f"  | {line}")
+            setup_digest = f"=== Failure digest ===\n--- guest setup: FAIL (exit {rc}) ---\nlast 25 lines of setup.log:\n" \
+                + "".join(f"  | {l[:400]}\n" for l in tail[-25:])
             return 1
         vm.gdm_unit = vm.sh(f"cat {GUEST_DIR}/gdm-unit", quiet=True).out or "gdm.service"
         vm.reboot("setup")
@@ -1313,9 +1716,19 @@ def main(argv=None) -> int:
         vm.stop()
         text = summary(args.distro, steps, lane.results, lane.notes)
         print(text, flush=True)
+        closing = retry_summary(lane.retries)
+        if closing:
+            print(closing + "\n", flush=True)
+        # The failures again, short, after the table: the end of the job log is what gets read first.
+        digest = setup_digest or failure_digest(steps, lane.results, lane.captured)
+        if digest:
+            print(digest, flush=True)
         if os.environ.get("GITHUB_STEP_SUMMARY"):
+            short = setup_digest or failure_digest(steps, lane.results, lane.captured, tail=0)
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
                 f.write(text)
+                if short and len(short) < 3000:
+                    f.write("\n```\n" + short + "```\n")
         shutil.rmtree(work, ignore_errors=True)
     log("ALL STEPS PASSED" if ok else "SOME STEPS FAILED")
     return 0 if ok else 1

@@ -15,18 +15,26 @@ Shell started by hand, without GDM, logind, SELinux, AppArmor, reboots or the bo
 | Step | What happens | It passes when |
 |---|---|---|
 | 1. baseline | The plain login screen after setup | a logind session of class `greeter` runs gnome-shell; the switch is off and available; picture `01-plain.png`; the gdm profile's dconf settings and a listing of `/etc/dconf` are kept for step 7 |
-| 2. on | `sudo fedora-glass-login on '{"picture":"wallpaper"}'` with a test JPEG on stdin | it exits 0 and `status` says `trial`; look.json has a token |
+| 2. on | `sudo fedora-glass-login on '{"picture":"wallpaper"}'` with a test JPEG on stdin | it exits 0 and `status` says `trial`; look.json has a token. The log (and the Note column) says which dconf route the helper took, `route a (db gdm)` or `route b`, with the lines of the gdm dconf profile |
 | 3. glass | GDM restarted | the add-on's health note says `ok` with that token; picture `02-glass.png` differs clearly from `01-plain.png`; no new SELinux (Fedora, which must be enforcing) or AppArmor (Ubuntu) denial mentions gnome-shell, dconf or fedora-glass |
-| 4. login | Enter, the password, Enter, typed on the login screen | a logind session of `tester`, class `user`, type `wayland`, appears; within 20 s `status` says `on` (the trial was confirmed) |
+| 4. login | Enter, the password, Enter, typed on the login screen | a logind session of `tester`, class `user`, type `wayland`, appears; within 20 s `status` says `on` (the trial was confirmed) and `fedora-glass-login-guard-check.path` is not in the `failed` state. The log says after how many seconds the state became `on` (the wait goes on to 60 s for the log only) and prints the two trial-watch units' `systemctl show` and journal, whatever the outcome |
 | 5. update | `on '{"picture":"glow","clock":"thin"}'` | still `on`, the new values are in, the same token in look.json |
 | 6. restart | Two plain reboots with the glass on, nothing changed | after each: `status` still says `on` with nothing in `stopped`; the health note says `ok` with this boot's id; the same token in look.json; `systemctl show -p Result,ExecMainStatus fedora-glass-login-guard.service` says success and 0; the guard's `silent_boots` in `/var/lib/fedora-glass/login/state.json` is 0. The guard's journal is printed each time, and on a failure also `systemd-analyze security` for it. The only step that shows the boot guard working in its real systemd sandbox without wrongly switching the glass off |
-| 7. off | `sudo fedora-glass login-screen off` | `status` says off; `/etc/dconf` and the gdm profile's settings are as in step 1; `/etc/fedora-glass/login` is gone; after a GDM restart the screen looks like `01-plain.png` and a real login works |
-| 8. crash | On again; GDM stopped; a `starting` note with the current token is put in the greeter's state folder, owned by the greeter's user, as a greeter that crashed leaves it; GDM started | the note turns `safe`, the screen looks plain, a real login works; after a reboot the switch is off with `stopped` = `crash` |
-| 9. broken-addon | On again; `throw new Error("boot test");` put at the top of the installed add-on's `login.js`; GDM restarted | the note says `error`, the screen looks plain, a real login works; after a reboot the switch is off with `stopped` = `crash`. `login.js` is put back afterwards |
-| 10. no-login | On again; two reboots without anybody logging in | the switch is off with `stopped` = `no-login`; the screen looks plain; a real login works |
-| 11. removal | On again; the package removed with dnf, apt or pacman | no file under `/etc/dconf` holds our switch (the compiled database included), `/etc/fedora-glass/login` is gone, the greeter's extension list doesn't name the add-on; after a GDM restart the screen looks plain and a real login works |
+| 7. addon-update | A harmless comment line appended to the installed add-on's `extension.js` (as a package update changes it), the tester logged out, a reboot | the boot guard started a new trial: `status` says `trial` with nothing in `stopped`, a NEW token in look.json, `trial_boots` 1 in `state.json`; the health note says `ok` with the new token for this boot; the glass still shows (picture `03-addon-update-glass.png`); the trial-watch units and the guard are shown. Then a real login ends the trial in the same boot (within 20 s, as in step 4). `extension.js` is put back afterwards |
+| 8. off | `sudo fedora-glass login-screen off` | `status` says off; `/etc/dconf` and the gdm profile's settings are as in step 1; `/etc/fedora-glass/login` is gone; after a GDM restart the screen looks like `01-plain.png` and a real login works |
+| 9. crash | On again; GDM stopped; a `starting` note with the current token is put in the greeter's state folder, owned by the greeter's user, as a greeter that crashed leaves it; GDM started | the note turns `safe`, the screen looks plain, a real login works; after a reboot the switch is off with `stopped` = `crash` |
+| 10. broken-addon | On again; `throw new Error("boot test");` put at the top of the installed add-on's `login.js`; GDM restarted | the note says `error`, the screen looks plain, a real login works; after a reboot the switch is off with `stopped` = `crash`. `login.js` is put back afterwards |
+| 11. no-login | On again; two reboots without anybody logging in | the switch is off with `stopped` = `no-login`; the screen looks plain; a real login works |
+| 12. removal | On again; the package removed with dnf, apt or pacman | no file under `/etc/dconf` holds our switch (the compiled database included), `/etc/fedora-glass/login` and root's state folder `/var/lib/fedora-glass/login` are gone, the greeter's extension list doesn't name the add-on; after a GDM restart the screen looks plain and a real login works |
 
-Steps 2 to 7 build on each other; a step whose groundwork failed is skipped. Steps 8 to 11
+In every step that judges the glass as showing (3, both boots of 6, and 7), the step also
+fails if GNOME Shell's journal since the step began holds an error of the add-on (a line naming
+`fedora-glass-login` with `JS ERROR`, `had error` or an extension error, or a `JS ERROR` whose stack
+names the add-on's folder). In every step that restarts GDM or reboots, the log counts GDM's
+"Session never registered" lines (a greeter that was started again): it is reported, in the step's
+Note and in a closing line after the table (glass on and off apart), and never judged.
+
+Steps 2 to 8 build on each other (7 builds on 6; 8, off, needs only 2); a step whose groundwork failed is skipped. Steps 9 to 12
 each start clean (switch off, nobody logged in, GDM restarted), so they still run when an
 earlier step failed. Before a real login the tester is logged out
 (`loginctl terminate-user tester`) and the login screen comes back. The run fails if any
@@ -43,6 +51,9 @@ step fails.
 - The artifact `login-boot-<distro>` (kept 3 days) has every picture in full size, the serial
   log, QEMU's log, the guest setup's output, and the journal of every boot.
 - A table of the steps goes to the job summary.
+- After the table, the end of the job log has a failure digest: for each failed step its `FAIL`
+  lines and the last 25 lines it logged (without thumbnails, journals and serial console dumps).
+  The job summary gets the `FAIL` lines only, when they are few.
 
 ## Running it
 
@@ -74,10 +85,19 @@ the VM's host key: it is a throwaway VM on the loopback address, with a key made
 
 - **Fedora**: the newest `Fedora-Cloud-Base-Generic-<release>-<compose>.x86_64.qcow2` on
   `dl.fedoraproject.org` (releases, then development), and its
-  `Fedora-Cloud-<release>-<compose>-x86_64-CHECKSUM`. The CHECKSUM file's clear signature is
-  checked with gpgv against Fedora's published keyring (`https://fedoraproject.org/fedora.gpg`);
-  the key must carry the uid `Fedora (<release>)`, and only the signed text is read for the
-  SHA-256.
+  `Fedora-Cloud-<release>-<compose>-x86_64-CHECKSUM`, both taken from `dl.fedoraproject.org`
+  only. The CHECKSUM file's clear signature is checked with gpgv against Fedora's published
+  keyring (`https://fedoraproject.org/fedora.gpg`); the signing key must be the pinned primary
+  key of that release (Fedora 44 `36F612DCF27F7D1A48A835E4DBFCF71C6D9F90A6`, Fedora 45
+  `4F50A6114CD5C6976A7F1179655A4B02F577861E`) and carry the uid `Fedora (<release>)`; only the
+  signed text is read for the SHA-256. The image is downloaded from the mirror redirector
+  (`download.fedoraproject.org`, which answers 302 to a nearby mirror) first, then from
+  `dl.fedoraproject.org`. A mirror is not trusted: a file counts only if its SHA-256 is the
+  one in the signed list; a failure or mismatch is logged and the next source tried, and the
+  run fails only when both fail.
+- **Downloads** that end early (the body stops with no error) are noticed by comparing the
+  bytes with the promised length, and carried on with a `Range` request (up to 5 times; a server
+  that answers 200 to it is asked again from zero). Every byte is hashed once, in order.
 - **Ubuntu**: `releases/<codename>/release/ubuntu-<version>-server-cloudimg-amd64.img` on
   `cloud-images.ubuntu.com`; `SHA256SUMS` checked against `SHA256SUMS.gpg` with the runner's
   ubuntu-keyring, signed by key `D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81` (pinned).
@@ -92,8 +112,10 @@ Nothing here could be run where it was written (no KVM, no access to Fedora's or
 servers), so the first runs on GitHub have to confirm these. Each one is printed in the log.
 
 Confirmed already (2026-11-13): the Ubuntu paths, file names and signing key above
-(`--find-image-only` passed for both Ubuntu releases against the real servers), and the
-arch-boxes key's fingerprint (computed from the key block in the README).
+(`--find-image-only` passed for both Ubuntu releases against the real servers), the
+arch-boxes key's fingerprint (computed from the key block in the README), and Fedora's
+file names and the two release signing keys (seen on the CHECKSUM signatures of the first
+run and matched with the key files of the distribution-gpg-keys collection; both are pinned).
 
 What could be tested without a VM is in `tests/test_login_boot_lane.py`: the QMP messages,
 the pictures (PPM to PNG, shrinking, the difference score, the log thumbnails), the keys, the
@@ -101,10 +123,6 @@ image and checksum names, the signature status, the step planner, and every step
 against a pretend PC that keeps the contract (and against ones whose guard or glass doesn't
 work, which must fail the right steps).
 
-- **Fedora image names**: `Fedora-Cloud-Base-Generic-<release>-<compose>.x86_64.qcow2` and
-  `Fedora-Cloud-<release>-<compose>-x86_64-CHECKSUM` under `releases/<release>/Cloud/x86_64/images/`.
-- **Fedora signing keys**: that `fedora.gpg` holds the key that signs each release's CHECKSUM and
-  that its uid reads `Fedora (<release>)`. The fingerprint is printed; pin it once seen.
 - **Arch image name**: a dated `Arch-Linux-x86_64-cloudimg-<date>.qcow2` (the plain name is
   used when there is none); the arch-boxes key (its signing subkey expires in 2027).
 - **Package names per Linux** in `guest/setup.sh`: Fedora `gdm gnome-shell gnome-session
