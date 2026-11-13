@@ -11,6 +11,7 @@ Item {
 
     property string wallpaper: Backend.wallpaper
     property string mode: "rest"         // rest: the clock; prompt: typing the password
+    property string screen: "lock"       // lock, or login: the glass login screen (GDM)
     property real slide: 0               // 0 locked .. 1 slid away (the unlock animation)
     readonly property bool resting: mode === "rest"
 
@@ -72,7 +73,7 @@ Item {
         width: parent.width
         height: parent.height
         y: -root.slide * parent.height
-        visible: root.slide < 1
+        visible: root.slide < 1 && root.screen === "lock"
 
         MultiEffect {
             anchors.fill: parent
@@ -295,6 +296,226 @@ Item {
                             model: 6
                             delegate: Rectangle { width: root.u(9); height: width; radius: width / 2; color: "white" }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- the glass login screen ------------------------------------------------------
+    // What the login add-on draws from the values the app sends (Backend.glassLoginLook,
+    // the editor's, so it follows the sliders): the picture, the frosted sheet over it, the
+    // big clock at the top (the user list needs the middle), and the password on its card.
+    Item {
+        id: login
+        objectName: "loginPreview"
+        anchors.fill: parent
+        visible: root.screen === "login"
+        readonly property var look: Backend.glassLoginLook
+        readonly property string picture: look.picture || "wallpaper"
+        readonly property real sheetBright: 1 - (look.dim ?? 0.28)
+        // The same brightness ceiling as the lock screen keeps the white text readable.
+        readonly property real luma: picture === "wallpaper" ? Backend.wallpaperLuma : picture === "glow" ? 0.08 : 0.03
+        readonly property real ceiling: Math.min(1, 0.13 / Math.max(0.001, luma * sheetBright))
+        readonly property real veil: 1 - Math.pow(sheetBright * ceiling, 1 / 2.2)
+        readonly property var clock: ({
+            bold: { time: 96, timeW: Font.ExtraBold, dateW: Font.DemiBold },
+            thin: { time: 92, timeW: Font.ExtraLight, dateW: Font.Normal }
+        })[look.clock] ?? null
+        readonly property bool showBattery: look.battery === true && Backend.hasBattery
+        readonly property bool showMessage: (look.message || "").length > 0
+
+        Rectangle { anchors.fill: parent; color: "#16161b" }
+        // The picture under the glass.
+        Image {
+            id: loginWall
+            anchors.fill: parent
+            visible: false
+            source: login.visible && login.picture === "wallpaper" ? Backend.loginWallpaper : ""
+            sourceSize.width: 960
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+        }
+        Rectangle {
+            // GDM's own background, as it is without Fedora Glass: a plain dark grey.
+            id: systemPic
+            anchors.fill: parent
+            visible: false
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#303036" }
+                GradientStop { position: 1; color: "#1e1e23" }
+            }
+        }
+        Item {
+            // The glow: soft light in the tint and accent colours.
+            id: glowPic
+            anchors.fill: parent
+            visible: false
+            Rectangle { anchors.fill: parent; color: "#121218" }
+            Rectangle {
+                x: parent.width * 0.05; y: -parent.height * 0.2
+                width: parent.width * 0.6; height: width; radius: width / 2
+                color: Qt.lighter(Backend.tint, 1.9); opacity: 0.55
+            }
+            Rectangle {
+                x: parent.width * 0.5; y: parent.height * 0.35
+                width: parent.width * 0.55; height: width; radius: width / 2
+                color: Theme.accent; opacity: 0.35
+            }
+        }
+        MultiEffect {
+            anchors.fill: parent
+            source: login.picture === "wallpaper" ? loginWall : login.picture === "glow" ? glowPic : systemPic
+            visible: login.picture !== "wallpaper" || loginWall.status === Image.Ready
+            blurEnabled: true
+            blurMax: 64
+            blur: login.picture === "glow" ? 1 : Math.min(1, (login.look.blur ?? 60) * root.s / 64)
+            saturation: login.picture === "wallpaper" ? 0.35 : 0
+            autoPaddingEnabled: false
+        }
+        Rectangle { anchors.fill: parent; color: "black"; opacity: login.veil }
+        Rectangle { anchors.fill: parent; color: Backend.tint; opacity: (login.look.tint_amount ?? 0.2) * 0.4 }
+
+        // GNOME's top bar on the login screen: its small clock, and the status icons.
+        Text {
+            objectName: "loginPreviewPanelClock"
+            visible: login.clock === null
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: root.u(8)
+            text: Qt.formatDateTime(root.now, "ddd d MMM  " + (Qt.locale().timeFormat(Locale.ShortFormat).indexOf("AP") >= 0 ? "h:mm AP" : "HH:mm"))
+            color: "white"
+            font.pixelSize: root.pt(11)
+            font.weight: Font.Bold
+        }
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: root.u(24)
+            y: root.u(10)
+            spacing: root.u(16)
+            Repeater {
+                model: ["wifi", "volume", "power"]
+                delegate: Icon {
+                    required property string modelData
+                    name: modelData
+                    size: root.u(22)
+                    color: "white"
+                    layered: false
+                }
+            }
+        }
+
+        // The big clock, at the top, and what goes under it.
+        Column {
+            objectName: "loginPreviewClock"
+            anchors.horizontalCenter: parent.horizontalCenter
+            // Under the floating Lock | Login switch, however small the preview is.
+            y: Math.max(root.u(login.clock ? 70 : 64), 56)
+            spacing: root.u(14)
+            Text {
+                visible: login.clock !== null
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatTime(root.now, Qt.locale().timeFormat(Locale.ShortFormat).indexOf("AP") >= 0 ? "h:mm" : "HH:mm")
+                color: "white"
+                font.pixelSize: root.pt(login.clock ? login.clock.time : 64)
+                font.weight: login.clock ? login.clock.timeW : Font.ExtraBold
+                font.features: { "tnum": 1 }
+            }
+            Text {
+                visible: login.clock !== null
+                anchors.horizontalCenter: parent.horizontalCenter
+                topPadding: -root.u(14)
+                text: Qt.formatDate(root.now, "dddd MMMM d")
+                color: "white"
+                font.pixelSize: root.pt(16)
+                font.weight: login.clock ? login.clock.dateW : Font.Normal
+            }
+            Chip_ {
+                visible: login.showBattery
+                anchors.horizontalCenter: parent.horizontalCenter
+                icon: "battery"
+                text: "82%"
+            }
+            Rectangle {
+                objectName: "loginPreviewMessage"
+                visible: login.showMessage
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(loginMsg.implicitWidth, root.u(620)) + root.u(34)
+                height: loginMsg.height + root.u(20)
+                radius: root.u(16)
+                color: Qt.rgba(1, 1, 1, 0.09)
+                border.width: Math.max(1, root.u(1))
+                border.color: Qt.rgba(1, 1, 1, 0.16)
+                Text {
+                    id: loginMsg
+                    anchors.centerIn: parent
+                    width: Math.min(implicitWidth, root.u(620))
+                    text: login.look.message || ""
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    color: "white"
+                    font.pixelSize: root.pt(11.5)
+                    font.weight: Font.Medium
+                }
+            }
+        }
+
+        // The user and the password field, on the glass card.
+        Item {
+            objectName: "loginPreviewPrompt"
+            width: root.u(360)
+            height: loginCol.height
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: Math.max(root.height * 0.47, root.height - height - root.u(150))
+            Rectangle {
+                objectName: "loginPreviewCard"
+                visible: login.look.card === true
+                x: -root.u(28); y: -root.u(28)
+                width: parent.width + root.u(56); height: parent.height + root.u(56)
+                radius: Math.min(root.u(32), height / 2)
+                color: Qt.rgba(1, 1, 1, 0.06 + 0.06 * (login.look.frost ?? 0.35))
+                border.width: Math.max(1, root.u(1.2))
+                border.color: Qt.rgba(1, 1, 1, 0.2)
+                Rectangle {   // the bright top rim
+                    x: parent.radius; width: parent.width - 2 * parent.radius
+                    y: 0; height: Math.max(1, root.u(1.5))
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0; color: "transparent" }
+                        GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.45) }
+                        GradientStop { position: 1; color: "transparent" }
+                    }
+                }
+            }
+            Column {
+                id: loginCol
+                width: parent.width
+                spacing: root.u(16)
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: root.u(112); height: width; radius: width / 2
+                    color: Qt.rgba(1, 1, 1, 0.16)
+                    Icon { anchors.centerIn: parent; name: "user"; size: root.u(56); color: "white"; layered: false }
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: Backend.userName || qsTr("You")
+                    color: "white"
+                    font.pixelSize: root.pt(14)
+                    font.weight: Font.Bold
+                }
+                Rectangle {
+                    width: parent.width; height: root.u(48); radius: root.u(12)
+                    color: Qt.rgba(1, 1, 1, 0.08 + 0.12 * (login.look.frost ?? 0.35))
+                    border.width: Math.max(1, root.u(2))
+                    border.color: login.look.accent || Theme.accent
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: root.u(16)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Password")
+                        color: Qt.rgba(1, 1, 1, 0.55)
+                        font.pixelSize: root.pt(11.5)
                     }
                 }
             }

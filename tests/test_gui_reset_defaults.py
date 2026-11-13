@@ -103,7 +103,8 @@ def test_every_setting_can_be_put_back(make_backend):
             v = getattr(Settings(), f.name)
             changed = (not v if isinstance(v, bool) else
                        "light" if f.name == "scheme" else "red" if f.name == "accent" else
-                       "#ff0000" if f.name == "tint" else "hello" if f.name == "lock_message" else
+                       "#ff0000" if f.name == "tint" else "hello" if f.name in ("lock_message", "login_message") else
+                       "thin" if f.name == "login_clock" else "glow" if f.name == "login_picture" else
                        "lightest" if f.name == "glass_quality" else "docked" if f.name == "panel_style" else
                        "thin" if f.name == "lock_clock" else "top" if f.name == "lock_clock_position" else
                        "smooth" if f.name == "lock_slide" else "plain" if f.name == "lock_widget_style" else

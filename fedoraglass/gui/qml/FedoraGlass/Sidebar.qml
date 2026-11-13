@@ -79,7 +79,9 @@ Item {
         dtpHover: Backend.hasDashToPanel && (Backend.motionDtpHoverOff
                   || (Backend.dtpHoverAnimates && Backend.motion.hover.preset !== "off")),
         removable: Backend.canRemoveApp,
-        login: Backend.loginGlass !== "unavailable",
+        login: Backend.loginCardKind === "old",
+        loginNew: Backend.loginCardKind === "new" && (Backend.glassLoginCanTurnOn || Backend.glassLoginOn),
+        loginOn: Backend.loginCardKind === "new" && Backend.glassLoginOn,
         previous: Backend.hasPrevious,
         looks: Backend.savedLooks.length > 0
     })
