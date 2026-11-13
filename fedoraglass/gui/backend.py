@@ -29,7 +29,7 @@ from .. import looks as looks_mod
 from .. import weather as weather_mod
 from .. import settings as settings_mod
 from . import changes as changes_mod
-from . import wallcolour
+from . import loginlook, wallcolour
 from ..color import Color
 from ..env import Env
 from .. import i18n
@@ -384,6 +384,22 @@ class Backend(QObject):
         self._login_note = ""
         self._login_failed = False     # the last login screen step ended in an error (not a cancel)
         self._login_state = self._read_login_state()
+        self._login_steps: list[dict] = []     # the helper steps still to run after this one
+        # The glass login screen (fedora-glass-login): its last `status` answer (None: no
+        # helper here), the copy of the wallpaper it gets (picture key, (bytes, sha256)),
+        # and "See it now".
+        self._gl_status: dict | None = None
+        self._gl_status_proc: QProcess | None = None
+        self._gl_reread = False
+        self._gl_checking = self._root_owned(self.GLASS_LOGIN)
+        self._gl_pic: tuple = ("", (None, ""))
+        self._gl_pic_task: _Task | None = None
+        self._gl_pic_waiters: list[Callable[[bytes | None], None]] = []
+        self._gl_preparing = False
+        self._gl_picture_failed = False
+        self._gl_see_proc: QProcess | None = None
+        self._gl_see_note = ""
+        self._read_glass_status()
         # Removing the app (Restore original, then dnf remove through pkexec).
         self._remove_proc: QProcess | None = None
         self._removing = False
@@ -438,6 +454,8 @@ class Backend(QObject):
         self.installedAppsChanged.connect(self.noGlassAppsChanged)
         # GNOME's two wallpapers (picture-uri for light, picture-uri-dark for dark), as file URLs.
         self._wallpapers = self._read_wallpapers()
+        # How the desktop places it (picture-options): the login screen places its copy the same way.
+        self._wall_fit = self._read_wall_fit()
         self._wall_monitor: QProcess | None = None
         self._lumas: dict[str, float] = {}       # wallpaper URL -> how bright it is, worked out off the UI thread
         self._luma_tasks: dict[str, _Task] = {}
@@ -676,6 +694,12 @@ class Backend(QObject):
                 out[mode] = ""
         return out
 
+    def _read_wall_fit(self) -> str:
+        try:
+            return loginlook.fit_from_options(self._env.gsettings_get("org.gnome.desktop.background", "picture-options"))
+        except Exception:  # noqa: BLE001 (not known: GNOME's default)
+            return "zoom"
+
     def _wallpaper_for(self, dark: bool) -> str:
         """GNOME shows picture-uri-dark in dark style; without one, picture-uri."""
         first, other = ("dark", "light") if dark else ("light", "dark")
@@ -700,6 +724,12 @@ class Backend(QObject):
         changed = False
         for line in text.splitlines():
             key, sep, value = line.partition(":")
+            if sep and key.strip() == "picture-options":
+                fit = loginlook.fit_from_options(value)
+                if fit != self._wall_fit:
+                    self._wall_fit = fit
+                    self.loginGlassChanged.emit()       # the login screen may be behind now
+                continue
             mode = keys.get(key.strip())
             if not sep or mode is None:
                 continue
@@ -876,7 +906,10 @@ class Backend(QObject):
                 proc.kill()
                 proc.waitForFinished(500)
                 setattr(self, name, None)
-        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None), self._apps_task]:
+        if self._gl_status_proc is not None:
+            self._gl_status_proc.kill()
+            self._gl_status_proc.waitForFinished(500)
+        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None), self._apps_task, self._gl_pic_task]:
             if t is not None:
                 t.wait(2000)
 
@@ -943,6 +976,14 @@ class Backend(QObject):
     lockMessage = _p("lock_message", str)
     lockWidgetStyle = _p("lock_widget_style", str)
     lockHideNotifications = _p("lock_hide_notifications", bool)
+    loginBlur = _p("login_blur", int)
+    loginDim = _p("login_dim", float)
+    loginTint = _p("login_tint", float)
+    loginCard = _p("login_card", bool)
+    loginClock = _p("login_clock", str)
+    loginPicture = _p("login_picture", str)
+    loginBattery = _p("login_battery", bool)
+    loginMessage = _p("login_message", str)
     cursorTheme = _p("cursor_theme", str)
     cursorSize = _p("cursor_size", int)
     def _get_start_on_desktop(self) -> bool:
@@ -2277,11 +2318,7 @@ class Backend(QObject):
             # password. Started before applyFinished, so "Apply and close" sees it running
             # and waits for it.
             self._login_state = self._read_login_state()
-            if self._login_stale(self._saved):
-                self._run_login(["apply", *self.login_values(self._saved)],
-                                _("The login screen has your new look. You'll see it the next time you restart your PC."))
-            else:
-                self.loginGlassChanged.emit()
+            self._login_refresh(self._saved)
             self.applyFinished.emit(rows)
             self._lock_if_asked(results)
         self._run("apply", job, done)
@@ -2327,6 +2364,9 @@ class Backend(QObject):
             # What keeps the glass from running, the old copy and the parts' notes change
             # with the files Restore took away: checked again, as after an Apply.
             self.refreshTargets()
+            # The normal login screen comes back too (asks for the password only when the
+            # glass is on there).
+            self._login_off_after_restore()
         self._run("revert", job, done)
 
     # ---- an Apply where some parts failed ------------------------------------------
@@ -2395,13 +2435,20 @@ class Backend(QObject):
         return self._task is None
 
     # ---- glass on the login screen -------------------------------------------------
+    # Two helpers, both run as root through pkexec, one step at a time (_login_proc):
+    # the old one paints glass into GNOME's login screen theme (login_screen.py), the new
+    # one turns on a real glass login screen (fedora-glass-login, login_glass.py). The new
+    # one replaces the old one where it can run; the old card stays where it can't.
     LOGIN_HELPER = Path("/usr/libexec/liquid-glass-login-screen")
+    GLASS_LOGIN = Path("/usr/libexec/fedora-glass-login")
     PKEXEC = Path("/usr/bin/pkexec")
+    GLASS_STATUS_TIMEOUT = 10000    # ms: `status` needs no root and answers at once
 
-    def _login_available(self) -> bool:
-        """Only offered when the package put a root-owned helper in place: pkexec
-        would run whatever is at that path as root."""
-        for p in (self.LOGIN_HELPER, self.PKEXEC):
+    @staticmethod
+    def _root_owned(*paths: Path) -> bool:
+        """pkexec runs whatever is at the helper's path as root: only a file root owns and
+        nobody else can change counts."""
+        for p in paths:
             try:
                 st = p.stat()
             except OSError:
@@ -2409,6 +2456,13 @@ class Backend(QObject):
             if st.st_uid != 0 or st.st_mode & 0o022:
                 return False
         return True
+
+    def _login_available(self) -> bool:
+        """Only offered when the package put a root-owned helper in place."""
+        return self._root_owned(self.LOGIN_HELPER, self.PKEXEC)
+
+    def _glass_login_available(self) -> bool:
+        return self._root_owned(self.GLASS_LOGIN, self.PKEXEC)
 
     def _read_login_state(self) -> str:
         if not self._login_available():
@@ -2420,7 +2474,12 @@ class Backend(QObject):
 
     @Property(str, notify=loginGlassChanged)
     def loginGlass(self) -> str:
-        return "busy" if self._login_proc is not None else self._login_state
+        """The painted glass: off, on, undone, unavailable, or busy while either helper
+        runs (closing the app waits for that, see Main.qml)."""
+        return "busy" if self._login_busy() else self._login_state
+
+    def _login_busy(self) -> bool:
+        return self._login_proc is not None or self._gl_preparing
 
     @Property(str, notify=loginGlassChanged)
     def loginGlassNote(self) -> str:
@@ -2433,7 +2492,11 @@ class Backend(QObject):
 
     def _login_stale(self, s: Settings | None = None) -> bool:
         """Glass is on the login screen, but not the look Apply gives now: other colours,
-        or the rules of an older Fedora Glass (1.5.7 made the password prompt compact)."""
+        or the rules of an older Fedora Glass (1.5.7 made the password prompt compact).
+        For the glass login screen: its values or picture differ from the look's."""
+        return self._glass_behind(self._saved if s is None else s) or self._old_stale(s)
+
+    def _old_stale(self, s: Settings | None = None) -> bool:
         if self._login_state != "on":
             return False
         try:
@@ -2443,20 +2506,28 @@ class Backend(QObject):
 
     @Property(bool, notify=loginGlassChanged)
     def loginGlassStale(self) -> bool:
-        return self._login_proc is None and self._login_stale(self._saved)
+        return not self._login_busy() and self._login_stale(self._saved)
 
     def login_values(self, s: Settings | None = None) -> list[str]:
-        """The three values the helper takes: accent, tint and frost from the current look
-        (or from s, such as the look just applied)."""
+        """The three values the painted glass takes: accent, tint and frost from the current
+        look (or from s, such as the look just applied). The glass login screen takes these
+        colours too (glass_login_values)."""
         s = (self._s if s is None else s).normalized()
         dark = self._dark_t if s == self._s.normalized() else palette.build(s, dark=True, system_accent=self._system_accent)
         return [dark.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
 
+    def glass_login_values(self, s: Settings | None = None) -> dict:
+        """What `fedora-glass-login on` gets for a look (the editor's when s is None)."""
+        s = self._s if s is None else s
+        return loginlook.values(s, self.login_values(s)[0], self._wall_fit)
+
     @Property(bool, notify=settingsChanged)
     def loginGlassBehind(self) -> bool:
-        """Unapplied changes would change the login screen's colours or frost: its button
-        uses the look applied last, so the card says so."""
+        """Unapplied changes would change the login screen: its buttons use the look applied
+        last, so the card says so."""
         try:
+            if self.loginCardKind == "new":
+                return not loginlook.same_values(self.glass_login_values(self._s), self.glass_login_values(self._saved))
             return self.login_values(self._s) != self.login_values(self._saved)
         except Exception:  # noqa: BLE001 (a colour that can't be read: say nothing)
             return False
@@ -2473,34 +2544,481 @@ class Backend(QObject):
         self._run_login(["undo"], _("The normal login screen is back."))
 
     def _run_login(self, args: list[str], done: str) -> None:
-        if self._login_proc is not None or not self._login_available():
+        """One step of the painted glass."""
+        if self._login_busy() or not self._login_available():
             return
-        p = QProcess(self)
-        p.setProgram(str(self.PKEXEC))
-        p.setArguments([str(self.LOGIN_HELPER), *args])
-        p.finished.connect(lambda code, _status: self._login_finished(p, code, done))
-        p.errorOccurred.connect(lambda _e: self._login_finished(p, -1, done))
-        self._login_proc = p
+        self._run_login_steps([self._old_step(args, done)])
+
+    def _old_step(self, args: list[str], done: str) -> dict:
+        return {"helper": "old", "argv": [str(self.LOGIN_HELPER), *args], "stdin": b"", "done": done}
+
+    def _new_step(self, args: list[str], done: str, stdin: bytes = b"") -> dict:
+        return {"helper": "new", "cmd": args[0], "argv": [str(self.GLASS_LOGIN), *args], "stdin": stdin, "done": done}
+
+    def _run_login_steps(self, steps: list[dict]) -> bool:
+        """Run the steps one after the other, each through pkexec (each asks for the
+        password: the actions don't keep it). A step that fails or isn't allowed stops the
+        rest. False when nothing started (another step is running)."""
+        if self._login_proc is not None or not steps:
+            return False
+        self._login_steps = list(steps)
         self._login_note = ""
         self._login_failed = False
+        self._gl_picture_failed = False
+        self._next_login_step()
+        return True
+
+    def _next_login_step(self) -> None:
+        step = self._login_steps.pop(0)
+        p = QProcess(self)
+        p.setProgram(str(self.PKEXEC))
+        p.setArguments(step["argv"])
+        p.finished.connect(lambda code, _status: self._login_finished(p, code, step))
+        p.errorOccurred.connect(lambda e: self._login_finished(p, -1, step)
+                                if e == QProcess.ProcessError.FailedToStart else None)
+        self._login_proc = p
         self.loginGlassChanged.emit()
         p.start()
+        # The picture goes on stdin (pkexec passes it through): root never opens a file of
+        # the user's. Nothing else to send: stdin closes, so the helper never waits on it.
+        if step["stdin"]:
+            p.write(step["stdin"])
+        p.closeWriteChannel()
 
-    def _login_finished(self, p: QProcess, code: int, done: str) -> None:
+    def _login_finished(self, p: QProcess, code: int, step: dict) -> None:
         if self._login_proc is not p:
             return
         err = bytes(p.readAllStandardError()).decode(errors="replace").strip()
+        out = bytes(p.readAllStandardOutput()).decode(errors="replace").strip()
         self._login_proc = None
         p.deleteLater()
+        if code == 0 and self._login_steps:
+            self._next_login_step()
+            return
+        self._login_steps = []
         if code == 0:
-            self._login_note = done
+            self._login_note = step["done"]
         elif code in (126, 127):          # pkexec: the password dialog was closed or refused
             self._login_note = _("Not changed: the password wasn't given.")
+        elif step["helper"] == "new":
+            self._login_failed = True
+            self._login_note = self._glass_failure(code, out, err, step.get("cmd", ""))
         else:
             self._login_failed = True
             first = err.splitlines()[-1] if err else _("the helper didn't finish")
             self._login_note = first if first.startswith("Nothing was changed") else _("Nothing was changed: {reason}").format(reason=first)
         self._login_state = self._read_login_state()
+        self._read_glass_status()
+        self.loginGlassChanged.emit()
+
+    @staticmethod
+    def _glass_failure(code: int, out: str, err: str, cmd: str = "on") -> str:
+        """The new helper's exit codes, in plain words (login-contract.md)."""
+        if cmd == "off":
+            # `off` keeps going past a part it can't remove, then says 4: some of it may be
+            # gone already, so "nothing was changed" would not be true.
+            return _("The glass login screen could not be turned off completely. Try Turn off again, "
+                     "or restart your PC and try again.")
+        if code == 2:
+            reason = _("the login screen did not take these settings")
+        elif code == 3:
+            word = (out.split() or [""])[-1]
+            reason = loginlook.why_text(word if word in loginlook.WHY else "error")
+        elif code == 4:
+            reason = _("it could not be set up, so the normal login screen stays")
+        else:
+            reason = err.splitlines()[-1] if err else _("the helper didn't finish")
+        return _("Nothing was changed: {reason}").format(reason=reason)
+
+    # ---- the glass login screen: what it says now (fedora-glass-login status) ---------
+    def _read_glass_status(self) -> None:
+        """Ask the helper how the login screen is (no root needed), off the UI thread's
+        back: the answer comes with loginGlassChanged."""
+        if not self._root_owned(self.GLASS_LOGIN):
+            if self._gl_status is not None or self._gl_checking:
+                self._gl_status, self._gl_checking = None, False
+                self.loginGlassChanged.emit()
+            return
+        if self._gl_status_proc is not None:
+            self._gl_reread = True        # ask again once this answer is in
+            return
+        p = QProcess(self)
+        p.setProgram(str(self.GLASS_LOGIN))
+        p.setArguments(["status"])
+        p.setStandardInputFile(QProcess.nullDevice())
+        p.finished.connect(lambda code, _status: self._glass_status_done(p, code))
+        p.errorOccurred.connect(lambda e: self._glass_status_done(p, -1)
+                                if e == QProcess.ProcessError.FailedToStart else None)
+        QTimer.singleShot(self.GLASS_STATUS_TIMEOUT, p, p.kill)
+        self._gl_status_proc = p
+        p.start()
+
+    def _glass_status_done(self, p: QProcess, code: int) -> None:
+        if self._gl_status_proc is not p:
+            return
+        self._gl_status_proc = None
+        text = bytes(p.readAllStandardOutput()).decode(errors="replace")
+        p.deleteLater()
+        st = loginlook.parse_status(text) if code == 0 else None
+        if st is None:
+            # Not the helper's answer: nothing can be offered, and nothing is claimed to be on.
+            st = {"available": False, "why": "error", "state": "off", "stopped": "", "values": None,
+                  "picture_sha256": ""}
+        self._gl_status = st
+        self._gl_checking = False
+        if self._gl_reread:
+            self._gl_reread = False
+            self._read_glass_status()
+        self.loginGlassChanged.emit()
+
+    @Slot(result=bool)
+    def waitLoginGlass(self) -> bool:
+        """For tests and the screenshot mode: block until the status read, the picture and
+        any helper step have ended."""
+        from PySide6.QtCore import QCoreApplication, QElapsedTimer
+        timer = QElapsedTimer()
+        timer.start()
+        while (self._gl_status_proc is not None or self._gl_pic_task is not None or self._login_proc is not None) \
+                and timer.elapsed() < 30000:
+            QCoreApplication.processEvents()
+            QThread.msleep(5)
+        QCoreApplication.processEvents()
+        return self._gl_status_proc is None and self._gl_pic_task is None and self._login_proc is None
+
+    def _glass_on(self) -> bool:
+        st = self._gl_status
+        return bool(st) and st["state"] in ("on", "trial")
+
+    @Property(str, notify=loginGlassChanged)
+    def loginCardKind(self) -> str:
+        """Which login screen card the Lock and login page shows: "new" (the glass login
+        screen), "old" (the painted glass) or "" (none, or not known yet)."""
+        st = self._gl_status
+        old = "old" if self._login_state != "unavailable" else ""
+        if self._gl_checking:
+            return ""
+        if st is None:
+            return old
+        if st["available"] or st["state"] != "off" or not old:
+            return "new"
+        return "old"
+
+    @Property(str, notify=loginGlassChanged)
+    def glassLoginWhy(self) -> str:
+        """Why the glass login screen can't be offered here, for one quiet line under the
+        old card ("" when there is nothing to say)."""
+        st = self._gl_status
+        if st is None or st["available"] or self.loginCardKind != "old":
+            return ""
+        return _("The glass login screen that matches your lock screen is not available here: {reason}.").format(reason=loginlook.why_text(st["why"]))
+
+    def _glass_behind(self, s: Settings) -> bool:
+        """On (or on trial), but what the app would send now (values, or the copy of the
+        wallpaper) differs from what the login screen has."""
+        st = self._gl_status
+        if not self._glass_on():
+            return False
+        try:
+            want = self.glass_login_values(s)
+        except Exception:  # noqa: BLE001 (a colour that can't be read: say nothing)
+            return False
+        if st["values"] is None or not loginlook.same_values(st["values"], want):
+            return True
+        if want["picture"] != "wallpaper":
+            return False
+        pic = self._cached_login_picture()
+        if pic is None or pic[0] is None:
+            return False        # not ready yet (it says so once it is), or can't be read
+        return pic[1] != st["picture_sha256"]
+
+    @Property(str, notify=loginGlassChanged)
+    def glassLoginState(self) -> str:
+        """busy, off, trial, on, behind, stopped (turned itself off) or unavailable."""
+        st = self._gl_status
+        if self._login_busy():
+            return "busy"
+        if st is None:
+            return "unavailable"
+        if st["state"] in ("on", "trial"):
+            if not st["available"]:
+                return "unavailable"
+            return "behind" if self._glass_behind(self._saved) else st["state"]
+        if not st["available"]:
+            return "unavailable"
+        return "stopped" if st["stopped"] else "off"
+
+    @Property(str, notify=loginGlassChanged)
+    def glassLoginStatus(self) -> str:
+        """The card's status line, in plain words."""
+        state = self.glassLoginState
+        st = self._gl_status or {}
+        if state == "busy":
+            return _("Getting your wallpaper ready…") if self._gl_preparing else _("Waiting for your password…")
+        if state == "trial":
+            return _("On trial: log in once and it stays on")
+        if state == "on":
+            return _("On")
+        if state == "behind":
+            return _("Behind: Apply brings it up to date")
+        if state == "stopped":
+            return _("Turned itself off: {reason}").format(reason=loginlook.stopped_text(st.get("stopped", "")))
+        if state == "unavailable":
+            return _("Not available: {reason}").format(reason=loginlook.why_text(st.get("why", "error")))
+        return _("Off")
+
+    @Property(bool, notify=loginGlassChanged)
+    def glassLoginOn(self) -> bool:
+        """On or on trial: the card offers Turn off and See it now."""
+        return self._glass_on()
+
+    @Property(bool, notify=loginGlassChanged)
+    def glassLoginCanTurnOn(self) -> bool:
+        st = self._gl_status
+        return bool(st) and st["available"] and not self._glass_on() and self._glass_login_available()
+
+    @Property(bool, notify=loginGlassChanged)
+    def glassLoginReplacesPainted(self) -> bool:
+        """The painted glass is on: turning the glass login screen on takes it off (the
+        helper does, once the new glass is in)."""
+        return self._login_state in ("on", "undone")
+
+    @Property(bool, notify=loginGlassChanged)
+    def glassLoginPictureFailed(self) -> bool:
+        """The wallpaper could not be read for the login screen: the card offers Glow."""
+        return self._gl_picture_failed
+
+    @Property(str, notify=wallpaperChanged)
+    def loginWallpaper(self) -> str:
+        """The wallpaper the login screen copies (and its preview shows): the dark style's."""
+        return self._wallpaper_for(True)
+
+    @Property("QVariantMap", notify=settingsChanged)
+    def glassLoginLook(self) -> dict:
+        """The editor's login screen values, for the preview (it follows the sliders)."""
+        return self.glass_login_values(self._s)
+
+    def _get_login_match_lock(self) -> bool:
+        return self._s.login_match_lock
+
+    def _set_login_match_lock(self, on: bool) -> None:
+        """Switched off, the login screen's own values start as the lock screen's, so the
+        preview doesn't jump; choices made there before are kept."""
+        on = bool(on)
+        if on == self._s.login_match_lock:
+            return
+        values: dict = {"login_match_lock": on}
+        own = {"login_blur": "lock_blur", "login_dim": "lock_dim", "login_tint": "lock_tint", "login_card": "lock_card",
+               "login_clock": "lock_clock", "login_battery": "lock_widget_battery", "login_message": "lock_message"}
+        if not on and all(getattr(self._s, k) == getattr(Settings, k) for k in own):
+            values.update({k: getattr(self._s, lock) for k, lock in own.items()})
+        self._s = replace(self._s, **values).normalized()
+        self._changed()
+
+    loginMatchLock = Property(bool, _get_login_match_lock, _set_login_match_lock, notify=settingsChanged)
+
+    # ---- the glass login screen: the copy of the wallpaper ------------------------------
+    def _login_picture_path(self) -> str:
+        url = self._wallpaper_for(True)
+        return loginlook.picture_file(QUrl(url).toLocalFile() if url else "")
+
+    def _cached_login_picture(self) -> tuple[bytes | None, str] | None:
+        """(bytes or None when unreadable, their sha256) for the wallpaper as it is now, or
+        None while it is still being prepared (started here, on a worker thread). Kept by
+        the picture's path, change time and size, so this check costs a stat."""
+        key = wallcolour.picture_key(self._login_picture_path())
+        if not key:
+            return (None, "")
+        if self._gl_pic[0] == key:
+            return self._gl_pic[1]
+        self._prepare_login_picture()
+        return None
+
+    def _prepare_login_picture(self) -> None:
+        if self._gl_pic_task is not None:
+            return
+        path = self._login_picture_path()
+        key = wallcolour.picture_key(path)
+        if not key:
+            self._picture_ready((key, None))
+            return
+
+        def job(_report):
+            import hashlib
+            data = loginlook.prepare_picture(path)
+            return key, data, hashlib.sha256(data).hexdigest() if data else ""
+        task = _Task(job, self)
+        task.finishedWith.connect(self._login_picture_done)    # bound: arrives on the GUI thread
+        self._gl_pic_task = task
+        task.start()
+
+    @Slot(object)
+    def _login_picture_done(self, out: Any) -> None:
+        task, self._gl_pic_task = self._gl_pic_task, None
+        if task is not None:
+            task.wait()
+            task.deleteLater()
+        if isinstance(out, tuple) and len(out) == 3:
+            key, data, sha = out
+            self._gl_pic = (key, (data, sha))
+            # The wallpaper changed while it was being read: read the new one too.
+            if wallcolour.picture_key(self._login_picture_path()) != key:
+                self._prepare_login_picture()
+                return
+        else:
+            self._gl_pic = ("", (None, ""))
+        self._picture_ready(self._gl_pic)
+
+    def _picture_ready(self, entry: tuple) -> None:
+        waiters, self._gl_pic_waiters = self._gl_pic_waiters, []
+        data = entry[1][0] if isinstance(entry[1], tuple) else None
+        self._gl_preparing = False
+        for cb in waiters:
+            cb(data)
+        self.loginGlassChanged.emit()
+
+    def _with_login_picture(self, then: Callable[[bytes | None], None]) -> None:
+        """Call `then` with the wallpaper's bytes (None: it can't be read), right away when
+        they are ready, else once they are. Meanwhile the card shows it is busy."""
+        pic = self._cached_login_picture()
+        if pic is not None:
+            then(pic[0])
+            return
+        self._gl_pic_waiters.append(then)
+        self._gl_preparing = True
+        self.loginGlassChanged.emit()
+
+    # ---- the glass login screen: turning it on and off ------------------------------------
+    def _glass_on_steps(self, s: Settings, done: str, before: list[dict], then: Callable[[list[dict]], None]) -> None:
+        """Build the `on` step for look s (with its picture) and hand the steps to `then`;
+        a wallpaper that can't be read stops here, said in plain words."""
+        values = self.glass_login_values(s)
+        arg = json.dumps(values, separators=(",", ":"), ensure_ascii=False)
+
+        def go(data: bytes | None) -> None:
+            if values["picture"] == "wallpaper" and not data:
+                self._login_failed = True
+                self._gl_picture_failed = True
+                self._login_note = _("Your wallpaper could not be read, so the login screen was not changed. "
+                                     "Glow or the system picture work without it.")
+                self.loginGlassChanged.emit()
+                return
+            then([*before, self._new_step(["on", arg], done, data or b"")])
+        if values["picture"] == "wallpaper":
+            self._with_login_picture(go)
+        else:
+            go(None)
+
+    @Slot()
+    def turnOnGlassLogin(self) -> None:
+        """Turn on the glass login screen with the look applied last (Apply brings newer
+        changes along). The painted glass, if on, is the helper's to take off: it does so
+        only once the new glass is in, and puts everything back if it can't, so this is
+        one password prompt and never a login screen with neither."""
+        if self._login_busy() or not self.glassLoginCanTurnOn:
+            return
+        self._login_note = ""
+        self._login_failed = False
+        self._gl_picture_failed = False
+        self._glass_on_steps(self._saved, _("The glass login screen is on trial. Log in once after your next restart and it stays on."),
+                             [], self._run_login_steps)
+
+    @Slot()
+    def useGlowForLogin(self) -> None:
+        """The wallpaper can't be read: use the glow instead, saved straight away (it goes
+        on the login screen now, so settings.json must say so), and turn it on."""
+        if self._login_busy() or not self._save_at_once(login_picture="glow"):
+            return
+        self._gl_picture_failed = False
+        if self._glass_on():
+            self._glass_on_steps(self._saved, _("The login screen has your new look."), [], self._run_login_steps)
+        else:
+            self.turnOnGlassLogin()
+
+    @Slot()
+    def turnOffGlassLogin(self) -> None:
+        if self._login_busy() or not self._glass_login_available():
+            return
+        self._run_login_steps([self._new_step(["off"], _("The normal login screen is back."))])
+
+    def _login_refresh(self, s: Settings) -> None:
+        """After Apply: bring whichever login screen glass is on up to date (one password
+        prompt each, only when it is behind)."""
+        old = _("The login screen has your new look. You'll see it the next time you restart your PC.")
+        if self._glass_behind(s) and self._glass_login_available():
+            # The painted glass is never on beside it (turning this on took it off).
+            self._glass_on_steps(s, _("The login screen has your new look. You'll see it the next time it shows."),
+                                 [], self._run_login_steps)
+        elif self._login_stale(s):
+            self._run_login(["apply", *self.login_values(s)], old)
+        else:
+            self.loginGlassChanged.emit()
+
+    def _login_off_after_restore(self) -> None:
+        """Restore original: the normal login screen comes back too. The password is asked
+        for only when one of them is actually on."""
+        steps = []
+        if self._glass_on() and self._glass_login_available():
+            steps.append(self._new_step(["off"], _("The normal login screen is back.")))
+        if self._login_state in ("on", "undone") and self._login_available():
+            steps.append(self._old_step(["undo"], _("The normal login screen is back.")))
+        self._run_login_steps(steps)
+
+    # ---- See it now -------------------------------------------------------------------------
+    @Property(str, notify=loginGlassChanged)
+    def glassLoginSeeNote(self) -> str:
+        return self._gl_see_note
+
+    @Slot()
+    def seeLoginScreen(self) -> None:
+        """Lock this session, then ask GDM for a login screen beside it (as Switch User
+        does): the apps stay open. Where switching users is off, GDM refuses; then only a
+        restart or logging out shows it."""
+        gdbus = self._env.which("gdbus")
+        self._gl_see_note = ""
+        if not gdbus or self._user_switching_off():
+            self._see_failed()
+            return
+        lock = QProcess(self)
+        lock.finished.connect(lambda _c, _s: self._create_login_display(lock, gdbus))
+        lock.errorOccurred.connect(lambda e: self._create_login_display(lock, gdbus)
+                                   if e == QProcess.ProcessError.FailedToStart else None)
+        self._gl_see_proc = lock
+        lock.start(gdbus, ["call", "--session", "--dest", "org.gnome.ScreenSaver",
+                           "--object-path", "/org/gnome/ScreenSaver", "--method", "org.gnome.ScreenSaver.Lock"])
+        self.loginGlassChanged.emit()
+
+    def _user_switching_off(self) -> bool:
+        try:
+            v = self._env.gsettings_get("org.gnome.desktop.lockdown", "disable-user-switching")
+        except Exception:  # noqa: BLE001 (can't tell: try, GDM says no if it must)
+            return False
+        return (v or "").strip() == "true"
+
+    def _create_login_display(self, lock: QProcess, gdbus: str) -> None:
+        if self._gl_see_proc is not lock:
+            return
+        lock.deleteLater()
+        p = QProcess(self)
+        p.finished.connect(lambda code, _s: self._see_done(p, code))
+        p.errorOccurred.connect(lambda e: self._see_done(p, -1) if e == QProcess.ProcessError.FailedToStart else None)
+        self._gl_see_proc = p
+        p.start(gdbus, ["call", "--system", "--dest", "org.gnome.DisplayManager",
+                        "--object-path", "/org/gnome/DisplayManager/LocalDisplayFactory",
+                        "--method", "org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay"])
+
+    def _see_done(self, p: QProcess, code: int) -> None:
+        if self._gl_see_proc is not p:
+            return
+        self._gl_see_proc = None
+        p.deleteLater()
+        if code != 0:
+            self._see_failed()
+        else:
+            self.loginGlassChanged.emit()
+
+    def _see_failed(self) -> None:
+        self._gl_see_proc = None
+        self._gl_see_note = _("This PC can't open the login screen beside your session. Restart or log out to see it.")
         self.loginGlassChanged.emit()
 
     # ---- removing the app --------------------------------------------------------

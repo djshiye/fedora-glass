@@ -1,0 +1,48 @@
+# Fedora Glass: started by fedora-glass-login-guard-check.path during a trial of the glass
+# login screen. A login through it ends the trial; a crash note turns it off.
+[Unit]
+Description=Fedora Glass: check the glass login screen after a login
+Documentation=https://github.com/djshiye/fedora-glass
+ConditionPathExists=/var/lib/fedora-glass/login/trial
+RequiresMountsFor=/var/lib/fedora-glass /etc/dconf
+# No start limit: session files change many times at every login, and hitting the limit
+# would make the path unit stop watching for good.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# Session files change many times within a second at a login. One run a second later sees
+# all of it, including the note the login screen writes when the password was right. (The
+# path unit starts nothing new while this runs, so this also keeps it to one run a second.)
+ExecStartPre=/usr/bin/sleep 1
+ExecStart=/usr/libexec/fedora-glass-login guard check
+TimeoutStartSec=15
+UMask=0022
+
+# The same limits as fedora-glass-login-guard.service (see there for why).
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=-/etc/dconf -/etc/fedora-glass -/var/lib/fedora-glass
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+PrivateIPC=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native

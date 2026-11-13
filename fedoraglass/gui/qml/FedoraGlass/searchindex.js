@@ -73,6 +73,10 @@ var entries = [
     { en: "Unlock slide time", title: qsTr("Unlock slide time"), ew: "unlock slide time speed duration slower faster lock", tw: qsTr("unlock slide time speed duration slower faster lock"), page: "lock", name: "lockSlideMs" },
     { en: "Unlock bounce", title: qsTr("Unlock bounce"), ew: "unlock bounce spring dip lock", tw: qsTr("unlock bounce spring dip lock"), page: "lock", name: "lockBounce" },
     { en: "Glass login screen", title: qsTr("Glass login screen"), ew: "login gdm greeter screen password", tw: qsTr("login gdm greeter screen password"), page: "lock", name: "loginCard", needs: "login" },
+    { en: "Glass login screen", title: qsTr("Glass login screen"), ew: "login gdm greeter screen password turn on off", tw: qsTr("login gdm greeter screen password turn on off"), page: "lock", name: "loginGlassCard", needs: "loginNew" },
+    { en: "Login screen matches my lock screen", title: qsTr("Login screen matches my lock screen"), ew: "login match same lock screen gdm", tw: qsTr("login match same lock screen gdm"), page: "lock", name: "loginMatchLock", needs: "loginNew" },
+    { en: "Login screen picture", title: qsTr("Login screen picture"), ew: "login wallpaper picture background glow system gdm", tw: qsTr("login wallpaper picture background glow system gdm"), page: "lock", name: "loginPicture", needs: "loginNew" },
+    { en: "See the login screen now", title: qsTr("See the login screen now"), ew: "login see show preview switch user gdm", tw: qsTr("login see show preview switch user gdm"), page: "lock", name: "loginSeeNow", needs: "loginOn" },
     // Apps
     { en: "Apps that get themed", title: qsTr("Apps that get themed"), ew: "apps gtk libadwaita libreoffice firefox themed targets", tw: qsTr("apps gtk libadwaita libreoffice firefox themed targets"), page: "apps", name: "appsList" },
     // Advanced

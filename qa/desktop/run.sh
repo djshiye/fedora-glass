@@ -32,6 +32,11 @@
 #                       overview's dash, Adwaita), no extensions, one screen at 100 %, and the stock
 #                       checks (Apply, the overview's dash and search, Restore original).
 # --with-dock           with --stock-desktop: Dash to Dock on, as many stock users add it.
+# --login-screen        instead of a desktop: the GDM login screen (GNOME Shell in gdm mode, one screen,
+#                       1920x1080 unless --screen says otherwise) with the Fedora Glass login add-on, and
+#                       the login checks (checks/login_checks.py). Goes with --gnome 50 or 51. Its reference
+#                       pictures are in references/login/gnomeN/, and full-size pictures of each look are
+#                       saved in the report folder's pictures/.
 # LGQA_BUILD_ARGS / LGQA_RUN_ARGS: extra arguments for docker build / docker run (podman on SELinux
 #                       needs LGQA_RUN_ARGS="--security-opt label=disable" to read the mounted folders).
 # --build-only          build the test desktop image (the base image) and stop. The release checks build
@@ -44,7 +49,7 @@
 set -euo pipefail
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/../.." && pwd)
-SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" BUILD_ONLY="" IMAGE_INFO="" FROM="" SCREEN=2000x1125 GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" NAME=${LGQA_NAME:-lgqa-$$}
+SRC=$ROOT OUT=$ROOT/qa-report ONLY="" UPDATE="" KEEP="" START_ONLY="" BUILD_ONLY="" IMAGE_INFO="" FROM="" SCREEN=2000x1125 SCREEN_SET="" GNOME=50 UBUNTU="" STOCK="" STOCK_EXTS="" LOGIN="" NAME=${LGQA_NAME:-lgqa-$$}
 while [ $# -gt 0 ]; do
     case $1 in
         --source) SRC=$(cd "$2" && pwd); shift ;;
@@ -53,11 +58,12 @@ while [ $# -gt 0 ]; do
         --update-references) UPDATE=--update-references ;;
         --out) OUT=$2; shift ;;
         --keep) KEEP=1 ;;
-        --screen) SCREEN=$2; shift ;;
+        --screen) SCREEN=$2; SCREEN_SET=1; shift ;;
         --gnome) GNOME=$2; shift ;;
         --ubuntu-desktop) UBUNTU=1 ;;
         --stock-desktop) STOCK=1 ;;
         --with-dock) STOCK_EXTS=dash-to-dock@micxgx.gmail.com ;;
+        --login-screen) LOGIN=1 ;;
         --start-only) KEEP=1 START_ONLY=1 ;;
         --build-only) BUILD_ONLY=1 ;;
         --image-info) IMAGE_INFO=1 ;;
@@ -120,6 +126,15 @@ elif [ -n "$STOCK_EXTS" ]; then
     echo "--with-dock goes with --stock-desktop" >&2; exit 64
 fi
 
+ENTRY=/opt/lgqa/suite/container/start.sh EXEC_USER=dino
+if [ -n "$LOGIN" ]; then
+    [ -z "$UBUNTU$STOCK$FROM" ] || { echo "--login-screen is a lane of its own" >&2; exit 64; }
+    [ "$GNOME" != 52 ] || { echo "--login-screen goes with --gnome 50 or 51" >&2; exit 64; }
+    # The greeter runs as its own user; the checks switch the add-on on as root, as the root helper does.
+    ENTRY=/opt/lgqa/suite/container/login-session.sh EXEC_USER=root CHECKS=login_checks.py SESSION=login-session
+    [ -n "$SCREEN_SET" ] || SCREEN=1920x1080
+fi
+
 if [ -n "$BUILD_ONLY" ]; then echo "The $IMAGE image is ready."; exit 0; fi
 
 rm -rf "$OUT"; mkdir -p "$OUT"; chmod 0777 "$OUT"
@@ -138,7 +153,7 @@ trap cleanup EXIT
 # No network inside: nothing at run time needs it.
 docker run -d --name "$NAME" --network none --hostname lgqa --shm-size 1g -e LGQA_SCREEN="$SCREEN" -e LGQA_GNOME="$HARNESS_GNOME" -e LGQA_SESSION="$SESSION" -e LGQA_STOCK_EXTS="$STOCK_EXTS" ${LGQA_RUN_ARGS:-} \
     -v "$SRC":/src:ro -v "$SUITE":/opt/lgqa/suite:ro -v "$OUT":/out ${FROM:+-v "$FROM":/from:ro} \
-    "$IMAGE" /opt/lgqa/suite/container/start.sh >/dev/null
+    "$IMAGE" "$ENTRY" >/dev/null
 
 for _ in $(seq 120); do
     docker logs "$NAME" 2>&1 | grep -q READY && break
@@ -154,12 +169,13 @@ fi
 
 if [ -n "$START_ONLY" ]; then echo "Test desktop $NAME is running."; exit 0; fi
 set +e
-docker exec -u dino -e LGQA_OUT=/out "$NAME" python3 "/opt/lgqa/suite/checks/$CHECKS" $ONLY $UPDATE
+docker exec -u "$EXEC_USER" -e LGQA_OUT=/out "$NAME" python3 "/opt/lgqa/suite/checks/$CHECKS" $ONLY $UPDATE
 rc=$?
 set -e
 if [ -n "$UPDATE" ] && [ -d "$OUT/new-references" ]; then
     REFDIR="$SUITE/references"; [ "$GNOME" = 50 ] || REFDIR="$REFDIR/gnome$GNOME"
-    [ "${SCREEN%@*}" = 2000x1125 ] || REFDIR="$REFDIR/${SCREEN%@*}"
+    [ -z "$LOGIN" ] || REFDIR="$SUITE/references/login/gnome$GNOME"
+    [ "${SCREEN%@*}" = 2000x1125 ] || [ -n "$LOGIN" ] || REFDIR="$REFDIR/${SCREEN%@*}"
     mkdir -p "$REFDIR"
     cp "$OUT"/new-references/*.png "$REFDIR/"
     echo "Reference pictures updated in $REFDIR."

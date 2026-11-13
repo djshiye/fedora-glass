@@ -1103,6 +1103,9 @@ function screenScale(a) {
 const TARGET_STEP = 32;
 // How long a hidden pane keeps its picture (a menu opened again soon has it ready).
 const DROP_HIDDEN_MS = 3000;
+// How many frames a pane looks again for a source that has no place on the stage yet
+// (see GlassPane._lookAgain).
+const PLACE_TRIES = 30;
 
 // A picture let go of is freed only when GJS collects its JS object, and GJS knows
 // nothing of the graphics memory behind it: closing a few windows left hundreds of
@@ -1949,6 +1952,8 @@ class FedoraGlassPane extends Clutter.Actor {
         // Hidden (a menu closed, the panel's screen gone): let go of the picture after
         // a little while, so a closed menu keeps no copy of what was behind it.
         this._dropLater = 0;
+        this._placeLater = 0;       // see _lookAgain
+        this._placeTries = 0;
         this.connect('notify::mapped', () => {
             if (this._dropLater)
                 GLib.source_remove(this._dropLater);
@@ -1966,6 +1971,9 @@ class FedoraGlassPane extends Clutter.Actor {
             if (this._fullLater)
                 global.compositor.get_laters().remove(this._fullLater);
             this._fullLater = 0;
+            if (this._placeLater)
+                global.compositor.get_laters().remove(this._placeLater);
+            this._placeLater = 0;
             if (this._dropLater)
                 GLib.source_remove(this._dropLater);
             this._dropLater = 0;
@@ -2051,6 +2059,7 @@ class FedoraGlassPane extends Clutter.Actor {
             let clone = this._clones.get(src);
             if (!clone) {
                 restack = true;
+                this._placeTries = 0;   // a new source: look for its place anew (see _lookAgain)
                 clone = src.meta_window && QUIET_COPIES ? new WindowCopy({source: src}) : new GlassClone({source: src});
                 // A clone outlives its source, so a source that goes away takes its copy with it.
                 const ids = [src.connect('destroy', () => {
@@ -2067,9 +2076,15 @@ class FedoraGlassPane extends Clutter.Actor {
                 if (!QUIET_COPIES && GObject.signal_lookup('damaged', src.constructor.$gtype))
                     ids.push(src.connect('damaged', () => frozen.has(src) || this._glass.behindChanged()));
                 // A source made in the same frame (the wallpaper, right after the
-                // extension is turned on) has no place yet: copy it once it has one.
-                if (!src.meta_window)
-                    ids.push(src.connect('notify::allocation', () => this._stage && this._syncClones()));
+                // extension is turned on) has no place yet: copy it once it has one
+                // (and see _lookAgain for when that is still too early).
+                if (!src.meta_window) {
+                    ids.push(src.connect('notify::allocation', () => {
+                        this._placeTries = 0;
+                        if (this._stage)
+                            this._syncClones();
+                    }));
+                }
                 clone.connect('destroy', () => {
                     if (this._clones.get(src) === clone)
                         this._clones.delete(src);
@@ -2239,6 +2254,7 @@ class FedoraGlassPane extends Clutter.Actor {
 
     _syncClones() {
         const kept = this._kept();
+        let unplaced = false;
         for (const [src, clone] of this._clones) {
             // Held, the copies of windows behind are hidden: a hidden copy does not
             // pass its window's redraws on, so the pane is not even asked to show its
@@ -2259,7 +2275,8 @@ class FedoraGlassPane extends Clutter.Actor {
             const r = src.meta_window?.get_buffer_rect();
             const [bx, by] = r ? [r.x, r.y] : src.get_transformed_position();
             if (!Number.isFinite(bx) || !Number.isFinite(by)) {
-                clone.hide();   // not allocated yet
+                clone.hide();   // not laid out yet
+                unplaced = true;
                 continue;
             }
             const [cx, cy] = [Math.round(bx - this._stage[0]), Math.round(by - this._stage[1])];
@@ -2274,6 +2291,36 @@ class FedoraGlassPane extends Clutter.Actor {
             if (moved)
                 this.queueFull();
         }
+        if (unplaced) {
+            this._lookAgain();
+        } else {
+            this._placeTries = 0;
+            if (this._placeLater)
+                global.compositor.get_laters().remove(this._placeLater);
+            this._placeLater = 0;
+        }
+    }
+
+    /**
+     * A source has a place on the stage only once everything above it is laid out as
+     * well, and its own 'notify::allocation' can come before that: GNOME Shell lays the
+     * children of its uiGroup out on their own, so at a slow start the login screen's
+     * picture was laid out before the uiGroup ever was. Nothing told the pane when the
+     * uiGroup followed (the picture's own box stayed the same), so the copy stayed
+     * hidden and the glass showed nothing behind it: a dark login screen. So look
+     * again before each of the next frames, until every source has its place; a source
+     * that never gets one (it is hidden) is given up on after PLACE_TRIES frames, until
+     * it is laid out anew or the pane gets a new source.
+     */
+    _lookAgain() {
+        if (this._placeLater || this._placeTries >= PLACE_TRIES)
+            return;
+        this._placeTries++;
+        this._placeLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._placeLater = 0;
+            this._syncClones();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     /**

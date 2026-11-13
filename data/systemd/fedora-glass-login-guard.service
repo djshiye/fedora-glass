@@ -1,0 +1,66 @@
+# Fedora Glass: the boot guard of the glass login screen. Runs before the display manager on
+# every boot while the glass login screen is on (or on trial), and turns it off by itself
+# when the last login screen crashed, when nobody managed to log in through it during its
+# trial, when the kernel command line says fedora-glass-login=off, or when anything is not as
+# expected. Otherwise it heals and re-checks the switch. It always ends with success and
+# never holds up the boot for long.
+[Unit]
+Description=Fedora Glass: check the glass login screen before it starts
+Documentation=https://github.com/djshiye/fedora-glass
+# Either file: state.json while it is on, `leaving` while an off has not got all the way
+# (then the guard only finishes that off).
+ConditionPathExists=|/var/lib/fedora-glass/login/state.json
+ConditionPathExists=|/var/lib/fedora-glass/login/leaving
+After=local-fs.target
+Before=display-manager.service gdm.service gdm3.service
+RequiresMountsFor=/var/lib/fedora-glass /etc/dconf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/fedora-glass-login guard boot
+# A trial the guard itself starts at boot (after an update of the add-on or of GNOME Shell)
+# comes after the watcher for the first login was looked at in this boot, when there was no
+# trial yet. So the watcher is started again here; without a trial it does nothing.
+ExecStartPost=-/usr/bin/systemctl --no-block start fedora-glass-login-guard-check.path
+# Its worst case: up to 10 s waiting for a change that is still running, then GNOME Shell's
+# version, a few dconf reads and compiles, each with its own time limit, on a slow first
+# boot. Stopped by this timeout anyway, it rolls everything back and turns the glass off,
+# and the plain login screen comes up.
+TimeoutStartSec=45
+UMask=0022
+
+# What it needs: read GDM's working folder, whose seat state folders (mode 0700) belong to
+# whichever throwaway user GDM made for the last login screen, so CAP_DAC_READ_SEARCH and
+# nothing else (no owner is ever checked); write only below
+# /etc/dconf, /etc/fedora-glass and /var/lib/fedora-glass, all root's own (no capability is
+# needed to write or chmod root's own files). It runs dconf and `gnome-shell --version`,
+# which need no network, devices or new privileges.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=-/etc/dconf -/etc/fedora-glass -/var/lib/fedora-glass
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+PrivateIPC=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=graphical.target

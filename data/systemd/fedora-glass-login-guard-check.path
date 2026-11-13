@@ -1,0 +1,13 @@
+# Fedora Glass: while the glass login screen is on trial, look at its health note each time
+# a login session appears, so a login through it ends the trial in the same boot.
+[Unit]
+Description=Fedora Glass: watch for a login through the glass login screen
+Documentation=https://github.com/djshiye/fedora-glass
+ConditionPathExists=/var/lib/fedora-glass/login/trial
+
+[Path]
+PathChanged=/run/systemd/sessions
+Unit=fedora-glass-login-guard-check.service
+
+[Install]
+WantedBy=graphical.target

@@ -20,6 +20,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GlassPane} from './glass.js';
 import {Signals, clockMiddle, notificationsTop} from './common.js';
+import {CARD_PAD, CLOCK_STYLES, cardLook, sheetLook} from './locklook.js';
 import {Wallpaper} from './wallpaper.js';
 
 // Focus ring and caret for the password field, loaded only while locked.
@@ -28,34 +29,6 @@ const STYLESHEET = Gio.File.new_for_uri(import.meta.url).get_parent().get_child(
 const SLIDE_MAX_MS = 1500;      // the longest slide the settings allow
 const STALL_MS = 100;           // a frame later than this means the desktop was busy waking up
 const HOLD_MAX_MS = 1200;       // never hold the slide back longer than this in all
-const CARD_PAD = 28;            // px of glass around the password prompt
-const CLOCK_STYLES = {
-    bold: {time: 'font-size: 96pt; font-weight: 800;', date: 'font-weight: 600;'},
-    thin: {time: 'font-size: 92pt; font-weight: 200;', date: 'font-weight: 400;'},
-};
-
-// The sheet is calm: no pointer light, no motion, no colour bleed. Its ceiling
-// keeps the white clock readable on any wallpaper: at most linear Y 0.13, which
-// is 5.8:1 against white.
-const SHEET_CEILING = 0.13;
-// The card sits a little deeper than the sheet on bright wallpapers (6.6:1), so the
-// name, the messages and GNOME's lighter password field on it stay readable too.
-const CARD_CEILING = 0.11;
-
-function sheetLook(c) {
-    return {blur: c.blur, refraction: 34, bend: 40, depth: 0.2, dispersion: 0.25, saturation: 1.35,
-        brightness: c.dim, tint: c.tint, highlight: 0.5, bleed: 0, pointerLight: 0, motion: 0,
-        adapt: 0, shadow: 0, ceiling: SHEET_CEILING, solid: 1, rim: 0};
-}
-
-function cardLook(c) {
-    const [r, g, b, a] = c.tint;
-    // A shallow lens: on a plain backdrop a deep edge only reads as darker bands.
-    return {...sheetLook(c), refraction: 12, bend: 16, depth: 0.12, dispersion: 0.15,
-        brightness: Math.min(1, c.dim + 0.12), tint: [r, g, b, Math.min(1, a * 0.6)], highlight: 0.55,
-        ceiling: CARD_CEILING, solid: 0, rim: 0.6};
-}
-
 /** The one of `actors` (children of `parent`) that is drawn on top of the others. */
 export function topmost(parent, actors) {
     const kids = parent.get_children();

@@ -22,15 +22,12 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {loadInterfaceXML} from 'resource:///org/gnome/shell/misc/fileUtils.js';
 
 import {Signals} from './common.js';
+import {CHIP, CHIP_TEXT, MESSAGE, batteryIcon} from './locklook.js';
 import {_} from './strings.js';
 
 const TICK_S = 60;                 // the greeting follows the time of day (when GNOME's clock can't say)
 const WEATHER_EVERY_US = 30 * 60 * 1000000;   // ask GNOME's weather for fresh numbers every 30 minutes
 export const MESSAGE_MAX = 120;
-
-// UPower's device states (UPowerGlib.DeviceState), as numbers so this file needs no
-// extra library: if one were missing, the whole extension would fail to load.
-const CHARGING = 1, FULLY_CHARGED = 4;
 
 const UPOWER = 'org.freedesktop.UPower';
 const DISPLAY_DEVICE = '/org/freedesktop/UPower/devices/DisplayDevice';
@@ -40,17 +37,14 @@ function deviceProxy() {
     return DeviceProxy;
 }
 
-const TEXT = 'color: #ffffff; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.35);';
+const TEXT = CHIP_TEXT;
 const STYLES = {
     // A small pane of glass: lighter than the frosted sheet under it, a bright top rim,
     // a soft shadow. The sheet's own ceiling keeps the white text readable on it.
     chips: {
         row: 'spacing: 10px; margin-top: 22px;',
-        chip: 'background-color: rgba(255,255,255,0.11); border: 1px solid rgba(255,255,255,0.17); ' +
-            'border-top-color: rgba(255,255,255,0.32); border-radius: 999px; padding: 7px 16px 7px 13px; ' +
-            'spacing: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.16);',
-        message: 'background-color: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.14); ' +
-            'border-top-color: rgba(255,255,255,0.26); border-radius: 16px; padding: 9px 16px; margin-top: 12px;',
+        chip: CHIP,
+        message: MESSAGE,
     },
     plain: {
         row: 'spacing: 22px; margin-top: 18px;',
@@ -58,6 +52,9 @@ const STYLES = {
         message: 'margin-top: 10px; padding: 2px 0;',
     },
 };
+
+// The battery icon is shared with the login screen (locklook.js).
+export {batteryIcon};
 
 export function greetingFor(hour) {
     if (hour >= 5 && hour < 12)
@@ -76,13 +73,6 @@ export function greetingFor(hour) {
  */
 export function weatherDue(lastUs, nowUs) {
     return !lastUs || nowUs - lastUs >= WEATHER_EVERY_US || nowUs < lastUs;
-}
-
-export function batteryIcon(percent, state) {
-    const level = 10 * Math.floor(Math.max(0, Math.min(100, percent)) / 10);
-    if (state === FULLY_CHARGED || (state === CHARGING && level === 100))
-        return 'battery-level-100-charged-symbolic';
-    return `battery-level-${level}${state === CHARGING ? '-charging' : ''}-symbolic`;
 }
 
 /** The weather GNOME's calendar menu keeps for its owner, or null. Read only. */

@@ -21,7 +21,7 @@ from . import shell
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
-         "lock.js", "lock.css", "lockwidgets.js", "frost.js", "frostmath.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
+         "lock.js", "lock.css", "locklook.js", "lockwidgets.js", "frost.js", "frostmath.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "grabhover.js", "grabmove.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
          "speed.js", "tuning.js", "popupstyle.js", "paused.js", "pausestate.js", "stackclip.js", "prefs.js", "power.js",
          "quicktoggle.js", "strings.js", "tile.js", "glass-symbolic.svg")

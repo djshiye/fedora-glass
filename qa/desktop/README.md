@@ -69,6 +69,7 @@ qa/desktop/run.sh --screen 2560x1440       # at the size of Dino's two screens
 qa/desktop/run.sh --gnome 51               # the same on GNOME 51
 qa/desktop/run.sh --ubuntu-desktop         # a stock Ubuntu desktop instead (add --gnome 51 for 26.10)
 qa/desktop/run.sh --stock-desktop          # stock GNOME, no extensions (add --with-dock for Dash to Dock)
+qa/desktop/run.sh --login-screen           # the glass on GDM's login screen (add --gnome 51), about 12 minutes
 ```
 
 The test desktop image is built once and then reused for as long as nothing it is built
@@ -107,6 +108,24 @@ pinned by commit). It takes pictures of the stock desktop and overview, presses 
 logs in again, then checks that GNOME started on the desktop with every app icon still in
 the overview's dash, that glass is behind the top bar, the dash and the dock, and that
 Restore original brings every setting and the look back.
+
+`--login-screen` checks the login screen add-on on GDM's login screen, as close as a
+container gets without GDM itself (`container/login-session.sh`): GNOME Shell in its `gdm`
+session mode as a greeter user with the environment GDM gives it (dconf profile `gdm`, a
+state folder per seat, GNOME's own test switch `GDM_GREETER_TEST=1`), Dino in the user list,
+and the add-on installed root-owned into GDM's extension folder as the package does. The real
+root helper switches it on. `checks/login_checks.py` then checks GNOME's plain login screen
+first, then: the health note, that the glass is the bottom, input-less child of the lock
+dialog group, one sheet per screen, the wallpaper in the glass, typing and Tab order unchanged,
+the card with the prompt, a password check written down, disabling taking everything away,
+each clock, the glow and system pictures, the light style, high contrast followed live, a
+crashed start staying safe, a broken look.json drawing nothing while the login still works,
+two screens at 125 % with no stripe at the seam and a spanned picture going on across it, the
+card hugging the prompt (also with GNOME's message after a wrong password), a picture that
+does not decode or never loads giving the glow and never a black screen, GNOME Shell killed
+twice in a row leading to safe, and no repaint storm at rest. Its pictures are compared against
+`references/login/gnome50/` and `references/login/gnome51/` (1920x1080, the size GDM most
+often draws at).
 
 The screens are 2000x1125 by default, which keeps a run quick. `--screen 2560x1440` runs
 the same checks on two screens the size of Dino's, against the pictures in
