@@ -7,6 +7,7 @@ import GLib from 'gi://GLib';
 
 import {DEFAULT_LOOK} from './glass.js';
 import {cleanMotion} from './curves.js';
+import {cleanFrost} from './frostmath.js';
 import {cleanQuality} from './tuning.js';
 
 const MAX_BYTES = 64 * 1024;
@@ -225,6 +226,8 @@ export function parse(text) {
     cfg.speed = {quality: cleanQuality(raw.speed), lighterOnBattery: speed.lighterOnBattery !== false};
     // The "Glass" tile in Quick Settings that pauses the glass (quicktoggle.js); on unless it says off.
     cfg.quickToggle = {enabled: !(raw.quickToggle && typeof raw.quickToggle === 'object' && raw.quickToggle.enabled === false)};
+    // Weather frost (frost.js): off unless the user turned it on.
+    cfg.weather = cleanFrost(raw.weather);
     cfg.popupCss = cleanPopupCss(raw.popupCss);
     // While paused or in safe mode: the theme's surfaces nearly solid (paused.js), with the
     // same checks as the pop-up rules; how solid Dash to Panel's panel gets then.

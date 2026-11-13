@@ -7,6 +7,7 @@ const STUBS = {
         idle_add: (_p, fn) => globalThis.fake.timeouts.add(0, fn),
         source_remove: id => globalThis.fake.timeouts.remove(id),
         get_monotonic_time: () => globalThis.fake.now?.() ?? 0,
+        get_real_time: () => globalThis.fake.realNow?.() ?? globalThis.fake.now?.() ?? 0,
         PRIORITY_LOW: 300,
         timeout_add_seconds: (_p, s, fn) => globalThis.fake.timeouts.add(s * 1000, fn),
         get_language_names: () => globalThis.fake?.languages ?? ['C'],
@@ -136,6 +137,7 @@ const STUBS = {
     export function freezeSource() {} export function thawSource() {}
     export function moving() {} export function stopMoving() {} export function releaseAllPanes() {}
     export function setQuality(l) { globalThis.fake.quality = l; }
+    export function setFrost(f, k) { (globalThis.fake.frosts ??= []).push([f, k]); }
     export function glassRenders() { return globalThis.fake.renders ?? 0; }
     export function redrawAllPanes() {}
     export function shownPanes() { return globalThis.fake.shown ?? 0; }`,

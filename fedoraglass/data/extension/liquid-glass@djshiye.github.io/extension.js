@@ -20,6 +20,7 @@ import {Animations} from './animations.js';
 import {ArcMenuRescue} from './arcrescue.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
+import {WeatherFrost} from './frost.js';
 import {LockGlass} from './lock.js';
 import {LockWidgets} from './lockwidgets.js';
 import {PausedStyle} from './paused.js';
@@ -50,6 +51,7 @@ export default class FedoraGlassExtension extends Extension {
         this._config = new Config(guarded('settings change', cfg => {
             this._speed?.update(cfg);
             this._manager?.update(this._effective(cfg));
+            this._frost?.update(cfg);
             this._desktop?.update(cfg);
             this._lock?.update(cfg);
             this._widgets?.update(cfg);
@@ -218,6 +220,14 @@ export default class FedoraGlassExtension extends Extension {
         // An unlock right after a lock: the old sheet goes first (both use the same file).
         this._dropPausedStyle();
         this._dropLeavingPopups();
+        // Weather frost: off unless the user turned it on. With the glass, so a pause or
+        // safe mode takes it away too, and the lock screen's glass never gets it.
+        try {
+            this._frost = new WeatherFrost(cfg);
+        } catch (e) {
+            console.error(`Fedora Glass: no weather frost: ${e}`);
+            this._frost = null;
+        }
         try {
             this._popupStyle = new PopupStyle(cfg);
         } catch (e) {
@@ -227,6 +237,12 @@ export default class FedoraGlassExtension extends Extension {
     }
 
     _stopGlass() {
+        try {
+            this._frost?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: turning the weather frost off');
+        }
+        this._frost = null;
         try {
             this._popupStyle?.destroy();
         } catch (e) {

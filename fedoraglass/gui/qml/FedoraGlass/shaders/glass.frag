@@ -39,6 +39,9 @@ layout(std140, binding = 0) uniform buf {
     float liquid;      // how far the glass gives: 1 is the original feel (glass.js)
     vec2 pull;         // px the press is drawn out towards the pointer while dragged
     float pressScale;  // preview px per desktop px: the give reaches as far as on the desktop
+    float frost;       // 0..1, weather frost (glass.js frost): the glass mists over in the cold
+    float flakes;      // 0..1, and frost flakes grow in from the edges below freezing
+    float iceScale;    // preview px per desktop px, so the frost is the desktop's size
 };
 layout(binding = 1) uniform sampler2D source;
 layout(binding = 2) uniform sampler2D content;
@@ -226,6 +229,49 @@ float touch(vec2 dp, float s) {
     return press * exp(-dot(dp, dp) / (2.0 * s * s));
 }
 
+// ---- weather frost, as in glass.js -----------------------------------------------
+float iceHash(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float iceNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(iceHash(i), iceHash(i + vec2(1.0, 0.0)), u.x),
+               mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+float iceVeins(vec2 q) {
+    vec2 w = q * 0.06 + vec2(iceNoise(q * 0.03), iceNoise(q * 0.03 + 7.3)) * 2.2;
+    float v = 0.0, amp = 0.6;
+    mat2 turn = mat2(0.8, 0.6, -0.6, 0.8);
+    for (int i = 0; i < 3; i++) {
+        float r = 1.0 - abs(2.0 * iceNoise(w) - 1.0);
+        v += amp * pow(r, 6.0);
+        w = turn * w * 2.1 + 3.7;
+        amp *= 0.55;
+    }
+    return v;
+}
+
+float iceFlake(vec2 q) {
+    vec2 cell = floor(q / 22.0);
+    if (iceHash(cell + 11.0) < 0.8)
+        return 0.0;
+    vec2 at0 = (cell + 0.2 + 0.6 * vec2(iceHash(cell + 3.1), iceHash(cell + 5.7))) * 22.0;
+    vec2 d = q - at0;
+    float R = 2.6 + 3.2 * iceHash(cell + 8.9);
+    float r = length(d);
+    if (r > R + 1.0)
+        return 0.0;
+    float a = atan(d.y, d.x) + 6.2832 * iceHash(cell + 1.3);
+    float a6 = mod(a + 0.5236, 1.0472) - 0.5236;
+    float arm = (1.0 - smoothstep(0.35, 0.95, abs(r * sin(a6)))) * (1.0 - smoothstep(R - 1.0, R + 0.5, r));
+    return max(arm, 1.0 - smoothstep(0.6, 1.4, r));
+}
+
 void main() {
     vec2 c = size * 0.5;
     vec2 px0 = qt_TexCoord0 * size;
@@ -303,6 +349,32 @@ void main() {
         // The calm sheen on the side of the top that faces the light, as in glass.js.
         if (rim.a > 0.0)
             col.rgb = min(col.rgb + vec3(0.07 * min(1.0, 0.45 + 1.1 * rim.a) * smoothstep(-0.4, 1.1, dot(p / c, LIGHT))) * col.a, vec3(col.a));
+        // Weather frost: the same mist and flakes as on the desktop, at the desktop's size.
+        float k = max(iceScale, 0.05);
+        if (frost > 0.001) {
+            vec3 st = col.rgb / max(col.a, 1e-3);
+            float lightGlass = smoothstep(0.35, 0.7, dot(st, vec3(0.2126, 0.7152, 0.0722)));
+            float rimF = 1.0 - smoothstep(0.0, max(10.0 * k, 0.25 * shortSide), inside);
+            vec3 ice = mix(vec3(0.58, 0.66, 0.76), vec3(0.93, 0.965, 1.0), lightGlass);
+            float m = frost * mix(0.17 + 0.36 * rimF, 0.30 + 0.36 * rimF, lightGlass);
+            st = mix(vivid(st, 1.0 - 0.5 * frost), ice, m);
+            st += vec3((iceHash(floor(px0 / k)) - 0.5) * 0.07 * frost);
+            col.rgb = clamp(st, 0.0, 1.0) * col.a;
+        }
+        if (flakes > 0.001) {
+            float band = min(0.42 * shortSide, (18.0 + 30.0 * flakes) * k);
+            if (inside < band) {
+                vec2 q = px0 / k;
+                float reach = band * (0.45 + 0.55 * iceNoise(q * 0.04)) * (0.6 + 0.4 * flakes);
+                float cover = 1.0 - smoothstep(0.5 * reach, reach, inside);
+                if (cover > 0.0) {
+                    float v = iceVeins(q);
+                    float sp = iceFlake(q);
+                    float fa = cover * flakes * (0.14 + 0.62 * v) + 0.85 * sp * smoothstep(0.2, 0.6, cover) * flakes;
+                    col.rgb = mix(col.rgb, vec3(0.94, 0.97, 1.0) * col.a, clamp(fa, 0.0, 0.85));
+                }
+            }
+        }
     }
     if (mode > 0.5 && mode < 1.5) {
         col.rgb += vec3(grain(px0) / 255.0) * col.a;

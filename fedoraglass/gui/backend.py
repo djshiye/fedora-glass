@@ -26,6 +26,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
 from .. import APP_ID, cursors, distro, login_screen, palette
 from .. import looks as looks_mod
+from .. import weather as weather_mod
 from .. import settings as settings_mod
 from . import changes as changes_mod
 from . import wallcolour
@@ -293,6 +294,7 @@ class Backend(QObject):
     # when one is flipped, instead of building every row again as targetsChanged does.
     targetStatesChanged = Signal()
     weatherChanged = Signal()
+    weatherFrostChanged = Signal()      # what weather frost read last, or the preview's Try
     wallpaperChanged = Signal()
     damageNoteChanged = Signal()
     wallpaperLumaChanged = Signal()
@@ -432,6 +434,7 @@ class Backend(QObject):
         self._apps_state = "idle"           # idle, loading or ready
         self._apps_task: _Task | None = None
         self.settingsChanged.connect(self.noGlassAppsChanged)
+        self.settingsChanged.connect(self.weatherFrostChanged)    # the preview's frost follows the sliders
         self.installedAppsChanged.connect(self.noGlassAppsChanged)
         # GNOME's two wallpapers (picture-uri for light, picture-uri-dark for dark), as file URLs.
         self._wallpapers = self._read_wallpapers()
@@ -956,6 +959,10 @@ class Backend(QObject):
     # ---- Shell features: lighter glass on battery, the Quick Settings switch ----
     lighterOnBattery = _p("lighter_on_battery", bool)
     quickToggle = _p("quick_toggle", bool)
+    # Weather frost (more of it under weatherCool below).
+    weatherFrost = _p("weather_frost", bool)
+    weatherFeelsLike = _p("weather_feels_like", bool)
+    weatherAmount = _p("weather_amount", float)
     del _p
 
     # ---- animations ----------------------------------------------------------------
@@ -1117,6 +1124,8 @@ class Backend(QObject):
         self._rewatch_speed()
         self._speed_status = self._read_speed_status()
         self.speedChanged.emit()
+        # Weather frost says what it read in the same folder (frost.js).
+        self._read_weather_frost()
 
     def _poll_speed(self) -> None:
         status = self._read_speed_status()
@@ -1515,6 +1524,114 @@ class Backend(QObject):
         if new != getattr(self, "_weather_state", None):
             self._weather_state = new
             self.weatherChanged.emit()
+
+    # ---- weather frost ---------------------------------------------------------------
+    # The glass frosts over when it is cold outside (the extension's frost.js). The
+    # settings reach the desktop with Apply; the weather itself then changes it by itself.
+
+    def _set_weather_step(self, which: str, value: float) -> None:
+        """Move one threshold; the others make room (each stays 1 °C under the one above)."""
+        try:
+            v = int(round(float(value)))
+        except (TypeError, ValueError):
+            return
+        lo, hi = settings_mod.WEATHER_RANGES[which]
+        v = min(hi, max(lo, v))
+        c, d, f = self._s.weather_cool, self._s.weather_cold, self._s.weather_freezing
+        if which == "cool":
+            c = v
+            d = min(d, c - 1)
+            f = min(f, d - 1)
+        elif which == "cold":
+            d = v
+            c = max(c, d + 1)
+            f = min(f, d - 1)
+        else:
+            f = v
+            d = max(d, f + 1)
+            c = max(c, d + 1)
+        c, d, f = settings_mod.clean_weather_steps(c, d, f)
+        if (c, d, f) == (self._s.weather_cool, self._s.weather_cold, self._s.weather_freezing):
+            self.settingsChanged.emit()     # a slider pushed past its end springs back
+            return
+        self._s = replace(self._s, weather_cool=c, weather_cold=d, weather_freezing=f).normalized()
+        self._changed()
+
+    weatherCool = Property(int, lambda self: self._s.weather_cool,
+                           lambda self, v: self._set_weather_step("cool", v), notify=settingsChanged)
+    weatherCold = Property(int, lambda self: self._s.weather_cold,
+                           lambda self, v: self._set_weather_step("cold", v), notify=settingsChanged)
+    weatherFreezing = Property(int, lambda self: self._s.weather_freezing,
+                               lambda self, v: self._set_weather_step("freezing", v), notify=settingsChanged)
+
+    @Property("QVariantMap", constant=True)
+    def weatherRanges(self) -> dict:
+        return {k: list(v) for k, v in settings_mod.WEATHER_RANGES.items()}
+
+    def _read_weather_frost(self) -> None:
+        new = weather_mod.read_state(self._env.cache)
+        if new != getattr(self, "_weather_frost", None):
+            self._weather_frost = new
+            self.weatherFrostChanged.emit()
+
+    @Property("QVariantMap", notify=weatherFrostChanged)
+    def weatherNow(self) -> dict:
+        """What weather frost read last on the desktop: {status, level, temp, feels, ...}, or {}
+        while it is off (or not applied yet)."""
+        if getattr(self, "_weather_frost", None) is None:
+            self._weather_frost = weather_mod.read_state(self._env.cache)    # no signal from a read
+        return self._weather_frost
+
+    @Property(str, notify=weatherFrostChanged)
+    def weatherTry(self) -> str:
+        """The step the preview shows: "" for as it is now, else cool, cold or freezing."""
+        return getattr(self, "_weather_try", "")
+
+    @weatherTry.setter
+    def weatherTry(self, level: str) -> None:
+        level = level if level in ("cool", "cold", "freezing", "neutral") else ""
+        if level != getattr(self, "_weather_try", ""):
+            self._weather_try = level
+            self.weatherFrostChanged.emit()
+
+    def _weather_preview(self) -> dict:
+        s = self._s
+        level = getattr(self, "_weather_try", "")
+        if level:
+            temp = weather_mod.try_temp(level, s.weather_cool, s.weather_cold, s.weather_freezing)
+        else:
+            # As it is now: the last reading, with the thresholds and switches on screen.
+            now = self.weatherNow if s.weather_frost and not s.reduce_transparency else {}
+            temp = (now.get("feels") if s.weather_feels_like else now.get("temp")) if now.get("status") == "ok" else None
+        f = weather_mod.frost_for(temp, s.weather_cool, s.weather_cold, s.weather_freezing, s.weather_amount)
+        return {**f, "blur": weather_mod.frost_blur(f["frost"])}
+
+    @Property("QVariantMap", notify=weatherFrostChanged)
+    def weatherPreview(self) -> dict:
+        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px)}."""
+        return self._weather_preview()
+
+    @Property(bool, constant=True)
+    def weatherFahrenheit(self) -> bool:
+        """Show °F: GNOME Weather's own unit, or for its default, the region (as libgweather)."""
+        try:
+            unit = self._env.gsettings_get("org.gnome.GWeather4", "temperature-unit")
+        except Exception:  # noqa: BLE001 (no schema: go by the region)
+            unit = None
+        return weather_mod.fahrenheit(unit)
+
+    @Slot(float, result=str)
+    def showTemp(self, celsius: float) -> str:
+        return weather_mod.show(celsius, self.weatherFahrenheit)
+
+    @Slot(result=bool)
+    def openWeatherApp(self) -> bool:
+        """Open GNOME Weather, to pick a place. Only its own launcher, never a command line."""
+        entry = weather_mod.weather_app(weather_mod.data_dirs(self._env.data))
+        gio = self._env.which("gio")
+        if entry is None or not gio:
+            return False
+        return QProcess.startDetached(gio, ["launch", str(entry)])[0]
 
     @Property(int, constant=True)
     def lockMessageMax(self) -> int:

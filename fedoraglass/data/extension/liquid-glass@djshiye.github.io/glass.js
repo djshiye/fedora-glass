@@ -37,6 +37,7 @@ import Meta from 'gi://Meta';
 import {PACKAGE_VERSION} from 'resource:///org/gnome/shell/misc/config.js';
 import System from 'system';
 
+import {frostBlur} from './frostmath.js';
 import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
@@ -107,6 +108,8 @@ uniform float veil_g;            // the line is drawn so it still reads as brigh
 uniform float veil_b;
 uniform float veil_a;
 uniform float text_shade;
+uniform float frost;             // 0..1, weather frost (frost.js): the glass mists over in the cold
+uniform float flakes;            // 0..1, and below freezing frost flakes grow in from its edges
 // A pane can draw one part of a bigger glass (the rim over an app window is four
 // thin strips): shape_* is that whole glass, padding included, and where this pane
 // starts in it. Every other pane is the whole of its glass: shape_w/h = width/height.
@@ -370,6 +373,56 @@ vec3 throughVeil(vec3 c) {
 vec3 vivid(vec3 c, float k) {
     float l = dot(c, vec3(0.213, 0.715, 0.072));
     return max(mix(vec3(l), c, k), 0.0);
+}
+
+// ---- weather frost (frost.js) -------------------------------------------------------
+// A hash with no sin(), so it stays the same on every GPU (Dave Hoskins, MIT).
+float iceHash(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float iceNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(iceHash(i), iceHash(i + vec2(1.0, 0.0)), u.x),
+               mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// Frost's feathery veins: thin bright ridges of a turned, warped noise, finer at each
+// step. Two steps on lighter glass or while something moves behind.
+float iceVeins(vec2 q, bool few) {
+    vec2 w = q * 0.06 + vec2(iceNoise(q * 0.03), iceNoise(q * 0.03 + 7.3)) * 2.2;
+    float v = 0.0, amp = 0.6;
+    mat2 turn = mat2(0.8, 0.6, -0.6, 0.8);
+    for (int i = 0; i < 3; i++) {
+        if (few && i == 2)
+            break;
+        float r = 1.0 - abs(2.0 * iceNoise(w) - 1.0);
+        v += amp * pow(r, 6.0);
+        w = turn * w * 2.1 + 3.7;
+        amp *= 0.55;
+    }
+    return v;
+}
+
+// Tiny six-armed flakes here and there: one in about one cell of 22 px in five.
+float iceFlake(vec2 q) {
+    vec2 cell = floor(q / 22.0);
+    float pick = iceHash(cell + 11.0);
+    if (pick < 0.8)
+        return 0.0;
+    vec2 at = (cell + 0.2 + 0.6 * vec2(iceHash(cell + 3.1), iceHash(cell + 5.7))) * 22.0;
+    vec2 d = q - at;
+    float R = 2.6 + 3.2 * iceHash(cell + 8.9);
+    float r = length(d);
+    if (r > R + 1.0)
+        return 0.0;
+    float a = atan(d.y, d.x) + 6.2832 * iceHash(cell + 1.3);
+    float a6 = mod(a + 0.5236, 1.0472) - 0.5236;          // to the nearest of six arms
+    float arm = (1.0 - smoothstep(0.35, 0.95, abs(r * sin(a6)))) * (1.0 - smoothstep(R - 1.0, R + 0.5, r));
+    return max(arm, 1.0 - smoothstep(0.6, 1.4, r));
 }
 
 void main() {
@@ -671,6 +724,22 @@ void main() {
     if (haze > OFF)
         col.rgb = mix(col.rgb, vec3(0.157, 0.157, 0.165) * col.a, haze * (1.0 - 0.75 * clearEdge));
 
+    // Weather frost: cold outside, the glass mists over, whiter towards its edges where
+    // frost gathers first, and its colours go cooler and paler. Before the ceiling, so
+    // white text on dark glass keeps its contrast; dark glass mists less for that too.
+    // Weather frost off, or warm enough out, and this is skipped: the glass is as set.
+    float shortIce = 2.0 * min(h.x, h.y);
+    if (frost > OFF && mode < 1.5) {
+        vec3 st = col.rgb / max(col.a, 1e-3);
+        float rimF = 1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside);
+        vec3 ice = light_glass > 0.5 ? vec3(0.93, 0.965, 1.0) : vec3(0.58, 0.66, 0.76);
+        float k = frost * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
+        st = mix(vivid(st, 1.0 - 0.5 * frost), ice, k);
+        // Frosted glass is ground glass: a fine, even grain catches the light.
+        st += vec3((iceHash(floor(px + at0)) - 0.5) * 0.07 * frost);
+        col.rgb = clamp(st, 0.0, 1.0) * col.a;
+    }
+
     // The top of the slab catches a little of the room's light on the side that
     // faces it, fading across the pane: a calm sheen, so even over a black
     // wallpaper the glass reads as a polished surface, not a flat dark box.
@@ -752,6 +821,26 @@ void main() {
                 float Ym = dot(mk, Yf);
                 float k = clamp((Yc - Yp) / max(Ym - Yp, 1e-4), 0.0, 1.0);
                 col.rgb = pow(mix(lin, mk, k), vec3(1.0 / 2.2)) * col.a;
+            }
+        }
+    }
+
+    // Frost flakes, below freezing: feathery frost grows in from the edges, its reach
+    // wavering along them, with a few tiny six-armed flakes in it. Fixed to the glass, so
+    // it moves with a menu as it grows. Only the edge band is worked out: the middle,
+    // where text sits, stays clear.
+    if (flakes > OFF && mode < 1.5) {
+        float band = min(0.42 * shortIce, 18.0 + 30.0 * flakes);
+        if (inside < band) {
+            vec2 q = px + at0;
+            float reach = band * (0.45 + 0.55 * iceNoise(q * 0.04)) * (0.6 + 0.4 * flakes);
+            float cover = 1.0 - smoothstep(0.5 * reach, reach, inside);
+            if (cover > 0.0) {
+                bool few = cheap > 0.5 || lite > 0.5;
+                float v = iceVeins(q, few);
+                float sp = few ? 0.0 : iceFlake(q);
+                float a = cover * flakes * (0.14 + 0.62 * v) + 0.85 * sp * smoothstep(0.2, 0.6, cover) * flakes;
+                col.rgb = mix(col.rgb, vec3(0.94, 0.97, 1.0) * col.a, clamp(a, 0.0, 0.85));
             }
         }
     }
@@ -1614,6 +1703,27 @@ export function getQuality() {
     return quality;
 }
 
+// Weather frost (frost.js): how frosty all the glass is now, 0..1, and its frost flakes.
+// Both 0 unless weather frost is on and it is cool out. A change sets two numbers on each
+// pane, so it is drawn again from the copy it already has; only when the extra blur
+// steps (frostBlur) is the backdrop blurred again.
+let frostNow = {frost: 0, flakes: 0, blur: 0};
+
+export function setFrost(frost, flakes) {
+    const f = Math.max(0, Math.min(1, Number(frost) || 0));
+    const k = Math.max(0, Math.min(1, Number(flakes) || 0));
+    const blur = frostBlur(f);
+    if (f === frostNow.frost && k === frostNow.flakes)
+        return;
+    const reblur = blur !== frostNow.blur;
+    frostNow = {frost: f, flakes: k, blur};
+    panes.forEach(p => (reblur ? p._applyLook() : p._applyFrost()));
+}
+
+export function getFrost() {
+    return {...frostNow};
+}
+
 /** How many times any pane has rendered since the Shell started. */
 export function glassRenders() {
     return renderTotal;
@@ -2232,7 +2342,8 @@ class FedoraGlassPane extends Clutter.Actor {
         const top = this._layer === LAYERS.reflections;
         // The reflections layer blurs a copy of the content into a glow map.
         // The rim over a window mirrors the backdrop sharp: it needs no blur of its own.
-        const blur = top ? GLOW_BLUR : this._layer === LAYERS.rim ? 0 : Math.max(0, Math.min(100, L.blur));
+        const blur = top ? GLOW_BLUR : this._layer === LAYERS.rim ? 0
+            : Math.max(0, Math.min(100, L.blur + (this._frosts() ? frostNow.blur : 0)));
         this._glass.radius = blur;
         // Room around the surface for the blur and the edge reflections to see past
         // the edge, and for the shadow.
@@ -2272,8 +2383,20 @@ class FedoraGlassPane extends Clutter.Actor {
             cheap: this._cheap ? 1 : 0,
             lite: quality >= 1 ? 1 : 0,
         });
+        this._applyFrost();
         this._applyMotion();
         this._applyShape();
+    }
+
+    // Weather frost: the glass itself (not the content's light over a menu, not the rim over
+    // a window, not a full-screen sheet like the lock screen's).
+    _frosts() {
+        return (this._layer === LAYERS.full || this._layer === LAYERS.glass) && !(this._look.solid > 0.5);
+    }
+
+    _applyFrost() {
+        const on = this._frosts();
+        this._glass.setFloats({frost: on ? frostNow.frost : 0, flakes: on ? frostNow.flakes : 0});
     }
 
     // Pointer light, parallax, press and open: set by the motion controller in

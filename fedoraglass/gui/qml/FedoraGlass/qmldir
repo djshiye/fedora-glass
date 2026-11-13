@@ -63,3 +63,4 @@ AppPickerSheet 1.0 AppPickerSheet.qml
 LookTile 1.0 LookTile.qml
 SavedLooks 1.0 SavedLooks.qml
 DayNightCard 1.0 DayNightCard.qml
+WeatherFrostCard 1.0 WeatherFrostCard.qml

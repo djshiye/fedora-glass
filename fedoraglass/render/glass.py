@@ -21,7 +21,7 @@ from . import shell
 UUID = "liquid-glass@djshiye.github.io"
 SOURCE = Path(__file__).resolve().parent.parent / "data/extension" / UUID
 FILES = ("metadata.json", "extension.js", "glass.js", "config.js", "surfaces.js", "common.js", "follower.js",
-         "lock.js", "lock.css", "lockwidgets.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
+         "lock.js", "lock.css", "lockwidgets.js", "frost.js", "frostmath.js", "motion.js", "panels.js", "popups.js", "wallpaper.js", "windows.js", "desktop.js",
          "animations.js", "curves.js", "glide.js", "grabhover.js", "grabmove.js", "dtpquiet.js", "hold.js", "holdstate.js", "glsl.js", "arcrescue.js", "themetidy.js", "safety.js",
          "speed.js", "tuning.js", "popupstyle.js", "paused.js", "pausestate.js", "stackclip.js", "prefs.js", "power.js",
          "quicktoggle.js", "strings.js", "tile.js", "glass-symbolic.svg")
@@ -350,6 +350,11 @@ def config(s: Settings, t: Tokens) -> dict:
         "speed": {"quality": s.glass_quality, "lighterOnBattery": s.lighter_on_battery},
         # The "Glass" tile in Quick Settings that pauses the glass until the next login.
         "quickToggle": {"enabled": s.quick_toggle},
+        # Weather frost (frost.js): the glass frosts over when it is cold outside. Off with
+        # Reduce transparency too: there is no glass to frost.
+        "weather": {"enabled": s.weather_frost and not off, "feelsLike": s.weather_feels_like,
+                    "cool": s.weather_cool, "cold": s.weather_cold, "freezing": s.weather_freezing,
+                    "amount": round(s.weather_amount, 3)},
         # Whether GNOME opens on the desktop or in Activities, and whether Activities opens at all.
         "desktop": {"startOnDesktop": bool(s.start_on_desktop) or s.overview_off, "overviewOff": s.overview_off},
         # How windows open, minimize and close, and how the panel responds (see curves.js).
