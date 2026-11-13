@@ -219,8 +219,8 @@ Card {
                 SwitchRow {
                     objectName: "loginCardSwitch"
                     label: qsTr("Glass card behind the password")
-                    caption: qsTr("Your picture, name and password field sit on their own pane")
-                    tip: qsTr("Puts a pane of glass behind your picture, name and password field.")
+                    caption: qsTr("The list of users and the password field sit on a pane of glass")
+                    tip: qsTr("Puts a pane of glass behind the list of users, and behind your picture, name and password field.")
                     checked: Backend.loginCard
                     onToggled: (v) => { Backend.loginCard = v; root.touched() }
                 }

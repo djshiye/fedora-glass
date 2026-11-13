@@ -2233,7 +2233,6 @@ msgid "Glass card behind the password"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:240
-#: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:222
 msgid "Your picture, name and password field sit on their own pane"
 msgstr ""
 
@@ -2582,8 +2581,12 @@ msgstr ""
 msgid "Large, light numbers at the top of the screen"
 msgstr ""
 
+#: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:222
+msgid "The list of users and the password field sit on a pane of glass"
+msgstr ""
+
 #: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:223
-msgid "Puts a pane of glass behind your picture, name and password field."
+msgid "Puts a pane of glass behind the list of users, and behind your picture, name and password field."
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:230

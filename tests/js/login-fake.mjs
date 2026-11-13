@@ -64,6 +64,11 @@ export class Actor extends Emitter {
         this.emit('notify::visible');
     }
 
+    // As Clutter: laid out (shown, in something, and not waiting for a new layout).
+    has_allocation() {
+        return this._visible && Boolean(this._parent) && !this.needsLayout;
+    }
+
     get mapped() {
         return this._visible && !this.destroyed && (this._parent ? this._parent.mapped : this._root === true);
     }
@@ -137,12 +142,24 @@ export class Actor extends Emitter {
         [this.x, this.y] = [x, y];
     }
 
+    // GNOME's ease() as with animations off: there at once. What was asked is kept in `eased`.
+    ease(p) {
+        const {duration, mode: _mode, onComplete, ...to} = p;
+        this.eased = {duration, ...to};
+        Object.assign(this, to);
+        onComplete?.();
+    }
+
+    // As Clutter: a box is as wide as the widest child that shows (nothing shows: 0),
+    // and what holds text says it is 0 px tall when asked at no width.
     get_preferred_width() {
+        if (this.prefW === undefined && this._children.length)
+            return [0, Math.max(0, ...this._children.filter(c => c.visible).map(c => c.get_preferred_width(-1)[1]))];
         return [0, this.prefW ?? 400];
     }
 
-    get_preferred_height() {
-        return [0, this.prefH ?? 100];
+    get_preferred_height(forWidth) {
+        return [0, forWidth === 0 ? 0 : this.prefH ?? 100];
     }
 
     get_transformed_position() {
@@ -209,8 +226,11 @@ export function makeTimers() {
     };
 }
 
-/** A fresh greeter. dialog: false = the login dialog is not made yet. */
-export function makeGreeter({dialog = true, look = LOOK, note = null, highContrast = false} = {}) {
+/**
+ * A fresh greeter. dialog: false = the login dialog is not made yet. gnome50: GNOME 50's
+ * login dialog, which centres its prompt (51 and later give it a fixed top).
+ */
+export function makeGreeter({dialog = true, look = LOOK, note = null, highContrast = false, gnome50 = false} = {}) {
     const stage = new Actor({name: 'stage', width: 1920, height: 1080});
     stage._root = true;
     const laters = new Map();
@@ -221,7 +241,7 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
         gsettings: {
             'org.gnome.desktop.background': {'picture-uri': `file://${PICTURE_PATH}`,
                 'picture-uri-dark': `file://${PICTURE_PATH}`, 'picture-options': 'zoom'},
-            'org.gnome.desktop.interface': {'color-scheme': 'prefer-dark'},
+            'org.gnome.desktop.interface': {'color-scheme': 'prefer-dark', 'text-scaling-factor': 1},
         }, bgManagers: new Set(), timeouts: makeTimers(), readOnly: false,
         laters: {
             add(_t, fn) {
@@ -251,8 +271,9 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
     const settings = new Emitter();
     settings.high_contrast = highContrast;
     fake.stSettings = settings;
-    const theme = {sheets: [], load_stylesheet(f) {
+    const theme = {sheets: [], loads: 0, load_stylesheet(f) {
         this.sheets.push(f.path);
+        this.loads++;
         return true;
     }, unload_stylesheet(f) {
         this.sheets = this.sheets.filter(p => p !== f.path);
@@ -261,6 +282,7 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
     }};
     const ctx = new Emitter();
     ctx.theme = theme;
+    ctx.scale_factor = 1;
     ctx.get_theme = () => ctx.theme;
     fake.themeContext = ctx;
     const layout = new Emitter();
@@ -294,12 +316,19 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
         prompt._inputWell.add_child(prompt._message);
         prompt.add_child(prompt._userWell);
         prompt.add_child(prompt._inputWell);
+        // The user list: one row, 360 x 80 at (780, 500), and "Not listed?" 6 px under it.
         Object.assign(d, {_authPrompt: prompt, _userSelectionBox: new Actor({name: 'userSelection'}),
-            _userList: new Actor({name: 'userList'}), _notListedButton: null, _bannerView: null});
+            _userList: new Actor({name: 'userList', x: 780, y: 500, width: 360, height: 80}),
+            _notListedButton: new Button({name: 'notListed', x: 780, y: 586, width: 360, height: 30}),
+            _bannerView: null});
+        if (!gnome50)
+            d._getFixedTopActorAllocation = () => null;
         d._userList._box = new Actor();
         d._userList._box.add_child(new Actor({name: 'dino', x: 780, y: 500, width: 360, height: 80}));
+        d._userList.add_child(d._userList._box);
         d.add_child(d._userSelectionBox);
         d._userSelectionBox.add_child(d._userList);
+        d._userSelectionBox.add_child(d._notListedButton);
         d.add_child(prompt);
         fake.screenShield._dialog = d;
         return d;

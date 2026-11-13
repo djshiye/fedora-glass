@@ -2233,7 +2233,6 @@ msgid "Glass card behind the password"
 msgstr "Tarjeta de cristal tras la contraseña"
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:240
-#: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:222
 msgid "Your picture, name and password field sit on their own pane"
 msgstr "Tu imagen, nombre y campo de contraseña van sobre su propio panel"
 
@@ -2582,9 +2581,13 @@ msgstr "Números grandes y gruesos en la parte superior de la pantalla"
 msgid "Large, light numbers at the top of the screen"
 msgstr "Números grandes y ligeros en la parte superior de la pantalla"
 
+#: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:222
+msgid "The list of users and the password field sit on a pane of glass"
+msgstr "La lista de usuarios y el campo de contraseña van sobre un panel de cristal"
+
 #: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:223
-msgid "Puts a pane of glass behind your picture, name and password field."
-msgstr "Pone un panel de cristal detrás de tu foto, tu nombre y el campo de contraseña."
+msgid "Puts a pane of glass behind the list of users, and behind your picture, name and password field."
+msgstr "Pone un panel de cristal detrás de la lista de usuarios y detrás de tu foto, tu nombre y el campo de contraseña."
 
 #: fedoraglass/gui/qml/FedoraGlass/LoginGlassCard.qml:230
 msgid "Shows your battery level under the clock"

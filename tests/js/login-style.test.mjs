@@ -84,6 +84,15 @@ test('stylesheet() itself refuses unchecked colours and numbers (a second wall)'
         assert.throws(() => S.stylesheet(with_({frost: f})), String(f));
     assert.throws(() => S.glowStyles(with_({tint: 'red'})));
     assert.throws(() => S.glassValues(with_({tint: '#12345'})));
+    // The room above the prompt: a plain number of px or nothing, never text.
+    for (const m of [NaN, Infinity, '155', '155px; } * { color: red', {}, [155], true])
+        assert.throws(() => S.stylesheet({...GOOD}, {margin: m}), String(m));
+    for (const [m, px] of [[155, 155], [154.6, 155], [0, 0], [-20, 0], [9999, 600]])
+        assert.match(S.stylesheet({...GOOD}, {margin: m}), new RegExp(`prompt-layout {[^}]*margin-top: ${px}px;`));
+    assert.ok(!S.stylesheet({...GOOD}).includes('margin-top'), 'no place given: GNOME\'s own');
+    // GNOME 50 gives the box inside its prompt the prompt's class: the room is not for that one.
+    assert.match(S.stylesheet({...GOOD}, {margin: 155}),
+        /\.login-dialog \.login-dialog-prompt-layout \.login-dialog-prompt-layout {\s*margin-top: 0px; }/);
 });
 
 test('only #rrggbb colours and plain numbers are put into the stylesheet', () => {
@@ -93,14 +102,14 @@ test('only #rrggbb colours and plain numbers are put into the stylesheet', () =>
         fuzz.push(with_({accent: hex(), tint: hex(), frost: Math.random(), tint_amount: Math.random(),
             dim: Math.random() * 0.65, blur: 10 + Math.floor(Math.random() * 91)}));
     }
-    for (const raw of [GOOD, with_({frost: 0}), with_({frost: 1}), ...fuzz]) {
+    for (const raw of [GOOD, with_({frost: 0}), with_({frost: 1}), with_({card: false}), ...fuzz]) {
         const {look} = S.checkLook(raw);
         assert.ok(look);
-        const css = S.stylesheet(look);
-        // Every value: a #rrggbb, an rgba() of numbers, or a number with a unit.
+        const css = S.stylesheet(look, {margin: Math.random() < 0.5 ? null : Math.random() * 400});
+        // Every value: a #rrggbb, an rgba() of numbers, a number with a unit, or a fixed word.
         for (const [, value] of css.matchAll(/:\s*([^;{}]+);/g)) {
             const v = value.replace(/!important/, '').trim();
-            assert.match(v, /^(#[0-9a-f]{6}|rgba\(\d{1,3}, \d{1,3}, \d{1,3}, [01]\.\d{3}\)|transparent|none|vertical|[\d.]+(px|em)?|-?\d+px( -?\d+px)*( \d+px)?( #[0-9a-f]{6}| rgba\([^)]*\))?|\d+px solid rgba\([^)]*\)|inset 0 0 0 2px rgba\([^)]*\)|0 \d+px \d+px rgba\([^)]*\)|0 1px 3px rgba\([^)]*\))$/,
+            assert.match(v, /^(#[0-9a-f]{6}|rgba\(\d{1,3}, \d{1,3}, \d{1,3}, [01]\.\d{3}\)|transparent|none|vertical|center|[\d.]+(px|em)?|-?\d+px( -?\d+px)*( \d+px)?( #[0-9a-f]{6}| rgba\([^)]*\))?|\d+px solid (rgba\([^)]*\)|transparent)|inset 0 0 0 [12]px rgba\([^)]*\)|0 \d+px \d+px rgba\([^)]*\)|0 1px 3px rgba\([^)]*\))$/,
                 `${v} in ${JSON.stringify(raw)}`);
         }
         // Braces balance: nothing closed a rule early.
@@ -120,6 +129,110 @@ test('the stylesheet keeps to the login screen and makes every text white on the
     assert.match(css, /\.login-dialog \.login-dialog-prompt-entry {[^}]*border-radius: 999px;[^}]*min-width: 14em;/);
     assert.match(css, /\.login-dialog \.login-dialog-prompt-entry:focus {[^}]*box-shadow: inset 0 0 0 2px rgba\(53, 132, 228, 0\.850\) !important;/);
     assert.ok(!css.includes('#lockDialogGroup'), 'the backdrop is the glass, not a painted colour');
+});
+
+test('on the card a user is a quiet row that lights up; without the card each user is a pane', () => {
+    const ROW = '.login-dialog .login-dialog-user-list-view .login-dialog-user-list .login-dialog-user-list-item';
+    const rule = (css, sel) => {
+        const at = css.indexOf(`${sel} {`);
+        assert.ok(at >= 0 && (at === 0 || css[at - 1] === '\n'), sel);
+        return css.slice(at, css.indexOf('}', at));
+    };
+    const card = S.stylesheet({...GOOD});
+    assert.match(rule(card, ROW), /background-color: transparent;[^}]*border: 1px solid transparent;[^}]*box-shadow: none;/);
+    // Chosen (GNOME gives the first user the focus): a white light and a clear white
+    // rim, and GNOME's accent ring is taken off. No accent colour on a row at all.
+    const chosen = rule(card, `${ROW}:focus`);
+    assert.match(chosen, /background-color: rgba\(255, 255, 255, 0\.120\);/);
+    assert.match(chosen, /box-shadow: none !important;/);
+    assert.ok(card.includes(`${ROW}:selected,\n${ROW}:focus {`));
+    // The row that has the keyboard is never mistaken for one that is only pointed at:
+    // that one has no rim at all and less light; this one has a rim anyone can see.
+    const alpha = (text, prop) => Number(text.match(new RegExp(`${prop}: rgba\\(255, 255, 255, ([0-9.]+)\\)`))?.[1]);
+    const pointed = rule(card, `${ROW}:hover`);
+    assert.ok(!pointed.includes('border'), 'no rim under the pointer alone');
+    assert.ok(alpha(chosen, 'border-color') >= 0.35 && alpha(chosen, 'border-top-color') >= 0.5);
+    assert.ok(alpha(chosen, 'background-color') >= alpha(pointed, 'background-color') + 0.04);
+    const link = rule(card, '.login-dialog .login-dialog-not-listed-button:focus:hover');
+    assert.ok(card.includes('.login-dialog .login-dialog-not-listed-button:focus,\n.login-dialog .login-dialog-not-listed-button:focus:hover {'));
+    assert.ok(Number(link.match(/inset 0 0 0 1px rgba\(255, 255, 255, ([0-9.]+)\) !important/)?.[1]) >= 0.4, link);
+    const plain = S.stylesheet(with_({card: false}));
+    for (const css of [card, plain]) {
+        for (const [, selectors, body] of css.matchAll(/([^{}]+){([^}]*)}/g)) {
+            if (selectors.includes('login-dialog-user-list-item') || selectors.includes('not-listed'))
+                assert.ok(!body.includes('#3584e4'), selectors);
+        }
+    }
+    assert.match(rule(plain, ROW), /background-gradient-direction: vertical;[^}]*border-radius: 18px;[^}]*box-shadow: 0 8px 24px/);
+    assert.match(rule(plain, `${ROW}:focus`), /border-color: rgba\(255, 255, 255, 0\.460\);[^}]*box-shadow: 0 8px 24px rgba\(0, 0, 0, 0\.28\) !important;/);
+    assert.ok(!rule(plain, `${ROW}:focus`).includes('#3584e4'));
+    // "Not listed?" is a line of text as wide as the rows, in both; the list and the
+    // prompt are as wide as each other, and the list stands in the middle of its box.
+    for (const css of [card, plain]) {
+        assert.match(rule(css, '.login-dialog .login-dialog-not-listed-button'),
+            /width: 25em;[^}]*background-color: transparent;[^}]*border-width: 0;/);
+        assert.match(css, /\.login-dialog \.login-dialog-not-listed-label {[^}]*text-align: center;/);
+        assert.match(css, /\.login-dialog \.login-dialog-prompt-layout {[^}]*width: 25em;[^}]*min-width: 25em;/);
+        assert.match(css, /\.login-dialog \.login-dialog-user-selection-box {\s*padding-top: 4em;\s*padding-bottom: 4em; }/);
+    }
+    // The keyboard's place stays plain to see on the field and the buttons: the accent.
+    assert.match(rule(card, '.login-dialog .login-dialog-button.cancel-button:focus'), /border-color: #3584e4;/);
+});
+
+test('the room above GNOME\'s prompt brings what it shows to the middle of the screen', () => {
+    // GNOME 51+: the prompt's top is 275 px above the middle; 240 px of content go 120 above it.
+    assert.deepEqual(S.promptPlace({fixedTop: true}), {margin: 155, content: 240, top: 420});
+    assert.deepEqual(S.promptPlace(), {margin: 155, content: 240, top: 420});
+    assert.deepEqual(S.promptPlace({screen: 1440}), {margin: 155, content: 240, top: 600});
+    // A scale factor of 2: GNOME's 275 are stage px, a stylesheet's px are doubled.
+    assert.deepEqual(S.promptPlace({fixedTop: true, scale: 2, screen: 2160}), {margin: 18, content: 240, top: 841});
+    // Large text: the name and the field grow, the avatar does not.
+    assert.deepEqual(S.promptPlace({fixedTop: true, textScale: 1.25}), {margin: 143, content: 264, top: 408});
+    // GNOME 50 centres the prompt with the room under its field: as much above it.
+    assert.deepEqual(S.promptPlace({fixedTop: false}), {margin: 67, content: 236, top: 422});
+    assert.equal(S.promptPlace({fixedTop: false, scale: 2, screen: 2160}).margin, 67);
+    // Never a value that is not a sane number of px.
+    for (const bad of [{scale: NaN}, {textScale: '1'}, {scale: null}, {screen: '1080'}, {above: NaN}])
+        assert.throws(() => S.promptPlace(bad), JSON.stringify(bad));
+    assert.equal(S.promptPlace({fixedTop: true, scale: 0.01}).margin, 155, 'a scale under 1 counts as 1');
+    assert.equal(S.promptPlace({fixedTop: true, textScale: 3, scale: 4}).margin, 0, 'never under 0');
+});
+
+test('on a short screen the prompt stands under the big clock, while GNOME\'s messages still fit', () => {
+    // 330 px for the clock: more than the middle leaves on 864 and 768 px.
+    for (const fixedTop of [true, false]) {
+        const tall = S.promptPlace({fixedTop, screen: 1080, above: 330});
+        assert.equal(tall.top, fixedTop ? 420 : 422, 'room enough: in the middle');
+        for (const screen of [864, 768]) {
+            const p = S.promptPlace({fixedTop, screen, above: 330});
+            assert.equal(p.top, 330, `${screen}, fixedTop ${fixedTop}`);
+            // As GNOME then places it: 51 from its fixed top, 50 centred with its room.
+            const got = fixedTop ? screen / 2 - 275 + p.margin
+                : screen / 2 - (p.margin + p.content + 67) / 2 + p.margin;
+            assert.equal(got, 330);
+        }
+        // Too short for the clock, the prompt and the room for messages: the middle (the clock gives way).
+        const short = S.promptPlace({fixedTop, screen: 600, above: 330});
+        assert.equal(short.top, fixedTop ? 180 : 182);
+    }
+    assert.deepEqual(S.promptPlace({screen: 864, above: 330}), {margin: 173, content: 240, top: 330});
+    assert.deepEqual(S.promptPlace({fixedTop: false, screen: 864, above: 330}), {margin: 99, content: 236, top: 330});
+});
+
+test('GNOME\'s own place for the prompt: no margin of ours, and a guess of where it then begins', () => {
+    // GNOME 51: its fixed top (275 px above the middle) and its theme's 80 px.
+    assert.deepEqual(S.promptPlace({own: true}), {margin: null, content: 240, top: 345});
+    assert.deepEqual(S.promptPlace({own: true, screen: 720, above: 330}), {margin: null, content: 240, top: 165});
+    assert.deepEqual(S.promptPlace({own: true, scale: 2, screen: 2160}), {margin: null, content: 240, top: 965});
+    // GNOME 50: what it shows and the room under it, centred.
+    assert.deepEqual(S.promptPlace({own: true, fixedTop: false}), {margin: null, content: 236, top: 389});
+    // It is always higher than ours, so more of what GNOME shows under the field fits.
+    for (const fixedTop of [true, false]) {
+        for (const screen of [600, 720, 768, 864, 1080, 1440])
+            assert.ok(S.promptPlace({own: true, fixedTop, screen}).top < S.promptPlace({fixedTop, screen, above: 330}).top, `${fixedTop} ${screen}`);
+    }
+    // And the stylesheet then says nothing about the prompt's place.
+    assert.ok(!S.stylesheet({...GOOD}, {margin: S.promptPlace({own: true}).margin}).includes('margin-top'));
 });
 
 test('frost makes the panes more solid, with the painted login screen\'s numbers', () => {

@@ -28,6 +28,7 @@ const STUBS = {
         },
     };`,
     'gi/Clutter': `export default {ActorAlign: {START: 1, CENTER: 2}, Orientation: {HORIZONTAL: 0, VERTICAL: 1},
+        AnimationMode: {EASE_OUT_QUAD: 3},
         Actor: globalThis.fake.Actor, Clone: globalThis.fake.Clone, Text: class {}};`,
     'gi/St': `const A = globalThis.fake.Actor;
         export default {Widget: A, BoxLayout: A, Bin: A, Label: globalThis.fake.Label, Icon: globalThis.fake.Icon,
@@ -54,8 +55,19 @@ const STUBS = {
         export default {...Base,
             File: {...Base.File, new_for_uri: u => Base.File.new_for_path(u.replace(/^file:\\/\\//, ''))},
             Settings: class {
-                constructor({schema_id}) { this.schema = schema_id; }
+                constructor({schema_id}) { this.schema = schema_id; this._h = new Map(); this._n = 1;
+                    (globalThis.fake.settingsLive ??= new Set()).add(this); }
                 get_string(k) { return globalThis.fake.gsettings?.[this.schema]?.[k] ?? ''; }
+                get_double(k) {
+                    const v = globalThis.fake.gsettings?.[this.schema]?.[k];
+                    if (typeof v !== 'number') throw new Error('no such key ' + k);
+                    return v;
+                }
+                connect(s, fn) { this._h.set(this._n, [s, fn]); return this._n++; }
+                disconnect(id) { if (!this._h.delete(id)) throw new Error('no handler ' + id); }
+                // As GSettings: says 'changed::key' to whoever listens to that key.
+                emit(s) { for (const [k, fn] of [...this._h.values()]) if (k === s) fn(this, s.split('::')[1]); }
+                get listeners() { return this._h.size; }
             }};`,
     // Live: each test makes a fresh greeter (globalThis.fake), and Main follows it.
     'resource/main.js': `const live = k => new Proxy({}, {get: (_t, p) => globalThis.fake[k][p],

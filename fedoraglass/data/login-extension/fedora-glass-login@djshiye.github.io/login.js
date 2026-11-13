@@ -1,16 +1,16 @@
 // Glass on the GDM login screen: the same frosted sheet as the lock screen over a
-// picture, a glass card behind the password prompt, a big clock at the top, the
-// owner's message and the battery.
+// picture, one glass card in the middle behind the user list and the password prompt,
+// a big clock above it, the owner's message and the battery.
 //
 // Safety:
 // - Everything drawn here lives in ONE container, the bottom child of the lock dialog
 //   group, under GNOME's own login dialog. It takes no input, no key focus and no
 //   grab, so nothing here can cover the prompt or change how a login works.
 // - The glass copies only our own copy of the picture (in that same container).
-// - GNOME's own login dialog is only restyled (a stylesheet built from checked values)
-//   and its small panel clock hidden while the big clock shows; nothing else of it is
-//   changed. The password check is only watched, to tell the root helper that a login
-//   worked with the glass on.
+// - GNOME's own login dialog is only restyled (a stylesheet built from checked values,
+//   which also sets how much room it keeps above its prompt) and its small panel clock
+//   hidden while the big clock shows; nothing else of it is changed. The password
+//   check is only watched, to tell the root helper that a login worked with the glass on.
 // - Any error takes everything away (the plain login screen) and says so (onError).
 // - High contrast on: no glass at all, followed live.
 
@@ -30,15 +30,21 @@ import {formatDateWithCFormatString, formatTime} from 'resource:///org/gnome/she
 
 import {GlassPane} from './glass.js';
 import {CARD_PAD, CHIP, CHIP_TEXT, CLOCK_STYLES, MESSAGE, batteryIcon, cardLook, sheetLook} from './locklook.js';
-import {checkLook, glassValues, glowStyles, stylesheet} from './style.js';
+import {checkLook, glassValues, glowStyles, promptPlace, stylesheet} from './style.js';
 
 const STYLE_DIR = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'fedora-glass-login']);
 const STYLE_FILE = Gio.File.new_for_path(GLib.build_filenamev([STYLE_DIR, 'login.css']));
 const WAIT_DIALOG_S = 30;     // GNOME makes its login dialog within moments of starting
-const TOP_GAP = 24;          // px kept free between the clock (with its message) and the login dialog
+const TOP_GAP = 24;          // px kept free between the clock (with its message) and the card or the login dialog
+const TOP_MOVE_MS = 200;     // the clock making room, or taking it back
 const PICTURE_WAIT_S = 4;     // the picture not loaded by then: the glow instead, for this start
 const MIRROR = 128;          // px of a screen's own picture mirrored over its seams (> any pane's padding)
+const FADE_MS = 400;         // the glass coming up once its picture is there
+const PROMPT_PAD = 40;       // px of card above the avatar and under the field (CARD_PAD on its sides, and around the user list)
+const PROMPT_SPARE = 8;      // px GNOME's prompt must stay clear of the screen's bottom, or it gets GNOME's own place back
 const CARD_EASE_MS = 160;    // the card growing or shrinking with what is in it
+const CARD_MOVE_MS = 250;    // the card going from the user list to the prompt and back (GNOME fades its prompt in as long)
+const CARD_HOLD_MS = 1000;   // the card staying where it is while GNOME asks GDM and brings the prompt
 const UPOWER = 'org.freedesktop.UPower';
 const DISPLAY_DEVICE = '/org/freedesktop/UPower/devices/DisplayDevice';
 
@@ -117,7 +123,7 @@ export class LoginGlass {
             throw new Error(`look.json refused (${problem})`);
         this.look = look;
         this._values = glassValues(look);
-        this._css = stylesheet(look);
+        this._css = stylesheet(look);          // throws on a value that must not reach a stylesheet
         this._glowStyles = glowStyles(look);
         this._fallback = false;      // the picture would not load: the glow for this start
         this._pictureWait = 0;
@@ -199,6 +205,13 @@ export class LoginGlass {
         // A theme reload (high contrast, light and dark) builds a new theme; GNOME copies
         // our sheet into it, but make sure it is there.
         this._signals.on(this._context, 'changed', () => this._loadStyle());
+        // Large Text switched on or off at the login screen: the clock's size and the
+        // prompt's place follow (everything again, as for a new screen).
+        this._interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
+        this._signals.on(this._interface, 'changed::text-scaling-factor', () => {
+            if (this._textScaling() !== this._textScale)
+                this._queueRebuild();
+        });
         // GNOME's login dialog going away takes our layer with it: let go of the rest.
         this._signals.on(this._dialog, 'destroy', () => this.destroy());
         this._watchVerifier();
@@ -271,9 +284,10 @@ export class LoginGlass {
         if (this._ended || this._settings.high_contrast)
             return;
         const [W, H] = global.stage.get_size();
+        // Nothing of it is seen before its picture is there; then it all comes up together.
         const layer = new St.Widget({
             name: 'fedora-glass-login', reactive: false, can_focus: false, track_hover: false,
-            x: 0, y: 0, width: W, height: H,
+            x: 0, y: 0, width: W, height: H, opacity: 0,
         });
         this._layer = layer;
         // Destroyed with the group (GNOME Shell shutting down): let go of everything while
@@ -315,6 +329,8 @@ export class LoginGlass {
             this._card.setSources([this._picture]);
         }
         this._makeTop(layer);
+        this._place = this._promptPlace();
+        this._css = stylesheet(this.look, {margin: this._place.margin});
         this._writeStyle();
         this._loadStyle();
         this._followDialog();
@@ -329,7 +345,42 @@ export class LoginGlass {
             sheet.show();
             sheet.queueFull?.();
         }
+        // Up softly, as GNOME brings its own dialog (at once where animations are off).
+        this._layer.ease({opacity: 255, duration: FADE_MS, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        this._syncSmallClock();
         this._queue();
+    }
+
+    /**
+     * How much room to keep above GNOME's prompt so that what it shows stands in the
+     * middle of the screen, or under the big clock where the screen is too short for
+     * both (see promptPlace in style.js).
+     */
+    _promptPlace(own = false) {
+        const textScale = this._textScale = this._textScaling();
+        const m = Main.layoutManager.primaryMonitor;
+        // What the clock needs from the screen's top to where the prompt begins (a few
+        // px to spare: the prompt is placed by a rounded margin).
+        const clockH = this._clockBox ? this._clockBox.get_preferred_height(-1)[1] : 0;
+        const above = clockH ? this._topLeast() + clockH + TOP_GAP + (this._card ? PROMPT_PAD : 0) + 4 : 0;
+        return promptPlace({
+            fixedTop: typeof this._dialog._getFixedTopActorAllocation === 'function',
+            scale: this._context.scale_factor, textScale, screen: m?.height ?? global.stage.height, above, own,
+        });
+    }
+
+    /** The text scaling factor (Large Text is 1.25), 1 where it cannot be read. */
+    _textScaling() {
+        try {
+            return this._interface.get_double('text-scaling-factor');
+        } catch {
+            return 1;
+        }
+    }
+
+    /** The clock never stands higher than this (px from the screen's top): clear of the panel. */
+    _topLeast() {
+        return (Main.layoutManager.panelBox?.height ?? 0) + 16;
     }
 
     /** Whether GNOME spans the picture over all screens (the greeter's own setting). */
@@ -532,6 +583,7 @@ export class LoginGlass {
         this._top = box;
         this._time = this._date = this._message = this._batteryChip = this._batteryRow = this._clockBox = null;
         this._batteryPresent = false;
+        this._topY = null;
         if (style) {
             // GNOME's own lock screen clock classes, so it is the same clock as there.
             const clock = new St.BoxLayout({style_class: 'unlock-dialog-clock', orientation: Clutter.Orientation.VERTICAL,
@@ -562,7 +614,9 @@ export class LoginGlass {
         if (look.message) {
             const msg = new St.Label({
                 name: 'fedora-glass-login-message',
-                style: `${CHIP_TEXT} font-size: 11.5pt; font-weight: 500; ${MESSAGE} max-width: 520px; text-align: center;`,
+                // More air under the date than the lock screen's 12 px: here the pill stands alone.
+                style: `${CHIP_TEXT} font-size: 11.5pt; font-weight: 500; ${MESSAGE} margin-top: 20px; ` +
+                    'max-width: 520px; text-align: center;',
                 x_align: Clutter.ActorAlign.CENTER,
             });
             // Plain text only: the owner's words are never read as markup.
@@ -579,10 +633,8 @@ export class LoginGlass {
         }
         layer.add_child(box);
         this._drawn.on(box, 'notify::allocation', () => this._queue());
-        if (this._time) {
+        if (this._time)
             this._tick();
-            this._hideSmallClock();
-        }
     }
 
     _tick() {
@@ -601,7 +653,18 @@ export class LoginGlass {
         });
     }
 
-    // While the big clock shows, the panel's small one is hidden; it comes back with ours gone.
+    // The panel's small clock is hidden only while the big one is seen: not before the
+    // glass is up (so there is a clock at every moment), and it comes back with ours gone.
+    _syncSmallClock() {
+        const big = Boolean(this._pictureReady && this._clockBox?.visible);
+        if (big === Boolean(this._smallClock))
+            return;
+        if (big)
+            this._hideSmallClock();
+        else
+            this._showSmallClock();
+    }
+
     _hideSmallClock() {
         const c = Main.panel?.statusArea?.dateMenu?.container;
         if (!c)
@@ -668,8 +731,10 @@ export class LoginGlass {
         const d = this._dialog, prompt = d._authPrompt;
         for (const s of ['notify::visible', 'notify::opacity', 'notify::allocation'])
             this._drawn.on(prompt, s, () => this._queue());
-        for (const a of [d, d._userSelectionBox, d._bannerView].filter(x => x))
-            for (const s of ['notify::visible', 'notify::allocation'])
+        // The user list too: its rows come a moment after the dialog (the card goes around them).
+        for (const a of [d, d._userSelectionBox, d._userList, d._notListedButton, d._bannerView]
+            .filter(x => x instanceof Clutter.Actor))
+            for (const s of ['notify::visible', 'notify::opacity', 'notify::allocation'])
                 this._drawn.on(a, s, () => this._queue());
         // What is in the prompt (the card hugs it): a message appearing, a list of
         // ways to log in, a button showing.
@@ -694,13 +759,18 @@ export class LoginGlass {
         });
     }
 
-    /** Stage rectangle [x, y, w, h] of a shown actor, or null. */
-    static box(a) {
-        if (!a?.mapped || a.opacity === 0)
+    /** Stage rectangle [x, y, w, h] of an actor that has a place on screen (seen or not), or null. */
+    static frame(a) {
+        if (!a?.mapped)
             return null;
         const [x, y] = a.get_transformed_position();
         const [w, h] = a.get_transformed_size();
         return [x, y, w, h].every(Number.isFinite) && w > 1 && h > 1 ? [x, y, w, h] : null;
+    }
+
+    /** Stage rectangle [x, y, w, h] of a shown actor, or null. */
+    static box(a) {
+        return a && a.opacity !== 0 ? LoginGlass.frame(a) : null;
     }
 
     /** Where GNOME's login dialog starts showing something on screen (its top), or null. */
@@ -715,8 +785,32 @@ export class LoginGlass {
     _sync() {
         if (!this._layer)
             return;
+        this._givePromptRoom();
         this._placeTop();
         this._placeCard();
+    }
+
+    /**
+     * The room we put above GNOME's prompt must never push what GNOME shows under the
+     * field (a long message, a list of ways to log in) below the screen. When it would,
+     * the prompt gets GNOME's own, higher place back for as long as this is drawn, and
+     * the clock makes room by itself (_placeTop).
+     */
+    _givePromptRoom() {
+        if (this._place.margin === null)
+            return;
+        const m = Main.layoutManager.primaryMonitor;
+        const prompt = this._dialog._authPrompt;
+        // Only where GNOME has laid it out: until then it says how tall it would like to
+        // be, the room above it included, and this is decided once.
+        const f = prompt.has_allocation() ? LoginGlass.frame(prompt) : null;
+        if (!m || !f || f[1] + f[3] <= m.y + m.height - PROMPT_SPARE)
+            return;
+        this._place = this._promptPlace(true);
+        this._css = stylesheet(this.look, {margin: null});
+        this._unloadStyle();
+        this._writeStyle();
+        this._loadStyle();
     }
 
     _placeTop() {
@@ -726,34 +820,58 @@ export class LoginGlass {
         const m = Main.layoutManager.primaryMonitor;
         if (!m)
             return;
-        const panel = Main.layoutManager.panelBox?.height ?? 0;
-        const [, natW] = top.get_preferred_width(-1);
-        const y = m.y + Math.max(panel + 16, Math.round(m.height * 0.07));
-        top.set_position(Math.round(m.x + (m.width - natW) / 2), y);
-        // On a smaller screen the message and the battery would run into the user list or
-        // the prompt: then they give way first, and then the clock (the panel's small clock
-        // shows again), never the other way round.
-        const height = a => (a ? a.get_preferred_height(natW)[1] : 0);
+        // Each part is asked itself. The block leaves out what is hidden, and a text asked
+        // how tall it is at no width says 0: asked through the block, a clock that had
+        // given way would seem to fit again, and come and go without end.
+        const height = a => (a ? a.get_preferred_height(a.get_preferred_width(-1)[1])[1] : 0);
         const clockH = height(this._clockBox);
         const extras = [this._batteryRow, this._message].filter(a => a);
         const extrasH = extras.reduce((h, a) => h + (this._wantShown(a) ? height(a) : 0), 0);
+        // It stands in the middle of the room above the card. That room ends where the
+        // prompt's card begins, also while the (shorter) user list shows, so the clock
+        // stays where it is when one gives way to the other; a long user list ends it sooner.
+        const d = this._dialog;
+        const rest = m.y + this._place.top - (this._card ? PROMPT_PAD : 0);
         const content = this._contentTop();
-        const room = h => content === null || y + h + TOP_GAP <= content;
-        const showExtras = room(clockH + extrasH);
-        const showClock = Boolean(this._clockBox) && room(clockH);
+        const pad = !this._card ? 0 : d._userSelectionBox?.visible ? CARD_PAD : PROMPT_PAD;
+        const limit = Math.min(rest, content === null ? Infinity : content - pad);
+        const least = m.y + this._topLeast();
+        // Where a block h px tall goes, or null when there is no room for it.
+        const fit = h => {
+            const y = Math.max(least, Math.round(m.y + (limit - m.y - h) / 2));
+            return y + h + TOP_GAP <= limit ? y : null;
+        };
+        // On a smaller screen, or over a long user list, the message and the battery give
+        // way first, and then the clock (the panel's small clock shows again), never the
+        // other way round.
+        const all = fit(clockH + extrasH);
+        const clockOnly = all === null && this._clockBox ? fit(clockH) : null;
+        const showExtras = all !== null;
+        const showClock = Boolean(this._clockBox) && (all !== null || clockOnly !== null);
         this._extrasShown = showExtras;
         for (const a of extras) {
             const want = showExtras && this._wantShown(a);
             if (a.visible !== want)
                 a.visible = want;
         }
-        if (this._clockBox && this._clockBox.visible !== showClock) {
+        if (this._clockBox && this._clockBox.visible !== showClock)
             this._clockBox.visible = showClock;
-            if (showClock)
-                this._hideSmallClock();
-            else
-                this._showSmallClock();
+        this._syncSmallClock();
+        const [, natW] = top.get_preferred_width(-1);     // of what shows now
+        this._moveTop(Math.round(m.x + (m.width - natW) / 2), all ?? clockOnly ?? least);
+    }
+
+    // To its place at once while nothing of it is seen yet, softly once it is.
+    _moveTop(x, y) {
+        const top = this._top;
+        if (this._topY === null || !this._pictureReady) {
+            top.set_position(x, y);
+        } else {
+            top.x = x;
+            if (y !== this._topY)
+                top.ease({y, duration: TOP_MOVE_MS, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
         }
+        this._topY = y;
     }
 
     // The battery row only with a battery to show.
@@ -810,29 +928,77 @@ export class LoginGlass {
         return r;
     }
 
+    /**
+     * What the card goes around now: {rect: [x0, y0, x1, y1] on the stage, mid: its
+     * middle sideways, list: it is the user list}. The user list is the rows that show
+     * with "Not listed?" under them; the prompt is what it shows (contentRect). Null
+     * while neither is there.
+     */
+    _cardContent() {
+        const d = this._dialog, prompt = d._authPrompt;
+        if (d._userSelectionBox?.visible) {
+            const list = LoginGlass.box(d._userList);
+            if (!list)
+                return null;
+            const rect = [list[0], list[1], list[0] + list[2], list[1] + list[3]];
+            const link = LoginGlass.box(d._notListedButton);
+            if (link) {
+                rect[0] = Math.min(rect[0], link[0]);
+                rect[2] = Math.max(rect[2], link[0] + link[2]);
+                rect[3] = Math.max(rect[3], link[1] + link[3]);
+            }
+            return {rect, mid: list[0] + list[2] / 2, list: true};
+        }
+        // Only a prompt that is seen: one GNOME keeps at no opacity has no card (it waits
+        // where it is for a moment, then goes: _placeCard).
+        const box = LoginGlass.box(prompt);
+        const rect = box ? LoginGlass.contentRect(prompt) : null;
+        return rect ? {rect, mid: box[0] + box[2] / 2, list: false} : null;
+    }
+
     _placeCard() {
         const card = this._card;
         if (!card)
             return;
-        const d = this._dialog, prompt = d._authPrompt;
-        // Only while the password prompt shows (not with the user list), and the glass is up.
-        const shown = !d._userSelectionBox?.visible && LoginGlass.box(prompt) && this._pictureReady;
-        const c = shown ? LoginGlass.contentRect(prompt) : null;
-        if (!c) {
+        const now = this._pictureReady ? this._cardContent() : null;
+        if (!now) {
+            // Between the user list and the prompt GNOME shows neither for a moment (it
+            // asks GDM first): the card stays where it is meanwhile, and goes when
+            // nothing comes.
+            if (card.visible && this._pictureReady && !this._cardHeld) {
+                this._cardHold ||= GLib.timeout_add(GLib.PRIORITY_DEFAULT, CARD_HOLD_MS, () => {
+                    this._cardHold = 0;
+                    this._cardHeld = true;
+                    this._safe(() => this._queue());
+                    return GLib.SOURCE_REMOVE;
+                });
+                return;
+            }
+            this._stopCardHold();
             this._stopCardEase();
             this._cardRect = null;
+            this._cardSolid = false;
             card.hide();
             return;
         }
-        // CARD_PAD above and below, as the lock screen's card around its prompt. Sideways
-        // it stays centred on the prompt (on the avatar and the name), as wide as the
-        // farther side needs: the back button sits on the left of the entry only.
-        const [px, , pw] = LoginGlass.box(prompt);
-        const mid = px + pw / 2;
+        this._stopCardHold();
+        // CARD_PAD around the rows, as the lock screen's card around its prompt; a little
+        // more above the avatar and under the field, which stand alone in the card's
+        // width. Sideways it stays centred (on the rows; on the avatar and the name), as
+        // wide as the farther side needs: the back button sits on the left of the entry only.
+        const {rect: c, mid} = now;
         const half = Math.max(mid - c[0], c[2] - mid) + CARD_PAD;
-        const target = [mid - half, c[1] - CARD_PAD, 2 * half, c[3] - c[1] + 2 * CARD_PAD];
-        card.opacity = prompt.opacity;
+        const pad = now.list ? CARD_PAD : PROMPT_PAD;
+        const target = [mid - half, c[1] - pad, 2 * half, c[3] - c[1] + 2 * pad];
+        // With the user list it is simply there. Around a prompt it comes up as GNOME
+        // fades the prompt in, unless it stood already: then it only changes its shape.
+        const prompt = this._dialog._authPrompt;
+        if (now.list || prompt.opacity === 255)
+            this._cardSolid = true;
+        card.opacity = this._cardSolid ? 255 : prompt.opacity;
         const from = this._cardRect;
+        const moved = this._cardList !== undefined && now.list !== this._cardList;
+        this._cardList = now.list;
         if (!from || !card.visible) {
             this._stopCardEase();
             this._setCard(target);
@@ -841,18 +1007,28 @@ export class LoginGlass {
         }
         if (target.every((v, i) => Math.abs(v - (this._cardTo ?? from)[i]) < 0.5))
             return;
-        // A message appearing or going: grow or shrink to it, not in one jump.
+        // From the user list to the prompt and back, a message appearing or going: to
+        // its new shape, not in one jump.
+        const long = moved || this._cardMoving;
         this._stopCardEase();
+        // As GNOME's own animations: in one step where they are off, slower where they are slowed.
+        if (this._settings.enable_animations === false) {
+            this._setCard(target);
+            return;
+        }
+        const ms = (long ? CARD_MOVE_MS : CARD_EASE_MS) * (this._settings.slow_down_factor || 1);
+        this._cardMoving = long;
         this._cardTo = target;
         const start = GLib.get_monotonic_time();
         const step = () => {
-            const t = Math.min(1, (GLib.get_monotonic_time() - start) / (CARD_EASE_MS * 1000));
+            const t = Math.min(1, (GLib.get_monotonic_time() - start) / (ms * 1000));
             const k = 1 - (1 - t) ** 3;
             this._setCard(from.map((v, i) => v + (target[i] - v) * k));
             if (t < 1)
                 return GLib.SOURCE_CONTINUE;
             this._cardEase = 0;
             this._cardTo = null;
+            this._cardMoving = false;
             return GLib.SOURCE_REMOVE;
         };
         this._cardEase = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => this._safe(step) ?? GLib.SOURCE_REMOVE);
@@ -872,6 +1048,14 @@ export class LoginGlass {
             GLib.source_remove(this._cardEase);
         this._cardEase = 0;
         this._cardTo = null;
+        this._cardMoving = false;
+    }
+
+    _stopCardHold() {
+        if (this._cardHold)
+            GLib.source_remove(this._cardHold);
+        this._cardHold = 0;
+        this._cardHeld = false;
     }
 
     // ---- the stylesheet ----
@@ -926,8 +1110,12 @@ export class LoginGlass {
         this._cancel?.cancel();
         this._cancel = null;
         this._stopPictureWait();
+        this._pictureReady = false;
         this._stopCardEase();
+        this._stopCardHold();
         this._cardRect = null;
+        this._cardSolid = false;
+        this._cardList = undefined;
         this._batterySignals?.clear();
         this._batterySignals = null;
         this._battery = null;
@@ -963,6 +1151,7 @@ export class LoginGlass {
             global.compositor.get_laters().remove(this._rebuildLater);
         this._rebuildLater = 0;
         this._signals.clear();
+        this._interface = null;
         this._verifierSignals.clear();
         this._verifier = null;
         this._takeDown();

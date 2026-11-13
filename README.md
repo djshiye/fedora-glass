@@ -105,7 +105,7 @@ Terminal, Kitty, Ghostty, Alacritty, Foot and WezTerm, Qt apps (through Kvantum)
 ## Glass login screen
 
 The login screen can get the same glass as the lock screen: your wallpaper, frosted, with the
-clock. It is off until you ask for it.
+clock and one glass card for the list of users and the password. It is off until you ask for it.
 
 To turn it on, open the app, go to **Lock and login** and press **Turn on glass login screen**.
 It asks for your password.

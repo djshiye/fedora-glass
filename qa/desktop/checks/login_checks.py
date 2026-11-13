@@ -86,8 +86,12 @@ STATE_JS = """const g = Main.screenShield._lockDialogGroup, kids = g.get_childre
  return {layer: L ? kids.indexOf(L) : -1, children: kids.map(k => k.name || k.constructor.name),
    reactive: L ? L.reactive : null, takes, actors: all.length,
    sheets: named('fedora-glass-login-sheet').map(s => { const b = box(s), p = s.pad ?? 0;
-     return b && [b[0] + p, b[1] + p, b[2] - 2 * p, b[3] - 2 * p]; }), card: box(named('fedora-glass-login-card')[0]),
+     return b && [b[0] + p, b[1] + p, b[2] - 2 * p, b[3] - 2 * p]; }),
+   card: named('fedora-glass-login-card').map(s => { const b = box(s), p = s.pad ?? 0;
+     return b && [b[0] + p, b[1] + p, b[2] - 2 * p, b[3] - 2 * p]; })[0] ?? null,
+   opacity: L ? L.opacity : null,
    top: box(named('fedora-glass-login-top')[0]),
+   messageShown: Boolean(box(named('fedora-glass-login-message')[0])),
    time: all.find(a => a.style_class === 'unlock-dialog-clock-time')?.text ?? null,
    message: named('fedora-glass-login-message')[0]?.text ?? null,
    smallClock: dm ? dm.visible : null,
@@ -155,12 +159,33 @@ CARD_JS = """const St = imports.gi.St, p = """ + DIALOG + """._authPrompt;
  Main.screenShield._lockDialogGroup.get_children().filter(k => k.name === 'fedora-glass-login').forEach(all);
  const c = kids.find(k => k.name === 'fedora-glass-login-card');
  const cb = c && c.visible ? box(c) : null, pad = c?.pad ?? 0;
- return {card: cb && [cb[0] + pad, cb[1] + pad, cb[2] - 2 * pad, cb[3] - 2 * pad], content: r, prompt: box(p),
+ const d = """ + DIALOG + """, m = Main.layoutManager.primaryMonitor;
+ let list = null;
+ if (d._userSelectionBox.visible && d._userList.mapped) {
+   const u = (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+   const q = a => { const b = box(a); return [b[0], b[1], b[0] + b[2], b[1] + b[3]]; };
+   list = q(d._userList); if (d._notListedButton?.mapped) list = u(list, q(d._notListedButton)); }
+ const top = kids.find(k => k.name === 'fedora-glass-login-top');
+ return {card: cb && [cb[0] + pad, cb[1] + pad, cb[2] - 2 * pad, cb[3] - 2 * pad], content: r, prompt: box(p), list,
+   opacity: c ? c.opacity : null, screen: [m.x, m.y, m.width, m.height], top: top?.mapped ? box(top) : null,
    message: p._message?.visible && p._message.opacity ? p._message.text : ''};"""
+# How GNOME's theme draws the user that has the keyboard: our light and white rim, and no ring of GNOME's.
+ROW_JS = f"""const St = imports.gi.St, it = {DIALOG}._userList._items.get('dino'), n = it.get_theme_node();
+ const col = c => [c.red, c.green, c.blue, c.alpha], sh = n.get_box_shadow();
+ return {{focus: it.has_style_pseudo_class('focus') || it.has_style_pseudo_class('selected'),
+   border: col(n.get_border_color(St.Side.TOP)), fill: col(n.get_background_color()),
+   shadow: sh ? {{inset: sh.inset, spread: sh.spread, color: col(sh.color)}} : null}};"""
 ERROR_TEXT = "Sorry, that didn\u2019t work. Please try again."
 SET_ERROR_JS = f"{DIALOG}._authPrompt.setMessage('{ERROR_TEXT}', 3); 1"
 CLEAR_MESSAGE_JS = f"{DIALOG}._authPrompt.setMessage('', 0); 1"
-CARD_PAD = 28
+# A message far longer than GNOME keeps room for (a list of ways to log in is as tall).
+LONG_LINES = 14
+LONG_MESSAGE_JS = f"""{DIALOG}._authPrompt.setMessage(Array.from({{length: {LONG_LINES}}},
+  (_, i) => `Line ${{i + 1}} of a long message from the system`).join('\\n'), 3); 1"""
+# Large Text, as the accessibility menu on the login screen sets it (and back).
+TEXT_SCALE_JS = "new imports.gi.Gio.Settings({schema_id: 'org.gnome.desktop.interface'}).set_double('text-scaling-factor', %s); 1"
+CARD_PAD = 28      # px of card around the user list, and beside the prompt
+PROMPT_PAD = 40    # px of card above the avatar and under the field
 
 
 # ---------------------------------------------------------------------------------------------
@@ -327,8 +352,10 @@ def backdrop_stats(a: np.ndarray, sh: Shell, st: dict) -> tuple[float, float]:
     return float(lum.mean()), float(lum.std())
 
 
-def hug(c: Check, sh: Shell, when: str, message: bool = False) -> None:
-    """The card hugs what the prompt shows: 28 px all round, nothing of GNOME's outside it."""
+def hug(c: Check, sh: Shell, when: str, message: bool = False, middle: bool = True) -> None:
+    """The card hugs what the prompt shows: 40 px above and below, 28 px beside it, nothing of
+    GNOME's outside it. Without a message it stands in the middle of the screen (middle=False:
+    not asked, as on a short screen, where it stands under the big clock)."""
     k = sh.json(CARD_JS)
     card, content = k["card"], k["content"]
     if not card or not content:
@@ -337,13 +364,55 @@ def hug(c: Check, sh: Shell, when: str, message: bool = False) -> None:
     pads = [content[0] - card[0], content[1] - card[1], card[0] + card[2] - content[2], card[1] + card[3] - content[3]]
     mid = k["prompt"][0] + k["prompt"][2] / 2
     centred = abs(card[0] + card[2] / 2 - mid) <= 2
-    # 28 px above and below; sideways centred on the prompt, 28 px beside its farther side.
-    ok = abs(pads[1] - CARD_PAD) <= 2 and abs(pads[3] - CARD_PAD) <= 2 and min(pads[0], pads[2]) >= CARD_PAD - 2 \
-        and abs(min(pads[0], pads[2]) - CARD_PAD) <= 2 and centred and (not message or bool(k["message"]))
-    c.add(ok, f"The card hugs the prompt {when}: {CARD_PAD} px above and below, centred, nothing of GNOME's outside "
+    # 40 px above and below; sideways centred on the prompt, 28 px beside its farther side.
+    ok = abs(pads[1] - PROMPT_PAD) <= 2 and abs(pads[3] - PROMPT_PAD) <= 2 and min(pads[0], pads[2]) >= CARD_PAD - 2 \
+        and abs(min(pads[0], pads[2]) - CARD_PAD) <= 2 and centred and (not message or bool(k["message"])) \
+        and k["opacity"] == 255
+    c.add(ok, f"The card hugs the prompt {when}: {PROMPT_PAD} px above and below, centred, nothing of GNOME's outside "
           f"it (left, top, right, bottom: {', '.join(f'{v:.0f}' for v in pads)}), {card[3]:.0f} px tall." if ok else
           f"The card does not hug the prompt {when}: padding {[round(v) for v in pads]} around {content}, "
-          f"message {k['message']!r}.")
+          f"message {k['message']!r}, opacity {k['opacity']}.")
+    if not message and middle:
+        sx, sy, sw, sh_ = k["screen"]
+        off = [card[0] + card[2] / 2 - (sx + sw / 2), card[1] + card[3] / 2 - (sy + sh_ / 2)]
+        ok = abs(off[0]) <= 2 and abs(off[1]) <= 6
+        c.add(ok, f"The prompt's card stands in the middle of the screen {when} ({off[0]:+.0f}, {off[1]:+.0f} px off)."
+              if ok else f"The prompt's card is not in the middle of the screen {when}: {off[0]:+.0f}, {off[1]:+.0f} px off "
+              f"(card {[round(v) for v in card]} on {k['screen']}).")
+
+
+def hug_list(c: Check, sh: Shell, when: str) -> None:
+    """One card around the user list: 28 px around the rows and "Not listed?", in the middle of the screen."""
+    k = sh.json(CARD_JS)
+    card, rows = k["card"], k["list"]
+    if not card or not rows:
+        c.add(False, f"No card around the user list {when}: card {card}, list {rows}.")
+        return
+    pads = [rows[0] - card[0], rows[1] - card[1], card[0] + card[2] - rows[2], card[1] + card[3] - rows[3]]
+    sx, sy, sw, sh_ = k["screen"]
+    off = [card[0] + card[2] / 2 - (sx + sw / 2), card[1] + card[3] / 2 - (sy + sh_ / 2)]
+    ok = all(abs(v - CARD_PAD) <= 2 for v in pads) and abs(off[0]) <= 2 and abs(off[1]) <= 4 and k["opacity"] == 255
+    c.add(ok, f"One glass card around the user list {when}: {CARD_PAD} px around the names and \"Not listed?\", in the "
+          f"middle of the screen ({off[0]:+.0f}, {off[1]:+.0f} px off), {card[2]:.0f} x {card[3]:.0f} px." if ok else
+          f"The card does not sit around the user list {when}: padding {[round(v) for v in pads]}, "
+          f"{off[0]:+.0f}, {off[1]:+.0f} px off the middle, opacity {k['opacity']} (card {[round(v) for v in card]}, "
+          f"list {[round(v) for v in rows]}).")
+
+
+def clock_place(c: Check, sh: Shell, st: dict, when: str) -> None:
+    """The clock block stands in the middle of the room above the prompt's card."""
+    k = sh.json(CARD_JS)
+    top, card, (sx, sy, sw, _) = k["top"], k["card"], k["screen"]
+    if not top or not card:
+        c.add(False, f"The clock's place {when}: clock {top}, card {card}.")
+        return
+    above, below = top[1] - sy, card[1] - (top[1] + top[3])
+    side = top[0] + top[2] / 2 - (sx + sw / 2)
+    ok = abs(above - below) <= 3 and abs(side) <= 2 and below >= 24
+    c.add(ok, f"The clock stands in the middle of the room above the card {when}: {above:.0f} px above it, "
+          f"{below:.0f} px between it and the card." if ok else
+          f"The clock is not in the middle above the card {when}: {above:.0f} px above, {below:.0f} px below, "
+          f"{side:+.0f} px sideways.")
 
 
 def backdrop_shot(sh: Shell, st: dict, name: str, dark: float) -> tuple[np.ndarray, float, float, str]:
@@ -412,8 +481,9 @@ def check_plain(lane: Lane) -> Check:
 def check_glass(lane: Lane) -> Check:
     c = Check("glass", "Glass on the login screen",
               "Switched on with the default look: the add-on starts and says ok, draws in one container under "
-              "GNOME's login dialog that takes no input, a sheet per screen showing the picture, the card with the "
-              "password prompt only, and GNOME's prompt still works exactly as without it.")
+              "GNOME's login dialog that takes no input, a sheet per screen showing the picture, one card in the "
+              "middle of the screen around the user list and then around the password prompt, the clock in the "
+              "middle above it, and GNOME's prompt still works exactly as without it.")
     sh = lane.sh
     NOTE.unlink(missing_ok=True)
     SWITCH.on({"message": MESSAGE})
@@ -439,7 +509,16 @@ def check_glass(lane: Lane) -> Check:
           "clock is hidden." if st["smallClock"] is False else "The panel's small clock still shows beside the big one.")
     c.add(st["message"] == MESSAGE, "The message shows under the clock, as plain text." if st["message"] == MESSAGE
           else f"The message shows as {st['message']!r}.")
-    c.add(st["card"] is None, "No glass card with the user list." if st["card"] is None else "A glass card shows with the user list.")
+    c.add(st["opacity"] == 255, "The glass has come up fully (it fades in once its picture is there)."
+          if st["opacity"] == 255 else f"The glass did not come up fully: opacity {st['opacity']} of 255.")
+    hug_list(c, sh, "at the start")
+    row = sh.json(ROW_JS)
+    # A rim anyone can see (a third white or more), on a little white: never a faint hint only.
+    lit = row["focus"] and row["shadow"] is None and row["border"][:3] == [255, 255, 255] and row["border"][3] >= 120 \
+        and row["fill"][:3] == [255, 255, 255] and 16 < row["fill"][3] < 64
+    c.add(lit, f"The user that has the keyboard is plain to see (a little white and a clear white rim, "
+          f"{row['border'][3] * 100 // 255} % white), with no coloured ring around it." if lit else
+          f"The user that has the keyboard is not drawn as a lit row with a clear white rim: {row}.")
     a, mean, spread, late = backdrop_shot(sh, st, f"login-g{GNOME}-userlist", 6)
     c.add(mean > 6 and spread > 1.5, f"The glass shows the wallpaper: brightness {mean:.1f}, spread {spread:.1f} "
           f"(not black, not flat).{late}" if mean > 6 and spread > 1.5 else
@@ -477,6 +556,10 @@ def check_glass(lane: Lane) -> Check:
     sh.eval(CLEAR_MESSAGE_JS)
     time.sleep(1)
     hug(c, sh, "(empty)")
+    clock_place(c, sh, st, "with the prompt")
+    c.add(st["messageShown"] and st["smallClock"] is False, "The clock and the message stay with the prompt up."
+          if st["messageShown"] and st["smallClock"] is False else
+          f"With the prompt up the message shows: {st['messageShown']}, the small clock: {st['smallClock']}.")
     pk = keys(sh, [TAB, TAB, TAB])
     if "prompt_keys" in lane.base:
         c.add(pk == lane.base["prompt_keys"], f"Tab moves through the prompt exactly as without the add-on ({' > '.join(pk)})."
@@ -498,8 +581,7 @@ def check_glass(lane: Lane) -> Check:
     time.sleep(1.5)
     hug(c, sh, "with the message gone again")
     c.add(back_to_list(sh), "Back to the user list.")
-    st = state(sh)
-    c.add(st["card"] is None, "The card went with the prompt." if st["card"] is None else "The card stayed after the prompt went.")
+    hug_list(c, sh, "after the prompt went")
     errs = lane.errors_since(mark)
     c.add(not errs, "No Fedora Glass errors in GNOME Shell's log." if not errs else
           f"{len(errs)} Fedora Glass errors in the log, first: {errs[0][-200:]}")
@@ -721,6 +803,149 @@ def check_screens(lane: Lane) -> Check:
     return c
 
 
+def prompt_margin() -> int | None:
+    """The room the add-on's stylesheet puts above GNOME's prompt (px); None: left to GNOME."""
+    m = re.search(r"prompt-layout \{[^}]*margin-top: (\d+)px", STYLE.read_text() if STYLE.exists() else "")
+    return int(m.group(1)) if m else None
+
+
+def check_room(lane: Lane) -> Check:
+    c = Check("room", "A short screen, a long prompt, Large Text",
+              "At 125 % (a laptop) the big clock still fits above the card. A prompt that grows too long for the "
+              "screen gets GNOME's own place back and stays on the screen. Large Text is followed.")
+    sh = lane.sh
+    mark = lane.ctx.log_lines()
+    SWITCH.on({})
+    restart(sh, monitors=1)
+    r = subprocess.run(["python3", str(Path(__file__).parent / "scale.py"), "1.25"], capture_output=True, text=True,
+                       env=os.environ, timeout=60)
+    c.info(f"Scaling: {(r.stdout + r.stderr).strip()[:200]}")
+    time.sleep(4)
+    sh.measure_scale()
+    st, k = state(sh), sh.json(CARD_JS)
+    top, card, (_, sy, _, sh_) = k["top"], k["card"], k["screen"]
+    gap = card[1] - (top[1] + top[3]) if top and card else -1
+    ok = st["smallClock"] is False and bool(st["time"]) and gap >= 24
+    c.add(ok, f"On a {k['screen'][2]:.0f} x {sh_:.0f} screen the big clock shows above the user list's card "
+          f"({gap:.0f} px between them)." if ok else
+          f"On a short screen the big clock does not stand above the user list: clock {top}, card {card}, "
+          f"small clock shown {st['smallClock']}.")
+    c.add(show_prompt(sh), "The password prompt shows.")
+    sh.eval(CLEAR_MESSAGE_JS)
+    time.sleep(1.2)
+    hug(c, sh, "on the short screen", middle=False)
+    st, k = state(sh), sh.json(CARD_JS)
+    top, card, prompt = k["top"], k["card"], k["prompt"]
+    gap = card[1] - (top[1] + top[3]) if top and card else -1
+    under = sy + sh_ - (prompt[1] + prompt[3])
+    margin = prompt_margin()
+    ok = st["smallClock"] is False and gap >= 24 and under >= 8 and margin is not None
+    a = shot(sh, f"login-g{GNOME}-short-prompt")
+    c.add(ok, f"The prompt stands under the big clock ({gap:.0f} px between the clock and the card), and GNOME's room "
+          f"for its messages ends {under:.0f} px above the screen's bottom." if ok else
+          f"The prompt on the short screen: {gap:.0f} px between the clock and the card, {under:.0f} px under GNOME's "
+          f"prompt, room above it {margin}, small clock shown {st['smallClock']}.", picture("short-prompt", a))
+    sh.eval(SET_ERROR_JS)
+    time.sleep(1.5)
+    hug(c, sh, "on the short screen with GNOME's message after a wrong password", message=True)
+    k = sh.json(CARD_JS)
+    under = sy + sh_ - (k["card"][1] + k["card"][3]) if k["card"] else -1
+    c.add(under >= 0, f"With that message the card ends {under:.0f} px above the screen's bottom." if under >= 0 else
+          f"With that message the card ends {-under:.0f} px below the screen's bottom.")
+    # A prompt that grows long must stay on the screen. Where GNOME fixes its top (GNOME 51 and
+    # later) it would end below the screen with our room above it: GNOME's own, higher place comes
+    # back. Where GNOME centres it (GNOME 50) it moves up by itself as it grows.
+    fixed = sh.json(f"return typeof {DIALOG}._getFixedTopActorAllocation === 'function';")
+    before = k["prompt"][1]
+    sh.eval(LONG_MESSAGE_JS)
+    time.sleep(2.5)
+    st, k = state(sh), sh.json(CARD_JS)
+    prompt, card = k["prompt"], k["card"]
+    under = sy + sh_ - (prompt[1] + prompt[3])
+    on_screen = bool(card) and card[1] >= sy and card[1] + card[3] <= sy + sh_
+    back = prompt_margin() is None
+    ok = (back or not fixed) and prompt[1] < before and under >= 0 and on_screen and len(st["styles"]) == 1
+    how = "gets GNOME's own place back" if back else "moves up as it grows (this GNOME centres it)"
+    a = shot(sh, f"login-g{GNOME}-long-prompt")
+    c.add(ok, f"A prompt with {LONG_LINES} lines under the field {how}: its top goes from {before:.0f} to "
+          f"{prompt[1]:.0f} px, it ends {under:.0f} px above the screen's bottom, and the card is around all of it."
+          if ok else
+          f"A prompt with {LONG_LINES} lines under the field: room above it {prompt_margin()}, top {before:.0f} to "
+          f"{prompt[1]:.0f} px, {under:.0f} px above the bottom, card {card}, stylesheets {st['styles']}.",
+          picture("long-prompt", a))
+    # The big clock has no room now: the small one stands in, and it stays so (nothing comes and goes).
+    seen = []
+    for _ in range(4):
+        s2 = state(sh)
+        seen.append((s2["smallClock"], bool(s2["top"] and s2["top"][3] > 1)))
+        time.sleep(0.5)
+    # Only the field's cursor blinks (a clock coming and going would draw every frame).
+    idle = rc.timed(lane.ctx, 4)
+    ok = all(v == (True, False) for v in seen) and idle["frames"] <= 40
+    c.add(ok, f"The big clock makes room and the panel's small clock stands in; it stays so, and nothing but the "
+          f"field's cursor moves ({idle['frames']} frames in {idle['seconds']:.0f} s)." if ok else
+          f"With the long prompt the clocks do not settle: small clock shown and big clock shown {seen}, "
+          f"{idle['frames']} frames in {idle['seconds']:.0f} s.")
+    sh.eval(CLEAR_MESSAGE_JS)
+    time.sleep(1)
+    c.add(back_to_list(sh), "Back to the user list.")
+    # Smaller still (150 %): the prompt has less to spare under it, and must still keep its place.
+    restart(sh, monitors=1)
+    subprocess.run(["python3", str(Path(__file__).parent / "scale.py"), "1.5"], capture_output=True, text=True,
+                   env=os.environ, timeout=60)
+    time.sleep(4)
+    sh.measure_scale()
+    shown = show_prompt(sh)
+    sh.eval(SET_ERROR_JS)
+    time.sleep(1.5)
+    st, k = state(sh), sh.json(CARD_JS)
+    top, card, (_, sy, _, sh_) = k["top"], k["card"], k["screen"]
+    gap = card[1] - (top[1] + top[3]) if top and card and top[3] > 1 else -1
+    under = sy + sh_ - (card[1] + card[3]) if card else -1
+    ok = shown and prompt_margin() is not None and st["smallClock"] is False and gap >= 24 and under >= 0
+    a = shot(sh, f"login-g{GNOME}-shorter-prompt")
+    c.add(ok, f"On a {k['screen'][2]:.0f} x {sh_:.0f} screen the prompt keeps its place under the big clock "
+          f"({gap:.0f} px between them), and with GNOME's message the card ends {under:.0f} px above the screen's "
+          "bottom." if ok else
+          f"On a {k['screen'][2]:.0f} x {sh_:.0f} screen: prompt shown {shown}, room above it {prompt_margin()}, "
+          f"{gap:.0f} px between the clock and the card, {under:.0f} px under the card, small clock shown "
+          f"{st['smallClock']}.", picture("shorter-prompt", a))
+    sh.eval(CLEAR_MESSAGE_JS)
+    # Large Text switched on at the login screen itself (its accessibility menu): followed at once.
+    SWITCH.on({})
+    restart(sh, monitors=1)
+    usual = prompt_margin()
+    try:
+        sh.eval(TEXT_SCALE_JS % "1.25")
+        time.sleep(4)
+        st = state(sh)
+        large = prompt_margin()
+        ok = st["opacity"] == 255 and large is not None and large != usual
+        c.add(ok, f"Large Text switched on: the glass is built again for it (the room above the prompt goes from "
+              f"{usual} to {large} px)." if ok else
+              f"Large Text switched on: glass opacity {st['opacity']}, room above the prompt {usual} then {large}.")
+        hug_list(c, sh, "with Large Text")
+        c.add(show_prompt(sh), "The password prompt shows with Large Text.")
+        sh.eval(CLEAR_MESSAGE_JS)
+        time.sleep(1.2)
+        hug(c, sh, "with Large Text")
+        a = shot(sh, f"login-g{GNOME}-large-text")
+        c.add(True, "The password prompt with Large Text.", picture("large-text", a))
+        sh.eval(TEXT_SCALE_JS % "1.0")
+        time.sleep(4)
+        hug(c, sh, "with Large Text off again")
+        c.add(prompt_margin() == usual, f"Large Text off again: the room above the prompt is {usual} px again."
+              if prompt_margin() == usual else f"Large Text off again: the room above the prompt is {prompt_margin()}, not {usual}.")
+    finally:
+        sh.eval(TEXT_SCALE_JS % "1.0")
+    errs = lane.errors_since(mark)
+    c.add(not errs, "No Fedora Glass errors in GNOME Shell's log." if not errs else
+          f"{len(errs)} Fedora Glass errors in the log, first: {errs[0][-200:]}")
+    SWITCH.on({})
+    restart(sh, monitors=1)
+    return c
+
+
 def row_lum(a: np.ndarray, sh: Shell, st: dict) -> np.ndarray:
     """Brightness along the middle third of the screens' height, per physical px column."""
     my, mh = st["monitors"][0][1], st["monitors"][0][3]
@@ -841,7 +1066,7 @@ def check_crashes(lane: Lane) -> Check:
 
 ALL = {"plain": check_plain, "glass": check_glass, "disable": check_disable, "looks": check_looks,
        "contrast": check_contrast, "safe": check_safe, "broken": check_broken, "screens": check_screens,
-       "picture": check_picture, "crashes": check_crashes}
+       "room": check_room, "picture": check_picture, "crashes": check_crashes}
 
 
 def main() -> int:
