@@ -1597,24 +1597,22 @@ class Backend(QObject):
     def _weather_preview(self) -> dict:
         s = self._s
         level = getattr(self, "_weather_try", "")
+        dew = None
         if level:
             temp = weather_mod.try_temp(level, s.weather_cool, s.weather_cold, s.weather_freezing)
         else:
-            # As it is now: the last reading, with the thresholds and switches on screen.
+            # As it is now: the last reading, with the thresholds and switches on screen, and
+            # its dew point, as on the desktop (frost.js).
             now = self.weatherNow if s.weather_frost and not s.reduce_transparency else {}
-            temp = (now.get("feels") if s.weather_feels_like else now.get("temp")) if now.get("status") == "ok" else None
-        f = weather_mod.frost_for(temp, s.weather_cool, s.weather_cold, s.weather_freezing, s.weather_amount)
-        # The ice's shape goes by the air and its dew point, as on the desktop (frost.js).
-        if level:
-            ice = weather_mod.crystal_for(temp)
-        else:
-            ice = weather_mod.crystal_for(now.get("temp") if now.get("temp") is not None else temp, now.get("dew"))
-        return {**f, **ice, "temp": temp, "blur": weather_mod.frost_blur(f["frost"])}
+            ok = now.get("status") == "ok"
+            temp = (now.get("feels") if s.weather_feels_like else now.get("temp")) if ok else None
+            dew = now.get("dew") if ok else None
+        f = weather_mod.frost_for(temp, s.weather_cool, s.weather_cold, s.weather_freezing, s.weather_amount, dew)
+        return {**f, "blur": weather_mod.frost_blur(f["frost"])}
 
     @Property("QVariantMap", notify=weatherFrostChanged)
     def weatherPreview(self) -> dict:
-        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px), and the
-        ice's shape: shape, arm, twig, size}."""
+        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px)}."""
         return self._weather_preview()
 
     @Property(bool, constant=True)

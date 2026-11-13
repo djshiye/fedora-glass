@@ -109,10 +109,7 @@ uniform float veil_b;
 uniform float veil_a;
 uniform float text_shade;
 uniform float frost;             // 0..1, weather frost (frost.js): the glass mists over in the cold
-uniform float flakes;            // 0..1, and below freezing frost grows in from its edges
-uniform float ice_arm;           // the frost's shape (frostmath.js crystalFor): side branches 0..1,
-uniform float ice_twig;          // branches on those 0..1,
-uniform float ice_size;          // and how big it grows 0..1
+uniform float flakes;            // 0..1, and below freezing it ices over from its edges
 // A pane can draw one part of a bigger glass (the rim over an app window is four
 // thin strips): shape_* is that whole glass, padding included, and where this pane
 // starts in it. Every other pane is the whole of its glass: shape_w/h = width/height.
@@ -678,13 +675,11 @@ void main() {
     if (haze > OFF)
         col.rgb = mix(col.rgb, vec3(0.157, 0.157, 0.165) * col.a, haze * (1.0 - 0.75 * clearEdge));
 
-    // Weather frost: cold outside, the glass mists over the way real glass does. Fog is
-    // droplets: a mist of ones too small to see in the middle, growing towards the colder
-    // edges until each is a little lens. Below freezing they freeze into frosting (below).
-    // Before the ceiling, so white text on dark glass keeps its contrast; dark glass mists
-    // less for that too. Weather frost off, or warm enough out, and this is skipped.
+    // Weather frost: cold outside, the glass mists over, whiter towards its edges where
+    // it is coldest, its colours cooler and paler, with the fine even grain of frosted
+    // glass. Before the ceiling, so white text on dark glass keeps its contrast; dark glass
+    // mists less for that too. Weather frost off, or warm enough out: skipped.
     float shortIce = 2.0 * min(h.x, h.y);
-    bool iceFew = cheap > 0.5 || lite > 0.5;
     if (frost > OFF && mode < 1.5) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         float rimF = 1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside);
@@ -692,12 +687,6 @@ void main() {
         float k = frost * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
         st = mix(vivid(st, 1.0 - 0.5 * frost), ice, k);
         st += vec3((iceHash(floor(px + at0)) - 0.5) * 0.07 * frost);
-        float dewIn = shortIce * mix(0.1, 0.3, frost) * (1.0 - smoothstep(0.0, 0.6, flakes));
-        if (!iceFew && inside < dewIn) {
-            float e = 1.0 - inside / dewIn;
-            vec2 dw = iceDew(px + at0, mix(3.5, 7.0, frost), mix(0.65, 1.15, e), L);
-            st += vec3(dw.y * 0.25 * dw.x * min(1.0, 0.4 + frost) * smoothstep(0.0, 0.5, e));
-        }
         col.rgb = clamp(st, 0.0, 1.0) * col.a;
     }
 
@@ -786,20 +775,15 @@ void main() {
         }
     }
 
-    // The frost itself, below freezing: a translucent glaze of tiny ice crystals, thickest
-    // along the edges and reaching in as feathers in the shape the weather gives real ice
-    // (frostmath.js crystalFor), the crystals' own veins showing faintly in it. Icy, not
-    // snowy: what is behind still shows through. Drawn so it reads through the theme's veil.
-    // Only the edge band is worked out: the middle, where text sits, stays clear.
-    float iceReach = min(0.42 * shortIce, 18.0 + 46.0 * ice_size);
+    // Below freezing the glass ices over from its edges: a smooth, translucent sheen of ice,
+    // thickest in the corners (frostmath.js iceGlaze), no pattern in it. Drawn so it reads
+    // through the theme's veil. Only the edge band is worked out: the middle, where text
+    // sits, stays clear.
+    float iceReach = min(0.3 * shortIce, 56.0);
     if (flakes > OFF && mode < 1.5 && inside < iceReach + 8.0) {
-        float iceD = iceFrost(c, h, iceReach, flakes, ice_arm, iceFew ? 0.0 : ice_twig, ice_size);
-        float fa = iceFrosting(c, h, inside, px + at0, iceReach, flakes, iceD) * (0.36 + 0.26 * flakes);
-        float vein = clamp(0.5 - iceD, 0.0, 1.0) * 0.38 * smoothstep(0.0, 0.3, flakes);
-        vec3 glaze = light_glass > 0.5 ? vec3(0.78, 0.85, 0.93) : vec3(0.84, 0.91, 1.0);
-        vec3 veinC = light_glass > 0.5 ? vec3(0.66, 0.75, 0.87) : vec3(0.95, 0.98, 1.0);
+        float fa = iceGlaze(c, h, inside, px + at0, iceReach, flakes) * (0.36 + 0.3 * flakes);
+        vec3 glaze = light_glass > 0.5 ? vec3(0.80, 0.87, 0.95) : vec3(0.86, 0.92, 1.0);
         col.rgb = mix(col.rgb, throughVeil(glaze) * col.a, fa);
-        col.rgb = mix(col.rgb, throughVeil(veinC) * col.a, vein);
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge
@@ -1660,24 +1644,20 @@ export function getQuality() {
     return quality;
 }
 
-// Weather frost (frost.js): how frosty all the glass is now, 0..1, and its frost flakes.
-// Both 0 unless weather frost is on and it is cool out. A change sets two numbers on each
+// Weather frost (frost.js): how frosty all the glass is now, 0..1, and how far it has
+// iced over from its edges. Both 0 unless weather frost is on and it is cool out. A change sets two numbers on each
 // pane, so it is drawn again from the copy it already has; only when the extra blur
 // steps (frostBlur) is the backdrop blurred again.
-let frostNow = {frost: 0, flakes: 0, blur: 0, arm: 0, twig: 0, size: 0};
+let frostNow = {frost: 0, flakes: 0, blur: 0};
 
-/** frost, flakes 0..1; ice: the frost's shape {arm, twig, size} (frostmath.js crystalFor). */
-export function setFrost(frost, flakes, ice = null) {
-    const one = v => Math.max(0, Math.min(1, Number(v) || 0));
-    const f = one(frost);
-    const k = one(flakes);
-    const arm = one(ice?.arm), twig = one(ice?.twig), size = one(ice?.size);
+export function setFrost(frost, flakes) {
+    const f = Math.max(0, Math.min(1, Number(frost) || 0));
+    const k = Math.max(0, Math.min(1, Number(flakes) || 0));
     const blur = frostBlur(f);
-    const was = frostNow;
-    if (f === was.frost && k === was.flakes && arm === was.arm && twig === was.twig && size === was.size)
+    if (f === frostNow.frost && k === frostNow.flakes)
         return;
-    const reblur = blur !== was.blur;
-    frostNow = {frost: f, flakes: k, blur, arm, twig, size};
+    const reblur = blur !== frostNow.blur;
+    frostNow = {frost: f, flakes: k, blur};
     panes.forEach(p => (reblur ? p._applyLook() : p._applyFrost()));
 }
 
@@ -2357,9 +2337,7 @@ class FedoraGlassPane extends Clutter.Actor {
 
     _applyFrost() {
         const on = this._frosts();
-        const n = frostNow;
-        this._glass.setFloats({frost: on ? n.frost : 0, flakes: on ? n.flakes : 0,
-            ice_arm: n.arm, ice_twig: n.twig, ice_size: n.size});
+        this._glass.setFloats({frost: on ? frostNow.frost : 0, flakes: on ? frostNow.flakes : 0});
     }
 
     // Pointer light, parallax, press and open: set by the motion controller in

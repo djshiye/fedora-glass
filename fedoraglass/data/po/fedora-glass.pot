@@ -185,209 +185,209 @@ msgstr ""
 msgid "Last window drag: about {fps} frames a second, slow."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1801
+#: fedoraglass/gui/backend.py:1799
 msgid "Could not open the restart dialog. Restart your PC from the system menu instead."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1827
+#: fedoraglass/gui/backend.py:1825
 msgid "GNOME's own top bar"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1829
+#: fedoraglass/gui/backend.py:1827
 msgid "Found on this PC: {list}."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1840
+#: fedoraglass/gui/backend.py:1838
 msgid "Another app replaced the Fedora Glass look for {what}. Apply again to bring it back."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1882
+#: fedoraglass/gui/backend.py:1880
 msgid "Could not check: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1980
+#: fedoraglass/gui/backend.py:1978
 msgid "Could not switch extensions on. Try the Extensions app instead."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:1982
+#: fedoraglass/gui/backend.py:1980
 msgid "Extensions are on again. Press Apply to finish your look."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2023
+#: fedoraglass/gui/backend.py:2021
 msgid "Could not clean up the old copy: {problem}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2025
+#: fedoraglass/gui/backend.py:2023
 msgid "Old copy cleaned up. Fedora Glass now runs from the package only."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2035
+#: fedoraglass/gui/backend.py:2033
 msgid "Error details copied"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2069
+#: fedoraglass/gui/backend.py:2067
 msgid "Could not load targets: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2168
+#: fedoraglass/gui/backend.py:2166
 msgid "Planning"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2176
+#: fedoraglass/gui/backend.py:2174
 msgid "Could not work out the changes: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2210
-#: fedoraglass/gui/backend.py:2538
+#: fedoraglass/gui/backend.py:2208
+#: fedoraglass/gui/backend.py:2536
 msgid "Could not save settings: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2219
+#: fedoraglass/gui/backend.py:2217
 msgid "Writing tokens"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2252
+#: fedoraglass/gui/backend.py:2250
 msgid "Apply stopped: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2284
+#: fedoraglass/gui/backend.py:2282
 msgid "The login screen has your new look. You'll see it the next time you restart your PC."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2308
-#: fedoraglass/gui/backend.py:2611
+#: fedoraglass/gui/backend.py:2306
+#: fedoraglass/gui/backend.py:2609
 msgid "Restoring"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2317
+#: fedoraglass/gui/backend.py:2315
 msgid "Restore stopped: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2383
+#: fedoraglass/gui/backend.py:2381
 msgid "Could not restart Files. Close all Files windows, or restart your PC instead."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2471
+#: fedoraglass/gui/backend.py:2469
 msgid "Glass is on the login screen. You'll see it the next time you restart your PC."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2475
+#: fedoraglass/gui/backend.py:2473
 msgid "The normal login screen is back."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2500
+#: fedoraglass/gui/backend.py:2498
 msgid "Not changed: the password wasn't given."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2503
+#: fedoraglass/gui/backend.py:2501
 msgid "the helper didn't finish"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2504
+#: fedoraglass/gui/backend.py:2502
 msgid "Nothing was changed: {reason}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2618
+#: fedoraglass/gui/backend.py:2616
 msgid "Restore stopped, so Fedora Glass was not removed: {error}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2650
+#: fedoraglass/gui/backend.py:2648
 msgid "Your original look is back, but Fedora Glass was not removed: the password wasn't given."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2652
+#: fedoraglass/gui/backend.py:2650
 msgid "{tool} did not finish"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2653
+#: fedoraglass/gui/backend.py:2651
 msgid "Your original look is back, but removing Fedora Glass failed: {reason}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2815
+#: fedoraglass/gui/backend.py:2813
 msgid "Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2919
 #: fedoraglass/gui/backend.py:2917
+#: fedoraglass/gui/backend.py:2915
 msgid "My look"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2919
 #: fedoraglass/gui/backend.py:2917
+#: fedoraglass/gui/backend.py:2915
 msgid "My look {n}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2930
-#: fedoraglass/gui/backend.py:2996
+#: fedoraglass/gui/backend.py:2928
+#: fedoraglass/gui/backend.py:2994
 msgid "The look couldn't be saved: {reason}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2945
+#: fedoraglass/gui/backend.py:2943
 msgid "The look couldn't be renamed: {reason}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2959
+#: fedoraglass/gui/backend.py:2957
 msgid "The look couldn't be deleted: {reason}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2965
+#: fedoraglass/gui/backend.py:2963
 msgid "Deleted “{name}”"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2981
+#: fedoraglass/gui/backend.py:2979
 msgid "Updated “{name}”"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:2987
-#: fedoraglass/gui/backend.py:2934
+#: fedoraglass/gui/backend.py:2985
+#: fedoraglass/gui/backend.py:2932
 msgid "Saved “{name}”"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3058
+#: fedoraglass/gui/backend.py:3056
 msgid "Pick a file on this PC to save the look in."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3073
+#: fedoraglass/gui/backend.py:3071
 msgid "Saved as {path}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3082
+#: fedoraglass/gui/backend.py:3080
 msgid "Pick a look file on this PC."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3091
+#: fedoraglass/gui/backend.py:3089
 msgid "The look couldn't be added: {reason}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3095
+#: fedoraglass/gui/backend.py:3093
 msgid "Added “{name}”. Pick it to try it."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3157
+#: fedoraglass/gui/backend.py:3155
 msgid "today at {time}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3160
+#: fedoraglass/gui/backend.py:3158
 msgid "yesterday at {time}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3162
+#: fedoraglass/gui/backend.py:3160
 msgid "on {day} at {time}"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3267
+#: fedoraglass/gui/backend.py:3265
 msgid "your wallpaper's colour"
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3321
+#: fedoraglass/gui/backend.py:3319
 msgid "There's no wallpaper picture to take a colour from, so the colour stays as it is."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3324
+#: fedoraglass/gui/backend.py:3322
 msgid "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
 msgstr ""
 
-#: fedoraglass/gui/backend.py:3326
+#: fedoraglass/gui/backend.py:3324
 msgid "Your wallpaper has hardly any colour in it, so the colour stays as it is."
 msgstr ""
 
@@ -1144,7 +1144,7 @@ msgid "Look of terminal windows"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:45
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1330
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1327
 #: fedoraglass/gui/backend.py:39
 msgid "Terminal"
 msgstr ""
@@ -1190,7 +1190,7 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AppPickerSheet.qml:28
 #: fedoraglass/gui/qml/FedoraGlass/ResultsSheet.qml:71
-#: fedoraglass/gui/backend.py:2228
+#: fedoraglass/gui/backend.py:2226
 msgid "Done"
 msgstr ""
 
@@ -1559,7 +1559,7 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:183
 #: fedoraglass/gui/qml/FedoraGlass/Theme.qml:76
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:324
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:284
 msgid "Frosted"
 msgstr ""
 
@@ -2814,7 +2814,7 @@ msgid "No apps added. Every window gets glass, except the ones below."
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:19
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:528
 #: fedoraglass/gui/backend.py:39
 msgid "Desktop"
 msgstr ""
@@ -2851,166 +2851,166 @@ msgstr ""
 msgid "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Without ArcMenu or Spawn the app grid still opens, so you can open apps from it, Dash to Panel or a dock. Switch this off, or turn off Fedora Glass, and it all comes back at once."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1030
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1189
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1027
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1186
 msgid "Software"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1134
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1131
 msgid "Bluetooth"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1134
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1131
 msgctxt "wifi network"
 msgid "Home"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1134
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1131
 msgid "Wi-Fi"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1135
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1132
 msgctxt "power mode"
 msgid "Balanced"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1135
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1132
 msgid "Night Light"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1135
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1132
 msgid "Power Mode"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1136
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1133
 msgid "Dark Style"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1136
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1219
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1133
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1216
 msgid "Do Not Disturb"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1188
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1185
 msgid "2 min"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1188
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1185
 msgid "Copied 12 photos to Pictures"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1189
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1186
 msgid "1 h"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1189
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1186
 msgid "3 updates are ready to install"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1305
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1302
 msgid "Type to search"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1392
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1389
 msgid "Activities is off: no hot corner, Super key or swipe opens this"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1574
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1568
 msgid "Glass edge at full size"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:456
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:983
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1188
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:453
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:980
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1185
 msgid "Files"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1029
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:462
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:528
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1026
 msgid "Documents"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:508
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1029
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:462
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:505
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1026
 msgctxt "folder"
 msgid "Home"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:462
 msgid "Recent"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:462
 msgid "Starred"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:466
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1029
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:463
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:528
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1026
 msgid "Downloads"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:466
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:463
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:528
 msgid "Music"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:466
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1030
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:463
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:528
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1027
 msgid "Pictures"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:467
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:464
 msgid "Trash"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:467
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:532
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:464
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:529
 msgid "Videos"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1525
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:528
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1522
 msgid "Projects"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:532
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:529
 msgid "Games"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:532
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:529
 msgid "Public"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:532
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:529
 msgid "Templates"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:969
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:966
 msgid "Search…"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:975
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:972
 msgid "Pinned"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:984
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:981
 msgid "Text Editor"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:985
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:982
 msgid "Calculator"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:986
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:983
 msgid "Extensions"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:986
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1030
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:983
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1027
 msgid "Settings"
 msgstr ""
 
@@ -3651,123 +3651,135 @@ msgstr ""
 msgid "Solid"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:117
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:100
 msgid "Open GNOME Weather"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:135
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:118
 msgid "Try in the preview"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:147
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:130
 msgid "Now"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:147
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:130
 msgid "The glass as the weather has it now"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:148
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:131
 msgid "A light mist, below %1"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:148
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:131
 msgid "Cool"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:149
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:132
 msgid "Cold"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:149
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:132
 msgid "Frosted glass, below %1"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:150
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:133
 msgid "Freezing"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:150
-msgid "Frost grows in, below %1"
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:133
+msgid "Ice creeps in from the edges, below %1"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:152
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:135
 msgid "Try a step in the preview"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:183
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:143
 msgid "Temperatures and frost"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:184
-msgid "Cool below %1, cold below %2, flakes below %3"
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:144
+msgid "Cool below %1, cold below %2, icy below %3"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:192
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:152
 #: fedoraglass/gui/changes.py:148
 msgid "Cool below"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:198
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:158
 msgid "Below this the glass starts to mist over. Outdoors, 18 to 23 °C is shirt-sleeve weather, so 18 °C is where most people start to feel cool."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:203
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:163
 #: fedoraglass/gui/changes.py:149
 msgid "Cold below"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:209
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:169
 msgid "Below this the glass is frosted, whiter at its edges. Below 10 °C outdoors most people want a heavy coat."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:214
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:174
 #: fedoraglass/gui/changes.py:150
-msgid "Frost flakes below"
+msgid "Icy below"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:220
-msgid "Below this, frost grows in from the edges of the glass, in the shape the weather gives real ice: plates, needles or feathery ferns. The middle, where text is, stays clear."
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:180
+msgid "Below this, the glass ices over from its edges, thickest in the corners, like a car window on a winter morning. The middle, where text is, stays clear."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:225
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:185
 #: fedoraglass/gui/changes.py:151
 msgid "How much frost"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:230
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:190
 msgid "How far the frost goes at its coldest. Left is a hint of frost; right is fully frosted glass."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:238
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:255
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:198
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:215
 msgid "Go by"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:252
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:212
 #: fedoraglass/gui/changes.py:147
 msgid "Feels like"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:252
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:212
 msgid "How cold it feels, with the wind and humidity, as GNOME Weather shows it"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:253
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:213
 #: fedoraglass/gui/changes.py:147
 msgid "Air temperature"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:253
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:213
 msgid "The temperature of the air alone"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:233
+msgid "Icy below %1, frosted below %2, misty below %3, just right above"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:27
 msgid "Needs the GNOME Weather app. Install it from Software and pick your place, and the glass follows its weather."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:273
-msgid "Frost flakes below %1, frosted below %2, misty below %3, just right above"
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:283
+msgid "Icy"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:285
+msgid "Misty"
+msgstr ""
+
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:286
+msgid "Just right"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:29
@@ -3776,18 +3788,6 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:31
 msgid "GNOME's weather isn't available on this desktop yet."
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:323
-msgid "Flakes"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:325
-msgid "Misty"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:326
-msgid "Just right"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:33
@@ -3807,7 +3807,7 @@ msgid "It is %1 outside"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:42
-msgid "%1: freezing, so frost grows on the glass."
+msgid "%1: freezing, so the glass ices over."
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:43
@@ -3822,45 +3822,25 @@ msgstr ""
 msgid "%1: just right, so the glass looks as you set it."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:52
-msgid "Plate frost: from 0 to %1, ice grows as thin six-sided plates, so the frost is short and broad."
-msgstr ""
-
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:53
-msgid "Needle frost: from %1 to %2, ice grows as long, thin needles."
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:54
-msgid "Fern frost: from %1 to %2, ice grows feathery branches, each at 60° to the last. The more humid the air, the more they branch."
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:55
-msgid "Column frost: below %1, ice grows as tiny columns, so the frost is fine and dense."
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:61
-msgid "Shown as at %1. %2"
-msgstr ""
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:70
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:27
 #: fedoraglass/gui/changes.py:145
 msgid "Weather frost"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:71
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:54
 msgid "The glass frosts over as it gets cold where you are. When it feels just right outside, it looks exactly as you set it."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:76
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:59
 msgid "Frost with the weather"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:77
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:60
 msgid "Uses the place in GNOME Weather. Once applied, the weather changes your glass by itself, like day and night looks."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:78
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:61
 msgid "Only GNOME's own weather is used, the one in its calendar menu: nothing new is told about where you are. Off, the glass never changes with the weather."
 msgstr ""
 

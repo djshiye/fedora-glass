@@ -23,7 +23,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {setFrost} from './glass.js';
-import {between, cleanFrost, crystalFor, frostFor, refreshDue, stale} from './frostmath.js';
+import {between, cleanFrost, frostFor, refreshDue, stale} from './frostmath.js';
 
 export const STATE = 'weather-frost.json';
 const TICK_S = 600;
@@ -32,7 +32,6 @@ const EASE_STEP_MS = 50;
 // libgweather's GWeatherTemperatureUnit.CENTIGRADE, as a number so no extra library is
 // loaded: if one were missing, the whole extension would fail to start.
 const CENTIGRADE = 3;
-const NO_ICE = Object.freeze({arm: 0, twig: 0, size: 0});
 
 /** The weather GNOME's calendar menu keeps for its owner, or null. Read only. */
 function gnomeWeather() {
@@ -55,8 +54,8 @@ function value(fn) {
 
 /**
  * What GNOME's weather says now: {status, temp, feels, dew}. status: ok, no-weather,
- * no-place or waiting. dew (the dew point, how humid the air is) shapes the frost; null
- * when the weather has none.
+ * no-place or waiting. dew (the dew point, how humid the air is): dry air frosts a little
+ * less; null when the weather has none.
  */
 export function readWeather(client) {
     const none = {temp: null, feels: null, dew: null};
@@ -78,8 +77,8 @@ export function readWeather(client) {
 export class WeatherFrost {
     constructor(cfg) {
         this._cfg = cleanFrost(cfg?.weather);
-        this._now = {frost: 0, flakes: 0, ice: NO_ICE};
-        this._target = {frost: 0, flakes: 0, ice: NO_ICE};
+        this._now = {frost: 0, flakes: 0};
+        this._target = {frost: 0, flakes: 0};
         this._reading = null;       // the last good one: {temp, feels, dew, at}
         this._status = 'off';
         this._written = null;
@@ -138,7 +137,7 @@ export class WeatherFrost {
         this._reading = null;
         this._status = 'off';
         this._level = 'neutral';
-        this._go({frost: 0, flakes: 0, ice: this._now.ice}, false);   // eases back to your look
+        this._go({frost: 0, flakes: 0}, false);   // eases back to your look
         this._removeState();
     }
 
@@ -174,13 +173,9 @@ export class WeatherFrost {
             this._reading = null;
         this._status = r ? 'ok' : w.status === 'ok' ? 'waiting' : w.status;
         const t = r ? (this._cfg.feelsLike ? r.feels : r.temp) : null;
-        const f = frostFor(t, this._cfg);
+        const f = frostFor(t, this._cfg, r?.dew ?? null);
         this._level = f.level;
-        // The ice's shape goes by the air and its dew point, never "feels like": wind chill
-        // is felt by people, not by ice.
-        const c = crystalFor(r?.temp ?? t, r?.dew ?? null);
-        this._shape = c.shape;
-        this._go({frost: f.frost, flakes: f.flakes, ice: {arm: c.arm, twig: c.twig, size: c.size}}, this._first);
+        this._go({frost: f.frost, flakes: f.flakes}, this._first);
         if (r)
             this._first = false;
         this._writeState(r, f.level);
@@ -193,7 +188,7 @@ export class WeatherFrost {
             GLib.source_remove(this._ease);
         this._ease = 0;
         const from = {...this._now};
-        if (now || JSON.stringify(from) === JSON.stringify(target)) {
+        if (now || (from.frost === target.frost && from.flakes === target.flakes)) {
             this._set(target);
             return;
         }
@@ -209,12 +204,12 @@ export class WeatherFrost {
     }
 
     _set(v) {
-        this._now = {frost: v.frost, flakes: v.flakes, ice: v.ice ?? NO_ICE};
-        setFrost(v.frost, v.flakes, this._now.ice);
+        this._now = {frost: v.frost, flakes: v.flakes};
+        setFrost(v.frost, v.flakes);
     }
 
     get state() {
-        return {status: this._status, level: this._level ?? 'neutral', shape: this._shape ?? null, ...this._now, reading: this._reading};
+        return {status: this._status, level: this._level ?? 'neutral', ...this._now, reading: this._reading};
     }
 
     _stateFile() {
@@ -225,7 +220,7 @@ export class WeatherFrost {
         const text = JSON.stringify({
             version: 1, status: this._status, level,
             temp: r?.temp ?? null, feels: r?.feels ?? null, dew: r?.dew ?? null, feelsLike: this._cfg.feelsLike,
-            frost: this._target.frost, flakes: this._target.flakes, shape: this._shape ?? null,
+            frost: this._target.frost, flakes: this._target.flakes,
             at: r ? Math.round(r.at / 1e6) : null,
         });
         if (text === this._written)
@@ -261,7 +256,7 @@ export class WeatherFrost {
         if (this._tick)
             GLib.source_remove(this._tick);
         this._tick = 0;
-        this._set({frost: 0, flakes: 0, ice: NO_ICE});
+        this._set({frost: 0, flakes: 0});
         // The lock screen ends the session's parts: the file stays for the app while it is
         // on, and goes only when it is turned off.
         if (!was)

@@ -40,11 +40,8 @@ layout(std140, binding = 0) uniform buf {
     vec2 pull;         // px the press is drawn out towards the pointer while dragged
     float pressScale;  // preview px per desktop px: the give reaches as far as on the desktop
     float frost;       // 0..1, weather frost (glass.js frost): the glass mists over in the cold
-    float flakes;      // 0..1, and below freezing frost grows in from the edges
+    float flakes;      // 0..1, and below freezing it ices over from the edges
     float iceScale;    // preview px per desktop px, so the frost is the desktop's size
-    float iceArm;      // the frost's shape (frostmath.js crystalFor): side branches 0..1,
-    float iceTwig;     // branches on those 0..1,
-    float iceSize;     // and how big it grows 0..1
 };
 layout(binding = 1) uniform sampler2D source;
 layout(binding = 2) uniform sampler2D content;
@@ -233,7 +230,7 @@ float touch(vec2 dp, float s) {
 }
 
 // The weather frost, word for word as frostmath.js ICE_GLSL (a test checks):
-// ---- weather frost: how ice really forms on cold glass (frostmath.js) ----
+// ---- weather frost (frostmath.js) ----
 // A hash with no sin(), so it is the same on every GPU (Dave Hoskins, MIT).
 float iceHash(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -248,131 +245,21 @@ float iceNoise(vec2 p) {
                mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-// px to a line from the origin along +x, len long (p in the line's own frame).
-float iceSeg(vec2 p, float len) {
-    return length(vec2(p.x - clamp(p.x, 0.0, len), p.y));
-}
-
-// One frost feather, grown from the origin along +x: a stem len long with side branches
-// at 60 degrees (ice is hexagonal: every branch runs along one of its six axes), longest
-// part-way along and shorter to both ends, like a leaf. arm: how long the branches are;
-// twig: branches on the branches, at 60 degrees again. px to the ice's edge (< 0 on it).
-float iceFeather(vec2 p, float len, float gap, float arm, float twig, float seed) {
-    float w = mix(0.95, 0.4, clamp(p.x / max(len, 1.0), 0.0, 1.0));
-    float d = iceSeg(p, len) - w;
-    if (arm < 0.02 || p.x < -2.0 || p.x > len + arm * 0.5 * len)
-        return d;
-    float side = p.y < 0.0 ? 1.0 : 0.0;
-    float ay = abs(p.y);
-    float off = side * 0.5 * gap;
-    float k = floor((p.x - 0.57735 * ay - off) / gap + 0.5);
-    float xb = k * gap + off;
-    if (xb <= 0.0 || xb >= len)
-        return d;
-    float r = iceHash(vec2(k + seed, side + 3.7 * seed));
-    float lb = arm * min(1.2 * xb, 0.75 * (len - xb)) * (0.55 + 0.45 * r);
-    vec2 q = vec2(0.5 * (p.x - xb) + 0.866025 * ay, 0.866025 * (p.x - xb) - 0.5 * ay);
-    d = min(d, iceSeg(q, lb) - 0.8 * w);
-    if (twig < 0.02 || lb < 2.0 * gap || q.x < 0.0 || q.x > lb + 2.0)
-        return d;
-    float g2 = 0.55 * gap;
-    float s2 = q.y < 0.0 ? 1.0 : 0.0;
-    float ty = abs(q.y);
-    float o2 = s2 * 0.5 * g2;
-    float k2 = floor((q.x - 0.57735 * ty - o2) / g2 + 0.5);
-    float xt = k2 * g2 + o2;
-    if (xt <= 0.0 || xt >= lb)
-        return d;
-    float lt = twig * 0.6 * min(xt, lb - xt) * (0.5 + 0.5 * iceHash(vec2(k2 + 17.0 * r, s2 + seed)));
-    vec2 t = vec2(0.5 * (q.x - xt) + 0.866025 * ty, 0.866025 * (q.x - xt) - 0.5 * ty);
-    return min(d, iceSeg(t, lt) - 0.6 * w);
-}
-
-// Frost grows in from one edge: along it, s px; in from it, u px. Window frost starts at
-// the edges, the coldest part of the glass, from specks on it (dust, fine scratches; some
-// of nature's best ice seeds are pollen and bacteria). Not every speck seeds: more do as
-// it gets colder. Each feather leans a little and sweeps in a gentle curve.
-float iceEdge(float s, float u, float sid, float reach, float grow, float arm, float twig, float size) {
-    float g = mix(14.0, 30.0, size);
-    float gap = mix(9.0, 4.2, arm);
-    float i0 = floor(s / g);
-    float best = 1e4;
-    for (int j = -2; j <= 2; j++) {
-        vec2 id = vec2(i0 + float(j), sid);
-        if (iceHash(id * 1.7 + 0.3) > 0.35 + 0.5 * grow)
-            continue;
-        float r2 = iceHash(id * 2.3 + 5.1);
-        float r3 = iceHash(id * 3.1 + 9.7);
-        float len = reach * (0.45 + 0.55 * r3) * grow;
-        vec2 dv = vec2(s - (id.x + 0.15 + 0.7 * r2) * g, u);
-        if (len < 2.0 || abs(dv.x) > 0.8 * len + 4.0)
-            continue;
-        float a = (r2 - 0.5) * 0.9;
-        vec2 dir = vec2(sin(a), cos(a));
-        vec2 p = vec2(dot(dv, dir), dir.x * dv.y - dir.y * dv.x);
-        p.y += (r3 - 0.5) * mix(0.1, 0.8, arm) * p.x * p.x / len;     // needles grow straight
-        best = min(best, iceFeather(p, len, gap, arm, twig, id.x * 0.37 + sid));
-    }
-    return best;
-}
-
-// The frost on a pane: px to the nearest ice (< 0 on it). c: px from the pane's middle;
-// h: half its size. reach: how far in the frost grows at its fullest; grow 0..1 how far
-// it has.
-float iceFrost(vec2 c, vec2 h, float reach, float grow, float arm, float twig, float size) {
-    float ux = h.x - abs(c.x);
-    float uy = h.y - abs(c.y);
-    float d = 1e4;
-    float pad = reach + 8.0;
-    if (uy < pad)
-        d = iceEdge(c.x + h.x, uy, c.y < 0.0 ? 1.0 : 2.0, reach, grow, arm, twig, size);
-    if (ux < pad)
-        d = min(d, iceEdge(c.y + h.y, ux, c.x < 0.0 ? 3.0 : 4.0, reach, grow, arm, twig, size));
-    return d;
-}
-
-// How thick the ice glaze is, 0..1. Frost on glass is a coat of countless tiny crystals:
-// it scatters light, so it reads as a soft icy sheen rather than as lines. It builds up
-// thickest along the edges (the coldest glass, thicker still in the corners), its inner
-// edge wavering, and reaches further in as soft feathers where the crystals branch
-// (iceD: px to them). inside: px in from the edge; q: px on the glass, fixed to it.
-float iceFrosting(vec2 c, vec2 h, float inside, vec2 q, float reach, float grow, float iceD) {
-    float n = 0.6 * iceNoise(q * 0.035) + 0.4 * iceNoise(q * 0.11);
-    float corner = 1.0 - smoothstep(0.0, 1.6 * reach, max(h.x - abs(c.x), h.y - abs(c.y)));
-    float edge = (0.06 + 0.5 * n * n + 0.3 * corner) * reach * (0.45 + 0.55 * grow);
-    float rim = 1.0 - smoothstep(0.2 * edge, 1.15 * edge + 4.0, inside);
-    float fern = (1.0 - smoothstep(-0.5, 1.5 + 2.0 * grow, iceD)) * (1.0 - 0.55 * smoothstep(0.0, reach, inside));
-    float grain = 0.75 + 0.25 * iceNoise(q * 0.7);
-    return clamp(max(0.9 * rim, 0.6 * fern) * grain, 0.0, 1.0);
-}
-
-// Fog on cold glass is droplets (breath figures): too small to see one by one at first,
-// growing and merging as it gets colder, biggest towards the colder edge. Each droplet is a
-// little lens: dark at its rim, where light bends away, with a bright point on the side
-// facing the light. Returns (how much of a droplet is here, its shade -1..1).
-vec2 iceDew(vec2 q, float cell, float big, vec2 L) {
-    vec2 i0 = floor(q / cell);
-    float best = 9.0;
-    vec2 bd = vec2(0.0);
-    float br = 1.0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec2 id = i0 + vec2(float(x), float(y));
-            vec2 at = (id + 0.2 + 0.6 * vec2(iceHash(id + 1.7), iceHash(id + 4.3))) * cell;
-            float rad = cell * big * (0.2 + 0.32 * iceHash(id + 7.9));
-            vec2 d = (q - at) / rad;
-            float e = length(d);
-            if (e < best) {
-                best = e;
-                bd = d;
-                br = rad;
-            }
-        }
-    }
-    float on = clamp((1.0 - best) * br + 0.5, 0.0, 1.0);
-    float ring = smoothstep(0.5, 0.95, best);
-    float spot = 1.0 - smoothstep(0.0, 0.42, length(bd - 0.45 * L));
-    return vec2(on, on * (spot - 0.7 * ring));
+// How thick the ice is, 0..1, below freezing. A window ices over from its edges, the
+// coldest glass, and thickest in the corners, where two edges meet; the ice's inner edge
+// is soft and a little uneven, never a pattern. Its crystals are far too small to see one
+// by one: together they are a smooth frosted sheen. c: px from the pane's middle; h: half
+// its size; inside: px in from the edge; q: px on the glass, fixed to it; reach: how far
+// in the ice can grow; grow 0..1 how far it has.
+float iceGlaze(vec2 c, vec2 h, float inside, vec2 q, float reach, float grow) {
+    // Distance in from the edges, softly rounded where two meet: so the ice runs round the
+    // corners in a curve, thicker there, with no seam.
+    float sm = 0.35 * reach;
+    float u = -sm * log(exp(-(h.x - abs(c.x)) / sm) + exp(-(h.y - abs(c.y)) / sm));
+    u = max(u, inside - sm);
+    float n = 0.7 * iceNoise(q * 0.02) + 0.3 * iceNoise(q * 0.05);
+    float edge = (0.3 + 0.45 * n) * reach * (0.35 + 0.65 * grow);
+    return 1.0 - smoothstep(0.1 * edge, edge + 6.0, u);
 }
 
 void main() {
@@ -452,12 +339,10 @@ void main() {
         // The calm sheen on the side of the top that faces the light, as in glass.js.
         if (rim.a > 0.0)
             col.rgb = min(col.rgb + vec3(0.07 * min(1.0, 0.45 + 1.1 * rim.a) * smoothstep(-0.4, 1.1, dot(p / c, LIGHT))) * col.a, vec3(col.a));
-        // Weather frost: the same droplets, mist and frosting as on the desktop (glass.js), at
-        // the desktop's size: worked out in desktop px (q, cq, hq, inq), drawn in preview px.
+        // Weather frost: the same mist and ice as on the desktop (glass.js), at the desktop's
+        // size: worked out in desktop px (q, inq), drawn in preview px.
         float k = max(iceScale, 0.05);
         vec2 q = px0 / k;
-        vec2 hq = c / k;
-        vec2 cq = p / k;
         float inq = inside / k;
         float shortIce = shortSide / k;
         float lightGlass = smoothstep(0.35, 0.7, dot(col.rgb / max(col.a, 1e-3), vec3(0.2126, 0.7152, 0.0722)));
@@ -468,25 +353,13 @@ void main() {
             float m = frost * mix(0.17 + 0.36 * rimF, 0.30 + 0.36 * rimF, lightGlass);
             st = mix(vivid(st, 1.0 - 0.5 * frost), ice, m);
             st += vec3((iceHash(floor(q)) - 0.5) * 0.07 * frost);
-            float dewIn = shortIce * mix(0.1, 0.3, frost) * (1.0 - smoothstep(0.0, 0.6, flakes));
-            if (inq < dewIn) {
-                float e = 1.0 - inq / dewIn;
-                vec2 dw = iceDew(q, mix(3.5, 7.0, frost), mix(0.65, 1.15, e), LIGHT);
-                // Droplets too small to see in a small preview melt into the mist, as they would.
-                float see = smoothstep(1.5, 4.0, mix(3.5, 7.0, frost) * k);
-                st += vec3(dw.y * 0.25 * dw.x * min(1.0, 0.4 + frost) * smoothstep(0.0, 0.5, e) * see);
-            }
             col.rgb = clamp(st, 0.0, 1.0) * col.a;
         }
-        float iceReach = min(0.42 * shortIce, 18.0 + 46.0 * iceSize);
+        float iceReach = min(0.3 * shortIce, 56.0);
         if (flakes > 0.001 && inq < iceReach + 8.0) {
-            float iceD = iceFrost(cq, hq, iceReach, flakes, iceArm, iceTwig, iceSize);
-            float fa = iceFrosting(cq, hq, inq, q, iceReach, flakes, iceD) * (0.36 + 0.26 * flakes);
-            float vein = clamp(0.5 - iceD * k, 0.0, 1.0) * 0.38 * smoothstep(0.0, 0.3, flakes);
-            vec3 glaze = mix(vec3(0.84, 0.91, 1.0), vec3(0.78, 0.85, 0.93), lightGlass);
-            vec3 veinC = mix(vec3(0.95, 0.98, 1.0), vec3(0.66, 0.75, 0.87), lightGlass);
+            float fa = iceGlaze(p / k, c / k, inq, q, iceReach, flakes) * (0.36 + 0.3 * flakes);
+            vec3 glaze = mix(vec3(0.86, 0.92, 1.0), vec3(0.80, 0.87, 0.95), lightGlass);
             col.rgb = mix(col.rgb, glaze * col.a, fa);
-            col.rgb = mix(col.rgb, veinC * col.a, vein);
         }
     }
     if (mode > 0.5 && mode < 1.5) {

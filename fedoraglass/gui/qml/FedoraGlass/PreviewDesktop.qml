@@ -281,9 +281,6 @@ Item {
         brightness: glass ? root.brightness : 0
         frost: glass ? root.ice.frost || 0 : 0
         flakes: glass ? root.ice.flakes || 0 : 0
-        iceArm: root.ice.arm || 0
-        iceTwig: root.ice.twig || 0
-        iceSize: root.ice.size || 0
         iceScale: root.s
         saturation: glass ? root.saturation : 0
         refraction: !glass || root.reduceTransparency ? 0 : (part ? root.part(part, "lens_bend", 0) * root.s : root.refraction)
@@ -1546,9 +1543,6 @@ Item {
                 brightness: root.glassOn ? root.brightness : 0
                 frost: root.glassOn ? root.ice.frost || 0 : 0
                 flakes: root.glassOn ? root.ice.flakes || 0 : 0
-                iceArm: root.ice.arm || 0
-                iceTwig: root.ice.twig || 0
-                iceSize: root.ice.size || 0
                 iceScale: 1
                 saturation: root.glassOn ? root.saturation : 0
                 refraction: root.glassOn ? root.part(pn, "lens_bend", 0) : 0

@@ -147,7 +147,7 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
                            lambda v: _("Feels like") if v else _("Air temperature")),
     "weather_cool": (N_("Cool below"), "glass", "weatherCool", lambda v: f"{int(v)} °C"),
     "weather_cold": (N_("Cold below"), "glass", "weatherCold", lambda v: f"{int(v)} °C"),
-    "weather_freezing": (N_("Frost flakes below"), "glass", "weatherFreezing", lambda v: f"{int(v)} °C"),
+    "weather_freezing": (N_("Icy below"), "glass", "weatherFreezing", lambda v: f"{int(v)} °C"),
     "weather_amount": (N_("How much frost"), "glass", "weatherAmount", pct),
 }
 # Not shown: saved the moment it is switched, or bookkeeping that follows another setting.

@@ -39,27 +39,10 @@ Card {
         const said = Backend.weatherFeelsLike ? qsTr("It feels like %1 outside").arg(t(temp))
                                               : qsTr("It is %1 outside").arg(t(temp))
         const level = now.level
-        return level === "freezing" ? qsTr("%1: freezing, so frost grows on the glass.").arg(said)
+        return level === "freezing" ? qsTr("%1: freezing, so the glass ices over.").arg(said)
              : level === "cold" ? qsTr("%1: cold, so the glass is frosted.").arg(said)
              : level === "cool" ? qsTr("%1: cool, so the glass mists over a little.").arg(said)
              : qsTr("%1: just right, so the glass looks as you set it.").arg(said)
-    }
-
-    // The ice's shape, as the weather grows it (frostmath.js crystalFor), for the preview's
-    // frost: what is on the desktop now, or the step being tried.
-    readonly property var ice: Backend.weatherPreview
-    function shapeText(shape) {
-        return shape === "plates" ? qsTr("Plate frost: from 0 to %1, ice grows as thin six-sided plates, so the frost is short and broad.").arg(t(-4))
-             : shape === "needles" ? qsTr("Needle frost: from %1 to %2, ice grows as long, thin needles.").arg(t(-4)).arg(t(-10))
-             : shape === "ferns" ? qsTr("Fern frost: from %1 to %2, ice grows feathery branches, each at 60° to the last. The more humid the air, the more they branch.").arg(t(-10)).arg(t(-22))
-             : qsTr("Column frost: below %1, ice grows as tiny columns, so the frost is fine and dense.").arg(t(-22))
-    }
-    readonly property string shapeLine: {
-        if (ice.level !== "freezing" || !ice.shape)
-            return ""
-        return Backend.weatherTry !== "" && ice.temp !== undefined && ice.temp !== null
-            ? qsTr("Shown as at %1. %2").arg(t(ice.temp)).arg(shapeText(ice.shape))
-            : shapeText(ice.shape)
     }
 
     Column {
@@ -147,41 +130,18 @@ Card {
                     { value: "", label: qsTr("Now"), tip: qsTr("The glass as the weather has it now") },
                     { value: "cool", label: qsTr("Cool"), tip: qsTr("A light mist, below %1").arg(card.t(Backend.weatherCool)) },
                     { value: "cold", label: qsTr("Cold"), tip: qsTr("Frosted glass, below %1").arg(card.t(Backend.weatherCold)) },
-                    { value: "freezing", label: qsTr("Freezing"), tip: qsTr("Frost grows in, below %1").arg(card.t(Backend.weatherFreezing)) }
+                    { value: "freezing", label: qsTr("Freezing"), tip: qsTr("Ice creeps in from the edges, below %1").arg(card.t(Backend.weatherFreezing)) }
                 ]
                 Accessible.name: qsTr("Try a step in the preview")
                 onActivated: (v) => Backend.weatherTry = v
             }
         }
-        // Below freezing: which shape the ice grows into, and why (real ice physics).
-        Row {
-            objectName: "weatherShape"
-            visible: card.shapeLine !== ""
-            width: parent.width
-            spacing: 8
-            Icon {
-                name: "snowflake"
-                size: 16
-                color: Theme.accentText
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                objectName: "weatherShapeText"
-                width: parent.width - 24
-                text: card.shapeLine
-                wrapMode: Text.WordWrap
-                color: Theme.textDim
-                font.pixelSize: Theme.fsSmall + 1
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-
         Fold {
             objectName: "weatherSteps"
             card: false
             divider: true
             title: qsTr("Temperatures and frost")
-            summary: qsTr("Cool below %1, cold below %2, flakes below %3")
+            summary: qsTr("Cool below %1, cold below %2, icy below %3")
                      .arg(card.t(Backend.weatherCool)).arg(card.t(Backend.weatherCold)).arg(card.t(Backend.weatherFreezing))
             Column {
                 width: parent.width
@@ -211,13 +171,13 @@ Card {
                 LabeledSlider {
                     objectName: "weatherFreezing"
                     inline: true
-                    label: qsTr("Frost flakes below")
+                    label: qsTr("Icy below")
                     from: card.ranges.freezing[0]; to: card.ranges.freezing[1]; stepSize: 1
                     value: Backend.weatherFreezing
                     defaultValue: Backend.defaults.weather_freezing
                     format: (v) => card.t(v)
                     onMoved: (v) => { Backend.weatherFreezing = v; Backend.weatherTry = "freezing" }
-                    tip: qsTr("Below this, frost grows in from the edges of the glass, in the shape the weather gives real ice: plates, needles or feathery ferns. The middle, where text is, stays clear.")
+                    tip: qsTr("Below this, the glass ices over from its edges, thickest in the corners, like a car window on a winter morning. The middle, where text is, stays clear.")
                 }
                 LabeledSlider {
                     objectName: "weatherAmount"
@@ -270,7 +230,7 @@ Card {
                                         ? (Backend.weatherFeelsLike ? card.now.feels : card.now.temp) : NaN
         implicitHeight: bar.height + 30
         Accessible.role: Accessible.StaticText
-        Accessible.name: qsTr("Frost flakes below %1, frosted below %2, misty below %3, just right above")
+        Accessible.name: qsTr("Icy below %1, frosted below %2, misty below %3, just right above")
                          .arg(card.t(Backend.weatherFreezing)).arg(card.t(Backend.weatherCold)).arg(card.t(Backend.weatherCool))
 
         Rectangle {
@@ -320,7 +280,7 @@ Card {
             width: parent.width
             Repeater {
                 model: [
-                    { label: qsTr("Flakes"), a: ts.lo, b: Backend.weatherFreezing },
+                    { label: qsTr("Icy"), a: ts.lo, b: Backend.weatherFreezing },
                     { label: qsTr("Frosted"), a: Backend.weatherFreezing, b: Backend.weatherCold },
                     { label: qsTr("Misty"), a: Backend.weatherCold, b: Backend.weatherCool },
                     { label: qsTr("Just right"), a: Backend.weatherCool, b: ts.hi }

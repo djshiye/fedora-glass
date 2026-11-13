@@ -34,9 +34,37 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return min(hi, max(lo, v))
 
 
-def frost_for(temp: float | None, cool: int, cold: int, freezing: int, amount: float = 1.0) -> dict:
-    """{level, frost, flakes} for `temp` °C, as frostmath.js frostFor (thresholds already clean)."""
-    if temp is None or not isinstance(temp, (int, float)) or not math.isfinite(temp) or temp >= cool:
+def _round3(v: float) -> float:
+    # As JS Math.round(v * 1000) / 1000 (halves up), so the preview matches to the last digit.
+    return math.floor(v * 1000 + 0.5) / 1000
+
+
+def _finite(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+# How wet the air is when the weather has no dew point, as frostmath.js WET_DEFAULT.
+WET_DEFAULT = 0.6
+
+
+def wetness(temp: float | None, dew: float | None) -> float:
+    """How wet the air is, 0..1, from how far the dew point is under the temperature."""
+    if not _finite(temp) or not _finite(dew):
+        return WET_DEFAULT
+    return _round3(_clamp(1 - max(0.0, temp - dew) / 8, 0.15, 1))
+
+
+def _humidity(temp: float | None, dew: float | None) -> float:
+    # Dry air frosts a little less, humid air a little more; a usual day (or no dew point)
+    # leaves the frost as the steps say. As frostmath.js humidity().
+    return 0.85 + 0.25 * wetness(temp, dew)
+
+
+def frost_for(temp: float | None, cool: int, cold: int, freezing: int, amount: float = 1.0,
+              dew: float | None = None) -> dict:
+    """{level, frost, flakes} for `temp` °C and dew point `dew`, as frostmath.js frostFor
+    (thresholds already clean). flakes is how far the glass has iced over from its edges."""
+    if not _finite(temp) or temp >= cool:
         return {"level": "neutral", "frost": 0.0, "flakes": 0.0}
     flakes = 0.0
     if temp >= cold:
@@ -50,58 +78,9 @@ def frost_for(temp: float | None, cool: int, cold: int, freezing: int, amount: f
         frost = 1.0
         flakes = FLAKES_START + (1 - FLAKES_START) * _clamp((freezing - temp) / FLAKES_SPAN, 0, 1)
     a = _clamp(float(amount), 0.2, 1)
-    return {"level": level, "frost": round(_clamp(frost, 0, 1) * a, 3), "flakes": round(_clamp(flakes, 0, 1) * a, 3)}
-
-
-# The ice's shape, as frostmath.js crystalFor (Nakaya's diagram; more branches in humid air).
-HABITS = {
-    "plates": {"arm": 0.5, "twig": 0.15, "size": 0.6},
-    "needles": {"arm": 0.12, "twig": 0.0, "size": 1.0},
-    "ferns": {"arm": 1.0, "twig": 1.0, "size": 1.0},
-    "columns": {"arm": 0.3, "twig": 0.0, "size": 0.45},
-}
-WET_DEFAULT = 0.6
-SHAPES = tuple(HABITS)
-
-
-def _ramp(a: float, b: float, v: float) -> float:
-    t = _clamp((v - a) / (b - a), 0, 1)
-    return t * t * (3 - 2 * t)
-
-
-def _finite(v) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
-
-
-def wetness(temp: float | None, dew: float | None) -> float:
-    """How wet the air is, 0..1, from how far the dew point is under the temperature."""
-    if not _finite(temp) or not _finite(dew):
-        return WET_DEFAULT
-    return round(_clamp(1 - max(0.0, temp - dew) / 8, 0.15, 1), 3)
-
-
-def crystal_for(temp: float | None, dew: float | None = None) -> dict:
-    """{shape, arm, twig, size}: the shape frost grows into at `temp` °C (air) and dew point `dew`."""
-    t = min(float(temp), -1.0) if _finite(temp) else -6.0
-    needles = _ramp(-3, -5, t) * (1 - _ramp(-9, -11, t))
-    ferns = _ramp(-9, -11, t) * (1 - _ramp(-21, -23, t))
-    columns = _ramp(-21, -23, t)
-    w = {"plates": max(0.0, 1 - needles - ferns - columns), "needles": needles, "ferns": ferns, "columns": columns}
-    shape = SHAPES[0]
-    for h in SHAPES[1:]:
-        if w[h] > w[shape]:
-            shape = h
-
-    def mix(k: str) -> float:
-        return sum(w[h] * HABITS[h][k] for h in SHAPES)
-
-    wet = wetness(temp, dew)
-    return {
-        "shape": shape,
-        "arm": round(_clamp(mix("arm") * (0.55 + 0.45 * wet), 0, 1), 3),
-        "twig": round(_clamp(mix("twig") * wet, 0, 1), 3),
-        "size": round(_clamp(mix("size") * (0.75 + 0.25 * wet), 0, 1), 3),
-    }
+    h = _humidity(temp, dew)
+    return {"level": level, "frost": _round3(_clamp(frost * h, 0, 1) * a),
+            "flakes": _round3(_clamp(flakes * h, 0, 1) * a)}
 
 
 def frost_blur(frost: float) -> float:
@@ -116,8 +95,7 @@ def try_temp(level: str, cool: int, cold: int, freezing: int) -> float | None:
     if level == "cold":
         return (cold + freezing) / 2
     if level == "freezing":
-        # Fern frost, the window frost everyone knows (around -15 °C), unless the step is colder.
-        return min(freezing - 6, -15)
+        return freezing - 6
     return None
 
 
@@ -145,7 +123,6 @@ def read_state(cache: Path) -> dict:
         "temp": num("temp"),
         "feels": num("feels"),
         "dew": num("dew"),
-        "shape": raw.get("shape") if raw.get("shape") in SHAPES else None,
         "feelsLike": raw.get("feelsLike") is not False,
         "frost": _clamp(float(raw["frost"]), 0, 1) if isinstance(raw.get("frost"), (int, float)) else 0.0,
         "flakes": _clamp(float(raw["flakes"]), 0, 1) if isinstance(raw.get("flakes"), (int, float)) else 0.0,

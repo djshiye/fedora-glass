@@ -232,8 +232,8 @@ class Settings:
     # extension's frost.js, from GNOME's own weather for the place set in GNOME Weather).
     # Off unless the user turns it on. The steps follow how warm it feels outdoors: just
     # right from weather_cool up (the glass as set), a mist below it, frosted below
-    # weather_cold, frost flakes below weather_freezing. °C, whole degrees, each at least
-    # 1 under the one above. Like day and night looks, the weather changes the desktop by
+    # weather_cold, iced over from the edges below weather_freezing. °C, whole degrees, each
+    # at least 1 under the one above. Like day and night looks, the weather changes the desktop by
     # itself; the settings here reach it only with Apply.
     weather_frost: bool = False
     weather_feels_like: bool = True     # "feels like" (wind and humidity), else the air temperature

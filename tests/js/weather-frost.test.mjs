@@ -157,7 +157,7 @@ test('on, it reads GNOME\'s weather (feels like by default), shows the frost at 
     assert.equal(state.feels, -3);
     assert.equal(state.temp, 5);
     assert.equal(globalThis.fake.fs.get(STATE).mode, 0o600);
-    assert.deepEqual(Object.keys(state).sort(), ['at', 'dew', 'feels', 'feelsLike', 'flakes', 'frost', 'level', 'shape',
+    assert.deepEqual(Object.keys(state).sort(), ['at', 'dew', 'feels', 'feelsLike', 'flakes', 'frost', 'level',
         'status', 'temp', 'version'], 'only these: never where you are');
     w.destroy();
     assert.equal(c.handlers.size, 0, 'lets go of GNOME\'s weather');
@@ -259,48 +259,33 @@ test('new thresholds apply to the reading it has', () => {
     w.destroy();
 });
 
-test('the ice grows in the shape the weather gives it, as Nakaya measured', () => {
-    assert.equal(M.crystalFor(-2).shape, 'plates');
-    assert.equal(M.crystalFor(-7).shape, 'needles');
-    assert.equal(M.crystalFor(-15).shape, 'ferns');
-    assert.equal(M.crystalFor(-30).shape, 'columns');
-    assert.equal(M.crystalFor(4).shape, 'plates', 'a freezing step set above 0 °C still makes plates');
-    assert.ok(M.crystalFor(-15).arm > M.crystalFor(-7).arm, 'ferns branch, needles hardly');
-    assert.equal(M.crystalFor(-7).twig, 0);
-    // Humid air (dew point close to the temperature) branches more than dry air.
-    const humid = M.crystalFor(-15, -16), dry = M.crystalFor(-15, -30);
-    assert.ok(humid.twig > dry.twig && humid.arm > dry.arm && humid.size > dry.size);
-    assert.deepEqual(M.crystalFor(-15, null), M.crystalFor(-15, NaN), 'no dew point: a usual winter day');
-    for (let t = 5; t >= -40; t -= 0.5) {
-        const c = M.crystalFor(t, t - 3);
-        for (const k of ['arm', 'twig', 'size'])
-            assert.ok(c[k] >= 0 && c[k] <= 1, `${k} at ${t} °C`);
-    }
+test('humid air frosts a little more than dry air, and no dew point leaves the steps as they are', () => {
+    const plain = M.frostFor(5, {});
+    assert.deepEqual(M.frostFor(5, {}, null), plain);
+    assert.deepEqual(M.frostFor(5, {}, NaN), plain, 'no dew point: a usual day');
+    const humid = M.frostFor(5, {}, 4.5), dry = M.frostFor(5, {}, -15);
+    assert.ok(humid.frost > plain.frost && dry.frost < plain.frost, 'mist forms from the water in the air');
+    const ice = M.frostFor(-4, {}), iceDry = M.frostFor(-4, {}, -20);
+    assert.ok(iceDry.flakes < ice.flakes && iceDry.flakes > 0.6 * ice.flakes, 'dry air ices over a little less, never none');
+    assert.ok(M.frostFor(-40, {}, -40).flakes <= 1 && M.frostFor(-40, {}, -40).frost <= 1);
+    assert.equal(M.wetness(5, 5), 1);
+    assert.equal(M.wetness(5, -30), 0.15);
+    assert.equal(M.wetness(5, null), M.WET_DEFAULT);
+    assert.equal(M.frostFor(25, {}, 25).frost, 0, 'warm is your look, however humid');
 });
 
-test('a new shape grows out of the old one', () => {
-    const a = {frost: 1, flakes: 0.4, ice: {arm: 0.1, twig: 0, size: 0.9}};
-    const b = {frost: 1, flakes: 1, ice: {arm: 0.9, twig: 0.8, size: 1}};
-    assert.deepEqual(M.between(a, b, 0).ice, a.ice);
-    assert.deepEqual(M.between(a, b, 1).ice, b.ice);
-    const mid = M.between(a, b, 0.5).ice;
-    assert.ok(mid.arm > 0.1 && mid.arm < 0.9);
-});
-
-test('the frost\'s shape goes by the air and its dew point, never by "feels like"', () => {
+test('the frost goes by the dew point GNOME\'s weather has', () => {
     now = 4e12;
-    const c = client({temp: -15, feels: -25, dew: -16});
+    const c = client({temp: 3, feels: 1, dew: 2.5});
     withClient(c);
     globalThis.fake.frosts = [];
     const w = new WeatherFrost(C.parse(JSON.stringify(on())));
-    const want = M.crystalFor(-15, -16);
-    assert.equal(w.state.shape, 'ferns');
-    assert.deepEqual(globalThis.fake.ice, {arm: want.arm, twig: want.twig, size: want.size});
+    const want = M.frostFor(1, {}, 2.5);     // feels like, with the dew point
+    assert.deepEqual(globalThis.fake.frosts.at(-1), [want.frost, want.flakes]);
     const state = JSON.parse(globalThis.fake.fs.get(STATE).text);
-    assert.equal(state.dew, -16);
-    assert.equal(state.shape, 'ferns');
+    assert.equal(state.dew, 2.5);
+    assert.equal(state.frost, want.frost);
     w.destroy();
-    assert.deepEqual(globalThis.fake.ice, {arm: 0, twig: 0, size: 0});
 });
 
 test('a dew point over the temperature (a rounding in the weather) is taken as the temperature', () => {
@@ -313,9 +298,11 @@ test('a dew point over the temperature (a rounding in the weather) is taken as t
 
 test('the frost shader is plain GLSL both GNOME Shell and the app take', () => {
     const g = M.ICE_GLSL;
-    for (const fn of ['iceHash', 'iceNoise', 'iceSeg', 'iceFeather', 'iceEdge', 'iceFrost', 'iceFrosting', 'iceDew'])
+    for (const fn of ['iceHash', 'iceNoise', 'iceGlaze'])
         assert.ok(g.includes(` ${fn}(`), fn);
     assert.ok(!/`|\$\{/.test(g), 'nothing that would break the shader\'s JS string');
     assert.ok(!/\b(texture|uniform|OFF)\b/.test(g), 'uses only its own arguments');
     assert.ok(!/\d\.\d*f\b|\bint\s+\w+\s*=\s*\d+\.\d/.test(g), 'no C-style float suffixes');
+    const code = g.replace(/\/\/.*$/gm, '');
+    assert.ok(!/\b(fern|needle|crystal|star|glint|flake|drop|branch)/i.test(code), 'no patterns: just frost and ice');
 });

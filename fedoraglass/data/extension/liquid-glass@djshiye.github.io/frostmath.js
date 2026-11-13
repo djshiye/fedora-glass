@@ -4,10 +4,10 @@
 //
 // The steps follow how warm it feels outdoors, dressed for the season:
 //   just right (and warm, and hot)  the glass looks exactly as you set it
-//   cool, below `cool` (18 °C)      a light mist of droplets that thickens as it gets colder
-//   cold, below `cold` (10 °C)      fogged glass, the droplets biggest at the colder edges
-//   freezing, below `freezing` (0)  the droplets freeze and frost grows in from the edges,
-//                                   in the shape real ice takes in that weather (crystalFor)
+//   cool, below `cool` (18 °C)      a light mist that thickens as it gets colder
+//   cold, below `cold` (10 °C)      frosted glass, whiter towards the colder edges
+//   freezing, below `freezing` (0)  the glass ices over from its edges, more the colder
+// Humid air frosts a little more than dry air, as on a real window (the dew point).
 // The three temperatures are the user's to move (the app's Weather frost card).
 
 export const FROST_DEFAULTS = Object.freeze({
@@ -15,13 +15,14 @@ export const FROST_DEFAULTS = Object.freeze({
     feelsLike: true,        // go by the "feels like" temperature (wind and humidity), else the air
     cool: 18,               // °C: below this the glass starts to mist over
     cold: 10,               // °C: below this it is frosted
-    freezing: 0,            // °C: below this frost flakes grow on it
+    freezing: 0,            // °C: below this the glass ices over from its edges
     amount: 1,              // 0.2..1, how far the frost goes at its coldest
 });
 
 // Where each step sits on the 0..1 frost scale: misty at the cool end, frosted at cold.
 export const COOL_TOP = 0.5;
-// Flakes start this strong at `freezing`, and are full this many °C below it.
+// The ice ("flakes", kept as the name) starts this strong at `freezing`, and is full this
+// many °C below it.
 export const FLAKES_START = 0.4;
 export const FLAKES_SPAN = 10;
 
@@ -54,8 +55,9 @@ export function cleanFrost(raw) {
 /**
  * How frosty the glass is at `tempC` (°C): {level, frost, flakes}, frost and flakes 0..1.
  * level: 'neutral', 'cool', 'cold' or 'freezing'. No temperature (null, NaN) is neutral.
+ * dewC, the dew point (°C) when the weather has one: dry air frosts a little less.
  */
-export function frostFor(tempC, cfg) {
+export function frostFor(tempC, cfg, dewC = null) {
     const c = cleanFrost(cfg);
     if (typeof tempC !== 'number' || !Number.isFinite(tempC) || tempC >= c.cool)
         return {level: 'neutral', frost: 0, flakes: 0};
@@ -72,25 +74,32 @@ export function frostFor(tempC, cfg) {
         frost = 1;
         flakes = FLAKES_START + (1 - FLAKES_START) * clamp((c.freezing - tempC) / FLAKES_SPAN, 0, 1);
     }
-    const k = (v) => Math.round(clamp(v, 0, 1) * c.amount * 1000) / 1000;
+    const h = humidity(tempC, dewC);
+    const k = (v) => Math.round(clamp(v * h, 0, 1) * c.amount * 1000) / 1000;
     return {level, frost: k(frost), flakes: k(flakes)};
 }
 
-const NO_ICE = Object.freeze({arm: 0, twig: 0, size: 0});
+// How wet the air is, 0..1, when the dew point is far under the temperature (dry) up to
+// close to it (humid): mist and frost form from the water in the air, so dry air makes
+// less. A usual winter day (or no dew point) leaves the frost as the steps say.
+export const WET_DEFAULT = 0.6;
 
-/**
- * One step of the change from `from` toward `to` (both {frost, flakes, ice}); t is 0..1 of
- * the way. The frost's shape (ice: {arm, twig, size}) changes along with it, so a new
- * shape grows out of the old one.
- */
+/** How wet the air is, 0..1, from the gap between the temperature and its dew point. */
+export function wetness(tempC, dewC) {
+    if (typeof dewC !== 'number' || !Number.isFinite(dewC) || typeof tempC !== 'number' || !Number.isFinite(tempC))
+        return WET_DEFAULT;
+    return Math.round(clamp(1 - Math.max(0, tempC - dewC) / 8, 0.15, 1) * 1000) / 1000;
+}
+
+// 0.89 in very dry air, 1 on a usual day, 1.1 when the air is about to fog.
+function humidity(tempC, dewC) {
+    return 0.85 + 0.25 * wetness(tempC, dewC);
+}
+
+/** One step of the change from `now` toward `target` (both {frost, flakes}); t is 0..1 of the way. */
 export function between(from, to, t) {
     const e = t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
-    const a = from.ice ?? NO_ICE, b = to.ice ?? NO_ICE;
-    const m = (x, y) => x + (y - x) * e;
-    return {
-        frost: m(from.frost, to.frost), flakes: m(from.flakes, to.flakes),
-        ice: {arm: m(a.arm, b.arm), twig: m(a.twig, b.twig), size: m(a.size, b.size)},
-    };
+    return {frost: from.frost + (to.frost - from.frost) * e, flakes: from.flakes + (to.flakes - from.flakes) * e};
 }
 
 // Extra blur the frost adds, px, in a few steps: each step re-blurs every pane once,
@@ -115,68 +124,12 @@ export function stale(atUs, nowUs) {
     return !atUs || nowUs - atUs >= STALE_US || nowUs < atUs - 60e6;
 }
 
-// ---- the ice's shape: how frost really grows ------------------------------------------
-// Ice is hexagonal, so every branch of a frost crystal runs along one of six directions,
-// 60° apart. Which shape it grows into is set by the temperature (Nakaya's diagram, as
-// measured by Libbrecht), and how branched by how humid the air is (how far the vapour is
-// over saturation): the more humid, the more side branches grow on the branches.
-//   0 to -4 °C     thin hexagonal plates: short, broad frost
-//   -4 to -10 °C   needles and columns: long, straight needles with a few short spurs
-//   -10 to -22 °C  plates again, past a point branching into dendrites: feathery ferns
-//                  (the classic window frost, fullest around -15 °C)
-//   below -22 °C   small columns: dense, short frost
-// The air temperature decides, never "feels like" (wind chill is felt by people, not ice).
-export const HABITS = Object.freeze({
-    plates: {arm: 0.5, twig: 0.15, size: 0.6},
-    needles: {arm: 0.12, twig: 0, size: 1},
-    ferns: {arm: 1, twig: 1, size: 1},
-    columns: {arm: 0.3, twig: 0, size: 0.45},
-});
-// How humid the air is when GNOME's weather has no dew point: a usual winter day.
-export const WET_DEFAULT = 0.6;
-
-function ramp(a, b, v) {
-    const t = clamp((v - a) / (b - a), 0, 1);
-    return t * t * (3 - 2 * t);
-}
-
-/** How wet the air is, 0..1, from the gap between the air temperature and its dew point. */
-export function wetness(tempC, dewC) {
-    if (typeof dewC !== 'number' || !Number.isFinite(dewC) || typeof tempC !== 'number' || !Number.isFinite(tempC))
-        return WET_DEFAULT;
-    return Math.round(clamp(1 - Math.max(0, tempC - dewC) / 8, 0.15, 1) * 1000) / 1000;
-}
-
-/**
- * The shape frost grows into at `tempC` (air, °C) with dew point `dewC` (or null):
- * {shape, arm, twig, size}. arm: how long the side branches are, 0..1; twig: branches on
- * those; size: how big the frost grows, 0..1. Shapes blend over a couple of degrees.
- */
-export function crystalFor(tempC, dewC = null) {
-    const t = typeof tempC === 'number' && Number.isFinite(tempC) ? Math.min(tempC, -1) : -6;
-    const needles = ramp(-3, -5, t) * (1 - ramp(-9, -11, t));
-    const ferns = ramp(-9, -11, t) * (1 - ramp(-21, -23, t));
-    const columns = ramp(-21, -23, t);
-    const plates = Math.max(0, 1 - needles - ferns - columns);
-    const w = {plates, needles, ferns, columns};
-    const shape = Object.keys(w).reduce((a, b) => (w[b] > w[a] ? b : a));
-    const mix = k => Object.keys(w).reduce((s, h) => s + w[h] * HABITS[h][k], 0);
-    const wet = wetness(tempC, dewC);
-    const r = v => Math.round(clamp(v, 0, 1) * 1000) / 1000;
-    return {
-        shape,
-        arm: r(mix('arm') * (0.55 + 0.45 * wet)),
-        twig: r(mix('twig') * wet),
-        size: r(mix('size') * (0.75 + 0.25 * wet)),
-    };
-}
-
 // The frost as the shader draws it: the desktop (glass.js) and the app's preview
 // (shaders/glass.frag) use this same text, word for word (a test checks), so the preview
 // frosts exactly like the desktop. Lengths are desktop px. Plain GLSL that both GLSL 1.10
 // (GNOME Shell) and 4.40 (the app) take.
 export const ICE_GLSL = `
-// ---- weather frost: how ice really forms on cold glass (frostmath.js) ----
+// ---- weather frost (frostmath.js) ----
 // A hash with no sin(), so it is the same on every GPU (Dave Hoskins, MIT).
 float iceHash(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -191,130 +144,20 @@ float iceNoise(vec2 p) {
                mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-// px to a line from the origin along +x, len long (p in the line's own frame).
-float iceSeg(vec2 p, float len) {
-    return length(vec2(p.x - clamp(p.x, 0.0, len), p.y));
-}
-
-// One frost feather, grown from the origin along +x: a stem len long with side branches
-// at 60 degrees (ice is hexagonal: every branch runs along one of its six axes), longest
-// part-way along and shorter to both ends, like a leaf. arm: how long the branches are;
-// twig: branches on the branches, at 60 degrees again. px to the ice's edge (< 0 on it).
-float iceFeather(vec2 p, float len, float gap, float arm, float twig, float seed) {
-    float w = mix(0.95, 0.4, clamp(p.x / max(len, 1.0), 0.0, 1.0));
-    float d = iceSeg(p, len) - w;
-    if (arm < 0.02 || p.x < -2.0 || p.x > len + arm * 0.5 * len)
-        return d;
-    float side = p.y < 0.0 ? 1.0 : 0.0;
-    float ay = abs(p.y);
-    float off = side * 0.5 * gap;
-    float k = floor((p.x - 0.57735 * ay - off) / gap + 0.5);
-    float xb = k * gap + off;
-    if (xb <= 0.0 || xb >= len)
-        return d;
-    float r = iceHash(vec2(k + seed, side + 3.7 * seed));
-    float lb = arm * min(1.2 * xb, 0.75 * (len - xb)) * (0.55 + 0.45 * r);
-    vec2 q = vec2(0.5 * (p.x - xb) + 0.866025 * ay, 0.866025 * (p.x - xb) - 0.5 * ay);
-    d = min(d, iceSeg(q, lb) - 0.8 * w);
-    if (twig < 0.02 || lb < 2.0 * gap || q.x < 0.0 || q.x > lb + 2.0)
-        return d;
-    float g2 = 0.55 * gap;
-    float s2 = q.y < 0.0 ? 1.0 : 0.0;
-    float ty = abs(q.y);
-    float o2 = s2 * 0.5 * g2;
-    float k2 = floor((q.x - 0.57735 * ty - o2) / g2 + 0.5);
-    float xt = k2 * g2 + o2;
-    if (xt <= 0.0 || xt >= lb)
-        return d;
-    float lt = twig * 0.6 * min(xt, lb - xt) * (0.5 + 0.5 * iceHash(vec2(k2 + 17.0 * r, s2 + seed)));
-    vec2 t = vec2(0.5 * (q.x - xt) + 0.866025 * ty, 0.866025 * (q.x - xt) - 0.5 * ty);
-    return min(d, iceSeg(t, lt) - 0.6 * w);
-}
-
-// Frost grows in from one edge: along it, s px; in from it, u px. Window frost starts at
-// the edges, the coldest part of the glass, from specks on it (dust, fine scratches; some
-// of nature's best ice seeds are pollen and bacteria). Not every speck seeds: more do as
-// it gets colder. Each feather leans a little and sweeps in a gentle curve.
-float iceEdge(float s, float u, float sid, float reach, float grow, float arm, float twig, float size) {
-    float g = mix(14.0, 30.0, size);
-    float gap = mix(9.0, 4.2, arm);
-    float i0 = floor(s / g);
-    float best = 1e4;
-    for (int j = -2; j <= 2; j++) {
-        vec2 id = vec2(i0 + float(j), sid);
-        if (iceHash(id * 1.7 + 0.3) > 0.35 + 0.5 * grow)
-            continue;
-        float r2 = iceHash(id * 2.3 + 5.1);
-        float r3 = iceHash(id * 3.1 + 9.7);
-        float len = reach * (0.45 + 0.55 * r3) * grow;
-        vec2 dv = vec2(s - (id.x + 0.15 + 0.7 * r2) * g, u);
-        if (len < 2.0 || abs(dv.x) > 0.8 * len + 4.0)
-            continue;
-        float a = (r2 - 0.5) * 0.9;
-        vec2 dir = vec2(sin(a), cos(a));
-        vec2 p = vec2(dot(dv, dir), dir.x * dv.y - dir.y * dv.x);
-        p.y += (r3 - 0.5) * mix(0.1, 0.8, arm) * p.x * p.x / len;     // needles grow straight
-        best = min(best, iceFeather(p, len, gap, arm, twig, id.x * 0.37 + sid));
-    }
-    return best;
-}
-
-// The frost on a pane: px to the nearest ice (< 0 on it). c: px from the pane's middle;
-// h: half its size. reach: how far in the frost grows at its fullest; grow 0..1 how far
-// it has.
-float iceFrost(vec2 c, vec2 h, float reach, float grow, float arm, float twig, float size) {
-    float ux = h.x - abs(c.x);
-    float uy = h.y - abs(c.y);
-    float d = 1e4;
-    float pad = reach + 8.0;
-    if (uy < pad)
-        d = iceEdge(c.x + h.x, uy, c.y < 0.0 ? 1.0 : 2.0, reach, grow, arm, twig, size);
-    if (ux < pad)
-        d = min(d, iceEdge(c.y + h.y, ux, c.x < 0.0 ? 3.0 : 4.0, reach, grow, arm, twig, size));
-    return d;
-}
-
-// How thick the ice glaze is, 0..1. Frost on glass is a coat of countless tiny crystals:
-// it scatters light, so it reads as a soft icy sheen rather than as lines. It builds up
-// thickest along the edges (the coldest glass, thicker still in the corners), its inner
-// edge wavering, and reaches further in as soft feathers where the crystals branch
-// (iceD: px to them). inside: px in from the edge; q: px on the glass, fixed to it.
-float iceFrosting(vec2 c, vec2 h, float inside, vec2 q, float reach, float grow, float iceD) {
-    float n = 0.6 * iceNoise(q * 0.035) + 0.4 * iceNoise(q * 0.11);
-    float corner = 1.0 - smoothstep(0.0, 1.6 * reach, max(h.x - abs(c.x), h.y - abs(c.y)));
-    float edge = (0.06 + 0.5 * n * n + 0.3 * corner) * reach * (0.45 + 0.55 * grow);
-    float rim = 1.0 - smoothstep(0.2 * edge, 1.15 * edge + 4.0, inside);
-    float fern = (1.0 - smoothstep(-0.5, 1.5 + 2.0 * grow, iceD)) * (1.0 - 0.55 * smoothstep(0.0, reach, inside));
-    float grain = 0.75 + 0.25 * iceNoise(q * 0.7);
-    return clamp(max(0.9 * rim, 0.6 * fern) * grain, 0.0, 1.0);
-}
-
-// Fog on cold glass is droplets (breath figures): too small to see one by one at first,
-// growing and merging as it gets colder, biggest towards the colder edge. Each droplet is a
-// little lens: dark at its rim, where light bends away, with a bright point on the side
-// facing the light. Returns (how much of a droplet is here, its shade -1..1).
-vec2 iceDew(vec2 q, float cell, float big, vec2 L) {
-    vec2 i0 = floor(q / cell);
-    float best = 9.0;
-    vec2 bd = vec2(0.0);
-    float br = 1.0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec2 id = i0 + vec2(float(x), float(y));
-            vec2 at = (id + 0.2 + 0.6 * vec2(iceHash(id + 1.7), iceHash(id + 4.3))) * cell;
-            float rad = cell * big * (0.2 + 0.32 * iceHash(id + 7.9));
-            vec2 d = (q - at) / rad;
-            float e = length(d);
-            if (e < best) {
-                best = e;
-                bd = d;
-                br = rad;
-            }
-        }
-    }
-    float on = clamp((1.0 - best) * br + 0.5, 0.0, 1.0);
-    float ring = smoothstep(0.5, 0.95, best);
-    float spot = 1.0 - smoothstep(0.0, 0.42, length(bd - 0.45 * L));
-    return vec2(on, on * (spot - 0.7 * ring));
+// How thick the ice is, 0..1, below freezing. A window ices over from its edges, the
+// coldest glass, and thickest in the corners, where two edges meet; the ice's inner edge
+// is soft and a little uneven, never a pattern. Its crystals are far too small to see one
+// by one: together they are a smooth frosted sheen. c: px from the pane's middle; h: half
+// its size; inside: px in from the edge; q: px on the glass, fixed to it; reach: how far
+// in the ice can grow; grow 0..1 how far it has.
+float iceGlaze(vec2 c, vec2 h, float inside, vec2 q, float reach, float grow) {
+    // Distance in from the edges, softly rounded where two meet: so the ice runs round the
+    // corners in a curve, thicker there, with no seam.
+    float sm = 0.35 * reach;
+    float u = -sm * log(exp(-(h.x - abs(c.x)) / sm) + exp(-(h.y - abs(c.y)) / sm));
+    u = max(u, inside - sm);
+    float n = 0.7 * iceNoise(q * 0.02) + 0.3 * iceNoise(q * 0.05);
+    float edge = (0.3 + 0.45 * n) * reach * (0.35 + 0.65 * grow);
+    return 1.0 - smoothstep(0.1 * edge, edge + 6.0, u);
 }
 `;
