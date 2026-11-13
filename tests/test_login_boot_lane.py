@@ -987,7 +987,9 @@ def test_removal_fails_when_root_state_folder_is_left(monkeypatch, tmp_path):
     lane = _lane(monkeypatch, tmp_path, guest)
     assert not lane.run(lb.plan())
     assert lane.results["removal"] == "FAIL" and "state folder /var/lib/fedora-glass/login is gone" in lane.notes["removal"]
-    assert "ls -la /var/lib/fedora-glass 2>&1" in guest.cmds
+    # What was left in it, and whether a check of the trial watch ran during the removal.
+    assert "sudo ls -la /var/lib/fedora-glass /var/lib/fedora-glass/login 2>&1" in guest.cmds
+    assert any(c.startswith("sudo journalctl -b -u fedora-glass-login-guard-check.path") for c in guest.cmds)
 
 
 def test_login_step_fails_when_the_watcher_is_still_active_ten_seconds_after_the_trial_ended(monkeypatch, tmp_path, capsys):

@@ -1781,11 +1781,31 @@ def test_on_starts_the_watching_and_the_end_of_the_trial_stops_it(fedora):
 
 
 @needs_dconf
-def test_off_during_a_trial_stops_the_watching(fedora):
+def test_off_during_a_trial_stops_the_watching_and_waits_for_it(fedora):
+    """`off` comes back only when the watcher is stopped (first, so it starts nothing new) and
+    a check it had already started is over: both without --no-block."""
     said = _fake_systemd(fedora)
     assert on(fedora)[0] == 0
     assert lg.turn_off(fedora) == []
-    assert _said(said) == [f"--no-block start {lg.CHECK_PATH_UNIT}", f"--no-block stop {lg.CHECK_PATH_UNIT}"]
+    assert _said(said) == [f"--no-block start {lg.CHECK_PATH_UNIT}",
+                           f"stop {lg.CHECK_PATH_UNIT}", f"stop {lg.CHECK_SERVICE_UNIT}"]
+
+
+@needs_dconf
+def test_a_late_check_does_not_put_roots_state_folder_back(fedora):
+    """Removing the package: after `off` the scriptlet takes the lock file and root's state
+    folder away. A check that still runs after that must leave no trace (seen on a real
+    Ubuntu: the folder was back, with a new lock file in it)."""
+    said = _fake_systemd(fedora)
+    assert on(fedora)[0] == 0
+    assert lg.turn_off(fedora) == []
+    folder = Path(fedora.state_dir)
+    assert [p.name for p in folder.iterdir()] == [".lock"]
+    (folder / ".lock").unlink()
+    folder.rmdir()
+    assert lg.guard_check(fedora) == "nothing"
+    assert not folder.exists()
+    assert _said(said)[-1] == f"--no-block stop {lg.CHECK_PATH_UNIT}"
 
 
 @needs_dconf

@@ -1478,7 +1478,9 @@ class Lane:
         check(not o["dconf_files"], f"no file under /etc/dconf has our switch ({o['dconf_files']})")
         check(not o["etc_login"], "/etc/fedora-glass/login is gone")
         if o["var_login"]:
-            self.vm.sh("ls -la /var/lib/fedora-glass 2>&1", check=False)
+            # What is in it, and whether a check of the trial watch ran during the removal.
+            self.vm.sh("sudo ls -la /var/lib/fedora-glass /var/lib/fedora-glass/login 2>&1", check=False)
+            self.vm.sh(f"sudo journalctl -b -u {CHECK_PATH} -u {CHECK_SERVICE} --no-pager -n 30", check=False)
         check(not o["var_login"], "root's state folder /var/lib/fedora-glass/login is gone")
         now = self.vm.probe("dconf-state")
         check(UUID not in now["gsettings"]["org.gnome.shell enabled-extensions"],

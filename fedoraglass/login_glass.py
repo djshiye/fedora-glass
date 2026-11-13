@@ -47,6 +47,7 @@ OUR_FILE = "90-fedora-glass-login"            # our keyfile and our locks file, 
 PROFILE_LINE = "system-db:" + OWN_DB
 GUARD_UNIT = "fedora-glass-login-guard.service"
 CHECK_PATH_UNIT = "fedora-glass-login-guard-check.path"
+CHECK_SERVICE_UNIT = "fedora-glass-login-guard-check.service"
 KERNEL_OFF = "fedora-glass-login=off"
 PICTURE_DIR_SEEN_BY_GREETER = "/etc/fedora-glass/login"
 MAX_PICTURE = 16 << 20
@@ -1444,28 +1445,39 @@ def _take_off_painted_glass(paths: Paths) -> None:
         raise Failed("the painted login glass of an earlier version could not be taken off")
 
 
-def _watch(paths: Paths, verb: str) -> None:
-    """Best effort: start or stop the path unit that watches for the first login. Only
-    where systemd runs (not in a chroot, a container or an image being built)."""
+def _systemctl(paths: Paths, *args: str) -> None:
+    """Best effort, and only where systemd runs (not in a chroot, a container or an image
+    being built)."""
     if not os.path.isdir(paths.run_systemd):
         return
     try:
-        _run([paths.systemctl, "--no-block", verb, CHECK_PATH_UNIT], timeout=10)
+        _run([paths.systemctl, *args], timeout=10)
     except (OSError, subprocess.SubprocessError, Failed):
         pass
 
 
 def _arm_check(paths: Paths) -> None:
-    """Start the watching now, for a trial that starts in this boot."""
-    _watch(paths, "start")
+    """Start the watching for the first login now, for a trial that starts in this boot."""
+    _systemctl(paths, "--no-block", "start", CHECK_PATH_UNIT)
 
 
-def _disarm_check(paths: Paths) -> None:
+def _disarm_check(paths: Paths, wait: bool = False) -> None:
     """No trial is left, so there is nothing to watch for. Left running, the path unit
     would go on starting a check that has nothing to do at every change of the session
-    list, with a line in the journal each time."""
-    if not os.path.lexists(paths.trial):
-        _watch(paths, "stop")
+    list, with a line in the journal each time.
+
+    `wait` (after an off somebody asked for): the watching, and a check it had already
+    started, are over when this returns. So nothing of ours runs after that off; a removal
+    of the package takes root's state folder away next, and a late check would put it back.
+    The check itself never waits: it would be waiting for its own end."""
+    if os.path.lexists(paths.trial):
+        return
+    if wait:
+        # The watcher first, so that it starts no new check; then a check on its way.
+        _systemctl(paths, "stop", CHECK_PATH_UNIT)
+        _systemctl(paths, "stop", CHECK_SERVICE_UNIT)
+    else:
+        _systemctl(paths, "--no-block", "stop", CHECK_PATH_UNIT)
 
 
 # ---- off ------------------------------------------------------------------------------
@@ -1604,7 +1616,7 @@ def _off_locked(paths: Paths, reason: str | None, keep_stopped: bool = False) ->
 def turn_off(paths: Paths, reason: str | None = None) -> list[str]:
     with Lock(paths):
         problems = _off_locked(paths, reason)
-    _disarm_check(paths)
+    _disarm_check(paths, wait=True)
     return problems
 
 
@@ -1730,6 +1742,11 @@ def _guard_boot(paths: Paths) -> str:
 def guard_check(paths: Paths) -> str:
     """While a trial runs, when a login session appears: a login through the glass ends the
     trial; a crash note turns it off. Once no trial is left, the watching stops."""
+    if not os.path.isdir(paths.state_dir):
+        # Root's state folder is gone, so nothing is on record (the package is being
+        # removed, or it was never on). Taking the lock would put the folder back.
+        _disarm_check(paths)
+        return "nothing"
     did = _guard_check(paths)
     _disarm_check(paths)
     return did
