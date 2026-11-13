@@ -191,7 +191,7 @@ def test_frost_is_skipped_entirely_when_off():
     """Weather frost off (or warm out): both uniforms 0, so the shader skips its frost branches."""
     src = (EXT / "glass.js").read_text()
     assert "if (frost > OFF && mode < 1.5)" in src
-    assert "if (flakes > OFF && mode < 1.5 && inside <" in src and "if (flakes > OFF && mode < 1.5 && iceD <" in src
+    assert "if (flakes > OFF && mode < 1.5 && inside < iceReach" in src
     assert "let frostNow = {frost: 0, flakes: 0, blur: 0, arm: 0, twig: 0, size: 0};" in src
 
 

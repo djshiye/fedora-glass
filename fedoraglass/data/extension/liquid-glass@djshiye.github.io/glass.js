@@ -680,33 +680,23 @@ void main() {
 
     // Weather frost: cold outside, the glass mists over the way real glass does. Fog is
     // droplets: a mist of ones too small to see in the middle, growing towards the colder
-    // edges until each is a little lens. Below freezing they freeze white and dull, and
-    // frost grows in from the edges (iceD: px to the nearest ice). Before the ceiling, so
-    // white text on dark glass keeps its contrast; dark glass mists less for that too.
-    // Weather frost off, or warm enough out, and this is skipped: the glass is as set.
+    // edges until each is a little lens. Below freezing they freeze into frosting (below).
+    // Before the ceiling, so white text on dark glass keeps its contrast; dark glass mists
+    // less for that too. Weather frost off, or warm enough out, and this is skipped.
     float shortIce = 2.0 * min(h.x, h.y);
     bool iceFew = cheap > 0.5 || lite > 0.5;
-    float iceReach = min(0.42 * shortIce, 18.0 + 46.0 * ice_size);
-    float iceD = 1e4;
-    if (flakes > OFF && mode < 1.5 && inside < 1.45 * iceReach + 8.0)
-        iceD = iceFrost(c, h, px + at0, iceReach, flakes, ice_arm, iceFew ? 0.0 : ice_twig, ice_size, iceFew);
     if (frost > OFF && mode < 1.5) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         float rimF = 1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside);
-        // Around the frost the glass clears: ice draws the water out of the droplets next
-        // to it (the Wegener-Bergeron-Findeisen effect), so a thin dry ring frames it.
-        float dry = flakes > OFF ? mix(0.45, 1.0, smoothstep(0.5, 6.0, iceD)) : 1.0;
         vec3 ice = light_glass > 0.5 ? vec3(0.93, 0.965, 1.0) : vec3(0.58, 0.66, 0.76);
-        float k = frost * dry * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
-        st = mix(vivid(st, 1.0 - 0.5 * frost * dry), ice, k);
+        float k = frost * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
+        st = mix(vivid(st, 1.0 - 0.5 * frost), ice, k);
         st += vec3((iceHash(floor(px + at0)) - 0.5) * 0.07 * frost);
-        float dewIn = shortIce * mix(0.1, 0.3, frost);
+        float dewIn = shortIce * mix(0.1, 0.3, frost) * (1.0 - smoothstep(0.0, 0.6, flakes));
         if (!iceFew && inside < dewIn) {
             float e = 1.0 - inside / dewIn;
             vec2 dw = iceDew(px + at0, mix(3.5, 7.0, frost), mix(0.65, 1.15, e), L);
-            float frozen = smoothstep(0.0, 0.3, flakes);
-            float a = dw.x * min(1.0, 0.4 + frost) * smoothstep(0.0, 0.5, e) * dry;
-            st += a * mix(vec3(dw.y * 0.25), (ice - st) * 0.25 + vec3(0.05 * dw.y), frozen);
+            st += vec3(dw.y * 0.25 * dw.x * min(1.0, 0.4 + frost) * smoothstep(0.0, 0.5, e));
         }
         col.rgb = clamp(st, 0.0, 1.0) * col.a;
     }
@@ -796,21 +786,20 @@ void main() {
         }
     }
 
-    // The frost itself, below freezing: crystals grown in from the edges in the shape the
-    // weather gives them (frostmath.js crystalFor). Ice is clear: it is white because its
-    // faces mirror the light, and a few glint, moving with the light. Only the edge band
-    // is worked out: the middle, where text sits, stays clear.
-    if (flakes > OFF && mode < 1.5 && iceD < 1.4) {
-        float a = clamp(0.5 - iceD, 0.0, 1.0) * (0.55 + 0.35 * flakes);
-        float spark = iceFew ? 0.0 : iceGlint(px + at0, L);
-        if (light_glass > 0.5) {
-            // White ice on white glass shows by the shade at its edges, where light bends.
-            float edge = clamp(1.3 - iceD, 0.0, 1.0) * (0.35 + 0.25 * flakes);
-            col.rgb = mix(col.rgb, throughVeil(vec3(0.60, 0.68, 0.80)) * col.a, edge * (1.0 - a));
-        }
-        // Drawn so it reads as white ice through the theme's veil, as in the app's preview.
-        col.rgb = mix(col.rgb, throughVeil(min(vec3(0.93, 0.965, 1.0) + vec3(0.6 * spark), vec3(1.0))) * col.a,
-                      min(1.0, a * (1.0 + spark)));
+    // The frost itself, below freezing: a translucent glaze of tiny ice crystals, thickest
+    // along the edges and reaching in as feathers in the shape the weather gives real ice
+    // (frostmath.js crystalFor), the crystals' own veins showing faintly in it. Icy, not
+    // snowy: what is behind still shows through. Drawn so it reads through the theme's veil.
+    // Only the edge band is worked out: the middle, where text sits, stays clear.
+    float iceReach = min(0.42 * shortIce, 18.0 + 46.0 * ice_size);
+    if (flakes > OFF && mode < 1.5 && inside < iceReach + 8.0) {
+        float iceD = iceFrost(c, h, iceReach, flakes, ice_arm, iceFew ? 0.0 : ice_twig, ice_size);
+        float fa = iceFrosting(c, h, inside, px + at0, iceReach, flakes, iceD) * (0.36 + 0.26 * flakes);
+        float vein = clamp(0.5 - iceD, 0.0, 1.0) * 0.38 * smoothstep(0.0, 0.3, flakes);
+        vec3 glaze = light_glass > 0.5 ? vec3(0.78, 0.85, 0.93) : vec3(0.84, 0.91, 1.0);
+        vec3 veinC = light_glass > 0.5 ? vec3(0.66, 0.75, 0.87) : vec3(0.95, 0.98, 1.0);
+        col.rgb = mix(col.rgb, throughVeil(glaze) * col.a, fa);
+        col.rgb = mix(col.rgb, throughVeil(veinC) * col.a, vein);
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge
