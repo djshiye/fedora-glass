@@ -1705,8 +1705,10 @@ def _guard_boot(paths: Paths) -> str:
             else:
                 st["trial_boots"] += 1
                 did = "trial"
-        else:
-            if st["last_boot"] and any(n["boot"] == st["last_boot"] for n in notes):
+        elif st["last_boot"]:
+            # Was the login screen heard from in the boot before this one? (With no boot on
+            # record there is nothing to compare with: the count starts at the next boot.)
+            if any(n["boot"] == st["last_boot"] for n in notes):
                 st["silent_boots"] = 0
             elif not automatic_login(paths):
                 st["silent_boots"] += 1
@@ -1750,7 +1752,9 @@ def _guard_check(paths: Paths) -> str:
                 _off_locked(paths, "crash")
                 return "off: crash"
             if any(n["verified"] == st["token"] for n in notes):
-                st.update(state="on", silent_boots=0)
+                # This boot goes on record as the one the login screen was last heard from,
+                # so the next boot's guard does not take it for a silent one.
+                st.update(state="on", silent_boots=0, last_boot=boot_id(paths))
                 write_atomic(paths.state, (json.dumps(st, sort_keys=True, indent=1) + "\n").encode())
                 _unlink(paths.trial)
                 return "on"

@@ -1045,6 +1045,35 @@ def test_guard_on_counts_silent_boots_and_stops_at_three(fedora):
 
 
 @needs_dconf
+def test_a_trial_ended_in_the_boot_it_began_does_not_make_the_next_boot_silent(fedora):
+    """Found by the real-boot test: switched on, logged in through it and confirmed by the
+    check in one boot, the first restart counted a silent boot although the login screen
+    had just been used."""
+    assert on(fedora)[0] == 0
+    token = state(fedora)["token"]
+    note(fedora, token, "ok", boot=BOOT_A, verified=token)
+    assert lg.guard_check(fedora) == "on"
+    assert state(fedora)["last_boot"] == BOOT_A
+    reboot(fedora, BOOT_B)
+    assert guard(fedora) == "kept" and state(fedora)["silent_boots"] == 0
+    # From then on the count works as always: the note of boot B is looked for in boot C.
+    reboot(fedora, "11111111-2222-4333-8444-555555555555")
+    assert guard(fedora) == "kept" and state(fedora)["silent_boots"] == 1
+
+
+@needs_dconf
+def test_guard_without_a_boot_on_record_does_not_count_a_silent_boot(fedora):
+    assert on(fedora)[0] == 0
+    st = state(fedora)
+    st.update(state="on", last_boot="")
+    Path(fedora.state).write_text(json.dumps(st))
+    Path(fedora.trial).unlink()
+    reboot(fedora, BOOT_B)
+    assert guard(fedora) == "kept"
+    assert state(fedora)["silent_boots"] == 0 and state(fedora)["last_boot"] == BOOT_B
+
+
+@needs_dconf
 def test_guard_on_with_automatic_login_is_not_silent(fedora):
     assert on(fedora)[0] == 0
     token = state(fedora)["token"]
