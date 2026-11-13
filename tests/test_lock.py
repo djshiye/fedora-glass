@@ -90,13 +90,15 @@ def test_spring_curve_dips_more_with_more_bounce():
 
 
 def test_lock_glass_keeps_white_text_readable_on_any_wallpaper():
-    js = (EXT / "lock.js").read_text()
+    # The look lives in locklook.js, shared with the login screen add-on.
+    js = (EXT / "locklook.js").read_text()
     sheet = float(re.search(r"const SHEET_CEILING = ([\d.]+);", js).group(1))
     card = float(re.search(r"const CARD_CEILING = ([\d.]+);", js).group(1))
     # White on the brightest the glass may get: at least 4.5:1.
     for y in (sheet, card):
         assert 1.05 / (y + 0.05) >= 4.5
     assert "ceiling: SHEET_CEILING" in js and "ceiling: CARD_CEILING" in js
+    assert "from './locklook.js'" in (EXT / "lock.js").read_text()
 
 
 def test_password_field_keeps_a_focus_ring_and_caret():
