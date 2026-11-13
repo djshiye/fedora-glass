@@ -19,6 +19,18 @@ pre_remove() {
     # turned that off in the app, and the normal login screen if the glass was on there.
     /usr/libexec/fedora-glass-undo-for-users || :
     /usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :
+    # The glass login screen back to plain GNOME while its add-on still exists (pre_remove
+    # runs on removal only, never on an upgrade; the boot-time guard handles those).
+    # A failed off must never fail the removal, but leaves locked keys behind and no tool
+    # to take them away: say how to finish by hand.
+    if ! /usr/libexec/fedora-glass-login off >/dev/null 2>&1; then
+        echo "fedora-glass: the glass login screen could not be switched off completely." >&2 || :
+        echo "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login and /etc/dconf/db/*.d/locks/90-fedora-glass-login, then run: dconf update" >&2 || :
+    else
+        # Nothing of it is left: root's own folder for it (now only its lock file) goes too.
+        rm -f /var/lib/fedora-glass/login/.lock || :
+        rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || :
+    fi
 }
 
 post_remove() {

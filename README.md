@@ -102,6 +102,27 @@ Terminal, Kitty, Ghostty, Alacritty, Foot and WezTerm, Qt apps (through Kvantum)
 
 <p align="center"><img src="docs/screenshots/app.png" width="860" alt="The Fedora Glass app: Home page with the live preview, looks, glass slider and colour"></p>
 
+## Glass login screen
+
+The login screen can get the same glass as the lock screen: your wallpaper, frosted, with the
+clock and one glass card for the list of users and the password. It is off until you ask for it.
+
+To turn it on, open the app, go to **Lock and login** and press **Turn on glass login screen**.
+It asks for your password.
+
+It stays safe. At first it is on trial, until you log in once. It turns itself off at the next
+start if the login screen had trouble, or if nobody could log in. Nobody is left locked out.
+
+Ways back:
+
+- The app's **Turn off** button.
+- From a text console (press Ctrl+Alt+F3 at the login screen): `sudo fedora-glass login-screen off`
+- From the boot menu: add `fedora-glass-login=off` to the kernel line for one start.
+- Removing the package.
+
+A note on privacy: with **My wallpaper**, a copy of your wallpaper is stored where the login
+screen can read it (`/etc/fedora-glass/login`). Anyone at the PC can see it.
+
 ## Undo or remove
 
 - **Restore original** (in the app, under About and restore) puts your desktop back exactly as it was before the first Apply.

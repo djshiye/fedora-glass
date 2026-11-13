@@ -191,6 +191,19 @@ class Settings:
     # Hide GNOME's notifications and music controls on the lock screen (only hidden,
     # GNOME's own notification settings are not changed).
     lock_hide_notifications: bool = False
+    # The glass login screen (GDM, through the root helper fedora-glass-login). It only
+    # changes when the person turns it on, and on Apply while it is on. "Match my lock
+    # screen" sends the lock screen's values; off, these login_* ones. Same ranges as the
+    # lock screen's. The big clock sits at the top only: GDM's user list needs the middle.
+    login_match_lock: bool = True
+    login_blur: int = 60
+    login_dim: float = 0.28
+    login_tint: float = 0.2
+    login_card: bool = True
+    login_clock: str = "bold"           # gnome (GNOME's small clock only), bold or thin
+    login_picture: str = "wallpaper"    # wallpaper (a copy of yours), system or glow
+    login_battery: bool = True
+    login_message: str = ""
 
     # The mouse pointer: "keep" leaves the user's own; otherwise one of cursors.STYLE_IDS,
     # set on Apply (Restore original brings theirs back). Size 0 leaves their own size.
@@ -296,6 +309,12 @@ class Settings:
             v = getattr(s, k)
             setattr(s, k, v if isinstance(v, bool) else getattr(Settings, k))
         s.lock_message = clean_message(s.lock_message)
+        for k in ("login_match_lock", "login_card", "login_battery"):
+            setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
+        s.login_blur = _int(s.login_blur, 10, 100, Settings.login_blur)
+        s.login_dim = min(0.65, _clamp(float(s.login_dim), Settings.login_dim))
+        s.login_tint = _clamp(float(s.login_tint), Settings.login_tint)
+        s.login_message = clean_message(s.login_message)
         for k, choices in LOCK_CHOICES.items():
             if getattr(s, k) not in choices:
                 setattr(s, k, getattr(Settings, k))
@@ -358,7 +377,8 @@ def target_default(target_id: str) -> bool:
 
 
 LOCK_CHOICES = {"lock_clock": ("gnome", "bold", "thin"), "lock_clock_position": ("gnome", "top", "middle"),
-                "lock_slide": ("gnome", "smooth", "spring"), "lock_widget_style": ("chips", "plain")}
+                "lock_slide": ("gnome", "smooth", "spring"), "lock_widget_style": ("chips", "plain"),
+                "login_clock": ("gnome", "bold", "thin"), "login_picture": ("wallpaper", "system", "glow")}
 
 LOCK_MESSAGE_MAX = 120
 _CONTROL = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]+")

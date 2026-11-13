@@ -27,4 +27,26 @@
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/liquid-glass-login-screen</annotate>
   </action>
+  <!-- The glass login screen: turns the login screen add-on on or off, or changes its look. -->
+  <action id="io.github.djshiye.FedoraGlass.login-glass">
+    <description>Turn the glass login screen on or off</description>
+    <description xml:lang="de">Den Glas-Anmeldebildschirm ein- oder ausschalten</description>
+    <description xml:lang="es">Activar o desactivar la pantalla de inicio de sesión de cristal</description>
+    <description xml:lang="fr">Activer ou désactiver l’écran de connexion en verre</description>
+    <description xml:lang="it">Attiva o disattiva la schermata di accesso in vetro</description>
+    <description xml:lang="pt_BR">Ativar ou desativar a tela de login de vidro</description>
+    <message>Fedora Glass needs your password to change the glass login screen</message>
+    <message xml:lang="de">Fedora Glass benötigt Ihr Passwort, um den Glas-Anmeldebildschirm zu ändern</message>
+    <message xml:lang="es">Fedora Glass necesita tu contraseña para cambiar la pantalla de inicio de sesión de cristal</message>
+    <message xml:lang="fr">Fedora Glass a besoin de votre mot de passe pour modifier l’écran de connexion en verre</message>
+    <message xml:lang="it">Fedora Glass ha bisogno della tua password per cambiare la schermata di accesso in vetro</message>
+    <message xml:lang="pt_BR">O Fedora Glass precisa da sua senha para alterar a tela de login de vidro</message>
+    <icon_name>io.github.djshiye.LiquidGlass</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/fedora-glass-login</annotate>
+  </action>
 </policyconfig>

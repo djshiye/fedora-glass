@@ -10,6 +10,9 @@ SettingsPage {
     objectName: "lockPage"
     pageId: "lock"
     property alias previewMode: preview.mode
+    property alias previewScreen: preview.screen
+    // The preview's switches sit under it when they would cover too much of it.
+    readonly property bool pillsBelow: previewBox.width < (screenSeg.visible ? 150 + 7 + 200 : 230) + 120
     readonly property bool weatherMissing: Backend.weatherState === "no-app" || Backend.weatherState === "no-place"
     readonly property string weatherWhy: Backend.weatherState === "no-app" ? qsTr("Weather needs the GNOME Weather app, so nothing shows yet.")
                                        : Backend.weatherState === "no-place" ? qsTr("Choose a place in GNOME Weather, so weather has something to show.")
@@ -367,9 +370,17 @@ SettingsPage {
         }
     }
 
+    // The glass login screen where its helper can run; the painted glass where it can't.
     LoginScreenCard {
         objectName: "loginCard"
         width: parent.width
+        visible: Backend.loginCardKind === "old"
+    }
+    LoginGlassCard {
+        objectName: "loginGlassCard"
+        width: parent.width
+        visible: Backend.loginCardKind === "new"
+        onTouched: preview.screen = "login"
     }
 
     // ================================================================ right: preview
@@ -410,22 +421,55 @@ SettingsPage {
                 layer.smooth: true
             }
 
-            // Which moment of the lock screen to show, floating on the preview.
+            // Lock screen or login screen, and which moment of the lock screen, floating on
+            // the preview. A preview too small for both moves them under it (belowSlot),
+            // so they never hide the clock.
             Rectangle {
+                id: pillBg
+                visible: !page.pillsBelow
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.margins: 12
-                width: modeSeg.width + 8
-                height: modeSeg.height + 8
+                width: pills.width + 8
+                height: pills.height + 8
                 radius: height / 2
                 color: Qt.rgba(0.08, 0.085, 0.11, 0.55)
+            }
+            Row {
+                id: pills
+                parent: page.pillsBelow ? belowSlot : pillBg
+                x: page.pillsBelow ? 0 : 4
+                y: page.pillsBelow ? 0 : 4
+                spacing: 6
+                Segmented {
+                    id: screenSeg
+                    objectName: "lockPreviewScreen"
+                    visible: Backend.loginCardKind === "new"
+                    width: 150
+                    compact: true
+                    onWallpaper: !page.pillsBelow
+                    model: [{ value: "lock", label: qsTr("Lock"), tip: qsTr("The lock screen you see when you come back to your PC") },
+                            { value: "login", label: qsTr("Login"), tip: qsTr("The login screen you see after a restart") }]
+                    value: preview.screen
+                    onActivated: (v) => preview.screen = v
+                    Accessible.name: qsTr("Which screen")
+                }
+                Item {
+                    visible: screenSeg.visible && modeSeg.visible
+                    width: 1; height: modeSeg.height
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 1; height: 20
+                        color: page.pillsBelow ? Theme.divider : Qt.rgba(1, 1, 1, 0.18)
+                    }
+                }
                 Segmented {
                     id: modeSeg
                     objectName: "lockPreviewMode"
-                    anchors.centerIn: parent
-                    width: 230
+                    visible: preview.screen === "lock"
+                    width: screenSeg.visible ? 200 : 230
                     compact: true
-                    onWallpaper: true
+                    onWallpaper: !page.pillsBelow
                     model: [{ value: "rest", label: qsTr("Clock"), tip: qsTr("The lock screen as it waits, with the clock and your widgets") },
                             { value: "prompt", label: qsTr("Password"), tip: qsTr("The lock screen once you start typing your password") }]
                     value: preview.mode
@@ -433,6 +477,12 @@ SettingsPage {
                     Accessible.name: qsTr("Preview")
                 }
             }
+        },
+        Item {
+            id: belowSlot
+            visible: page.pillsBelow
+            width: pills.width
+            height: visible ? pills.height : 0
         },
         Row {
             spacing: 8
@@ -444,7 +494,7 @@ SettingsPage {
                 leftPadding: 14
                 enabled: !unlockAnim.running
                 tip: qsTr("Shows the unlock animation on the preview, with the time and bounce you picked")
-                onClicked: { preview.mode = "rest"; unlockAnim.restart() }
+                onClicked: { preview.screen = "lock"; preview.mode = "rest"; unlockAnim.restart() }
             }
             LgButton {
                 objectName: "lockNow"
@@ -462,7 +512,8 @@ SettingsPage {
             objectName: "lockStatus"
             width: parent.width
             wrapMode: Text.WordWrap
-            text: qsTr("Changes show after Apply, the next time you lock.")
+            text: preview.screen === "login" ? qsTr("The login screen changes when you turn it on, and after Apply while it's on.")
+                                             : qsTr("Changes show after Apply, the next time you lock.")
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
         }

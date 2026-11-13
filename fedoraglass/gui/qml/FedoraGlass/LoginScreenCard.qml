@@ -92,5 +92,15 @@ Card {
             font.pixelSize: Theme.fsSmall
             text: Backend.loginGlassNote
         }
+        Text {
+            // Why the newer glass login screen isn't offered here, said once, quietly.
+            objectName: "loginGlassWhy"
+            visible: text.length > 0
+            width: parent.width
+            wrapMode: Text.WordWrap
+            color: Theme.textFaint
+            font.pixelSize: Theme.fsSmall
+            text: Backend.glassLoginWhy
+        }
     }
 }

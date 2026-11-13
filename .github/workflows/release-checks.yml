@@ -1,13 +1,14 @@
 # Release checks on a test desktop like Dino's (see qa/desktop/README.md), on GNOME 50 and
 # GNOME 51 side by side, plus short checks on a stock Ubuntu desktop and on stock GNOME
-# (alone and with Dash to Dock) on each.
+# (alone and with Dash to Dock) on each, and the glass login screen on a real login screen
+# (GNOME Shell in its login mode) on each.
 #
 # Runs before every release (release.yml calls it, next to the package builds, and only
 # publishes the release when it passes), by hand from the Actions tab, and on a pull
 # request only when it has the "release-checks" label, so ordinary pushes cost nothing.
 # The test desktop's base image is built once per GNOME version (the "image" job) and shared
 # with every lane through GitHub's cache (.github/actions/test-image), not built again in each
-# of the eight lanes.
+# of the ten lanes.
 #
 # When a pull request's run starts (the "release-checks" label):
 #   - a push (synchronize) starts a run when the pull request has the label, and replaces
@@ -228,6 +229,64 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: stock-check-report-gnome${{ matrix.gnome }}${{ matrix.dock && '-dock' || '' }}
+          path: |
+            ${{ runner.temp }}/qa-report/report/
+            ${{ runner.temp }}/qa-report/*.log
+            ${{ runner.temp }}/qa-report/*.txt
+          retention-days: 14
+          if-no-files-found: warn
+
+  # The glass login screen on a real login screen: GNOME Shell in its login (gdm) mode with
+  # the add-on switched on by the real root helper. Checks that the glass shows, that the
+  # password prompt still works under it, and that it leaves the plain login screen alone
+  # after a crash, a broken look or High Contrast. A real GDM start with a real login runs
+  # in login-boot.yml (the "login-boot" label).
+  login:
+    needs: image
+    name: Glass login screen, GNOME ${{ matrix.gnome }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        gnome: ["50", "51"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/test-image
+        with:
+          gnome: ${{ matrix.gnome }}
+          mode: load
+
+      - name: Run the login screen checks
+        run: qa/desktop/run.sh --gnome "${{ matrix.gnome }}" --login-screen --out "$RUNNER_TEMP/qa-report"
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/qa-report/report/report.md" ]; then
+            cat "$RUNNER_TEMP/qa-report/report/report.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report: the test login screen did not start." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Shell log (only when a check failed)
+        if: failure()
+        run: |
+          for f in shell.log; do
+            [ -f "$RUNNER_TEMP/qa-report/$f" ] || continue
+            echo "::group::$f (last 300 lines)"
+            tail -n 300 "$RUNNER_TEMP/qa-report/$f"
+            echo "::endgroup::"
+          done
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: login-check-report-gnome${{ matrix.gnome }}
           path: |
             ${{ runner.temp }}/qa-report/report/
             ${{ runner.temp }}/qa-report/*.log

@@ -18,7 +18,12 @@ Sheet {
     }
     // Only while the sheet shows (from aboutToShow on): closed, it needn't follow every slider tick.
     property bool _showing: false
-    readonly property var changes: _showing ? Backend.changeList : []
+    // The login screen behind the look applied (the wallpaper changed, or it was turned on
+    // with an older look): nothing to undo, but Apply brings it up to date, so it is listed.
+    readonly property var loginRow: ({ page: "lock", key: "login_refresh", before: "", after: "",
+                                       name: Backend.loginCardKind === "new" ? "loginGlassCard" : "loginCard",
+                                       label: qsTr("Login screen: bring it up to date") })
+    readonly property var changes: _showing ? Backend.changeList.concat(Backend.loginGlassStale ? [loginRow] : []) : []
     // The changes by page, in sidebar order: [{ page, label, rows }].
     readonly property var groups: {
         const out = []
@@ -103,7 +108,8 @@ Sheet {
                                     enabled: canJump
                                     hoverEnabled: true
                                     focusPolicy: Qt.StrongFocus
-                                    Accessible.name: qsTr("%1: %2 to %3").arg(modelData.label).arg(modelData.before).arg(modelData.after)
+                                    Accessible.name: modelData.before === "" && modelData.after === "" ? modelData.label
+                                                     : qsTr("%1: %2 to %3").arg(modelData.label).arg(modelData.before).arg(modelData.after)
                                     Accessible.description: canJump ? qsTr("Go to this setting") : ""
                                     onClicked: { sheet.close(); sheet.jump(modelData.page, modelData.name) }
                                     HoverHandler { cursorShape: change.canJump ? Qt.PointingHandCursor : Qt.ArrowCursor }
@@ -138,7 +144,11 @@ Sheet {
                                                 font.pixelSize: Theme.fsBody
                                                 font.features: { "tnum": 1 }
                                             }
-                                            Text { anchors.verticalCenter: parent.verticalCenter; text: "→"; color: Theme.textFaint; font.pixelSize: Theme.fsBody }
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                visible: change.modelData.before !== "" || change.modelData.after !== ""
+                                                text: "→"; color: Theme.textFaint; font.pixelSize: Theme.fsBody
+                                            }
                                             Text {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: Math.min(implicitWidth, 170)

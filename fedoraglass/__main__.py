@@ -7,6 +7,8 @@
   fedora-glass revert [TARGET] restore the original look (everything, or one target)
   fedora-glass watch           re-apply when GNOME switches dark/light, High Contrast, its accent colour or the wallpaper (run by a user service)
   fedora-glass on-remove       restore the original look before the package manager takes the app away (run by dnf, apt or pacman)
+  fedora-glass login-screen status   whether the glass login screen is on
+  sudo fedora-glass login-screen off  turn the glass login screen off (from a text console, say)
 """
 
 from __future__ import annotations
@@ -658,6 +660,53 @@ def _watch_monitors() -> int:
         stop_all()
 
 
+LOGIN_HELPER = "/usr/libexec/fedora-glass-login"
+
+LOGIN_STOPPED = {
+    "no-login": "nobody logged in through it during its trial",
+    "crash": "the login screen did not start properly with it",
+    "silent": "the login screen did not show it for three starts in a row",
+    "kernel-arg": "the computer was started with fedora-glass-login=off",
+    "gnome-version": "this version of GNOME is not supported by it yet",
+    "error": "something on the system did not let it work",
+}
+LOGIN_WHY = {
+    "no-gdm": "this system does not use GNOME's login screen (GDM)",
+    "not-gdm": "another login screen than GDM is in use",
+    "no-addon": "its add-on is not installed",
+    "no-dconf": "dconf is not installed",
+    "gnome-version": "this version of GNOME is not supported yet",
+    "policy": "a system setting does not allow login screen add-ons",
+}
+
+
+def cmd_login_screen(args: argparse.Namespace) -> int:
+    """`fedora-glass login-screen status|off`: the glass login screen from a text console,
+    for when the login screen itself is no way in."""
+    import os
+    if args.action == "off":
+        if os.geteuid() != 0:
+            print("Run: sudo fedora-glass login-screen off")
+            return 1
+        if not os.path.exists(LOGIN_HELPER):
+            print(f"fedora-glass: {LOGIN_HELPER} is not installed", file=sys.stderr)
+            return 1
+        os.execv(LOGIN_HELPER, [LOGIN_HELPER, "off"])
+        return 1                                  # only reached if exec returned (a test)
+    from . import login_glass
+    s = login_glass.status(login_glass.Paths("/"))
+    state = {"on": "on", "trial": "on trial (it turns itself off again if nobody logs in through it)",
+             "off": "off"}.get(s.get("state"), "off")
+    print(f"Glass login screen: {state}")
+    if s.get("stopped") in LOGIN_STOPPED and s.get("state") == "off":
+        print(f"It turned itself off because {LOGIN_STOPPED[s['stopped']]}.")
+    if not s.get("available"):
+        print(f"Not available here: {LOGIN_WHY.get(s.get('why'), 'unknown reason')}.")
+    if s.get("state") in ("on", "trial"):
+        print("To turn it off: sudo fedora-glass login-screen off")
+    return 0
+
+
 def cmd_gui(args: argparse.Namespace) -> int:
     try:
         from .gui.app import main
@@ -688,6 +737,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("watch", help="follow dark/light, High Contrast and accent colour switches").set_defaults(func=cmd_watch)
     sub.add_parser("before-login", help="bring the glass up to date before GNOME Shell starts (run by the user service at login)").set_defaults(func=cmd_before_login)
     sub.add_parser("on-remove", help="restore the original look before the app is removed (run by dnf, apt or pacman)").set_defaults(func=cmd_on_remove)
+    ls = sub.add_parser("login-screen", help="the glass login screen: status, or off (with sudo)")
+    ls.add_argument("action", choices=("status", "off"))
+    ls.set_defaults(func=cmd_login_screen)
     g = sub.add_parser("gui", help="open the customizer")
     g.add_argument("qt_args", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_gui)
