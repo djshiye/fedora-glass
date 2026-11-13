@@ -1024,7 +1024,10 @@ class Lane:
         if self.step_epoch is None or self.cur_step is None:
             return
         try:
-            label = "on" if self.status(quiet=True).get("state") in ("trial", "on") else "off"
+            # After the removal step there is no helper to ask any more: that counts as off.
+            st = self.vm.sh(f"{HELPER} status", check=False, quiet=True)
+            state = json.loads(st.out).get("state") if st.returncode == 0 else None
+            label = "on" if state in ("trial", "on") else "off"
             r = self.vm.sh(f'sudo journalctl -b -u gdm.service -u gdm3.service --since "@{self.step_epoch}" '
                            f"--no-pager -o short-precise", check=False, quiet=True, timeout=120)
         except Exception as e:

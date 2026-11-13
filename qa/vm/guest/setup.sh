@@ -97,8 +97,22 @@ echo yes > /home/tester/.config/gnome-initial-setup-done
 chown tester: /home/tester/.config/gnome-initial-setup-done
 
 # Ubuntu's gdm3 has its unit as gdm.service too (gdm3.service is a second name for it).
-gdm_unit=gdm.service
-systemctl cat gdm.service >/dev/null 2>&1 || gdm_unit=gdm3.service
+# Looked up as a file: on Fedora 44 `systemctl cat gdm.service` failed right after the
+# install although the unit was there, so systemd is asked nothing before it has read the
+# new units again.
+systemctl daemon-reload || echo "(systemctl daemon-reload failed, going on)"
+gdm_unit=""
+for unit in gdm.service gdm3.service; do
+    for dir in /etc/systemd/system /usr/lib/systemd/system /lib/systemd/system; do
+        if [ -e "$dir/$unit" ]; then gdm_unit="$unit"; break 2; fi
+    done
+done
+if [ -z "$gdm_unit" ]; then
+    echo "no unit file of GDM found" >&2
+    ls -l /etc/systemd/system/display-manager.service /usr/lib/systemd/system/ 2>&1 | grep -i -E "dm|display" >&2 || true
+    exit 1
+fi
+systemctl cat "$gdm_unit" >/dev/null || echo "(systemctl cat $gdm_unit failed, going on: the file is there)"
 say "Starting the login screen at every boot ($gdm_unit, graphical.target)"
 systemctl enable "$gdm_unit"
 systemctl set-default graphical.target
