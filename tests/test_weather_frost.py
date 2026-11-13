@@ -81,13 +81,30 @@ def test_the_preview_frosts_exactly_like_the_desktop():
     temps = [t / 2 for t in range(-60, 70)]
     script = (f"import('{(EXT / 'frostmath.js').as_uri()}').then(M => console.log(JSON.stringify("
               f"{json.dumps(temps)}.map(t => [M.frostFor(t, {{cool: 16, cold: 7, freezing: -2, amount: 0.8}}),"
-              f" M.frostBlur(M.frostFor(t, {{}}).frost)]))))")
+              f" M.frostBlur(M.frostFor(t, {{}}).frost), M.crystalFor(t), M.crystalFor(t, t - 1.5), M.crystalFor(t, t - 12)]))))")
     out = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, check=True)
     js = json.loads(out.stdout)
-    for t, (f, blur) in zip(temps, js):
+    for t, (f, blur, c0, wet, dry) in zip(temps, js):
         py = weather.frost_for(t, 16, 7, -2, 0.8)
         assert py["level"] == f["level"] and py["frost"] == pytest.approx(f["frost"]) and py["flakes"] == pytest.approx(f["flakes"]), t
         assert weather.frost_blur(weather.frost_for(t, 18, 10, 0)["frost"]) == pytest.approx(blur), t
+        for dew, want in ((None, c0), (t - 1.5, wet), (t - 12, dry)):
+            got = weather.crystal_for(t, dew)
+            assert got["shape"] == want["shape"], (t, dew)
+            for k in ("arm", "twig", "size"):
+                assert got[k] == pytest.approx(want[k], abs=2e-3), (t, dew, k)   # rounding
+
+
+def test_the_preview_draws_the_same_frost_as_the_desktop():
+    """One frost shader, word for word: frostmath.js ICE_GLSL in glass.js and in the app's glass.frag."""
+    if not shutil.which("node"):
+        pytest.skip("needs node")
+    script = f"import('{(EXT / 'frostmath.js').as_uri()}').then(M => process.stdout.write(M.ICE_GLSL))"
+    ice = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, check=True).stdout
+    assert "float iceFrost(" in ice
+    frag = (ROOT / "fedoraglass/gui/qml/FedoraGlass/shaders/glass.frag").read_text()
+    assert ice in frag, "glass.frag's frost differs from frostmath.js ICE_GLSL: copy it over"
+    assert "${ICE_GLSL}" in (EXT / "glass.js").read_text()
 
 
 def test_try_temperatures_land_in_their_step():
@@ -95,6 +112,21 @@ def test_try_temperatures_land_in_their_step():
         t = weather.try_temp(level, 18, 10, 0)
         assert weather.frost_for(t, 18, 10, 0)["level"] == level
     assert weather.try_temp("", 18, 10, 0) is None
+    # Trying Freezing shows fern frost, the window frost everyone knows.
+    assert weather.crystal_for(weather.try_temp("freezing", 18, 10, 0))["shape"] == "ferns"
+    assert weather.frost_for(weather.try_temp("freezing", 18, 10, -20), 18, 10, -20)["level"] == "freezing"
+
+
+@pytest.mark.parametrize("temp, shape", [(-1, "plates"), (-3, "plates"), (-6, "needles"), (-15, "ferns"),
+                                         (-20, "ferns"), (-30, "columns"), (5, "plates"), (None, "needles")])
+def test_ice_grows_in_its_shape(temp, shape):
+    assert weather.crystal_for(temp)["shape"] == shape
+
+
+def test_humid_air_grows_more_branched_frost():
+    humid, dry = weather.crystal_for(-15, -16), weather.crystal_for(-15, -28)
+    assert humid["twig"] > dry["twig"] and humid["arm"] > dry["arm"]
+    assert weather.wetness(-15, None) == weather.WET_DEFAULT == weather.wetness(-15, float("nan"))
 
 
 # ---------------------------------------------------------------- what the extension said
@@ -108,10 +140,13 @@ def _state(tmp_path, text):
 
 def test_state_is_read_carefully(tmp_path):
     assert weather.read_state(tmp_path) == {}
-    good = {"version": 1, "status": "ok", "level": "cold", "temp": 7.2, "feels": 4.1, "feelsLike": True,
-            "frost": 0.8, "flakes": 0, "at": 1794581000}
+    good = {"version": 1, "status": "ok", "level": "cold", "temp": 7.2, "feels": 4.1, "dew": 2.5, "feelsLike": True,
+            "frost": 0.8, "flakes": 0, "shape": "plates", "at": 1794581000}
     got = weather.read_state(_state(tmp_path, json.dumps(good)))
     assert got["status"] == "ok" and got["level"] == "cold" and got["feels"] == 4.1 and got["frost"] == 0.8
+    assert got["dew"] == 2.5 and got["shape"] == "plates"
+    odd_shape = weather.read_state(_state(tmp_path, json.dumps({**good, "shape": "<b>x</b>", "dew": "wet"})))
+    assert odd_shape["shape"] is None and odd_shape["dew"] is None
     for bad in ("not json", "[]", json.dumps({**good, "status": "hacked"}), "x" * 5000):
         assert weather.read_state(_state(tmp_path, bad)) == {}
     odd = weather.read_state(_state(tmp_path, json.dumps({**good, "temp": "hot", "feels": 1e9, "level": "lava",
@@ -155,8 +190,9 @@ def test_extension_reads_only_gnome_weather_and_never_the_place():
 def test_frost_is_skipped_entirely_when_off():
     """Weather frost off (or warm out): both uniforms 0, so the shader skips its frost branches."""
     src = (EXT / "glass.js").read_text()
-    assert "if (frost > OFF && mode < 1.5)" in src and "if (flakes > OFF && mode < 1.5)" in src
-    assert "let frostNow = {frost: 0, flakes: 0, blur: 0};" in src
+    assert "if (frost > OFF && mode < 1.5)" in src
+    assert "if (flakes > OFF && mode < 1.5 && inside <" in src and "if (flakes > OFF && mode < 1.5 && iceD <" in src
+    assert "let frostNow = {frost: 0, flakes: 0, blur: 0, arm: 0, twig: 0, size: 0};" in src
 
 
 # ---------------------------------------------------------------- the app
@@ -198,13 +234,22 @@ def test_the_preview_tries_each_step_and_shows_the_weather_now(qml, fake_env, tm
     b.setProperty("weatherFeelsLike", False)
     assert b.property("weatherPreview")["level"] == "cool"           # 12 °C in the air
     assert b.property("weatherPreview")["blur"] > 0
+    # The ice's shape: the step being tried, or the reading's air and dew point.
+    b.setProperty("weatherTry", "freezing")
+    assert b.property("weatherPreview")["shape"] == "ferns" and b.property("weatherPreview")["temp"] == -15
+    b.setProperty("weatherTry", "")
+    _state(fake_env.cache, json.dumps({"status": "ok", "level": "freezing", "temp": -7, "feels": -12, "dew": -8}))
+    b._read_weather_frost()
+    p = b.property("weatherPreview")
+    assert p["level"] == "freezing" and p["shape"] == "needles"
+    assert p["arm"] == weather.crystal_for(-7, -8)["arm"]
 
 
 def test_glass_page_has_the_card_and_search_finds_it(qml):
     from tests.test_gui_polish import _find, _goto, _window
     win = _window(qml)
     _goto(win, "glass", 300)
-    for name in ("weatherFrost", "weatherFrostSwitch", "weatherTry", "weatherScale"):
+    for name in ("weatherFrost", "weatherFrostSwitch", "weatherTry", "weatherScale", "weatherShape"):
         assert _find(win, name) is not None, name
     index = (ROOT / "fedoraglass/gui/qml/FedoraGlass/searchindex.js").read_text()
     assert 'name: "weatherFrostSwitch"' in index

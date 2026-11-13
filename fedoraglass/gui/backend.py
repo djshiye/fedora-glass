@@ -1604,11 +1604,17 @@ class Backend(QObject):
             now = self.weatherNow if s.weather_frost and not s.reduce_transparency else {}
             temp = (now.get("feels") if s.weather_feels_like else now.get("temp")) if now.get("status") == "ok" else None
         f = weather_mod.frost_for(temp, s.weather_cool, s.weather_cold, s.weather_freezing, s.weather_amount)
-        return {**f, "blur": weather_mod.frost_blur(f["frost"])}
+        # The ice's shape goes by the air and its dew point, as on the desktop (frost.js).
+        if level:
+            ice = weather_mod.crystal_for(temp)
+        else:
+            ice = weather_mod.crystal_for(now.get("temp") if now.get("temp") is not None else temp, now.get("dew"))
+        return {**f, **ice, "temp": temp, "blur": weather_mod.frost_blur(f["frost"])}
 
     @Property("QVariantMap", notify=weatherFrostChanged)
     def weatherPreview(self) -> dict:
-        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px)}."""
+        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px), and the
+        ice's shape: shape, arm, twig, size}."""
         return self._weather_preview()
 
     @Property(bool, constant=True)

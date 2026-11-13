@@ -31,7 +31,7 @@ const C = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.gi
 const STATE = '/home/u/.cache/liquid-glass/weather-frost.json';
 
 /** A stand-in for GNOME's own WeatherClient (misc/weather.js) with libgweather's GWeatherInfo. */
-function client({temp = 5, feels = 2, available = true, hasLocation = true, loading = false, valid = true} = {}) {
+function client({temp = 5, feels = 2, dew = undefined, available = true, hasLocation = true, loading = false, valid = true} = {}) {
     return {
         available, hasLocation, loading, updates: 0, handlers: new Map(), n: 0,
         info: {
@@ -39,6 +39,7 @@ function client({temp = 5, feels = 2, available = true, hasLocation = true, load
             // Asked in °C (GWEATHER_TEMP_UNIT_CENTIGRADE = 3) whatever unit the user shows.
             get_value_temp: unit => (unit === 3 ? [temp !== null, temp ?? 0] : [false, 0]),
             get_value_apparent: unit => (unit === 3 ? [feels !== null, feels ?? 0] : [false, 0]),
+            ...(dew === undefined ? {} : {get_value_dew: unit => (unit === 3 ? [dew !== null, dew ?? 0] : [false, 0])}),
             get_location_name: () => { throw new Error('the place is never read'); },
         },
         connect(sig, fn) { this.handlers.set(++this.n, fn); return this.n; },
@@ -156,7 +157,8 @@ test('on, it reads GNOME\'s weather (feels like by default), shows the frost at 
     assert.equal(state.feels, -3);
     assert.equal(state.temp, 5);
     assert.equal(globalThis.fake.fs.get(STATE).mode, 0o600);
-    assert.ok(!/place|lat|lon|name/i.test(globalThis.fake.fs.get(STATE).text), 'never where you are');
+    assert.deepEqual(Object.keys(state).sort(), ['at', 'dew', 'feels', 'feelsLike', 'flakes', 'frost', 'level', 'shape',
+        'status', 'temp', 'version'], 'only these: never where you are');
     w.destroy();
     assert.equal(c.handlers.size, 0, 'lets go of GNOME\'s weather');
     assert.equal(timers.size, 0);
@@ -255,4 +257,65 @@ test('new thresholds apply to the reading it has', () => {
     settle();
     assert.deepEqual(globalThis.fake.frosts.at(-1), [0, 0]);
     w.destroy();
+});
+
+test('the ice grows in the shape the weather gives it, as Nakaya measured', () => {
+    assert.equal(M.crystalFor(-2).shape, 'plates');
+    assert.equal(M.crystalFor(-7).shape, 'needles');
+    assert.equal(M.crystalFor(-15).shape, 'ferns');
+    assert.equal(M.crystalFor(-30).shape, 'columns');
+    assert.equal(M.crystalFor(4).shape, 'plates', 'a freezing step set above 0 °C still makes plates');
+    assert.ok(M.crystalFor(-15).arm > M.crystalFor(-7).arm, 'ferns branch, needles hardly');
+    assert.equal(M.crystalFor(-7).twig, 0);
+    // Humid air (dew point close to the temperature) branches more than dry air.
+    const humid = M.crystalFor(-15, -16), dry = M.crystalFor(-15, -30);
+    assert.ok(humid.twig > dry.twig && humid.arm > dry.arm && humid.size > dry.size);
+    assert.deepEqual(M.crystalFor(-15, null), M.crystalFor(-15, NaN), 'no dew point: a usual winter day');
+    for (let t = 5; t >= -40; t -= 0.5) {
+        const c = M.crystalFor(t, t - 3);
+        for (const k of ['arm', 'twig', 'size'])
+            assert.ok(c[k] >= 0 && c[k] <= 1, `${k} at ${t} °C`);
+    }
+});
+
+test('a new shape grows out of the old one', () => {
+    const a = {frost: 1, flakes: 0.4, ice: {arm: 0.1, twig: 0, size: 0.9}};
+    const b = {frost: 1, flakes: 1, ice: {arm: 0.9, twig: 0.8, size: 1}};
+    assert.deepEqual(M.between(a, b, 0).ice, a.ice);
+    assert.deepEqual(M.between(a, b, 1).ice, b.ice);
+    const mid = M.between(a, b, 0.5).ice;
+    assert.ok(mid.arm > 0.1 && mid.arm < 0.9);
+});
+
+test('the frost\'s shape goes by the air and its dew point, never by "feels like"', () => {
+    now = 4e12;
+    const c = client({temp: -15, feels: -25, dew: -16});
+    withClient(c);
+    globalThis.fake.frosts = [];
+    const w = new WeatherFrost(C.parse(JSON.stringify(on())));
+    const want = M.crystalFor(-15, -16);
+    assert.equal(w.state.shape, 'ferns');
+    assert.deepEqual(globalThis.fake.ice, {arm: want.arm, twig: want.twig, size: want.size});
+    const state = JSON.parse(globalThis.fake.fs.get(STATE).text);
+    assert.equal(state.dew, -16);
+    assert.equal(state.shape, 'ferns');
+    w.destroy();
+    assert.deepEqual(globalThis.fake.ice, {arm: 0, twig: 0, size: 0});
+});
+
+test('a dew point over the temperature (a rounding in the weather) is taken as the temperature', () => {
+    const c = client({temp: -5, feels: -5, dew: -3});
+    withClient(c);
+    const w = new WeatherFrost(C.parse(JSON.stringify(on())));
+    assert.equal(JSON.parse(globalThis.fake.fs.get(STATE).text).dew, -5);
+    w.destroy();
+});
+
+test('the frost shader is plain GLSL both GNOME Shell and the app take', () => {
+    const g = M.ICE_GLSL;
+    for (const fn of ['iceHash', 'iceSeg', 'iceFeather', 'iceEdge', 'iceStar', 'iceFrost', 'iceDew', 'iceGlint'])
+        assert.ok(g.includes(` ${fn}(`), fn);
+    assert.ok(!/`|\$\{/.test(g), 'nothing that would break the shader\'s JS string');
+    assert.ok(!/\b(texture|uniform|OFF)\b/.test(g), 'uses only its own arguments');
+    assert.ok(!/\d\.\d*f\b|\bint\s+\w+\s*=\s*\d+\.\d/.test(g), 'no C-style float suffixes');
 });

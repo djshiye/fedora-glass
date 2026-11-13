@@ -137,7 +137,7 @@ const STUBS = {
     export function freezeSource() {} export function thawSource() {}
     export function moving() {} export function stopMoving() {} export function releaseAllPanes() {}
     export function setQuality(l) { globalThis.fake.quality = l; }
-    export function setFrost(f, k) { (globalThis.fake.frosts ??= []).push([f, k]); }
+    export function setFrost(f, k, ice) { (globalThis.fake.frosts ??= []).push([f, k]); globalThis.fake.ice = ice; }
     export function glassRenders() { return globalThis.fake.renders ?? 0; }
     export function redrawAllPanes() {}
     export function shownPanes() { return globalThis.fake.shown ?? 0; }`,

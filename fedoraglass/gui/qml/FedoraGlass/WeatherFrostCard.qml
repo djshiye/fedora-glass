@@ -39,10 +39,27 @@ Card {
         const said = Backend.weatherFeelsLike ? qsTr("It feels like %1 outside").arg(t(temp))
                                               : qsTr("It is %1 outside").arg(t(temp))
         const level = now.level
-        return level === "freezing" ? qsTr("%1: freezing, so frost flakes grow on the glass.").arg(said)
+        return level === "freezing" ? qsTr("%1: freezing, so frost grows on the glass.").arg(said)
              : level === "cold" ? qsTr("%1: cold, so the glass is frosted.").arg(said)
              : level === "cool" ? qsTr("%1: cool, so the glass mists over a little.").arg(said)
              : qsTr("%1: just right, so the glass looks as you set it.").arg(said)
+    }
+
+    // The ice's shape, as the weather grows it (frostmath.js crystalFor), for the preview's
+    // frost: what is on the desktop now, or the step being tried.
+    readonly property var ice: Backend.weatherPreview
+    function shapeText(shape) {
+        return shape === "plates" ? qsTr("Plate frost: from 0 to %1, ice grows as thin six-sided plates, so the frost is short and broad.").arg(t(-4))
+             : shape === "needles" ? qsTr("Needle frost: from %1 to %2, ice grows as long, thin needles.").arg(t(-4)).arg(t(-10))
+             : shape === "ferns" ? qsTr("Fern frost: from %1 to %2, ice grows feathery branches, each at 60° to the last. The more humid the air, the more they branch.").arg(t(-10)).arg(t(-22))
+             : qsTr("Column frost: below %1, ice grows as tiny columns, so the frost is fine and dense.").arg(t(-22))
+    }
+    readonly property string shapeLine: {
+        if (ice.level !== "freezing" || !ice.shape)
+            return ""
+        return Backend.weatherTry !== "" && ice.temp !== undefined && ice.temp !== null
+            ? qsTr("Shown as at %1. %2").arg(t(ice.temp)).arg(shapeText(ice.shape))
+            : shapeText(ice.shape)
     }
 
     Column {
@@ -130,10 +147,32 @@ Card {
                     { value: "", label: qsTr("Now"), tip: qsTr("The glass as the weather has it now") },
                     { value: "cool", label: qsTr("Cool"), tip: qsTr("A light mist, below %1").arg(card.t(Backend.weatherCool)) },
                     { value: "cold", label: qsTr("Cold"), tip: qsTr("Frosted glass, below %1").arg(card.t(Backend.weatherCold)) },
-                    { value: "freezing", label: qsTr("Freezing"), tip: qsTr("Frost flakes, below %1").arg(card.t(Backend.weatherFreezing)) }
+                    { value: "freezing", label: qsTr("Freezing"), tip: qsTr("Frost grows in, below %1").arg(card.t(Backend.weatherFreezing)) }
                 ]
                 Accessible.name: qsTr("Try a step in the preview")
                 onActivated: (v) => Backend.weatherTry = v
+            }
+        }
+        // Below freezing: which shape the ice grows into, and why (real ice physics).
+        Row {
+            objectName: "weatherShape"
+            visible: card.shapeLine !== ""
+            width: parent.width
+            spacing: 8
+            Icon {
+                name: "snowflake"
+                size: 16
+                color: Theme.accentText
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                objectName: "weatherShapeText"
+                width: parent.width - 24
+                text: card.shapeLine
+                wrapMode: Text.WordWrap
+                color: Theme.textDim
+                font.pixelSize: Theme.fsSmall + 1
+                anchors.verticalCenter: parent.verticalCenter
             }
         }
 
@@ -178,7 +217,7 @@ Card {
                     defaultValue: Backend.defaults.weather_freezing
                     format: (v) => card.t(v)
                     onMoved: (v) => { Backend.weatherFreezing = v; Backend.weatherTry = "freezing" }
-                    tip: qsTr("Below this, feathery frost and tiny flakes grow in from the edges of the glass, more the colder it gets. The middle, where text is, stays clear.")
+                    tip: qsTr("Below this, frost grows in from the edges of the glass, in the shape the weather gives real ice: plates, needles or feathery ferns. The middle, where text is, stays clear.")
                 }
                 LabeledSlider {
                     objectName: "weatherAmount"
