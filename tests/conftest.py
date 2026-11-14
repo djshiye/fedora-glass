@@ -144,6 +144,19 @@ def qml(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def _throwaway_home(tmp_path_factory, monkeypatch):
+    """No test reaches the home of the person running them: whatever a test writes by
+    mistake (a state note, settings, a theme file) lands in a throwaway folder, and the
+    real settings.json never feeds a test. `fake_env` then moves each test into a home
+    of its own."""
+    home = tmp_path_factory.mktemp("home")
+    for var, sub in (("XDG_CONFIG_HOME", ".config"), ("XDG_DATA_HOME", ".local/share"),
+                     ("XDG_STATE_HOME", ".local/state"), ("XDG_CACHE_HOME", ".cache")):
+        monkeypatch.setenv(var, str(home / sub))
+    monkeypatch.setenv("HOME", str(home))
+
+
+@pytest.fixture(autouse=True)
 def _fedora_by_default(monkeypatch):
     """Tests see a Fedora PC wherever they run (install hints, remove command);
     tests/test_distro.py covers Ubuntu and Arch."""
