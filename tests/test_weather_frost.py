@@ -258,8 +258,15 @@ def test_frozen_glass_is_alive_only_while_in_use():
     tick = src[src.index("function iceTick() {"):src.index("export function wakeIce() {")]
     assert "iceTimer = 0;\n    return GLib.SOURCE_REMOVE;" in tick, "nothing in use: no more frames asked for"
     assert "if (!panes.size)\n                stopIce();" in src, "the last glass gone takes its clock along"
-    # A step draws only the lens again (setFloats): nothing is copied or blurred again.
-    assert "p._glass.setFloats({ice_t: ice.t});" in tick
+    # A step draws only the lens again (setFloats): nothing is copied or blurred again, and
+    # only on a pane whose clock moved.
+    assert "if (p.mapped && p._iceShown !== p._ice.t) {" in tick
+    assert "p._glass.setFloats({ice_t: p._ice.t});" in tick
+    # A menu's glass and the light layer over it share one clock, so the vapour and its light
+    # never drift apart (with one each they did, a little more with every use).
+    assert "clocks.set(p._ice, (clocks.get(p._ice) ?? false) || (runs && p._iceInUse()));" in tick
+    fol = (EXT / "follower.js").read_text()
+    assert "this.top.shareIce(this.pane);" in fol
     # Vapour rolls off a frozen menu, never off a bar such as the panel, an app window or the
     # lock screen (ice_live), and fades out inside the pane's own room.
     assert "if (flakes > OFF && ice_live > 0.5) {" in src
@@ -268,6 +275,57 @@ def test_frozen_glass_is_alive_only_while_in_use():
     # The app's preview: its clock runs only while the app is in front.
     pv = (ROOT / "fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml").read_text()
     assert "paused: !(root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront)" in pv
+
+
+def test_frost_thins_out_around_text_instead_of_a_dark_shade():
+    """Text and buttons on the frost at a menu's edge: 1.7.0 laid a 70 % black shade behind
+    them, cut hard at a few of the blurred copy's 256 levels: blotchy, pixelated smudges. Now
+    the frost thins out around them, down to the bare ice, by a soft measure of how much
+    content is near."""
+    src = (EXT / "glass.js").read_text()
+    top = src[src.index("    if (mode > 1.5) {"):src.index("    // Weather frost, below freezing: the glass freezes over (frostmath.js).")]
+    assert "sh = max(sh" not in top.split("vec3 iceLight")[1], "no shade for the ice any more"
+    assert "float content = iceOver(contentAround(px, g));" in top
+    assert "iceLookAt(vl + vec3(0.07, 0.09, 0.12) * passes, iceF, c + h, inside, 0.0, shortSide, litI," in top
+    assert "inward, ice_t, 0.0);" in top, "the bare ice: no crust"
+    # Drawn over the frost through the same veil as the glass under it, in its own colour.
+    assert "float passes = (1.0 - veil_a) * (1.0 - veil_shade);" in top
+    assert "thin = vec4(raw / max(1.0, max(raw.r, max(raw.g, raw.b))), 1.0) * melt;" in top
+    assert "sh + thin.a * (1.0 - sh))" in top
+    # The measure is the mean of five reads of the content's copy, so its levels show no steps.
+    around = src[src.index("float contentAround(vec2 px, vec4 g) {"):src.index("void main() {")]
+    assert "for (int i = 0; i < 4; i++) {" in around and "return s * 0.2;" in around
+    math = (EXT / "frostmath.js").read_text()
+    assert "float crust = crusted > 0.0 ? iceCrust(q, inside, shortSide) * crusted : 0.0;" in math
+    assert "return iceLookAt(under, f, q, inside, lightGlass, shortSide, lit, inward, t, 1.0);" in math
+    assert "return smoothstep(0.008, 0.055, bright);" in math
+    # The ice's light fades out with the same soft measure; the line at the very edge stays.
+    glow = math[math.index("vec3 iceGlow("):math.index("float iceOver(")]
+    assert "float clear = 1.0 - clamp(content, 0.0, 1.0);" in glow
+    assert "+ 0.20 * edge * (0.6 + 0.4 * clear)" in glow
+    assert "onIt" not in glow and "nearIt" not in glow
+    # The app's preview does the same in its one pass.
+    frag = (ROOT / "fedoraglass/gui/qml/FedoraGlass/shaders/glass.frag").read_text()
+    assert "onIt = iceOver(max(g.r, max(g.g, g.b)));" in frag
+    assert "iceLookAt(seen, iceF, q, inq, lightGlass, shortIce, litI, inward, iceTime, 1.0 - onIt);" in frag
+    assert "iced += iceGlow(iceF, q, inq, shortIce, litI, LIGHT, iceTime, onIt);" in frag
+
+
+def test_glass_is_placed_again_when_frost_changes_the_room_it_needs():
+    """Weather frost adds blur, and blur needs room around the glass. 1.7.0 changed the room
+    and left the pane where it was: the panel's glass shrank to a thin strip as it frosted
+    (and stuck out as it thawed) until something else placed it again."""
+    src = (EXT / "glass.js").read_text()
+    look = src[src.index("    _applyLook() {"):src.index("    setOnPad(fn) {")]
+    assert "const padWas = this._pad;" in look
+    assert "if (this._pad !== padWas && this._placed)\n            this.onPad?.();" in look
+    assert look.index("this._applyShape();") < look.index("this.onPad?.();"), "after the new look is in"
+    assert "this.pane.setOnPad(() => this.queue());" in (EXT / "follower.js").read_text()
+    assert "this.pane.setOnPad(() => this.queue());" in (EXT / "windows.js").read_text()
+    assert "this._card.setOnPad(() => this._queue());" in (EXT / "lock.js").read_text()
+    # place() goes by the room too, so the same call places it anew.
+    place = src[src.index("    place(x, y, w, h, radii, sx, sy, inner = null) {"):]
+    assert "const key = [x, y, w, h, sx, sy, p, ...radii, ...part]" in place[:600]
 
 
 # ---------------------------------------------------------------- the app

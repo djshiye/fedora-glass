@@ -2415,7 +2415,149 @@ def check_app_glass(ctx: Ctx) -> Check:
     return c
 
 
-ALL = {"looks": check_looks, "titlebars": check_titlebars, "snap": check_snap, "appglass": check_app_glass, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
+# ---------------------------------------------------------------------------------------------
+# Weather frost
+# ---------------------------------------------------------------------------------------------
+FROST = f"Main.extensionManager.lookup('{LG}').stateObj._frost"
+# GNOME's weather says it is `%s` °C outside: a stand-in for its WeatherClient (the test desktop
+# has no network and no place set), put where frost.js listens, and its 'changed' signal.
+WEATHER_JS = """const f = """ + FROST + """; const t = %s;
+let fake = f._lgqaWeather;
+if (!fake) {
+  fake = f._lgqaWeather = {available: true, hasLocation: true, loading: false, n: 0, h: new Map(), t,
+    info: {is_valid: () => true, get_value_temp: u => [u === 3, fake.t], get_value_apparent: u => [u === 3, fake.t],
+           get_value_dew: u => [u === 3, fake.t - 1]},
+    connect(sig, fn) { this.h.set(++this.n, fn); return this.n; }, disconnect(id) { this.h.delete(id); }, update() {}};
+  if (f._clientId) f._client?.disconnect(f._clientId);
+  f._client = fake; f._clientId = fake.connect('changed', () => f._safe(() => f._sync()));
+}
+fake.t = t; [...fake.h.values()].forEach(fn => fn()); return 1;"""
+# Every glass on the panel and menus that shows: its surface, and its two panes as placed.
+FROST_GLASS_JS = """const fs = [...(globalThis._lgqaCommon?.followers ?? [])].filter(f => f.pane?.mapped && f.rect);
+return fs.map(f => ({cls: f.target?.style_class ?? '', rect: f.rect, whole: f.pane._whole, pad: f.pane._pad,
+  style: f.target?.get_style?.() ?? '', shed: [!!f.pane._shadeShed, !!f.top?._shadeShed],
+  oneClock: f.pane._ice === f.top?._ice, t: f.pane._ice.t}));"""
+
+
+def _frost_glass(sh: Shell) -> list[dict]:
+    return sh.json(FROST_GLASS_JS)
+
+
+def _fills(glass: list[dict]) -> list[str]:
+    """The glass that is not the size of its surface (with its room around it)."""
+    return [f"{g['cls'].split(' ')[0] or 'a surface'}: {g['whole'][0] - 2 * g['pad']}x{g['whole'][1] - 2 * g['pad']} "
+            f"for {g['rect'][2]}x{g['rect'][3]}" for g in glass
+            if abs(g["whole"][0] - 2 * g["pad"] - g["rect"][2]) > 1 or abs(g["whole"][1] - 2 * g["pad"] - g["rect"][3]) > 1]
+
+
+def _darkest_patch(L: np.ndarray, n: int = 9) -> np.ndarray:
+    """The mean brightness of every n by n px patch (a smudge is a patch, not one dark pixel)."""
+    c = np.pad(L, ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+    return (c[n:, n:] - c[:-n, n:] - c[n:, :-n] + c[:-n, :-n]) / (n * n)
+
+
+def check_frost(ctx: Ctx) -> Check:
+    c = Check("frost", "Weather frost: the glass freezes over and thaws",
+              "Turns weather frost on in the settings and tells the glass it is -15 °C outside (a stand-in for "
+              "GNOME's weather). The glass must freeze over, each panel's glass must still fill its panel, and "
+              "the calendar menu must be iced with no dark smudges where its text meets the frost at the edges. "
+              "The ice may only move while the menu is open. Then it is 25 °C: everything must be as before, and "
+              "the setting is taken off again.")
+    sh = ctx.sh
+    sh.close_all()
+    lgqa.kill_apps()
+    cfg = lgqa.HOME / ".config/liquid-glass/settings.json"
+    before = cfg.read_text()
+    menu = "Main.panel.statusArea.dateMenu.menu"
+    try:
+        d = json.loads(before)
+        d["weather_frost"] = True
+        cfg.write_text(json.dumps(d, indent=2))
+        rc, out = run_lg("apply", "--only", "glass")
+        on = rc == 0 and sh.wait_for(f"return {FROST}?._cfg?.enabled === true;", 20)
+        c.add(on, "Applied with weather frost on." if on else f"Weather frost did not turn on: {out[-300:]}")
+        if not on:
+            return c
+        sh.eval(f"import('file://' + Main.extensionManager.lookup('{LG}').path + '/common.js')"
+                ".then(C => { globalThis._lgqaCommon = C; }); 1")
+        sh.wait_for("return !!globalThis._lgqaCommon;", 10)
+        settle(2)
+        warm = _frost_glass(sh)
+        sh.json(WEATHER_JS % -15)
+        frozen = sh.wait_for(f"const s = {FROST}.state; return s.flakes === 1 && s.frost === 1;", 20)
+        c.add(frozen, "At -15 °C the glass froze over." if frozen else
+              f"At -15 °C the glass did not freeze over: {sh.json(f'return {FROST}.state;')}")
+        settle(1.5)
+        glass = _frost_glass(sh)
+        bad = _fills(glass)
+        c.add(glass and not bad, f"Frozen, the glass of all {len(glass)} panels still fills them (frost needs more room "
+              "around the glass; 1.7.0 left the panel's glass a thin strip)." if glass and not bad else
+              f"Frozen, glass is not the size of its surface: {'; '.join(bad) or 'no glass found'}")
+        sh.eval(f"{menu}.open(); 1")
+        settle(2.5)
+        a = lgqa.load(sh.shot("frost-calendar"))
+        cal = next((g for g in _frost_glass(sh) if "datemenu" in g["cls"]), None)
+        c.add(cal is not None, "The calendar menu has its glass." if cal else "The calendar menu shows no glass.")
+        if cal:
+            box = lgqa.crop(a, ctx.px(cal["rect"]))
+            pic = lgqa.save(box, REPORT / "frost-calendar.png")
+            edge, mid = round(50 * ctx.s), round(80 * ctx.s)
+            inner = box[mid:-mid, mid:-mid]
+            r, g, b = (float(np.median(inner[..., i])) for i in range(3))
+            iced = b > r + 50 and g > r + 30
+            c.add(iced, f"The calendar menu is iced over (its middle is rgb {r:.0f}, {g:.0f}, {b:.0f}: cyan)." if iced else
+                  f"The calendar menu does not look frozen: its middle is rgb {r:.0f}, {g:.0f}, {b:.0f}.", pic)
+            # Text on the frost at the edges: the frost thins out around it. 1.7.0 laid a dark
+            # shade there, which came out as blotchy smudges, far darker than the ice itself.
+            patches = _darkest_patch(lgqa.lum(box))
+            near = np.ones(patches.shape, bool)
+            near[edge:-edge, edge:-edge] = False
+            near[:3], near[-3:], near[:, :3], near[:, -3:] = False, False, False, False     # the rounded corners
+            darkest, ice = float(patches[near].min()), float(np.median(lgqa.lum(inner)))
+            clean = darkest >= 0.72 * ice
+            c.add(clean, f"No dark smudges by its edges: the darkest patch there is {darkest / ice * 100:.0f} % as bright "
+                  "as the ice in its middle (at least 72 %; 1.7.0's smudges were about 59 %)." if clean else
+                  f"A dark smudge by the calendar menu's edge: a patch only {darkest / ice * 100:.0f} % as bright as "
+                  "the ice in its middle (at least 72 % wanted).", pic)
+            shed = "box-shadow: none" in cal["style"] and all(cal["shed"])
+            c.add(shed, "The frozen menu shed the theme's shadow under its veil, and both layers of its glass know."
+                  if shed else f"The frozen menu kept the theme's shadow, or its glass was not told: {cal['style']!r} {cal['shed']}")
+            c.add(cal["oneClock"], "The menu's glass and the light over it share one clock." if cal["oneClock"] else
+                  "The menu's glass and the light over it run on two clocks: they drift apart.")
+            settle(1.2)
+            later = next((g for g in _frost_glass(sh) if "datemenu" in g["cls"]), cal)
+            alive = later["t"] > cal["t"]
+            c.add(alive, "The ice is alive while the menu is open (its clock runs)." if alive else
+                  "The ice lies dead while the menu is open: its clock does not run.")
+        sh.eval(f"{menu}.close(); 1")
+        settle(3)
+        t1 = [g["t"] for g in _frost_glass(sh)]
+        settle(1.5)
+        t2 = [g["t"] for g in _frost_glass(sh)]
+        c.add(t1 == t2, "With the menu closed and the pointer away, the ice lies still (nothing is redrawn for it)."
+              if t1 == t2 else "The ice keeps moving with nothing in use.")
+        sh.json(WEATHER_JS % 25)
+        thawed = sh.wait_for(f"const s = {FROST}.state; return s.flakes === 0 && s.frost === 0;", 20)
+        settle(1.5)
+        glass = _frost_glass(sh)
+        bad = _fills(glass)
+        same = [(g["whole"], g["pad"]) for g in glass] == [(g["whole"], g["pad"]) for g in warm]
+        ok = thawed and not bad and same and not any("box-shadow: none" in g["style"] for g in glass)
+        c.add(ok, "At 25 °C the glass thawed: every panel's glass is the size it was, and no menu keeps our style."
+              if ok else f"After the thaw something is left: thawed {thawed}, sizes as before {same}, {'; '.join(bad)}")
+    finally:
+        sh.eval(f"{menu}.close(); 1")
+        cfg.write_text(before)
+        rc, out = run_lg("apply", "--only", "glass")
+        off = rc == 0 and sh.wait_for(f"return {FROST}?._cfg?.enabled !== true;", 20)
+        gone = not (lgqa.HOME / ".cache/liquid-glass/weather-frost.json").exists()
+        c.add(off and gone, "Weather frost is off again, and its state file is gone." if off and gone else
+              f"Weather frost was not taken off cleanly (off {off}, state file gone {gone}): {out[-200:]}")
+        settle(2)
+    return c
+
+
+ALL = {"looks": check_looks, "titlebars": check_titlebars, "snap": check_snap, "appglass": check_app_glass, "frost": check_frost, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
        "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
        "log": check_log, "safe": check_safe, "upgrade": check_upgrade, "spawn": check_spawn}
 

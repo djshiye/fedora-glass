@@ -15,7 +15,7 @@ globalThis.global = {stage: {}};
 
 const EXT = '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/';
 const M = await import(`${EXT}frostmath.js`);
-const {Follower} = await import(`${EXT}follower.js`);
+const {Follower, shadeGone} = await import(`${EXT}follower.js`);
 
 test('the ice clock comes up to speed in use and slows to a stop after, never jumping', () => {
     let speed = 0, t = 0;
@@ -55,24 +55,28 @@ test('the ice lies still on the lightest quality, and only big glass counts as o
     assert.ok(M.ICE_BIG > 64, 'a panel or a dock is not a menu');
 });
 
-function surface({style = null, shadow = true} = {}) {
+function surface({style = null, shadow = true, mapped = undefined} = {}) {
     return {
         style,
+        mapped,
+        shadow,
         get_style() {
             return this.style;
         },
         set_style(s) {
             this.style = s;
         },
-        peek_theme_node: () => ({get_box_shadow: () => (shadow ? {} : null)}),
+        peek_theme_node() {
+            return {get_box_shadow: () => (this.shadow ? {} : null)};
+        },
     };
 }
 
 function follower(target, shade = 0.36) {
-    const pane = {shed: null, setShadeShed(v) {
+    const pane = () => ({shed: null, setShadeShed(v) {
         this.shed = v;
-    }};
-    return {target, pane, settings: {look: {shade}}};
+    }});
+    return {target, pane: pane(), top: pane(), settings: {look: {shade}}};
 }
 
 test('a frozen menu sheds the theme\'s drop shadow, and thawed has its own style back', () => {
@@ -109,4 +113,52 @@ test('the panel, a surface with no shadow and a surface already gone are left al
         throw new Error('disposed');
     }};
     assert.doesNotThrow(() => ice.call(follower(gone), false));
+});
+
+test('a surface with the menus\' look but no theme shadow is not brightened to make up for one', () => {
+    // A taskbar's window previews: 1.7.0 counted the look's shadow in, and they froze too bright.
+    const ice = Follower.prototype._iceStyle;
+    const plain = surface({shadow: false});
+    const f = follower(plain);
+    ice.call(f, true);
+    assert.equal(plain.style, null, 'nothing to shed');
+    assert.deepEqual([f.pane.shed, f.top.shed], [true, true], 'both panes: no shade under the veil');
+    assert.equal(f._iceSettled, true, 'known: not looked at again on every frame');
+    ice.call(f, false);
+    assert.deepEqual([f.pane.shed, f.top.shed], [false, false], 'thawed: as the look says');
+    // A menu that sheds its shadow tells the light layer over it too (it draws bare ice
+    // around text, through the same veil).
+    const menu = follower(surface());
+    ice.call(menu, true);
+    assert.deepEqual([menu.pane.shed, menu.top.shed], [true, true]);
+});
+
+test('a hidden menu\'s style is not believed: it is looked at again when it shows', () => {
+    const ice = Follower.prototype._iceStyle;
+    // Thawed while closed, a menu still holds the style it last showed with: ours, no shadow.
+    const t = surface({shadow: false, mapped: false});
+    const f = follower(t);
+    ice.call(f, true);
+    assert.deepEqual([f.pane.shed, f.top.shed], [false, false], 'not known yet: the look\'s shade counts');
+    assert.equal(f._iceSettled, false, 'to be looked at again when it shows');
+    // It shows: St works its real style out, with the theme's shadow.
+    t.mapped = true;
+    t.shadow = true;
+    ice.call(f, true);
+    assert.equal(t.style, ' box-shadow: none;', 'shed now');
+    assert.deepEqual([f.pane.shed, f.top.shed], [true, true]);
+    assert.equal(f._iceSettled, true);
+    // Thawed, nothing is left to look at.
+    ice.call(f, false);
+    assert.equal(t.style, null);
+    assert.equal(f._iceSettled, true);
+});
+
+test('when no theme shadow lies under the veil', () => {
+    assert.equal(shadeGone(true, true, true, true), true, 'shed');
+    assert.equal(shadeGone(true, true, false, true), true, 'shed, whatever the style says');
+    assert.equal(shadeGone(false, true, true, false), true, 'the theme draws none');
+    assert.equal(shadeGone(false, true, true, true), false, 'the theme\'s shadow is there');
+    assert.equal(shadeGone(false, true, false, false), false, 'not sure yet');
+    assert.equal(shadeGone(false, false, true, false), false, 'not frozen: the look is left as it is');
 });

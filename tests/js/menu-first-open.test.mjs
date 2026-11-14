@@ -189,6 +189,32 @@ test('if the glass never comes up, the menu shows after HOLD_MAX_MS', () => {
     p.destroy();
 });
 
+// Weather frost (glass.js): frost changes the blur, and so the room a pane needs around its
+// surface; and frozen glass runs on a clock.
+test('glass that needs new room is placed again, and a menu\'s two layers share one ice clock', () => {
+    const {anchor, surface} = popup();
+    const p = start(new Popups(cfg));
+    p._follow(surface, anchor, 'quicksettings');
+    surface.map();
+    const f = p._followers.get(surface);
+    assert.equal(f.top.iceWith, f.pane, 'the light layer runs on the glass\'s clock: they never drift apart');
+    laters.run();
+    let syncs = 0;
+    const sync = f.sync.bind(f);
+    f.sync = () => {
+        syncs++;
+        sync();
+    };
+    // The pane says its room changed (1.7.0 had nobody listening: the panel's glass shrank
+    // to a thin strip as it frosted, until something else moved it).
+    f.pane.onPad();
+    f.pane.onPad();
+    assert.equal(syncs, 0, 'not in the middle of the pane\'s own work');
+    laters.run();
+    assert.equal(syncs, 1, 'placed again once, before the next frame');
+    p.destroy();
+});
+
 // The start menus of ArcMenu and Spawn share the part called 'arcmenu'.
 test('the ArcMenu and Spawn start menus are the arcmenu part, other menus are not', () => {
     const menu = (...classes) => {
