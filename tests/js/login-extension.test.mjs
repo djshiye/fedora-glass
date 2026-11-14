@@ -12,15 +12,34 @@ makeGreeter();
 registerStubs();
 const {default: FedoraGlassLogin} =
     await import('../../fedoraglass/data/login-extension/fedora-glass-login@djshiye.github.io/extension.js');
-// Loaded once here, so extension.js's own import('./login.js') lands within settle().
-await import('../../fedoraglass/data/login-extension/fedora-glass-login@djshiye.github.io/login.js');
+// Loaded once here, so extension.js's own import('./login.js') only has to be answered.
+const LOGIN_JS = '../../fedoraglass/data/login-extension/fedora-glass-login@djshiye.github.io/login.js';
+await import(LOGIN_JS);
+
+// The login screen's clock ticks on the minute, by the real time of day. The tests get a
+// fixed time of day, well away from the minute's end: run in the last second of a minute,
+// that tick was a 1000 ms timer, and "the wait is over" below took it for the card's wait.
+const RealDate = Date;
+const NOW = new RealDate(2026, 0, 9, 9, 41, 10).getTime();
+globalThis.Date = class extends RealDate {
+    constructor(...a) { super(...(a.length ? a : [NOW])); }
+    static now() { return NOW; }
+};
 
 const logged = [];
 console.error = (...a) => logged.push(a.join(' '));
 console.warn = (...a) => logged.push(a.join(' '));
 
-// Lets extension.js's import('./login.js') land (the loader answers on its own thread).
-const settle = () => new Promise(r => setTimeout(r, 30));
+// Lets extension.js's import('./login.js') land and the fakes' 0 ms callbacks run, however
+// busy the machine is: a fixed 30 ms wait lost that race on a busy test machine. The loader
+// answers on its own thread, in the order it is asked, so an import asked for after the
+// add-on's comes back after it. Then a few turns of the timer queue: in each, whatever a
+// fake asked for earlier runs before us.
+const settle = async () => {
+    await import(LOGIN_JS);
+    for (let i = 0; i < 8; i++)
+        await new Promise(r => setTimeout(r, 0));
+};
 
 /** A greeter with the add-on started on it. */
 async function started(opts = {}) {
