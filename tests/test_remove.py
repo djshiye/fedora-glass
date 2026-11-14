@@ -4,6 +4,7 @@ script that runs it. Nothing on the machine is touched."""
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -174,10 +175,16 @@ def test_deb_and_arch_stop_the_watcher_before_undoing():
 
 def test_spec_runs_it_only_on_removal():
     spec = (ROOT / "packaging/fedora-glass.spec").read_text()
-    preun = spec.split("%preun\n", 1)[1].split("\n%", 1)[0]
-    assert "if [ $1 -eq 0 ]; then\n    %{_libexecdir}/fedora-glass-undo-for-users || :" in preun
-    bridge = spec.split("%preun -n liquid-glass\n", 1)[1].split("\n%", 1)[0]
-    assert "undo-for-users" not in bridge     # replacing the old package must not undo the look
+    # The removal steps are one macro, written out where it is used.
+    m = re.search(r"^%define fg_remove_steps \\\n(.*?)^%\{nil\}\n", spec, re.M | re.S)
+    steps = "\n".join(re.sub(r" \\$", "", x) for x in m.group(1).splitlines())
+    spec = spec.replace("%{fg_remove_steps}", steps)
+    preun = spec.split("%preun\n", 1)[1].split("\n%postun\n", 1)[0]
+    assert "if [ $1 -eq 0 ]; then\n%{_libexecdir}/fedora-glass-undo-for-users || :" in preun
+    bridge = spec.split("%preun -n liquid-glass\n", 1)[1].split("\n%postun -n liquid-glass\n", 1)[0]
+    # replacing the old package must not undo the look: only a removal with no fedora-glass file there does
+    assert ("if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then\n"
+            "%{_libexecdir}/fedora-glass-undo-for-users || :") in bridge
     # The rpm's macro disables the watcher and stops it in running sessions, before the undo.
     assert preun.index("%systemd_user_preun liquid-glass-watch.service") < preun.index("undo-for-users")
     # undo-for-users needs setsid (both packages).

@@ -163,3 +163,9 @@ class Target:
     def live_notes(self, ctx: Context) -> list[str]:
         """Notes for the current system (a target may add some at runtime)."""
         return list(self.notes)
+
+    def gives_back(self, env: "Env") -> list[Path]:
+        """Files an earlier version of this part made in a place it uses no more. Before an
+        Apply the engine takes away each one that it made itself (nothing was there before)
+        and that still holds exactly what it wrote. Any other stays as it is."""
+        return []

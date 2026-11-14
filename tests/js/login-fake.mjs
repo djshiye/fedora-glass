@@ -47,7 +47,7 @@ export class Actor extends Emitter {
     constructor(p = {}) {
         super();
         Object.assign(this, {name: '', reactive: false, can_focus: false, opacity: 255, x: 0, y: 0, width: 0, height: 0,
-            style: null, style_class: null}, p);
+            style: null, style_class: null, margin_top: 0, margin_bottom: 0}, p);
         this._visible = p.visible ?? true;
         this._children = [];
         this._parent = null;
@@ -162,6 +162,13 @@ export class Actor extends Emitter {
         return [0, forWidth === 0 ? 0 : this.prefH ?? 100];
     }
 
+    // As St: the room a style keeps inside the widget, by side (St.Side: top 0 ... left 3).
+    // `pad` is [top, bottom] in px. Nothing here says what it paints.
+    get_theme_node() {
+        const pad = side => (side === 0 ? this.pad?.[0] : side === 2 ? this.pad?.[1] : 0) ?? 0;
+        return {get_padding: pad, get_border_width: () => 0};
+    }
+
     get_transformed_position() {
         return [this.x, this.y];
     }
@@ -203,25 +210,51 @@ export class Clone extends Actor {}
 export function makeTimers() {
     const t = new Map();
     let next = 1;
+    let clock = 0;
     return {
         list: t,
+        get clock() {
+            return clock;
+        },
         add(ms, fn) {
             const id = next++;
-            t.set(id, {ms, fn});
+            t.set(id, {ms, fn, at: clock + ms});
             return id;
         },
         remove(id) {
             t.delete(id);
         },
-        /** Runs the timers due within ms (each once; a repeat is added again). */
+        /** Runs the timers due within ms (each once; a repeat is added again). No time passes. */
         run(ms = Infinity) {
             for (const [id, {ms: due, fn}] of [...t]) {
                 if (due <= ms && t.has(id)) {
                     t.delete(id);
                     if (fn())
-                        t.set(id, {ms: due, fn});
+                        t.set(id, {ms: due, fn, at: clock + due});
                 }
             }
+        },
+        /**
+         * Lets ms of time pass: each timer runs when it is due, the earlier one first (one
+         * added meanwhile too, a repeat again and again), as on a real clock.
+         */
+        advance(ms) {
+            const end = clock + ms;
+            for (let n = 0; n < 100000; n++) {
+                let first = null;
+                for (const [id, e] of t) {
+                    if (e.at <= end && (!first || e.at < first[1].at))
+                        first = [id, e];
+                }
+                if (!first)
+                    break;
+                const [id, e] = first;
+                clock = Math.max(clock, e.at);
+                t.delete(id);
+                if (e.fn())
+                    t.set(id, {...e, at: clock + Math.max(e.ms, 1)});
+            }
+            clock = end;
         },
     };
 }

@@ -440,7 +440,17 @@ class Env:
         return None
 
     def flatpak_installed(self, app_id: str) -> bool:
-        for root in (self.data / "flatpak/app", Path("/var/lib/flatpak/app")):
-            if (root / app_id).is_dir():
-                return True
+        """The Flatpak app is really installed, for the user or system-wide: it has its
+        `current` link, or a branch with an `active` build (the link can be missing while a
+        second branch is still there). Flatpak keeps an app's data in ~/.var/app after an
+        uninstall, so that folder proves nothing."""
+        roots = (Path(os.environ.get("FLATPAK_USER_DIR") or self.data / "flatpak"),
+                 Path(os.environ.get("FLATPAK_SYSTEM_DIR") or "/var/lib/flatpak"))
+        for r in roots:
+            app = r / "app" / app_id
+            try:
+                if (app / "current").exists() or (app / "current").is_symlink() or any(app.glob("*/*/active")):
+                    return True
+            except OSError:
+                continue
         return False

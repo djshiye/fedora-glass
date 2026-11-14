@@ -23,9 +23,9 @@ pre_remove() {
     # runs on removal only, never on an upgrade; the boot-time guard handles those).
     # A failed off must never fail the removal, but leaves locked keys behind and no tool
     # to take them away: say how to finish by hand.
-    if ! /usr/libexec/fedora-glass-login off >/dev/null 2>&1; then
+    if ! /usr/libexec/fedora-glass-login off >/dev/null; then
         echo "fedora-glass: the glass login screen could not be switched off completely." >&2 || :
-        echo "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login and /etc/dconf/db/*.d/locks/90-fedora-glass-login, then run: dconf update" >&2 || :
+        echo "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login, /etc/dconf/db/*.d/locks/90-fedora-glass-login, /etc/dconf/db/fedora-glass-login (if there) and /etc/fedora-glass, take the line system-db:fedora-glass-login out of /etc/dconf/profile/gdm (if there), then run: dconf update" >&2 || :
     else
         # Nothing of it is left: root's own folder for it (now only its lock file) goes too.
         rm -f /var/lib/fedora-glass/login/.lock || :

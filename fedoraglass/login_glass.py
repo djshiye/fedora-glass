@@ -390,14 +390,16 @@ def _run(args: list[str], timeout: float, home: str = "/", extra: dict | None = 
 
 
 class Scratch:
-    """A private folder for the dconf probes: in root's own state folder when root, else /tmp."""
+    """A private folder for the dconf probes: in root's own state folder when root, else /tmp.
+    `look_only` (status): always /tmp, so that only looking never makes root's state folder."""
 
-    def __init__(self, paths: Paths):
+    def __init__(self, paths: Paths, look_only: bool = False):
         self.paths = paths
+        self.look_only = look_only
         self.dir = ""
 
     def __enter__(self) -> str:
-        if os.geteuid() == 0:
+        if os.geteuid() == 0 and not self.look_only:
             _make_state_dirs(self.paths)
             self.dir = tempfile.mkdtemp(prefix=".work-", dir=self.paths.state_dir)
         else:
@@ -606,6 +608,10 @@ def shared_dbs(paths: Paths) -> set[str] | None:
         if os.path.dirname(c) not in folders:
             folders.append(os.path.dirname(c))
     names: set[str] = set()
+    try:
+        db_dir = os.path.realpath(paths.db_dir)
+    except (OSError, ValueError):
+        return None
     for folder in folders:
         try:
             entries = sorted(os.listdir(folder))
@@ -634,7 +640,17 @@ def shared_dbs(paths: Paths) -> set[str] | None:
                 entries_of = parse_profile(text)
             except (Unavailable, Failed, OSError):
                 return None
-            names.update(v for k, v in entries_of if k == "system-db")
+            for k, v in entries_of:
+                if k == "system-db":
+                    names.add(v)
+                elif k == "file-db":
+                    # The same compiled db read by its path (or through a link) is shared too.
+                    try:
+                        real = os.path.realpath(paths.p(v))
+                    except (OSError, ValueError):
+                        return None
+                    if os.path.dirname(real) == db_dir and NAME.fullmatch(os.path.basename(real)):
+                        names.add(os.path.basename(real))
     return names
 
 
@@ -943,7 +959,7 @@ def available(paths: Paths) -> tuple[bool, str]:
         st = read_state(paths)
     except Garbled:
         st = None
-    with Scratch(paths) as work:
+    with Scratch(paths, look_only=True) as work:
         a = assess(paths, st, work)
     return a.ok, a.why
 
@@ -1585,8 +1601,14 @@ def _off_locked(paths: Paths, reason: str | None, keep_stopped: bool = False) ->
     if st.get("db"):
         again.add(st["db"])
     _step(problems, "the leaving flag", _mark_leaving, paths, again)
+    trial: list[str] = []
+    if os.path.lexists(paths.leaving):
+        # No trial is left to watch for once the flag is there, even when this off cannot
+        # finish (a package being removed): the watcher can then be stopped right after.
+        _step(trial, "the trial flag", _unlink, paths.trial)
     _step(problems, "the dconf switch", _remove_switch, paths, made, again)
     compiled = not problems                       # a db that could not be recompiled still holds our keys
+    problems += trial                             # said, but it says nothing about the switch
     _step(problems, "the dconf profile", _fix_profile, paths, st.get("profile"), made)
     for d in ("/etc/dconf/db", "/etc/dconf"):
         if d in made:
@@ -1605,12 +1627,34 @@ def _off_locked(paths: Paths, reason: str | None, keep_stopped: bool = False) ->
     if not left:
         # Kept while any of the switch is left, so the guard tries again at the next boot.
         _step(problems, "state.json", _unlink, paths.state)
-        _step(problems, "the trial flag", _unlink, paths.trial)
+        # Once more when the early try failed (said above already): left behind, the flag
+        # would keep the watcher running at every boot, with no guard left to take it away.
+        _step([] if trial else problems, "the trial flag", _unlink, paths.trial)
         # Last, and only once state.json is gone: without the flag a state.json left behind
         # would read as "on" again.
         if not os.path.lexists(paths.state):
             _step(problems, "the leaving flag", _unlink, paths.leaving)
     return problems
+
+
+def finish_by_hand(paths: Paths) -> list[str]:
+    """After an off that could not finish: what of the switch may be left, and how to take
+    it away by hand, in a few plain lines (the system's own paths, as root sees them)."""
+    dbs = _leaving_dbs(paths) | {n for n in _d_dirs(paths) if _ours_in(paths, n)}
+    db = _lenient_state(paths).get("db")
+    if db:
+        dbs.add(db)
+    lines = ["The glass login screen is not fully off yet. To finish by hand, fix what is named",
+             "above, then as root:"]
+    for name in sorted(dbs):
+        if name == OWN_DB:
+            lines.append(f"  rm -rf /etc/dconf/db/{OWN_DB}.d /etc/dconf/db/{OWN_DB}")
+        else:
+            lines.append(f"  rm -f /etc/dconf/db/{name}.d/{OUR_FILE} /etc/dconf/db/{name}.d/locks/{OUR_FILE}")
+    if "/etc/dconf/profile/gdm" in switch_gone(paths):
+        lines.append(f"  take the line {PROFILE_LINE} out of /etc/dconf/profile/gdm")
+    lines.append("  dconf update")
+    return lines
 
 
 def turn_off(paths: Paths, reason: str | None = None) -> list[str]:
@@ -1625,6 +1669,16 @@ def turn_off(paths: Paths, reason: str | None = None) -> list[str]:
 def guard_boot(paths: Paths) -> str:
     """Every boot before the display manager, while state.json (or the leaving flag) is
     there. Returns what it did."""
+    did = _guard_boot_once(paths)
+    if did != "busy" and not os.path.lexists(paths.trial):
+        # The watcher was started earlier in this boot, while a trial was still on record.
+        # Never waited for: the display manager waits for this guard. Irreversible, so that
+        # this unit's own start of the watcher, right after, cannot cancel the stop.
+        _systemctl(paths, "--no-block", "--job-mode=replace-irreversibly", "stop", CHECK_PATH_UNIT)
+    return did
+
+
+def _guard_boot_once(paths: Paths) -> str:
     try:
         lock = Lock(paths, wait=GUARD_LOCK_WAIT)
         lock.__enter__()
@@ -1784,7 +1838,7 @@ def _guard_check(paths: Paths) -> str:
 
 def status(paths: Paths) -> dict:
     out = {"version": 1, "available": False, "why": "", "state": "off", "stopped": "", "values": None,
-           "picture_sha256": ""}
+           "picture_sha256": "", "leaving": False}
     try:
         st = read_state(paths)
     except Garbled:
@@ -1792,6 +1846,9 @@ def status(paths: Paths) -> dict:
         out["state"] = "trial"          # something of it may be on; the guard sorts it out at boot
     if st is not None:
         out["state"], out["values"] = st["state"], st["values"]
+    # An off is not finished: whatever state.json says, the person turned it off, and only
+    # finishing that off is left (an `on` sent now would start the glass again).
+    out["leaving"] = os.path.lexists(paths.leaving)
     try:
         ok, why = available(paths)
     except Exception:  # noqa: BLE001 - status always answers
@@ -1855,7 +1912,13 @@ def main(argv: list[str] | None = None, stdin=None) -> int:
             problems = [str(e)]
         for p in problems:
             print(f"fedora-glass-login off: {p}", file=sys.stderr)
-        return 4 if any(p.startswith("still there") for p in problems) or switch_gone(paths) else 0
+        unfinished = any(p.startswith("still there") for p in problems)
+        if unfinished:
+            try:
+                print("\n".join(finish_by_hand(paths)), file=sys.stderr)
+            except Exception:  # noqa: BLE001 - only a hint; the exit code says it all
+                pass
+        return 4 if unfinished or switch_gone(paths) else 0
     try:
         values = parse_values(argv[1])
         picture = None

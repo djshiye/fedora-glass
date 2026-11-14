@@ -19,7 +19,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from . import __version__, settings as settings_mod, wallcolour
 
@@ -403,6 +403,27 @@ class Watcher:
         _guarded("updating the look after an upgrade", update_after_upgrade, self.eng)
         self.pending_left = _guarded("finishing the Shell parts", finish_pending, self.eng) is not True
         self.pending_until = self.clock() + PENDING_RETRY_S
+        _guarded("taking the look for this style", self.catch_up)
+
+    def catch_up(self) -> None:
+        """GNOME's dark/light style may have changed while nobody listened (a login, the
+        restart after an upgrade): then the desktop still shows the other style's look.
+        Switch as a live switch would, but only when GNOME really shows another style than
+        the one noted at the last Apply or switch. In the same style there is nothing to
+        catch up on, whichever look the user applied in it: no write, no Apply. With no
+        note yet (the first login with this version) the style GNOME shows now is noted."""
+        s = _auto_settings()
+        if s is None or s.scheme != "auto":
+            return
+        from .engine import note_applied_style, read_applied_style
+        env = self._env()
+        was = read_applied_style(env)
+        if was is None:
+            # Not after Restore original: nothing of ours is written then.
+            if _guarded("checking the look", self.eng.look_on):
+                note_applied_style(env)
+        elif was != env.prefers_dark():
+            self.changed({SCHEME})
 
     def retry_pending(self) -> None:
         """At a later wake-up, for a while: the glass may run by now (a slow login)."""
@@ -431,8 +452,15 @@ class Watcher:
         new = looked
         if looked is not None:
             wall = wallcolour.follows(looked)
-        if wall and (taken := _guarded("taking the wallpaper's colours", self.rematch, new or s)) is not None:
-            was = new or s
+        was = new or s
+        taken = None
+        if wall:
+            if looked is not None:
+                # A look just switched in has the colours of the picture it was saved with, even
+                # when that is the picture noted here: match them to the picture shown now.
+                was = replace(was, wallpaper_match="")
+            taken = _guarded("taking the wallpaper's colours", self.rematch, was)
+        if wall and taken is not None:
             if (taken.tint, taken.accent) != (was.tint, was.accent):
                 accent = True       # a new tint or accent is in every part
             new = taken
@@ -445,6 +473,10 @@ class Watcher:
             # Another look changes every part, not only the ones that follow dark and light.
             _guarded("Apply", self.eng.apply, s, only=None if contrast or accent or looked is not None else self.only,
                      if_applied=True, applied_only=True)
+        if scheme:
+            # The look now on is this style's: the next login has nothing to catch up on.
+            from .engine import note_applied_style
+            note_applied_style(self._env())
 
     def _env(self):
         env = getattr(self.eng, "env", None)

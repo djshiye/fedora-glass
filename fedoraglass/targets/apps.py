@@ -162,8 +162,8 @@ class VSCode(AppTarget):
         return (env.config / self.config_name, env.home / self.ext_home.split("/")[0])
 
     def detect(self, env: Env) -> Detection:
-        fp = flatpak_home(env, self.flatpak) / "config" / self.config_name
-        if installed(env, cmds=(self.cmd,), flatpak=self.flatpak, dirs=(*self.native_dirs(env), fp)):
+        if (installed(env, cmds=(self.cmd,), dirs=self.native_dirs(env))
+                or env.flatpak_installed(self.flatpak)):
             return Detection(True)
         return Detection(False, _("{name} is not installed").format(name=self.name))
 
@@ -173,7 +173,8 @@ class VSCode(AppTarget):
         .vsix goes there too: the sandbox reads that folder whatever its other permissions are."""
         fh = flatpak_home(env, self.flatpak)
         native = bool(env.which(self.cmd)) or any(d.exists() for d in self.native_dirs(env))
-        use_native, use_fp = which_installs(env, native, self.flatpak, fh / "config" / self.config_name)
+        use_fp = env.flatpak_installed(self.flatpak)
+        use_native = native or not use_fp
         out = []
         if use_native:
             out.append((env.config / self.config_name / "User/settings.json", env.home / self.ext_home,

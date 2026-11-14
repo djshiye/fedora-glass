@@ -214,6 +214,9 @@ export function parse(text) {
     const rw = raw.windows && typeof raw.windows === 'object' ? raw.windows : {};
     cfg.windows.appGlass = cleanAppGlass(rw.appGlass);
     cfg.windows.appLooks = cleanAppLooks(rw.appLooks, cfg.windows.look);
+    // The same two, on the terminals' own look; none (a terminal then uses appLooks) in an older file.
+    cfg.windows.terminalAppLooks = cfg.windows.terminalLook && rw.terminalAppLooks && typeof rw.terminalAppLooks === 'object'
+        ? cleanAppLooks(rw.terminalAppLooks, cfg.windows.terminalLook) : null;
     // Window and panel animations: unknown names fall back to the defaults, numbers are clamped.
     cfg.animations = cleanMotion(raw.animations);
     cfg.lock = cleanLock(raw.lock);

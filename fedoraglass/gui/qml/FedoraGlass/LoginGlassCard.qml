@@ -10,10 +10,16 @@ Card {
     readonly property string state_: Backend.glassLoginState
     readonly property bool busy: state_ === "busy"
     readonly property bool on: Backend.glassLoginOn
+    // A Turn off did not finish: the status says so and Turn off is the one thing offered.
+    readonly property bool leaving: Backend.glassLoginLeaving
     // Not available and not on: only the title and why.
     readonly property bool offered: Backend.glassLoginCanTurnOn || root.on || root.busy
+    // The login screen's own settings and the notes about them (not while it is turning off).
+    readonly property bool settable: root.offered && !root.leaving
     signal touched()        // a control here changed: the preview shows the login screen
     height: implicitHeight
+    // A status that could not be read is asked again when the page shows.
+    onVisibleChanged: if (visible) Backend.checkGlassLogin()
 
     component Choice: Column {
         property string label: ""
@@ -74,7 +80,7 @@ Card {
                         width: 8; height: 8; radius: 4
                         color: root.state_ === "on" ? Theme.good
                              : root.state_ === "trial" ? Theme.accentText
-                             : root.state_ === "behind" || root.state_ === "stopped" ? Theme.warn
+                             : root.state_ === "behind" || root.state_ === "stopped" || root.state_ === "leaving" ? Theme.warn
                              : Theme.textFaint
                     }
                 }
@@ -94,25 +100,26 @@ Card {
 
         Faint {
             objectName: "loginGlassReplaces"
-            visible: Backend.glassLoginReplacesPainted && !root.on && root.offered
+            visible: Backend.glassLoginReplacesPainted && !root.on && root.settable
             text: qsTr("Turning this on replaces the glass that is painted on your login screen now.")
         }
 
         Flow {
+            readonly property bool off: root.on || root.leaving     // the button turns it off
             width: parent.width
             spacing: 10
-            visible: root.offered
+            visible: root.offered || root.leaving
             LgButton {
                 objectName: "loginGlassToggle"
-                kind: root.on ? "secondary" : "primary"
-                enabled: !root.busy && (root.on || Backend.glassLoginCanTurnOn)
+                kind: parent.off ? "secondary" : "primary"
+                enabled: !root.busy && (parent.off || Backend.glassLoginCanTurnOn)
                 busy: root.busy
-                iconName: root.on ? "" : "lock"
-                text: root.on ? qsTr("Turn off") : qsTr("Turn on glass login screen")
-                tip: root.on ? qsTr("Asks for your password, then puts GNOME's own login screen back.")
-                             : qsTr("Asks for your password, then turns on the glass login screen with the look you applied last.")
+                iconName: parent.off ? "" : "lock"
+                text: parent.off ? qsTr("Turn off") : qsTr("Turn on glass login screen")
+                tip: parent.off ? qsTr("Asks for your password, then puts GNOME's own login screen back.")
+                                : qsTr("Asks for your password, then turns on the glass login screen with the look you applied last.")
                 tipBelow: true
-                onClicked: root.on ? Backend.turnOffGlassLogin() : Backend.turnOnGlassLogin()
+                onClicked: parent.off ? Backend.turnOffGlassLogin() : Backend.turnOnGlassLogin()
             }
             LgButton {
                 objectName: "loginSeeNow"
@@ -151,7 +158,7 @@ Card {
         Faint {
             // The buttons use the applied look, never unapplied slider values.
             objectName: "loginGlassBehind"
-            visible: Backend.loginGlassBehind && !root.busy && root.offered
+            visible: Backend.loginGlassBehind && !root.busy && root.settable
             text: root.on ? qsTr("Apply brings your newest changes to the login screen too.")
                           : qsTr("It starts with the look you applied last. Apply first to bring your newest changes along.")
         }
@@ -159,7 +166,7 @@ Card {
         Column {
             width: parent.width
             spacing: 14
-            visible: root.offered
+            visible: root.settable
 
             Divider {}
             SwitchRow {
@@ -315,7 +322,7 @@ Card {
 
         Fold {
             objectName: "loginSafe"
-            visible: root.offered
+            visible: root.settable
             card: false
             divider: true
             title: qsTr("How it stays safe")

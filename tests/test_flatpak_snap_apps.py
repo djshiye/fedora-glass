@@ -39,7 +39,8 @@ def only_flatpak(fake_env, monkeypatch):
 
 
 def install_flatpak(env, app_id):
-    (env.data / "flatpak/app" / app_id).mkdir(parents=True)
+    # A deployed app has a `current` link; the folder alone is not an install.
+    (env.data / "flatpak/app" / app_id / "current").mkdir(parents=True)
 
 
 # ---- Obsidian ---------------------------------------------------------------------------------

@@ -145,15 +145,19 @@ export function windowKind(ids, skip, solid = []) {
  * The glass look behind an app's windows. An app on the no-glass list gets none at all
  * (see windowKind), so here the first that holds: the user's own strength for the app
  * (appGlass, 'solid' or 'clearer', by any of its ids, whatever their case, like the
- * no-glass list), then the terminals' own look, then the windows' look.
+ * no-glass list), then the terminals' own look, then the windows' look. A terminal's
+ * strength is made from the terminals' look (terminalAppLooks), any other app's from the
+ * windows' (appLooks).
  */
 export function lookFor(ids, s) {
     const mine = s.appGlass instanceof Map && s.appGlass.size
         ? ids.map(id => s.appGlass.get(id.toLowerCase())).find(Boolean) : undefined;
-    const own = mine ? s.appLooks?.[mine] : null;
+    const terminal = s.terminalLook && ids.some(id => TERMINALS.test(id));
+    // A terminal's strength is made from the terminals' look, so it keeps the direction.
+    const own = mine ? (terminal && s.terminalAppLooks ? s.terminalAppLooks : s.appLooks)?.[mine] : null;
     if (own)
         return own;
-    if (s.terminalLook && ids.some(id => TERMINALS.test(id)))
+    if (terminal)
         return s.terminalLook;
     return s.look;
 }

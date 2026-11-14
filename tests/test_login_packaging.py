@@ -30,7 +30,7 @@ HELPER = "usr/libexec/fedora-glass-login"
 ADDON = f"usr/share/gdm/greeter/gnome-shell/extensions/{UUID}"
 UNIT_DIR = "usr/lib/systemd/system"
 MACROS = {"%{_libexecdir}": "/usr/libexec", "%{_datadir}": "/usr/share", "%{_unitdir}": "/usr/lib/systemd/system",
-          "%{buildroot}": ""}
+          "%{_prefix}": "/usr", "%{_sharedstatedir}": "/var/lib", "%{buildroot}": ""}
 
 
 def _copy_tree(work: Path):
@@ -188,6 +188,16 @@ def test_an_empty_shared_list_stops_the_build(tmp_path):
 # ---- the rpm spec ----------------------------------------------------------------------
 
 def _spec():
+    """The spec with its own multi-line macros (%define NAME \\ ... %{nil}) written out where
+    they are used, one line per line, as rpm puts them into a scriptlet."""
+    text = (PKG / "fedora-glass.spec").read_text()
+    for name, body in re.findall(r"^%define (\w+) \\\n(.*?)^%\{nil\}\n", text, re.M | re.S):
+        lines = [re.sub(r" \\$", "", x) for x in body.splitlines()]
+        text = text.replace("%{" + name + "}", "\n".join(lines))
+    return text
+
+
+def _raw_spec():
     return (PKG / "fedora-glass.spec").read_text()
 
 
@@ -277,21 +287,21 @@ def test_the_policy_names_both_helpers():
 # ---- removal only, never on an upgrade -------------------------------------------------
 
 OFF = "/usr/libexec/fedora-glass-login off"
+QUIET = ">/dev/null"            # stdout only: the helper's own stderr is shown
 
 
 def test_rpm_turns_the_login_screen_off_only_on_removal():
     spec = _spec()
     preun = _section(spec, "%preun")
     block = preun.split("if [ $1 -eq 0 ]; then\n", 1)[1].split("\nfi\n", 1)[0]
-    assert "if ! %{_libexecdir}/fedora-glass-login off >/dev/null 2>&1; then" in block
+    # the helper's own messages are not hidden: it says what is left
+    assert "if ! %{_libexecdir}/fedora-glass-login off >/dev/null; then" in block
     # before the files go: it is in %preun, not %postun
     assert "fedora-glass-login" not in preun.replace(block, "")
     # the old helper's undo is still there, unchanged
     assert "%{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :" in block
     for name in ("%post", "%postun", "%posttrans", "%post -n liquid-glass"):
         assert "fedora-glass-login" not in _section(spec, name), name
-    # replacing the old-name package must not turn the new feature off
-    assert "login-screen" not in re.sub(r"#.*", "", _section(spec, "%preun -n liquid-glass"))
     # every call to the old helper is kept as it was
     assert "%{_libexecdir}/liquid-glass-login-screen refresh >/dev/null 2>&1 || :" in _section(spec, "%posttrans")
 
@@ -301,7 +311,7 @@ def test_deb_turns_the_login_screen_off_only_on_removal():
     prerm = (deb / "prerm").read_text()
     assert prerm.count('if [ "$1" = remove ]; then') == 1
     block = prerm.split('if [ "$1" = remove ]; then\n', 1)[1].split("\nfi\n", 1)[0]
-    assert f"if ! {OFF} >/dev/null 2>&1; then" in block
+    assert f"if ! {OFF} {QUIET}; then" in block
     assert "/usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :" in block
     assert "fedora-glass-login" not in prerm.replace(block, "")
     for name in ("postinst", "postrm", "preinst"):
@@ -311,7 +321,7 @@ def test_deb_turns_the_login_screen_off_only_on_removal():
 def test_arch_turns_the_login_screen_off_only_on_removal():
     text = (PKG / "arch/fedora-glass.install").read_text()
     funcs = dict(re.findall(r"^(\w+)\(\) \{\n(.*?)^\}", text, re.M | re.S))
-    assert f"if ! {OFF} >/dev/null 2>&1; then" in funcs["pre_remove"]
+    assert f"if ! {OFF} {QUIET}; then" in funcs["pre_remove"]
     assert "/usr/libexec/liquid-glass-login-screen undo >/dev/null 2>&1 || :" in funcs["pre_remove"]
     for name, body in funcs.items():
         if name != "pre_remove":
@@ -322,8 +332,10 @@ def test_arch_turns_the_login_screen_off_only_on_removal():
 
 HAND_LINES = (
     "fedora-glass: the glass login screen could not be switched off completely.",
-    "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login and "
-    "/etc/dconf/db/*.d/locks/90-fedora-glass-login, then run: dconf update",
+    "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login, "
+    "/etc/dconf/db/*.d/locks/90-fedora-glass-login, /etc/dconf/db/fedora-glass-login (if there) and "
+    "/etc/fedora-glass, take the line system-db:fedora-glass-login out of /etc/dconf/profile/gdm (if there), "
+    "then run: dconf update",
 )
 
 
@@ -346,7 +358,7 @@ def test_a_failed_off_at_removal_says_how_to_finish_and_never_fails_the_removal(
     an off that worked, root's own folder for it (only its lock file by then) goes too; after
     one that failed it stays, with whatever the helper kept there to finish later."""
     helper = tmp_path / "fedora-glass-login"
-    helper.write_text("#!/bin/sh\n" + ("exit 0\n" if works else "echo noise; exit 4\n"))
+    helper.write_text("#!/bin/sh\n" + ("exit 0\n" if works else "echo noise; echo what-is-left >&2; exit 4\n"))
     helper.chmod(0o755)
 
     def run(name, block, helper_path):
@@ -364,7 +376,8 @@ def test_a_failed_off_at_removal_says_how_to_finish_and_never_fails_the_removal(
     for name, block in _off_blocks().items():
         r, var = run(name, block, helper)
         assert r.returncode == 0 and r.stdout == "after\n", name
-        assert r.stderr.splitlines() == ([] if works else list(HAND_LINES)), name
+        # the helper's own stderr comes through (it says what is left), then the hand-finish lines
+        assert r.stderr.splitlines() == ([] if works else ["what-is-left", *HAND_LINES]), name
         if works:
             assert not var.exists(), name
         else:
@@ -393,7 +406,8 @@ def test_a_folder_with_something_else_in_it_stays_at_removal(tmp_path):
 
 
 def test_the_three_scriptlets_say_the_same():
-    blocks = {k: re.sub(r"(?m)^ +", "", v) for k, v in _off_blocks().items()}
+    # The steps, not the comments (the rpm's macro has its comments above it).
+    blocks = {k: re.sub(r"(?m)^ *#.*\n|^ +", "", v) for k, v in _off_blocks().items()}
     assert blocks["rpm"] == blocks["deb"] == blocks["arch"]
 
 
@@ -475,3 +489,157 @@ def test_the_boot_guard_starts_the_watcher_again_for_a_trial_it_began():
     assert post in service and service.index(post) > start
     assert _sections(_unit("fedora-glass-login-guard-check.path"))["[Unit]"].count(
         "ConditionPathExists=/var/lib/fedora-glass/login/trial") == 1
+
+
+# ---- removing the old-name package alone -----------------------------------------------
+
+MARKER = "%{_prefix}/lib/fedora-glass/main-package"
+
+
+def test_the_marker_is_in_the_main_file_list_only():
+    spec = _raw_spec()
+    main, bridge = _section(spec, "%files"), _section(spec, "%files -n liquid-glass")
+    assert MARKER in main and "%dir %{_prefix}/lib/fedora-glass\n" in main
+    assert "lib/fedora-glass" not in bridge
+    assert f"install -Dm644 /dev/stdin %{{buildroot}}{MARKER}" in _section(spec, "%install")
+
+
+def test_rpm_leaves_no_empty_gdm_folders_behind():
+    spec = _raw_spec()
+    for name in ("%files", "%files -n liquid-glass"):
+        text = _section(spec, name)
+        for d in ("%{_datadir}/gdm", "%{_datadir}/gdm/greeter", "%{_datadir}/gdm/greeter/gnome-shell",
+                  "%{_datadir}/gdm/greeter/gnome-shell/extensions"):
+            assert f"%dir {d}\n" in text, (name, d)
+
+
+def test_both_preun_blocks_run_the_same_steps():
+    raw = _raw_spec()
+    # one definition, used by both: no second copy of the shell text to drift
+    assert raw.count("fedora-glass-login off") == 1
+    assert _section(raw, "%preun").count("%{fg_remove_steps}") == 1
+    assert _section(raw, "%preun -n liquid-glass").count("%{fg_remove_steps}") == 1
+    assert _section(raw, "%postun").count("%{fg_remove_tidy}") == 1
+    assert _section(raw, "%postun -n liquid-glass").count("%{fg_remove_tidy}") == 1
+    spec = _spec()
+
+    def steps(header, guard):
+        text = _section(spec, header)
+        m = re.search(rf"^{re.escape(guard)}\n(.*?)^fi$", text, re.M | re.S)
+        assert m, header
+        return m.group(1)
+
+    main = steps("%preun", "if [ $1 -eq 0 ]; then")
+    bridge = steps("%preun -n liquid-glass",
+                   "if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then")
+    assert main == bridge and "fedora-glass-login off" in main and "undo-for-users" in main
+    assert steps("%postun", "if [ $1 -eq 0 ]; then") == steps(
+        "%postun -n liquid-glass", "if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then")
+
+
+@pytest.mark.parametrize("arg, marker, runs", [("0", False, True),    # liquid-glass removed alone
+                                               ("0", True, False),    # fedora-glass replaced it
+                                               ("1", False, False)])  # an upgrade of liquid-glass
+def test_the_old_name_package_undoes_only_when_it_is_removed_alone(tmp_path, arg, marker, runs):
+    spec = _spec()
+    bodies = []
+    for header in ("%preun -n liquid-glass", "%postun -n liquid-glass"):
+        text = "\n".join(x for x in _section(spec, header).splitlines() if not x.startswith(("%systemd", "#")))
+        bodies.append(_expand(text))
+    log = tmp_path / "log"
+    libexec, var, mark = tmp_path / "libexec", tmp_path / "var", tmp_path / "usr-lib-fedora-glass/main-package"
+    libexec.mkdir()
+    (var / "liquid-glass").mkdir(parents=True)
+    for n in ("fedora-glass-undo-for-users", "liquid-glass-login-screen", "fedora-glass-login"):
+        f = libexec / n
+        f.write_text(f'#!/bin/sh\necho "{n} $*" >> {log}\n')
+        f.chmod(0o755)
+    if marker:
+        mark.parent.mkdir()
+        mark.write_text("x\n")
+    for body in bodies:
+        body = (body.replace("/usr/libexec", str(libexec)).replace("/usr/lib/fedora-glass/main-package", str(mark))
+                .replace("/var/lib", str(var)))
+        assert "/usr/" not in body, body
+        r = subprocess.run(["sh", "-e", "-c", body, "sh", arg], capture_output=True, text=True, timeout=30)
+        assert r.returncode == 0 and r.stderr == "", r.stderr
+    calls = [x.strip() for x in log.read_text().splitlines()] if log.exists() else []
+    if runs:
+        assert calls == ["fedora-glass-undo-for-users", "liquid-glass-login-screen undo", "fedora-glass-login off"]
+        assert not (var / "liquid-glass").exists()      # the empty folder goes as well
+    else:
+        assert calls == [] and (var / "liquid-glass").exists()
+
+
+def test_the_package_tests_see_every_login_screen_leftover():
+    smoke = (ROOT / "qa/package-smoke.sh").read_text()
+    removed = smoke.split("--removed ]; then", 1)[1].split("\nfi\n", 1)[0]
+    for needle in ("/usr/libexec/fedora-glass-login", UUID, "fedora-glass-login-guard.service",
+                   "fedora-glass-login-guard-check.path", "fedora-glass-login-guard-check.service",
+                   "graphical.target.wants/fedora-glass-login-guard.service",
+                   "graphical.target.wants/fedora-glass-login-guard-check.path",
+                   "/etc/dconf/db/*.d/90-fedora-glass-login", "/etc/dconf/db/*.d/locks/90-fedora-glass-login",
+                   "/etc/dconf/db/fedora-glass-login", "/etc/fedora-glass", "/var/lib/fedora-glass",
+                   "system-db:fedora-glass-login"):
+        assert needle in removed, needle
+    script = (PKG / "rpm-install-test.sh").read_text()
+    assert 'bash "$src/qa/package-smoke.sh" --removed' in script
+    # both directions of the old-name package: replaced keeps the look, removed alone undoes it
+    assert script.count("the_look_is_still_applied\n") >= 2 and "dnf_remove liquid-glass\n    the_look_is_undone\n    gone" in script
+
+
+def test_the_removal_check_knows_the_ubuntu_marks_from_a_leftover(tmp_path):
+    """After `apt remove` Ubuntu keeps two marks of its own in /var/lib/fedora-glass until the
+    next install or a purge. The check lets the folder stay for those and for nothing else."""
+    smoke = (ROOT / "qa/package-smoke.sh").read_text()
+    body = smoke.split("--removed ]; then", 1)[1].split("\nfi\n", 1)[0]
+    for top in ("/usr/", "/etc/", "/var/lib/"):
+        body = body.replace(top, f"{tmp_path}{top}")
+    state = tmp_path / "var/lib/fedora-glass"
+
+    def left():
+        r = subprocess.run(["bash", "-euo", "pipefail", "-c", body], capture_output=True, text=True, timeout=30)
+        assert r.stderr == "" and r.returncode in (0, 1), r.stderr
+        assert (r.returncode == 0) == ("nothing of the glass login screen is left" in r.stdout), r.stdout
+        return [x.replace(str(tmp_path), "") for x in r.stdout.split(":", 1)[1].split()] if r.returncode else []
+
+    assert left() == []                                     # Fedora and Arch: the folder is gone
+    state.mkdir(parents=True)
+    assert left() == ["/var/lib/fedora-glass"]              # an empty folder is a leftover
+    (state / "apt-entry-removed").touch()
+    assert left() == []                                     # Ubuntu after `apt remove`
+    (state / "watch-was-on").touch()
+    assert left() == []
+    (state / "login").mkdir()                               # the login screen's own folder
+    assert left() == ["/var/lib/fedora-glass/login", "/var/lib/fedora-glass"]
+    (state / "login").rmdir()
+    for stray in ("state.json", ".lock", "..odd"):
+        (state / stray).touch()
+        assert left() == ["/var/lib/fedora-glass"], stray
+        (state / stray).unlink()
+    assert left() == []
+    for mark in ("apt-entry-removed", "watch-was-on"):
+        (state / mark).unlink()
+    state.rmdir()
+    state.symlink_to(tmp_path / "elsewhere")                # a link, also one that points nowhere
+    assert left() == ["/var/lib/fedora-glass"]
+
+
+def test_the_rpm_install_test_does_not_lean_on_what_an_old_release_brings():
+    script = (PKG / "rpm-install-test.sh").read_text()
+    # Every look has a home of its own: what one step left behind never reaches the next.
+    assert 'local user="glassuser$looks"' in script and "useradd -m glassuser\n" not in script
+    assert "/home/glassuser/" not in script
+    # The tools the test itself needs are asked for by name, in the script and in both workflows.
+    assert "for tool in useradd runuser; do" in script
+    for wf in ("packages.yml", "release.yml"):
+        tools = next(ln for ln in (ROOT / ".github/workflows" / wf).read_text().splitlines()
+                     if "dnf install" in ln and "rpm-build" in ln)
+        assert " shadow-utils" in tools and " util-linux-core" in tools, wf
+    # Only the look that 1.4.4 itself applies may be left out, and that is said; the looks
+    # this version applies must always work.
+    assert script.count("a_look_is_applied || ") == 1
+    soft = script.split("a_look_is_applied || ", 1)[1].split("\n", 1)[0]
+    assert "1.4.4 could not apply a look here" in soft
+    assert script.count("\n    a_look_is_applied\n") == 2
+    assert script.count('[ -z "$look" ] || the_look_is_') == 2
