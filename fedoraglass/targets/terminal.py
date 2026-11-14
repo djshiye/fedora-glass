@@ -366,18 +366,34 @@ class IncludeTerminal(Target):
                 acts.append(WriteFile(main, new, edits=("block", rt.BLOCK_BEGIN, rt.BLOCK_END)))
         return acts
 
+    def manual_step(self, env: Env) -> str | None:
+        """What the user must do by hand when our block can't go into their file (our colour
+        file is still written), else None."""
+        stop, blocked = self.status(env)
+        if stop or not blocked:
+            return None
+        own = self.own_path(env)
+        try:
+            # Reading only (through a link too): they have added our file already.
+            if self.own_file in self.main_path(env).read_text(encoding="utf-8", errors="replace"):
+                return None
+        except OSError:
+            pass
+        if blocked == "link":
+            return _("Your {name} settings file is a link or can't be read, so Fedora Glass did not change it. "
+                     "Add this to it yourself:\n{line}").format(name=self.name, line=self.manual_line(own))
+        if blocked == "own":
+            return _("Your {name} settings already have an import list, so Fedora Glass did not change it. "
+                     "Add this file to it yourself: {path}").format(name=self.name, path=own)
+        return None
+
     def live_notes(self, ctx: Context) -> list[str]:
         out = list(self.notes)
-        stop, blocked = self.status(ctx.env)
-        own = self.own_path(ctx.env)
+        stop = self.status(ctx.env)[0]
         if stop:
             out.insert(0, stop)
-        elif blocked == "link":
-            out.insert(0, _("Your {name} settings file is a link or can't be read, so Fedora Glass did not change it. "
-                            "Add this to it yourself:\n{line}").format(name=self.name, line=self.manual_line(own)))
-        elif blocked == "own":
-            out.insert(0, _("Your {name} settings already have an import list, so Fedora Glass did not change it. "
-                            "Add this file to it yourself: {path}").format(name=self.name, path=own))
+        elif (step := self.manual_step(ctx.env)):
+            out.insert(0, step)
         return out
 
 
@@ -439,15 +455,39 @@ class Alacritty(IncludeTerminal):
     folder: str = "alacritty"
     main_files: tuple[str, ...] = ("alacritty.toml",)
     own_file: str = "fedora-glass.toml"
+    extra_dirs: tuple[str, ...] = (".alacritty.toml",)
     where: str = "end"
     notes: list[str] = field(default_factory=lambda: [
         N_("Needs Alacritty 0.14 or newer. It reloads by itself. Colours and opacity you set in alacritty.toml yourself win."),
         N_("Follows the GNOME dark or light style in use when you Apply.")])
 
+    @staticmethod
+    def _places(env: Env, ext: str) -> list[Path]:
+        """Where Alacritty looks for its settings, in the order it looks."""
+        return [env.config / f"alacritty/alacritty.{ext}", env.config / f"alacritty.{ext}",
+                env.home / f".config/alacritty/alacritty.{ext}", env.home / f".alacritty.{ext}"]
+
+    def main_path(self, env):
+        # The file Alacritty reads is the first one there; a new one in front of the user's
+        # own would hide their settings.
+        for p in self._places(env, "toml"):
+            if p.exists() or p.is_symlink():
+                return p
+        return self._places(env, "toml")[0]
+
+    def gives_back(self, env):
+        # An earlier version always made the first place. A file with only our lines there,
+        # in front of the user's own, hides their settings from Alacritty.
+        there = [p for p in dict.fromkeys(self._places(env, "toml")) if p.exists() or p.is_symlink()]
+        if len(there) < 2 or not (text := _read_exact(there[0])) or rt.BLOCK_BEGIN not in text:
+            return []
+        return [] if ra.without_block(text, rt.BLOCK_BEGIN, rt.BLOCK_END).strip() else [there[0]]
+
     def status(self, env):
         stop, blocked = super().status(env)
         # The old alacritty.yml format can't import a TOML file.
-        if not stop and (env.config / "alacritty/alacritty.yml").exists() and not self.main_path(env).exists():
+        if (not stop and not self.main_path(env).exists()
+                and any(p.exists() for p in self._places(env, "yml"))):
             return _("{name} is using its old alacritty.yml file, so Fedora Glass left it alone.").format(name=self.name), None
         return stop, blocked
 

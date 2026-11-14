@@ -33,6 +33,7 @@ const STUBS = {
     'gi/St': `const A = globalThis.fake.Actor;
         export default {Widget: A, BoxLayout: A, Bin: A, Label: globalThis.fake.Label, Icon: globalThis.fake.Icon,
             Entry: globalThis.fake.Entry, Button: globalThis.fake.Button,
+            Side: {TOP: 0, RIGHT: 1, BOTTOM: 2, LEFT: 3},
             Settings: {get: () => globalThis.fake.stSettings},
             ThemeContext: {get_for_stage: () => globalThis.fake.themeContext}};`,
     // A picture "decodes" when its text starts with PICTURE.

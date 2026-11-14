@@ -193,6 +193,26 @@ export function promptPlace({fixedTop = true, scale = 1, textScale = 1, screen =
     return {margin, content, top: Math.round(top)};
 }
 
+// ---- where the list of users stands ----
+/**
+ * The margin above GNOME's list of users (px as in a stylesheet) that lets a long list
+ * grow downward. GNOME keeps the list in the middle of its dialog, so a long one reaches
+ * as far up as down. The margin lowers it until it begins at `top`, as far as it then
+ * still ends by `bottom`; a list that begins lower than `top` anyway (a short one) gets
+ * none and stays in the middle. GNOME centres the list with its margin, so every 2 px of
+ * margin lower it by 1.
+ *
+ * middle: the middle of GNOME's dialog; height: how tall the list is with "Not listed?";
+ * top: where the list should begin; bottom: where it must end (all stage px down the
+ * screen). scale: the theme's scale factor.
+ */
+export function listMargin({scale = 1, middle, height, top, bottom} = {}) {
+    if (![scale, middle, height, top, bottom].every(Number.isFinite) || height <= 0)
+        return 0;
+    const lower = Math.min(top - (middle - height / 2), bottom - (middle + height / 2));
+    return lower >= 1 ? Math.round(unit(2 * lower / unit(scale, 1, 4), 0, 4000)) : 0;
+}
+
 /**
  * The stylesheet for the login screen, from checked values. The user list and the
  * password prompt each sit on one card of real glass (drawn under them by login.js), so
@@ -206,8 +226,9 @@ export function promptPlace({fixedTop = true, scale = 1, textScale = 1, screen =
  * style alike: the light style's dark text would not read on it.
  *
  * margin: px above GNOME's prompt (promptPlace), or null to leave it where GNOME puts it.
+ * list: px above GNOME's list of users (listMargin), 0 to leave it in the middle.
  */
-export function stylesheet(look, {margin = null} = {}) {
+export function stylesheet(look, {margin = null, list = 0} = {}) {
     const accent = hex(look.accent);
     const frost = unit(look.frost);
     const pane = 0.07 + 0.07 * frost;         // white in each pane: clear glass to frost
@@ -267,6 +288,7 @@ ${raised}
   margin-top: ${Math.round(unit(margin, 0, 600))}px;`, `
 .login-dialog .login-dialog-prompt-layout .login-dialog-prompt-layout {
   margin-top: 0px; }`];
+    const listPlace = Math.round(unit(list, 0, 4000));
     return `/* Fedora Glass login screen (made by the add-on from look.json). */
 .login-dialog {
   background-color: transparent;
@@ -281,7 +303,8 @@ ${raised}
   box-shadow: none; }${place[1]}
 .login-dialog .login-dialog-user-selection-box {
   padding-top: 4em;
-  padding-bottom: 4em; }
+  padding-bottom: 4em;${listPlace ? `
+  margin-top: ${listPlace}px;` : ''} }
 .login-dialog .login-dialog-user-list-view .login-dialog-user-list {
   margin: 0;
   spacing: ${look.card ? 4 : 12}px; }

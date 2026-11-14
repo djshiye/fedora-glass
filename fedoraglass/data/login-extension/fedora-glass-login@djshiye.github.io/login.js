@@ -30,7 +30,7 @@ import {formatDateWithCFormatString, formatTime} from 'resource:///org/gnome/she
 
 import {GlassPane} from './glass.js';
 import {CARD_PAD, CHIP, CHIP_TEXT, CLOCK_STYLES, MESSAGE, batteryIcon, cardLook, sheetLook} from './locklook.js';
-import {checkLook, glassValues, glowStyles, promptPlace, stylesheet} from './style.js';
+import {checkLook, glassValues, glowStyles, listMargin, promptPlace, stylesheet} from './style.js';
 
 const STYLE_DIR = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'fedora-glass-login']);
 const STYLE_FILE = Gio.File.new_for_path(GLib.build_filenamev([STYLE_DIR, 'login.css']));
@@ -45,6 +45,9 @@ const PROMPT_SPARE = 8;      // px GNOME's prompt must stay clear of the screen'
 const CARD_EASE_MS = 160;    // the card growing or shrinking with what is in it
 const CARD_MOVE_MS = 250;    // the card going from the user list to the prompt and back (GNOME fades its prompt in as long)
 const CARD_HOLD_MS = 1000;   // the card staying where it is while GNOME asks GDM and brings the prompt
+const CARD_JUMP_MS = 250;    // after the user list was given its place: the card goes with it in one step
+const LIST_GAP = 8;          // px kept free between the user list's card and GNOME's logo
+const LIST_TRIES = 8;        // times the user list is given a new place before a new row comes or goes
 const UPOWER = 'org.freedesktop.UPower';
 const DISPLAY_DEVICE = '/org/freedesktop/UPower/devices/DisplayDevice';
 
@@ -217,6 +220,17 @@ export class LoginGlass {
         this._watchVerifier();
         this._build();
         this.ready = true;
+        // With nothing to draw (high contrast) the start is over here. With glass it is
+        // over once the glass shows (_showGlass): a start that only built it, and then
+        // went down as the picture arrived and the glass was first painted, never finished.
+        if (!this._layer)
+            this._startDone();
+    }
+
+    _startDone() {
+        if (this._startSaid)
+            return;
+        this._startSaid = true;
         this._onReady();
     }
 
@@ -251,7 +265,12 @@ export class LoginGlass {
                 return;
             this._verifierSignals.clear();
             this._verifier = v;
-            this._verifierSignals.on(v, 'verification-complete', () => this._onVerified());
+            // Only a login on a login screen that showed the glass says the glass works:
+            // not one while nothing is drawn (high contrast) or before the glass came up.
+            this._verifierSignals.on(v, 'verification-complete', () => {
+                if (this._layer && this._pictureReady)
+                    this._onVerified();
+            });
         };
         attach();
         // GNOME makes the verifier once with the prompt; should a later GNOME make a new
@@ -274,6 +293,10 @@ export class LoginGlass {
             this._safe(() => {
                 this._takeDown();
                 this._build();
+                // High contrast came on before the glass first showed: nothing is drawn
+                // now, so this start is over too (see _start).
+                if (!this._layer)
+                    this._startDone();
             });
             return GLib.SOURCE_REMOVE;
         });
@@ -330,6 +353,10 @@ export class LoginGlass {
         }
         this._makeTop(layer);
         this._place = this._promptPlace();
+        this._listMargin = 0;      // until GNOME has laid its user list out with this style (_giveListPlace)
+        this._listTries = 0;
+        this._listRows = -1;
+        this._cardJumpUntil = 0;
         this._css = stylesheet(this.look, {margin: this._place.margin});
         this._writeStyle();
         this._loadStyle();
@@ -348,7 +375,9 @@ export class LoginGlass {
         // Up softly, as GNOME brings its own dialog (at once where animations are off).
         this._layer.ease({opacity: 255, duration: FADE_MS, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
         this._syncSmallClock();
+        this._fadeWithDialog();
         this._queue();
+        this._startDone();
     }
 
     /**
@@ -729,10 +758,12 @@ export class LoginGlass {
     // ---- following GNOME's login dialog ----
     _followDialog() {
         const d = this._dialog, prompt = d._authPrompt;
+        this._drawn.on(d, 'notify::opacity', () => this._fadeWithDialog());
         for (const s of ['notify::visible', 'notify::opacity', 'notify::allocation'])
             this._drawn.on(prompt, s, () => this._queue());
-        // The user list too: its rows come a moment after the dialog (the card goes around them).
-        for (const a of [d, d._userSelectionBox, d._userList, d._notListedButton, d._bannerView]
+        // The user list too: its rows come a moment after the dialog (the card goes around
+        // them), and GNOME's logo under it, which a long list keeps clear of.
+        for (const a of [d, d._userSelectionBox, d._userList, d._notListedButton, d._bannerView, d._logoBin]
             .filter(x => x instanceof Clutter.Actor))
             for (const s of ['notify::visible', 'notify::opacity', 'notify::allocation'])
                 this._drawn.on(a, s, () => this._queue());
@@ -747,6 +778,29 @@ export class LoginGlass {
             if (a instanceof St.Label)
                 this._drawn.on(a, 'notify::text', () => this._queue());
         }
+    }
+
+    // GNOME fades its whole login dialog: in as the login screen comes up, out once
+    // somebody has logged in (and in again should the session not start). The card and
+    // the clock go with it, or an empty card and a clock would stand there alone. The
+    // frosted picture stays: the desktop's own picture comes next.
+    _dialogOpacity() {
+        const o = this._dialog?.opacity;
+        return Number.isFinite(o) ? Math.min(255, Math.max(0, o)) : 255;
+    }
+
+    _cardOpacity() {
+        const own = this._cardSolid ? 255 : this._dialog._authPrompt.opacity;
+        return Math.round(own * this._dialogOpacity() / 255);
+    }
+
+    _fadeWithDialog() {
+        if (!this._layer)
+            return;
+        if (this._top)
+            this._top.opacity = this._dialogOpacity();
+        if (this._card)
+            this._card.opacity = this._cardOpacity();
     }
 
     _queue() {
@@ -786,8 +840,17 @@ export class LoginGlass {
         if (!this._layer)
             return;
         this._givePromptRoom();
+        this._giveListPlace();
         this._placeTop();
         this._placeCard();
+    }
+
+    // The stylesheet again, with the places as they are now.
+    _restyle() {
+        this._css = stylesheet(this.look, {margin: this._place.margin, list: this._listMargin});
+        this._unloadStyle();
+        this._writeStyle();
+        this._loadStyle();
     }
 
     /**
@@ -807,10 +870,66 @@ export class LoginGlass {
         if (!m || !f || f[1] + f[3] <= m.y + m.height - PROMPT_SPARE)
             return;
         this._place = this._promptPlace(true);
-        this._css = stylesheet(this.look, {margin: null});
-        this._unloadStyle();
-        this._writeStyle();
-        this._loadStyle();
+        this._restyle();
+    }
+
+    /**
+     * A long list of users grows downward. GNOME keeps its list in the middle of the
+     * screen, so one taller than the prompt reached higher than the prompt's card, and
+     * the clock had to make room for as long as it showed. A margin above the list (a
+     * style again: nothing is moved by hand) lowers it until its card begins where the
+     * prompt's card begins, as far as it then still ends on the screen and above GNOME's
+     * logo. A short list stays in the middle, and so does a list beside a banner, which
+     * GNOME lays out together with it.
+     */
+    _giveListPlace() {
+        const d = this._dialog, box = d._userSelectionBox;
+        if (!(box instanceof St.Widget) || !box.visible || !box.mapped)
+            return;
+        const want = this._listMarginWanted(box);
+        if (want === null)
+            return;
+        // Our own margin does not change what is asked for (the list's height and the
+        // dialog's place), so this settles in one step. The count is for what nobody
+        // thought of: it starts again when a row comes or goes.
+        const rows = d._userList?._box?.get_n_children?.() ?? 0;
+        if (rows !== this._listRows) {
+            this._listRows = rows;
+            this._listTries = 0;
+        }
+        if (Math.abs(want - this._listMargin) < 2 || this._listTries >= LIST_TRIES)
+            return;
+        this._listTries++;
+        this._listMargin = want;
+        this._cardJumpUntil = GLib.get_monotonic_time() + CARD_JUMP_MS * 1000;
+        this._restyle();
+    }
+
+    /** The margin the user list should have now (listMargin in style.js), or null while that cannot be said. */
+    _listMarginWanted(box) {
+        const d = this._dialog, m = Main.layoutManager.primaryMonitor;
+        const frame = m && d.has_allocation() ? LoginGlass.frame(d) : null;
+        if (!frame)
+            return null;
+        if (d._bannerView?.visible)
+            return 0;
+        const edge = (node, side) => node.get_padding(side) + node.get_border_width(side);
+        const dn = d.get_theme_node(), bn = box.get_theme_node();
+        const top = frame[1] + edge(dn, St.Side.TOP);
+        const bottom = frame[1] + frame[3] - edge(dn, St.Side.BOTTOM);
+        // How tall the rows and "Not listed?" are: what the box asks for, without the room
+        // around them (our margin is part of what an actor asks for).
+        const around = edge(bn, St.Side.TOP) + edge(bn, St.Side.BOTTOM) + box.margin_top + box.margin_bottom;
+        const height = box.get_preferred_height(-1)[1] - around;
+        const pad = this._card ? CARD_PAD : 0;
+        let end = bottom - edge(bn, St.Side.BOTTOM);
+        const logo = LoginGlass.box(d._logoBin);
+        if (logo)
+            end = Math.min(end, logo[1] - pad - LIST_GAP);
+        return listMargin({
+            scale: this._context.scale_factor, middle: (top + bottom) / 2, height,
+            top: m.y + this._place.top - (this._card ? PROMPT_PAD : 0) + pad, bottom: end,
+        });
     }
 
     _placeTop() {
@@ -995,7 +1114,7 @@ export class LoginGlass {
         const prompt = this._dialog._authPrompt;
         if (now.list || prompt.opacity === 255)
             this._cardSolid = true;
-        card.opacity = this._cardSolid ? 255 : prompt.opacity;
+        card.opacity = this._cardOpacity();
         const from = this._cardRect;
         const moved = this._cardList !== undefined && now.list !== this._cardList;
         this._cardList = now.list;
@@ -1007,6 +1126,13 @@ export class LoginGlass {
         }
         if (target.every((v, i) => Math.abs(v - (this._cardTo ?? from)[i]) < 0.5))
             return;
+        // The user list was just given its place (_giveListPlace): GNOME puts it there in
+        // one step, and so does its card.
+        if (now.list && GLib.get_monotonic_time() < this._cardJumpUntil) {
+            this._stopCardEase();
+            this._setCard(target);
+            return;
+        }
         // From the user list to the prompt and back, a message appearing or going: to
         // its new shape, not in one jump.
         const long = moved || this._cardMoving;

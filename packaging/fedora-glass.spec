@@ -3,6 +3,24 @@ Version:        1.6.0
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
+# The steps of a removal (not an upgrade), run by %%preun of this package and, when no
+# fedora-glass package is there to take over, by %%preun of the liquid-glass package: both
+# must do exactly the same. Written once, so they cannot differ.
+%define fg_remove_steps \
+%{_libexecdir}/fedora-glass-undo-for-users || : \
+%{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || : \
+if ! %{_libexecdir}/fedora-glass-login off >/dev/null; then \
+    echo "fedora-glass: the glass login screen could not be switched off completely." >&2 || : \
+    echo "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login, /etc/dconf/db/*.d/locks/90-fedora-glass-login, /etc/dconf/db/fedora-glass-login (if there) and /etc/fedora-glass, take the line system-db:fedora-glass-login out of /etc/dconf/profile/gdm (if there), then run: dconf update" >&2 || : \
+else \
+    rm -f /var/lib/fedora-glass/login/.lock || : \
+    rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || : \
+fi \
+%{nil}
+# What %%postun tidies up after those steps.
+%define fg_remove_tidy \
+rmdir %{_sharedstatedir}/liquid-glass 2>/dev/null || : \
+%{nil}
 Summary:        Glass theme for Fedora GNOME, with a customizer
 License:        MIT AND Apache-2.0 AND GPL-3.0-only AND GPL-2.0-only AND CC-BY-SA-4.0
 URL:            https://github.com/djshiye/fedora-glass
@@ -204,6 +222,14 @@ install -Dm644 /dev/stdin %{buildroot}%{_userpresetdir}/80-liquid-glass.preset <
 enable liquid-glass-watch.service
 PRESET
 
+# Only this package ships this file. When fedora-glass replaces liquid-glass, the new files
+# are in place before the old package's %%preun runs, so that %%preun can tell a replacement
+# (the file is there) from a removal of liquid-glass alone (it is not).
+install -Dm644 /dev/stdin %{buildroot}%{_prefix}/lib/fedora-glass/main-package <<'MARKER'
+This file is shipped by the fedora-glass package only (the old liquid-glass package does not
+have it): it tells liquid-glass's removal step that fedora-glass has taken its place.
+MARKER
+
 # Where `dnf upgrade` finds new versions.
 install -Dm644 packaging/fedora-glass.repo %{buildroot}%{_sysconfdir}/yum.repos.d/fedora-glass.repo
 # The public key that the packages in that repository are signed with.
@@ -223,22 +249,13 @@ python3 -m pytest -q tests
 %systemd_user_preun liquid-glass-watch.service
 # Removing the app (not an upgrade) puts each person's original look back, unless they
 # turned that off in the app, and the normal login screen if the glass was on there.
+# The glass login screen goes back to plain GNOME while its add-on still exists, so no
+# setting is left pointing at a missing add-on. Not on an upgrade: the boot-time guard
+# notices a changed add-on by itself.
+# A failed off must never fail the removal, but leaves locked keys behind and no tool
+# to take them away: it says how to finish by hand.
 if [ $1 -eq 0 ]; then
-    %{_libexecdir}/fedora-glass-undo-for-users || :
-    %{_libexecdir}/liquid-glass-login-screen undo >/dev/null 2>&1 || :
-    # The glass login screen goes back to plain GNOME while its add-on still exists, so no
-    # setting is left pointing at a missing add-on. Not on an upgrade: the boot-time guard
-    # notices a changed add-on by itself.
-    # A failed off must never fail the removal, but leaves locked keys behind and no tool
-    # to take them away: say how to finish by hand.
-    if ! %{_libexecdir}/fedora-glass-login off >/dev/null 2>&1; then
-        echo "fedora-glass: the glass login screen could not be switched off completely." >&2 || :
-        echo "fedora-glass: to finish by hand, delete /etc/dconf/db/*.d/90-fedora-glass-login and /etc/dconf/db/*.d/locks/90-fedora-glass-login, then run: dconf update" >&2 || :
-    else
-        # Nothing of it is left: root's own folder for it (now only its lock file) goes too.
-        rm -f /var/lib/fedora-glass/login/.lock || :
-        rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || :
-    fi
+%{fg_remove_steps}
 fi
 
 %postun
@@ -246,7 +263,7 @@ fi
 # /var/lib/liquid-glass, and the undo above deleted the files, so the folder is empty now.
 # Only an empty folder goes (a file left there stays).
 if [ $1 -eq 0 ]; then
-    rmdir %{_sharedstatedir}/liquid-glass 2>/dev/null || :
+%{fg_remove_tidy}
 fi
 
 %posttrans
@@ -277,9 +294,18 @@ fi
 
 %preun -n liquid-glass
 %systemd_user_preun liquid-glass-watch.service
-# No login-screen undo here: this package goes away when fedora-glass replaces it,
-# and that must not take the login screen glass off (neither the painted one nor the
-# new glass login screen, so no `fedora-glass-login off` here either).
+# When fedora-glass replaces this package, nothing is taken off: the look and the login
+# screen glass stay. The file below is only in the fedora-glass package, whose files are
+# installed before this runs. Without it, this package is simply being removed, and it
+# undoes everything the same way fedora-glass does.
+if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then
+%{fg_remove_steps}
+fi
+
+%postun -n liquid-glass
+if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then
+%{fg_remove_tidy}
+fi
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt LICENSES/GPL-3.0.txt LICENSES/GPL-2.0.txt LICENSES/CC-BY-SA-4.0.txt THIRD-PARTY-NOTICES.md
@@ -298,7 +324,13 @@ fi
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
+%dir %{_prefix}/lib/fedora-glass
+%{_prefix}/lib/fedora-glass/main-package
 %{_libexecdir}/fedora-glass-login
+%dir %{_datadir}/gdm
+%dir %{_datadir}/gdm/greeter
+%dir %{_datadir}/gdm/greeter/gnome-shell
+%dir %{_datadir}/gdm/greeter/gnome-shell/extensions
 %{_datadir}/gdm/greeter/gnome-shell/extensions/fedora-glass-login@djshiye.github.io/
 %{_unitdir}/fedora-glass-login-guard.service
 %{_unitdir}/fedora-glass-login-guard-check.path
@@ -327,6 +359,10 @@ fi
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
 %{_libexecdir}/fedora-glass-login
+%dir %{_datadir}/gdm
+%dir %{_datadir}/gdm/greeter
+%dir %{_datadir}/gdm/greeter/gnome-shell
+%dir %{_datadir}/gdm/greeter/gnome-shell/extensions
 %{_datadir}/gdm/greeter/gnome-shell/extensions/fedora-glass-login@djshiye.github.io/
 %{_unitdir}/fedora-glass-login-guard.service
 %{_unitdir}/fedora-glass-login-guard-check.path

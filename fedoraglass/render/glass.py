@@ -235,7 +235,7 @@ APP_GLASS_CHARS = 8000
 
 def window_variants(t: Tokens, base: dict) -> dict[str, dict]:
     """The look overrides behind an app's windows for "solid" and "clearer", on top of
-    the windows' look `base` (see _window_look)."""
+    the look `base` (the windows' or the terminals', see _window_look)."""
     blur = base["blur"]
     solid = {"blur": min(100, max(SOLID_BLUR_MIN, round(blur * 1.6))),
              "refraction": round(base["refraction"] * 0.5, 1), "bend": round(base["bend"] * 0.5, 1),
@@ -320,6 +320,7 @@ def config(s: Settings, t: Tokens) -> dict:
     parts = {name: _part_config(t, name, ok) for name, ok in veiled.items()}
     menus_look = _part_config(t, "quicksettings", t.glass_menu_edges)["look"]
     windows_look = _window_look(t, "windows")
+    terminal_look = _window_look(t, "terminal")
     panel_look = _part_config(t, "panel", t.glass_panel_edges)["look"]
     return {
         "version": 1,
@@ -338,10 +339,13 @@ def config(s: Settings, t: Tokens) -> dict:
                     # GTK and Qt themes paint see-through over the glass, made opaque. The
                     # watcher renders this file again on each dark/light switch.
                     "solidFrom": len(WINDOW_SKIP), "solidColor": solid_window_color(t),
-                    "terminalLook": _window_look(t, "terminal"),
+                    "terminalLook": terminal_look,
                     # Per-app glass strength: id -> "solid" or "clearer", and those two looks
                     # (overrides on the windows' look). The no-glass list goes first.
-                    "appGlass": app_glass(s), "appLooks": window_variants(t, windows_look)},
+                    "appGlass": app_glass(s), "appLooks": window_variants(t, windows_look),
+                    # The same two, made from the terminals' own look: "clearer" must be clearer
+                    # than that terminal's normal look, whatever the windows' look is.
+                    "terminalAppLooks": window_variants(t, terminal_look)},
         "overview": {"enabled": s.glass_overview and not off, "blur": max(30, t.parts["overview"]["blur"]),
                      "brightness": 0.62 if t.dark else 0.85},
         "parts": parts,

@@ -110,6 +110,30 @@ def applied_version_path(env: Env) -> Path:
     return env.state / "liquid-glass/applied-version"
 
 
+def applied_style_path(env: Env) -> Path:
+    """GNOME's style, dark or light, when the saved look was last put on: by the user's own
+    Apply, or by `fedora-glass watch` at a dark/light switch. At login the watcher tells a
+    switch it missed (another style than noted) from a look the user applied on purpose."""
+    return env.state / "liquid-glass/applied-style"
+
+
+def note_applied_style(env: Env) -> None:
+    """Never stops an Apply: without the note the watcher catches up on nothing at login."""
+    with contextlib.suppress(OSError):
+        write_if_changed(applied_style_path(env), b"dark\n" if env.prefers_dark() else b"light\n", 0o600)
+
+
+def read_applied_style(env: Env) -> bool | None:
+    """True for dark, False for light, None when there is no note (or not one of ours)."""
+    p = applied_style_path(env)
+    try:
+        if p.is_symlink() or p.stat().st_size > 16:
+            return None
+        return {"dark": True, "light": False}.get(p.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
 def read_applied_version(env: Env) -> str | None:
     p = applied_version_path(env)
     try:
@@ -491,6 +515,28 @@ class Backup:
                         made.append(entry.name)
         self.save()
 
+    def give_back(self, target: str, paths: list[Path]) -> None:
+        """Before an Apply: take away the files an earlier version of `target` made in a
+        place it uses no more (see Target.gives_back), so the target plans without them.
+        One goes only when we made it (nothing was there before) and it still holds exactly
+        what we wrote. Any other stays as it is, with its record: Restore original still
+        takes our lines out of it."""
+        if self.env.dry_run:
+            return
+        new_dirs: set[str] = set()
+        for p in paths:
+            e = self.data["files"].get(str(p))
+            if e and e["target"] == target and e.get("kind") == "missing" and self.is_ours(p, e):
+                self._restore_file(str(p), e, new_dirs)
+        _remove_empty(new_dirs)
+        # A folder that file's write made, which other files of the part still share, stays
+        # and goes with them on Restore original.
+        for d in sorted(x for x in new_dirs if os.path.isdir(x)):
+            for key, e in self.data["files"].items():
+                if e["target"] == target and e.get("kind") == "missing" and Path(key).is_relative_to(d) \
+                        and d not in e.setdefault("new_dirs", []):
+                    e["new_dirs"].append(d)
+
     def retire(self, target: str, written: set[str]) -> None:
         """Take away the files `target` wrote under its old name, now that it has written
         the new ones: each goes back to what was there before (usually nothing). A file
@@ -710,7 +756,9 @@ class Backup:
         for key, e in list(self.data["commands"].items()):
             if not mine(e):
                 continue
-            if not self.env.which(e["undo"][0]):
+            if (not self.env.which(e["undo"][0])
+                    or (e["undo"][:2] == ["flatpak", "run"] and len(e["undo"]) > 2
+                        and not self.env.flatpak_installed(e["undo"][2]))):
                 # The app is gone (VS Code removed): nothing of ours is left to undo, and a
                 # record kept for it would count as "still applied" for ever.
                 del self.data["commands"][key]
@@ -1049,6 +1097,7 @@ class Engine:
             if not if_applied and not self.env.dry_run:
                 with contextlib.suppress(FileNotFoundError):
                     restored_path(self.env).unlink()
+                note_applied_style(self.env)
             return self._apply(settings, only, full=full, progress=progress)
 
     def _apply(self, settings: Settings, only: set[str] | None, full: bool = False,
@@ -1099,6 +1148,7 @@ class Engine:
             waiting.discard(t.id)
             actions: list[Action] = []
             try:
+                backup.give_back(t.id, t.gives_back(self.env))
                 actions = t.plan(ctx)
                 if (left := self._unsafe_links(actions, backup)):
                     results.append(Result(t.id, tr(t.name), "skipped", " ".join(
@@ -1114,6 +1164,9 @@ class Engine:
                 results.append(Result(t.id, tr(t.name), "failed", "; ".join(errs)))
             elif not actions:
                 results.append(Result(t.id, tr(t.name), "info", " ".join(tr(n) for n in t.live_notes(ctx)) or tr(t.summary)))
+            elif (step := getattr(t, "manual_step", lambda _env: None)(self.env)):
+                # Our colour file is in, but the user's own settings file was not changed.
+                results.append(Result(t.id, tr(t.name), "info", step))
             else:
                 results.append(Result(t.id, tr(t.name), "applied"))
         try:
@@ -1193,6 +1246,8 @@ class Engine:
                     applied_version_path(self.env).unlink()
                 with contextlib.suppress(OSError):
                     failed_parts_path(self.env).unlink()
+                with contextlib.suppress(OSError):
+                    applied_style_path(self.env).unlink()
             return problems
 
     # ---- internals ------------------------------------------------------------

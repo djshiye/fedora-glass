@@ -20,7 +20,9 @@ Type=oneshot
 ExecStart=/usr/libexec/fedora-glass-login guard boot
 # A trial the guard itself starts at boot (after an update of the add-on or of GNOME Shell)
 # comes after the watcher for the first login was looked at in this boot, when there was no
-# trial yet. So the watcher is started again here; without a trial it does nothing.
+# trial yet. So the watcher is started again here; without a trial it does nothing. (A
+# trial the guard ended: the guard has already stopped the watcher, irreversibly, so this
+# start is skipped or refused, never armed again.)
 ExecStartPost=-/usr/bin/systemctl --no-block start fedora-glass-login-guard-check.path
 # Its worst case: up to 10 s waiting for a change that is still running, then GNOME Shell's
 # version, a few dconf reads and compiles, each with its own time limit, on a slow first

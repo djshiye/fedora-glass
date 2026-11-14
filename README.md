@@ -120,6 +120,10 @@ Ways back:
 - From the boot menu: add `fedora-glass-login=off` to the kernel line for one start.
 - Removing the package.
 
+Turn the glass login screen off first before you go back to version 1.6.0 or older, and before
+you remove the package on Fedora Silverblue or another Atomic desktop (`rpm-ostree uninstall`):
+neither can switch it off for you.
+
 A note on privacy: with **My wallpaper**, a copy of your wallpaper is stored where the login
 screen can read it (`/etc/fedora-glass/login`). Anyone at the PC can see it.
 

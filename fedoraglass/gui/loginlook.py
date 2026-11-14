@@ -144,7 +144,9 @@ def same_values(a: dict | None, b: dict | None) -> bool:
 
 def parse_status(text: str) -> dict | None:
     """`fedora-glass-login status` output, checked: {"available", "why", "state", "stopped",
-    "values", "picture_sha256"}, or None when it isn't the helper's answer at all."""
+    "values", "picture_sha256", "leaving"}, or None when it isn't the helper's answer at all.
+    leaving: a Turn off did not finish (only another off finishes it; a helper from before
+    it existed says nothing, which is false)."""
     if not isinstance(text, str) or len(text) > STATUS_MAX:
         return None
     try:
@@ -164,7 +166,8 @@ def parse_status(text: str) -> dict | None:
     raw = data.get("values")
     return {"available": available, "why": "" if available else why, "state": state,
             "stopped": stopped if state == "off" else "",
-            "values": normalized(raw) if isinstance(raw, dict) else None, "picture_sha256": sha}
+            "values": normalized(raw) if isinstance(raw, dict) else None, "picture_sha256": sha,
+            "leaving": data.get("leaving") is True}
 
 
 # ---- what the codes mean, in plain words --------------------------------------------------

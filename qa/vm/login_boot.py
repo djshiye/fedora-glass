@@ -1316,11 +1316,16 @@ class Lane:
               f"the health note says ok for this boot {boot} (phase {note.get('phase')}, boot {note.get('boot')})")
         token = self.look_token()
         check(token == self.token, f"the same token in look.json ({token})")
-        r = self.vm.sh(f"systemctl show -p Result,ExecMainStatus {GUARD}", check=False)
+        r = self.vm.sh(f"systemctl show -p Result,ExecMainStatus,ConditionResult,ExecMainStartTimestampMonotonic {GUARD}", check=False)
         props = dict(l.split("=", 1) for l in r.out.splitlines() if "=" in l)
         self.vm.sh(f"sudo journalctl -b -u {GUARD} --no-pager", check=False)
-        check(props.get("Result") == "success" and props.get("ExecMainStatus") == "0",
-              f"the boot guard ran and succeeded (Result {props.get('Result')}, ExecMainStatus {props.get('ExecMainStatus')})")
+        # A unit whose condition was not met also says Result=success and status 0, so that
+        # alone proves nothing: it must have started in this boot (a start time that is not 0).
+        check(props.get("ConditionResult") == "yes" and props.get("ExecMainStartTimestampMonotonic", "0") != "0"
+              and props.get("Result") == "success" and props.get("ExecMainStatus") == "0",
+              f"the boot guard ran in this boot and succeeded (condition {props.get('ConditionResult')}, "
+              f"started at {props.get('ExecMainStartTimestampMonotonic')}, Result {props.get('Result')}, "
+              f"ExecMainStatus {props.get('ExecMainStatus')})")
         r = self.vm.sh("sudo cat /var/lib/fedora-glass/login/state.json", check=False)
         try:
             silent = json.loads(r.out).get("silent_boots")
@@ -1335,8 +1340,10 @@ class Lane:
         self._still_on_after_reboot("stays-on-2")
 
     def step_addon_update(self):
-        """What every package update does: the add-on's files change, so at the next boot the
-        guard starts a new trial, and the first login ends it in that same boot."""
+        """A package update, simulated: no package is installed here, a comment line is appended
+        to the installed add-on instead. What every update does is change the add-on's files,
+        so at the next boot the guard starts a new trial, and the first login ends it in that
+        same boot."""
         ext = f"{ADDON_DIR}/extension.js"
         saved = "/root/lgv-extension.js.saved"
         old_token = self.token
@@ -1477,6 +1484,12 @@ class Lane:
         log(f"  left on the disk: {json.dumps(o)}")
         check(not o["dconf_files"], f"no file under /etc/dconf has our switch ({o['dconf_files']})")
         check(not o["etc_login"], "/etc/fedora-glass/login is gone")
+        # Everything under /etc/dconf, file by file with its contents, as it was before the
+        # glass was first turned on: a file, a lock or a profile line left behind fails here.
+        diffs = listing_differences(self.baseline["etc"], self.vm.probe("dconf-state")["etc"])
+        for d in diffs:
+            log(f"    {d}")
+        check(not diffs, "/etc/dconf is as it was before the first `on`")
         if o["var_login"]:
             # What is in it, and whether a check of the trial watch ran during the removal.
             self.vm.sh("sudo ls -la /var/lib/fedora-glass /var/lib/fedora-glass/login 2>&1", check=False)

@@ -29,7 +29,7 @@ _keep: list = []
 # The fake helper: answers `status` from status.json, logs every call (argv and what came
 # on stdin), and does what `on` and `off` do to the state. The exit codes can be set.
 FAKE_HELPER = r'''#!{python} -I
-import hashlib, json, os, sys
+import hashlib, json, os, sys, time
 d = os.environ["FAKE_GL_DIR"]
 def path(n): return os.path.join(d, n)
 def read(n, default):
@@ -39,6 +39,7 @@ def read(n, default):
 status = read("status.json", {"version": 1, "available": True, "why": "", "state": "off", "stopped": "",
                               "values": None, "picture_sha256": ""})
 cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+time.sleep(read(cmd + "-sleep.json", 0))
 data = b"" if cmd == "status" else sys.stdin.buffer.read()
 with open(path("calls.jsonl"), "a") as f:
     f.write(json.dumps({"argv": sys.argv[1:], "stdin": len(data), "sha": hashlib.sha256(data).hexdigest() if data else ""}) + "\n")
@@ -46,6 +47,7 @@ if data:
     with open(path("last-stdin.bin"), "wb") as f: f.write(data)
 code = read(cmd + "-exit.json", 0)
 if cmd == "status":
+    if read("status-garbled.json", False): print("Traceback (most recent call last):"); sys.exit(1)
     print(json.dumps(status)); sys.exit(0)
 if code:
     if code == 3: print(read("why.json", "no-gdm"))
@@ -57,7 +59,7 @@ if cmd == "on":
     status["values"] = values
     status["picture_sha256"] = hashlib.sha256(data).hexdigest() if values.get("picture") == "wallpaper" else ""
 elif cmd == "off":
-    status.update(state="off", values=None, picture_sha256="", stopped="")
+    status.update(state="off", values=None, picture_sha256="", stopped="", leaving=False)
 with open(path("status.json"), "w") as f: json.dump(status, f)
 '''
 
@@ -82,6 +84,14 @@ class Helper:
 
     def exit_code(self, cmd: str, code: int) -> None:
         (self.dir / f"{cmd}-exit.json").write_text(json.dumps(code))
+
+    def slow(self, cmd: str, seconds: float) -> None:
+        """The command takes this long (0: answers at once again)."""
+        (self.dir / f"{cmd}-sleep.json").write_text(json.dumps(seconds))
+
+    def garbled(self, on: bool = True) -> None:
+        """`status` fails instead of answering."""
+        (self.dir / "status-garbled.json").write_text(json.dumps(on))
 
     def calls(self, cmd: str | None = None) -> list[dict]:
         p = self.dir / "calls.jsonl"
@@ -247,6 +257,10 @@ def test_status_answers_are_checked():
     assert loginlook.parse_status("x" * (loginlook.STATUS_MAX + 1)) is None
     odd = loginlook.parse_status(json.dumps({"version": 1, "available": False, "state": "weird", "why": "made-up"}))
     assert (odd["state"], odd["why"], odd["available"]) == ("off", "error", False)
+    # An off that did not finish: only a real true says so; a helper from before says nothing.
+    assert st["leaving"] is False
+    assert loginlook.parse_status(json.dumps({"version": 1, "state": "on", "leaving": True}))["leaving"] is True
+    assert loginlook.parse_status(json.dumps({"version": 1, "state": "on", "leaving": "yes"}))["leaving"] is False
 
 
 # ---------------------------------------------------------------- what the card says
@@ -459,15 +473,31 @@ def test_behind_when_the_wallpaper_changed(backend, helper, fake_env, tmp_path):
     _wait(b)
     assert not b.property("loginGlassStale")
     new = _wallpaper(tmp_path / "wall2.png", 320, 200, "#aa3300")
-    b._wallpapers = {"light": f"file://{new}", "dark": ""}
-    b.loginGlassChanged.emit()
-    b.property("glassLoginState")       # starts the copy of the new picture
+    b._wallpaper_lines(f"picture-uri: 'file://{new}'\n")      # changed in GNOME's settings
     _wait(b)
     assert b.property("glassLoginState") == "behind"
     assert b.property("loginGlassStale"), "the footer says the login screen needs Apply"
     _apply(b)
-    assert helper.calls("on")[-1]["sha"] == hashlib.sha256((helper.dir / "last-stdin.bin").read_bytes()).hexdigest()
+    assert helper.calls("on")[-1]["sha"] == hashlib.sha256(loginlook.prepare_picture(str(new))).hexdigest()
     assert b.property("glassLoginState") == "trial"
+
+
+def test_one_apply_brings_a_new_wallpaper_along(backend, helper, tmp_path, monkeypatch):
+    """The wallpaper changes while the app is open and Apply comes before its copy is ready:
+    that one Apply still takes the new picture to the login screen (one password prompt)."""
+    import time
+    b = backend()
+    b.turnOnGlassLogin()
+    _wait(b)
+    prompts = helper.prompts()
+    real = loginlook.prepare_picture
+    monkeypatch.setattr(loginlook, "prepare_picture", lambda p: time.sleep(1.5) or real(p))
+    new = _wallpaper(tmp_path / "wall2.png", 320, 200, "#aa3300")
+    b._wallpaper_lines(f"picture-uri: 'file://{new}'\n")
+    _apply(b)
+    assert helper.calls("on")[-1]["sha"] == hashlib.sha256(real(str(new))).hexdigest()
+    assert helper.prompts() == prompts + 1
+    assert b.property("glassLoginState") == "trial" and not b.property("loginGlassStale")
 
 
 def test_turn_off_that_fails_does_not_claim_nothing_changed(backend, helper):
@@ -495,11 +525,225 @@ def test_the_desktops_fit_goes_along_and_a_change_is_behind(backend, helper, fak
     assert b.property("glassLoginState") == "trial"
 
 
+def test_a_failed_update_keeps_the_glass_that_is_on(backend, helper):
+    """`on` over a glass that is on: the helper puts the earlier one back when it fails."""
+    b = backend()
+    b._save_at_once(login_picture="glow")
+    helper.status(state="on", values=b.glass_login_values(b._saved))
+    b._read_glass_status()
+    _wait(b)
+    helper.exit_code("on", 4)
+    b.setProperty("lockBlur", 20)
+    _apply(b)
+    assert len(helper.calls("on")) == 1 and b.property("loginGlassFailed")
+    assert b.property("loginGlassNote") == \
+        "Nothing was changed: the new look could not be set up, so the login screen keeps the look it had"
+
+
 def test_apply_leaves_it_alone_while_it_is_off(backend, helper):
     b = backend()
     b.setProperty("lockBlur", 20)
     _apply(b)
     assert helper.calls("on") == [] and helper.calls("off") == []
+
+
+# ---------------------------------------------------------------- a Turn off that did not finish
+
+def test_an_unfinished_turn_off_is_only_ever_finished(backend, helper, tmp_path, monkeypatch):
+    """The helper says leaving (still trial or on, the picture already gone): the card says
+    it is not fully off and offers Turn off only; Apply never sends `on` (that would start
+    the glass again), and the painted glass is not offered meanwhile."""
+    from fedoraglass.gui.backend import Backend
+    old = tmp_path / "gl/old-helper"
+    old.write_text("#!/bin/sh\n")
+    old.chmod(0o755)
+    monkeypatch.setattr(Backend, "LOGIN_HELPER", old)
+    monkeypatch.setattr(Backend, "_read_login_state", lambda self: "off")
+    helper.status(state="trial", values=None, picture_sha256="", leaving=True)
+    b = backend()
+    assert b.property("loginCardKind") == "new"
+    assert b.property("glassLoginState") == "leaving"
+    assert b.property("glassLoginStatus") == "Not fully off yet: Turn off finishes it"
+    assert b.property("glassLoginLeaving")
+    assert not b.property("glassLoginOn") and not b.property("glassLoginCanTurnOn")
+    assert not b.property("loginGlassStale"), "See changes lists nothing for the login screen"
+    b.setProperty("lockBlur", 20)
+    _apply(b)
+    b.turnOnGlassLogin()
+    _wait(b)
+    assert helper.calls("on") == [] and helper.prompts() == 0
+    b.turnOffGlassLogin()
+    _wait(b)
+    assert len(helper.calls("off")) == 1
+    assert b.property("glassLoginState") == "off" and not b.property("glassLoginLeaving")
+
+
+def test_restore_finishes_an_unfinished_turn_off(backend, helper):
+    helper.status(state="on", values=loginlook.DEFAULTS, leaving=True)
+    b = backend()
+    b.revert()
+    assert b.waitIdle()
+    _wait(b)
+    assert len(helper.calls("off")) == 1 and helper.calls("on") == []
+    assert b.property("glassLoginState") == "off"
+
+
+# ---------------------------------------------------------------- a status that can't be read
+
+def test_a_status_that_cannot_be_read_offers_nothing(backend, helper, tmp_path, monkeypatch):
+    """Not "off": it can't be told whether the glass is on, so neither card offers to turn
+    anything on, and the page asks again when it shows."""
+    from fedoraglass.gui.backend import Backend
+    old = tmp_path / "gl/old-helper"
+    old.write_text("#!/bin/sh\n")
+    old.chmod(0o755)
+    monkeypatch.setattr(Backend, "LOGIN_HELPER", old)
+    monkeypatch.setattr(Backend, "_read_login_state", lambda self: "off")
+    helper.status(state="on", values=loginlook.DEFAULTS)
+    helper.garbled()
+    b = backend()
+    assert b.property("loginCardKind") == "new", "the painted glass is not offered"
+    assert b.property("glassLoginState") == "unavailable"
+    assert b.property("glassLoginStatus") == "Not available: it could not check this PC"
+    assert not b.property("glassLoginOn") and not b.property("glassLoginCanTurnOn")
+    helper.garbled(False)
+    b.checkGlassLogin()
+    _wait(b)
+    assert b.property("glassLoginOn") and b.property("glassLoginState") != "unavailable"
+
+
+def test_a_status_too_slow_to_answer_is_not_off(backend, helper, monkeypatch):
+    from fedoraglass.gui.backend import Backend
+    monkeypatch.setattr(Backend, "GLASS_STATUS_TIMEOUT", 300)
+    helper.status(state="on", values=loginlook.DEFAULTS)
+    helper.slow("status", 3)
+    b = backend()
+    assert b.property("loginCardKind") == "new"
+    assert b.property("glassLoginStatus") == "Not available: it could not check this PC"
+    assert not b.property("glassLoginCanTurnOn")
+
+
+def test_restore_turns_off_a_glass_just_turned_on_even_when_the_status_fails(backend, helper):
+    b = backend()
+    b.turnOnGlassLogin()
+    _wait(b)
+    helper.garbled()
+    b._read_glass_status()
+    _wait(b)
+    assert b.property("glassLoginState") == "unavailable"
+    b.revert()
+    assert b.waitIdle()
+    _wait(b)
+    assert len(helper.calls("off")) == 1
+
+
+# ---------------------------------------------------------------- one step at a time
+
+def test_restore_right_after_turn_on_turns_it_off(backend, helper):
+    """Turn on, then Restore before the helper (or its status) has answered: Restore waits
+    for that, then turns it off. It never ends with the glass on."""
+    b = backend()
+    b._cached_login_picture()            # the wallpaper's copy is ready: the step starts at once
+    _wait(b)
+    helper.slow("on", 1.5)
+    b.turnOnGlassLogin()
+    assert b._login_proc is not None
+    b.revert()
+    assert b.waitIdle()
+    _wait(b)
+    _wait(b)
+    assert [c["argv"][0] for c in helper.calls() if c["argv"][0] != "status"] == ["on", "off"]
+    assert helper.state["state"] == "off" and b.property("glassLoginState") == "off"
+
+
+def test_restore_while_a_turn_on_waits_for_its_picture_drops_the_turn_on(backend, helper, tmp_path, monkeypatch):
+    """Turn on, then Restore while the wallpaper's copy is still being made: the Turn on is
+    dropped. No password is asked for a glass that Restore would take away again."""
+    import time
+    b = backend()
+    real = loginlook.prepare_picture
+    monkeypatch.setattr(loginlook, "prepare_picture", lambda p: time.sleep(1.0) or real(p))
+    new = _wallpaper(tmp_path / "wall2.png", 320, 200, "#aa3300")
+    b._wallpaper_lines(f"picture-uri: 'file://{new}'\n")        # its copy is under way
+    b.turnOnGlassLogin()
+    assert b.property("glassLoginState") == "busy" and helper.calls("on") == []
+    b.revert()
+    assert b.waitIdle()
+    _wait(b)
+    _wait(b)
+    assert [c["argv"][0] for c in helper.calls() if c["argv"][0] != "status"] == []
+    assert helper.prompts() == 0
+    assert helper.state["state"] == "off" and b.property("glassLoginState") == "off"
+
+
+def test_restore_asks_once_more_when_it_could_not_tell_whether_the_glass_is_on(backend, helper):
+    """The glass is on, but the app's look at it failed when it started: Restore asks again
+    before it decides, and turns the glass off."""
+    helper.status(state="on", values=loginlook.DEFAULTS)
+    helper.garbled()
+    b = backend()
+    assert b.property("glassLoginState") == "unavailable"
+    helper.garbled(False)
+    b.revert()
+    assert b.waitIdle()
+    _wait(b)
+    _wait(b)
+    assert len(helper.calls("off")) == 1
+    assert helper.state["state"] == "off" and b.property("glassLoginState") == "off"
+
+
+def test_restore_asks_only_once_more_and_never_acts_on_a_guess(backend, helper):
+    helper.status(state="on", values=loginlook.DEFAULTS)
+    helper.garbled()
+    b = backend()
+    asked = len(helper.calls("status"))
+    b.revert()
+    assert b.waitIdle()
+    _wait(b)
+    _wait(b)
+    assert len(helper.calls("status")) == asked + 1
+    assert helper.calls("off") == [] and helper.prompts() == 0
+    assert b.property("glassLoginState") == "unavailable"
+
+
+def test_an_apply_while_a_step_runs_is_not_dropped(backend, helper):
+    """Apply twice while the login screen is still being turned on: once that ends, the
+    login screen gets the latest look, one more password prompt."""
+    b = backend()
+    b._save_at_once(login_picture="glow")
+    helper.slow("on", 3)
+    b.turnOnGlassLogin()
+    for blur in (20, 30):
+        b.setProperty("lockBlur", blur)
+        b.apply()
+        assert b.waitIdle() and b.waitIdle()
+    assert len(helper.calls("on")) <= 1, "still the first step"
+    helper.slow("on", 0)
+    _wait(b)
+    _wait(b)
+    on = helper.calls("on")
+    assert len(on) == 2 and json.loads(on[-1]["argv"][1])["blur"] == 30
+    assert helper.prompts() == 2
+    assert b.property("glassLoginState") == "trial" and not b.property("loginGlassStale")
+
+
+def test_the_card_waits_for_the_status_after_a_step(backend, helper):
+    """Between the end of a step and the status that says what it did, the card says it is
+    checking: never the state from before (Off right after turning it on)."""
+    from tests.test_gui_polish import _spin as spin
+    b = backend()
+    b._save_at_once(login_picture="glow")
+    helper.slow("status", 1.5)
+    b.turnOnGlassLogin()
+    for _ in range(100):
+        if b._login_proc is None:
+            break
+        spin(30)
+    assert b._login_proc is None and b._gl_status_proc is not None
+    assert b.property("glassLoginState") == "busy"
+    assert b.property("glassLoginStatus") == "Checking the login screen…"
+    _wait(b)
+    assert b.property("glassLoginState") == "trial"
 
 
 # ---------------------------------------------------------------- Restore and Remove
@@ -644,6 +888,14 @@ def test_see_it_now_locks_then_asks_gdm(backend, helper, tmp_path, monkeypatch, 
     b.seeLoginScreen()
     _spin(1500)
     assert "Restart or log out to see it" in b.property("glassLoginSeeNote")
+    # The screen could not be locked: no login screen beside an open session.
+    monkeypatch.setenv("GDM_EXIT", "0")
+    gdbus.write_text(f"#!/bin/sh\necho \"$@\" >> {log}\ncase \"$*\" in *ScreenSaver.Lock*) exit 1;; esac\n")
+    log.unlink()
+    b.seeLoginScreen()
+    _spin(1500)
+    assert "CreateTransientDisplay" not in log.read_text()
+    assert "Restart or log out to see it" in b.property("glassLoginSeeNote")
     # Switching users is off here: GDM would refuse, so the screen isn't even locked.
     fake_env.gs[("org.gnome.desktop.lockdown", None)] = {"disable-user-switching": "true"}
     log.unlink()
@@ -702,6 +954,33 @@ def test_the_section_on_the_lock_and_login_page(qml, helper):
         assert card.property("visible") and not toggle.property("visible")
         assert "Not available" in _find(win, "loginGlassStatus").property("text")
         assert not _find(win, "loginSafe").property("visible")
+    finally:
+        _card_state(qml, helper)
+        b.discardChanges()
+        win.close()
+
+
+def test_the_card_while_a_turn_off_is_unfinished(qml, helper):
+    """One plain line and one button, Turn off; nothing to see, set or turn on meanwhile."""
+    b = _card_state(qml, helper, state="trial", leaving=True)
+    win = _window(qml)
+    try:
+        win.show()
+        _spin(200)
+        _goto(win, "lock", 400)
+        assert _find(win, "loginGlassCard").property("visible")
+        assert _find(win, "loginGlassStatus").property("text") == "Not fully off yet: Turn off finishes it"
+        toggle = _find(win, "loginGlassToggle")
+        assert toggle.property("visible") and toggle.property("enabled")
+        assert toggle.property("text") == "Turn off"
+        for name in ("loginSeeNow", "loginPicture", "loginMatchLock", "loginSafe", "loginGlassBehind", "loginGlassReplaces"):
+            assert not _find(win, name).property("visible"), name
+        toggle.clicked.emit()
+        _wait(b)
+        assert helper.calls("off") and helper.calls("on") == []
+        _spin(100)
+        assert toggle.property("text") == "Turn on glass login screen"
+        assert _find(win, "loginSafe").property("visible")
     finally:
         _card_state(qml, helper)
         b.discardChanges()

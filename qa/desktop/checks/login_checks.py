@@ -184,6 +184,17 @@ LONG_MESSAGE_JS = f"""{DIALOG}._authPrompt.setMessage(Array.from({{length: {LONG
   (_, i) => `Line ${{i + 1}} of a long message from the system`).join('\\n'), 3); 1"""
 # Large Text, as the accessibility menu on the login screen sets it (and back).
 TEXT_SCALE_JS = "new imports.gi.Gio.Settings({schema_id: 'org.gnome.desktop.interface'}).set_double('text-scaling-factor', %s); 1"
+# GNOME's login dialog faded as GNOME itself does it (out once somebody has logged in, in again when the session
+# does not start), and what of ours is seen then.
+FADE_JS = f"const d = {DIALOG}; d.ease({{opacity: %d, duration: 250, mode: imports.gi.Clutter.AnimationMode.EASE_OUT_QUAD}}); 1"
+PARTS_JS = f"""const all = []; const walk = a => {{ all.push(a); a.get_children().forEach(walk); }};
+ const L = Main.screenShield._lockDialogGroup.get_children().find(k => k.name === 'fedora-glass-login'); if (L) walk(L);
+ const one = n => all.find(a => a.name === n);
+ return {{dialog: {DIALOG}.opacity, layer: L?.opacity ?? null, card: one('fedora-glass-login-card')?.opacity ?? null,
+   top: one('fedora-glass-login-top')?.opacity ?? null,
+   sheets: all.filter(a => a.name === 'fedora-glass-login-sheet').map(a => a.visible ? a.opacity : 0)}};"""
+USERS_JS = f"return {DIALOG}._userList._items.size;"
+MORE_USERS = ["ana", "boris", "clara", "dmitri", "elena"]
 CARD_PAD = 28      # px of card around the user list, and beside the prompt
 PROMPT_PAD = 40    # px of card above the avatar and under the field
 
@@ -299,6 +310,25 @@ def back_to_list(sh: Shell) -> bool:
     ok = sh.wait_for(LIST_UP_JS, 10)
     time.sleep(1.5)
     return ok
+
+
+def set_users(n: int) -> None:
+    """The test user plus n - 1 more accounts that the login screen lists (1: only the test user again).
+    The next login screen shows them (restart)."""
+    want = MORE_USERS[:max(0, n - 1)]
+    for u in MORE_USERS:
+        have = subprocess.run(["id", u], capture_output=True).returncode == 0
+        if u in want and not have:
+            subprocess.run(["useradd", "-m", "-c", u.title(), u], check=True)
+            # GNOME lists no account without a password. A throwaway one: nobody logs in here.
+            subprocess.run(["chpasswd"], input=f"{u}:{secrets.token_urlsafe(16)}".encode(), check=True)
+            Path(f"/var/lib/AccountsService/users/{u}").write_text("[User]\nSystemAccount=false\n")
+        elif u not in want and have:
+            subprocess.run(["userdel", "-r", u], capture_output=True)
+            Path(f"/var/lib/AccountsService/users/{u}").unlink(missing_ok=True)
+    # The accounts service reads its list at its start (it comes back by itself when asked).
+    subprocess.run(["pkill", "-x", "accounts-daemon"], check=False)
+    time.sleep(1)
 
 
 def state(sh: Shell) -> dict:
@@ -946,6 +976,118 @@ def check_room(lane: Lane) -> Check:
     return c
 
 
+def check_users(lane: Lane) -> Check:
+    c = Check("users", "A PC with several users",
+              "A longer list of users grows downward from where the password card begins, with the clock and the "
+              "message above it where they are; picking a user moves nothing but the card's lower edge; the list "
+              "stays on the screen.")
+    sh = lane.sh
+    SWITCH.on({"message": MESSAGE})
+    count = len(MORE_USERS) + 1
+    try:
+        set_users(count)
+        mark = lane.ctx.log_lines()
+        restart(sh)
+        n = sh.json(USERS_JS)
+        c.add(n == count, f"The login screen lists {n} users." if n == count else
+              f"The login screen lists {n} users, not {count}.")
+        st, k = state(sh), sh.json(CARD_JS)
+        card, rows, top = k["card"], k["list"], k["top"]
+        sx, sy, sw, sh_ = k["screen"]
+        if not card or not rows or not top:
+            c.add(False, f"With {count} users: card {card}, list {rows}, clock {top}.")
+            return c
+        pads = [rows[0] - card[0], rows[1] - card[1], card[0] + card[2] - rows[2], card[1] + card[3] - rows[3]]
+        ok = all(abs(v - CARD_PAD) <= 2 for v in pads) and abs(card[0] + card[2] / 2 - (sx + sw / 2)) <= 2
+        c.add(ok, f"One glass card around all {count} names and \"Not listed?\", {CARD_PAD} px around them, "
+              f"{card[2]:.0f} x {card[3]:.0f} px." if ok else
+              f"The card does not sit around the {count} users: padding {[round(v) for v in pads]} "
+              f"(card {[round(v) for v in card]}, list {[round(v) for v in rows]}).")
+        ok = st["messageShown"] and st["smallClock"] is False and top[1] + top[3] + 24 <= card[1] + 2
+        c.add(ok, "The big clock and the message both show above the list, clear of its card "
+              f"({card[1] - top[1] - top[3]:.0f} px between them)." if ok else
+              f"The clock or the message gave way to the list: message {st['messageShown']}, small clock "
+              f"{st['smallClock']}, clock {[round(v) for v in top]}, card {[round(v) for v in card]}.")
+        clock_place(c, sh, st, f"with {count} users")
+        ok = card[1] + card[3] <= sy + sh_ - 8 and card[1] >= sy
+        c.add(ok, f"The whole list is on the screen ({sy + sh_ - card[1] - card[3]:.0f} px left under its card)."
+              if ok else f"The list's card leaves the screen: {[round(v) for v in card]} on {k['screen']}.")
+        a = shot(sh, f"login-g{GNOME}-users")
+        c.add(True, f"The user list with {count} users.", picture("users", a))
+        c.add(show_prompt(sh), "A user picked: GNOME's password prompt shows.")
+        p = sh.json(CARD_JS)
+        hug(c, sh, f"with {count} users")
+        if p["card"] and p["top"]:
+            ok = abs(p["card"][1] - card[1]) <= 2 and all(abs(x - y) <= 1 for x, y in zip(p["top"], top))
+            c.add(ok, "The list's card begins where the password card begins, and the clock stands still: picking "
+                  f"a user only shortens the card (both begin at {card[1]:.0f} px)." if ok else
+                  f"Picking a user makes the screen jump: the list's card begins at {card[1]:.0f} px, the password "
+                  f"card at {p['card'][1]:.0f} px; clock {[round(v) for v in top]} then {[round(v) for v in p['top']]}.")
+        c.add(back_to_list(sh), "Back to the user list.")
+        b = sh.json(CARD_JS)
+        ok = bool(b["card"]) and all(abs(x - y) <= 2 for x, y in zip(b["card"], card))
+        c.add(ok, "Back at the list, its card is where it was." if ok else
+              f"Back at the list its card moved: {[round(v) for v in card]} then {b['card'] and [round(v) for v in b['card']]}.")
+        errs = lane.errors_since(mark)
+        c.add(not errs, "No Fedora Glass errors in GNOME Shell's log." if not errs else
+              f"{len(errs)} Fedora Glass errors in the log, first: {errs[0][-200:]}")
+    finally:
+        set_users(1)
+    # One user again: the short list goes back to the middle of the screen.
+    restart(sh)
+    n = sh.json(USERS_JS)
+    c.add(n == 1, "One user again." if n == 1 else f"{n} users are still listed after the extra ones were removed.")
+    hug_list(c, sh, "with one user again")
+    return c
+
+
+def check_leave(lane: Lane) -> Check:
+    c = Check("leave", "Logging in: the card and the clock leave with GNOME's dialog",
+              "GNOME fades its login dialog out once somebody has logged in. The card and the clock go with it "
+              "(no empty card, no clock left standing), the frosted picture stays until the desktop comes, and "
+              "everything comes back should the session not start.")
+    sh = lane.sh
+    SWITCH.on({"message": MESSAGE})
+    mark = lane.ctx.log_lines()
+    restart(sh)
+    st = state(sh)
+    was = sh.json(PARTS_JS)
+    full = was["card"] == 255 and was["top"] == 255 and was["layer"] == 255 and was["sheets"] and all(v == 255 for v in was["sheets"])
+    c.add(full, "At rest everything of ours is fully there." if full else f"At rest: {was}.")
+    before = shot(sh, f"login-g{GNOME}-leave-before")
+    try:
+        sh.eval(FADE_JS % 0)
+        gone = sh.wait_for(f"return {DIALOG}.opacity === 0;", 5)
+        time.sleep(0.5)
+        now = sh.json(PARTS_JS)
+        ok = gone and now["card"] == 0 and now["top"] == 0
+        c.add(ok, "GNOME's dialog faded out: the card and the clock went with it." if ok else
+              f"GNOME's dialog faded out, but ours stayed: {now}.")
+        ok = now["layer"] == 255 and now["sheets"] and all(v == 255 for v in now["sheets"])
+        a = shot(sh, f"login-g{GNOME}-leave")
+        mean, spread = backdrop_stats(a, sh, st)
+        ok = ok and mean > 6 and spread > 1.5
+        c.add(ok, f"The frosted picture stays (brightness {mean:.1f}, spread {spread:.1f})." if ok else
+              f"The frosted picture did not stay: {now}, brightness {mean:.1f}, spread {spread:.1f}.", picture("leave", a))
+        if st["card"]:
+            diff = float(np.abs(region(a, sh, st["card"]).astype(np.int16) - region(before, sh, st["card"]).astype(np.int16)).mean())
+            c.add(diff > 1.5, f"Where the card stood only the picture is left (the pixels there changed by {diff:.1f})."
+                  if diff > 1.5 else f"The card can still be seen where it stood (the pixels there changed by {diff:.1f}).")
+    finally:
+        sh.eval(FADE_JS % 255)
+    back = sh.wait_for(f"return {DIALOG}.opacity === 255;", 5)
+    time.sleep(0.5)
+    now = sh.json(PARTS_JS)
+    ok = back and now["card"] == 255 and now["top"] == 255 and now["layer"] == 255
+    c.add(ok, "The session did not start, GNOME brings its dialog back: the card and the clock are back too."
+          if ok else f"After GNOME's dialog came back: {now}.")
+    hug_list(c, sh, "after the dialog came back")
+    errs = lane.errors_since(mark)
+    c.add(not errs, "No Fedora Glass errors in GNOME Shell's log." if not errs else
+          f"{len(errs)} Fedora Glass errors in the log, first: {errs[0][-200:]}")
+    return c
+
+
 def row_lum(a: np.ndarray, sh: Shell, st: dict) -> np.ndarray:
     """Brightness along the middle third of the screens' height, per physical px column."""
     my, mh = st["monitors"][0][1], st["monitors"][0][3]
@@ -1066,7 +1208,8 @@ def check_crashes(lane: Lane) -> Check:
 
 ALL = {"plain": check_plain, "glass": check_glass, "disable": check_disable, "looks": check_looks,
        "contrast": check_contrast, "safe": check_safe, "broken": check_broken, "screens": check_screens,
-       "room": check_room, "picture": check_picture, "crashes": check_crashes}
+       "room": check_room, "users": check_users, "leave": check_leave, "picture": check_picture,
+       "crashes": check_crashes}
 
 
 def main() -> int:

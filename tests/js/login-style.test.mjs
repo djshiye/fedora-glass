@@ -235,6 +235,45 @@ test('GNOME\'s own place for the prompt: no margin of ours, and a guess of where
     assert.ok(!S.stylesheet({...GOOD}, {margin: S.promptPlace({own: true}).margin}).includes('margin-top'));
 });
 
+test('a long list of users gets a margin that lets it grow downward; a short one stays in the middle', () => {
+    // A 1080 px dialog: its middle at 540, the list may begin at 408 (where the prompt's
+    // card begins, and 28 px of the list's own card) and must end by 1021.
+    const at = height => S.listMargin({middle: 540, height, top: 408, bottom: 1021});
+    // One or two users (121 and 209 px with "Not listed?") begin lower than that anyway.
+    assert.equal(at(121), 0);
+    assert.equal(at(209), 0);
+    // Three and more would begin higher: 2 px of margin lower the centred list by 1.
+    assert.equal(at(297), 33, 'three users: from 391.5 down to 408');
+    assert.equal(at(561), 297, 'six users: from 259.5 down to 408, ending at 969');
+    // Seven do not fit under 408 any more: as low as still ends at 1021, and no lower.
+    assert.equal(at(649), 313, 'seven users: 156.5 px lower, begins at 372');
+    assert.equal(at(737), 225, 'eight users: 112.5 px lower');
+    assert.equal(at(913), 49);
+    // Taller than the room there is: left to GNOME, which scrolls it.
+    assert.equal(at(962), 0, 'ends at 1021 by itself');
+    assert.equal(at(1200), 0);
+    // A stylesheet's px are scaled: half the margin at a scale factor of 2.
+    assert.equal(S.listMargin({scale: 2, middle: 1080, height: 1122, top: 816, bottom: 2042}), 297);
+    // Something of GNOME's in the way further up (its logo) ends it sooner.
+    assert.equal(S.listMargin({middle: 540, height: 561, top: 408, bottom: 954}), 267);
+    // Nothing that is not a sane number ever becomes a margin.
+    for (const bad of [{}, {middle: NaN, height: 561, top: 408, bottom: 1021}, {middle: 540, height: '561', top: 408, bottom: 1021},
+        {middle: 540, height: 0, top: 408, bottom: 1021}, {middle: 540, height: 561, top: null, bottom: 1021},
+        {scale: Infinity, middle: 540, height: 561, top: 408, bottom: 1021}])
+        assert.equal(S.listMargin(bad), 0, JSON.stringify(bad));
+    assert.equal(S.listMargin(), 0);
+    assert.equal(S.listMargin({scale: 0.01, middle: 540, height: 561, top: 408, bottom: 1021}), 297, 'a scale under 1 counts as 1');
+
+    // In the stylesheet it is one line in the list's own rule, and only when there is one.
+    const box = css => css.match(/\.login-dialog \.login-dialog-user-selection-box {[^}]*}/)[0];
+    assert.match(box(S.stylesheet({...GOOD}, {list: 297})), /padding-top: 4em;\s*padding-bottom: 4em;\s*margin-top: 297px; }/);
+    for (const none of [{}, {list: 0}, {list: 0.4}, {margin: 155}])
+        assert.ok(!box(S.stylesheet({...GOOD}, none)).includes('margin'), JSON.stringify(none));
+    assert.match(box(S.stylesheet({...GOOD}, {list: 99999})), /margin-top: 4000px;/, 'never more than a sane number');
+    for (const bad of [NaN, '297', null, '1px; } * { color: red'])
+        assert.throws(() => S.stylesheet({...GOOD}, {list: bad}), String(bad));
+});
+
 test('frost makes the panes more solid, with the painted login screen\'s numbers', () => {
     const at = f => S.stylesheet(S.checkLook(with_({frost: f})).look);
     assert.ok(at(0).includes('background-color: rgba(255, 255, 255, 0.070);'));

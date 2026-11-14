@@ -1330,6 +1330,102 @@ def test_while_an_off_cannot_finish_the_guard_only_tries_again(fedora):
 
 
 @needs_dconf
+def test_status_says_leaving_exactly_while_an_off_is_not_finished(fedora):
+    """While an off is not finished, state.json still says trial or on; `leaving` tells the
+    app so, or its next Apply (an `on`) would bring back a glass the person turned off."""
+    assert lg.status(fedora)["leaving"] is False
+    assert on(fedora)[0] == 0
+    assert lg.status(fedora)["leaving"] is False
+    s = state(fedora)
+    note(fedora, s["token"], "ok", verified=s["token"])
+    assert lg.guard_check(fedora) == "on"
+    assert lg.status(fedora)["state"] == "on" and lg.status(fedora)["leaving"] is False
+    broken = half_off(fedora)
+    got = lg.status(fedora)
+    assert got["leaving"] is True and got["state"] == "on" and got["version"] == 1
+    broken.unlink()
+    assert lg.turn_off(fedora) == []
+    assert lg.status(fedora)["leaving"] is False and lg.status(fedora)["state"] == "off"
+
+
+@needs_dconf
+def test_an_off_that_cannot_finish_still_stops_the_watching(fedora):
+    """Removing the package: an off that cannot finish leaves no trial flag, so the watcher
+    is stopped now and does not go on starting a check for a helper about to be deleted."""
+    said = _fake_systemd(fedora)
+    assert on(fedora)[0] == 0
+    assert os.path.isfile(fedora.trial)
+    half_off(fedora)
+    assert os.path.exists(fedora.leaving) and not os.path.exists(fedora.trial)
+    assert _said(said)[-2:] == [f"stop {lg.CHECK_PATH_UNIT}", f"stop {lg.CHECK_SERVICE_UNIT}"]
+
+
+@needs_dconf
+def test_the_trial_flag_goes_only_once_the_leaving_flag_is_there(fedora, monkeypatch):
+    assert on(fedora)[0] == 0
+    seen = []
+    real = lg._unlink
+
+    def unlink(p):
+        if p == fedora.trial:
+            seen.append(os.path.exists(fedora.leaving))
+        return real(p)
+    monkeypatch.setattr(lg, "_unlink", unlink)
+    half_off(fedora)
+    assert seen and seen[0] is True and not os.path.exists(fedora.trial)
+    # A leaving flag that cannot be written: the trial flag stays with the state.json it
+    # belongs to, which the guard then reads as the trial it still is.
+    monkeypatch.setattr(lg, "_unlink", real)
+    Path(fedora.leaving).unlink()
+    Path(fedora.trial).write_text("")
+    monkeypatch.setattr(lg, "_mark_leaving", lambda *a: (_ for _ in ()).throw(OSError("disk full")))
+    with lg.Lock(fedora):
+        problems = lg._off_locked(fedora, None)
+    assert any(p.startswith("the leaving flag") for p in problems)
+    assert os.path.exists(fedora.trial) and os.path.exists(fedora.state)
+
+
+@needs_dconf
+def test_a_trial_flag_that_cannot_be_deleted_is_not_taken_for_a_switch_left_behind(fedora, monkeypatch):
+    assert on(fedora)[0] == 0
+    real = lg._unlink
+
+    def unlink(p):
+        if p == fedora.trial:
+            raise PermissionError("not allowed")
+        return real(p)
+    monkeypatch.setattr(lg, "_unlink", unlink)
+    problems = lg.turn_off(fedora)
+    # Said once, as what it is. The switch itself is gone, so the off is finished.
+    assert [p for p in problems if p.startswith("the trial flag")] == ["the trial flag: not allowed"]
+    assert not any(p.startswith("still there") for p in problems)
+    assert lg.switch_gone(fedora) == []
+    assert not os.path.exists(fedora.state) and not os.path.exists(fedora.leaving)
+
+
+@needs_dconf
+def test_a_trial_flag_that_could_not_be_deleted_at_first_is_tried_again_at_the_end(fedora, monkeypatch):
+    """Left behind, it would keep the watcher on at every boot: no state.json and no leaving
+    flag are left for the boot guard to finish anything."""
+    _fake_systemd(fedora)
+    assert on(fedora)[0] == 0
+    real = lg._unlink
+    tries = []
+
+    def unlink(p):
+        if p == fedora.trial:
+            tries.append(p)
+            if len(tries) == 1:
+                raise OSError("try again")
+        return real(p)
+    monkeypatch.setattr(lg, "_unlink", unlink)
+    problems = lg.turn_off(fedora)
+    assert problems == ["the trial flag: try again"]
+    assert len(tries) >= 2 and not os.path.exists(fedora.trial)
+    assert not os.path.exists(fedora.state) and not os.path.exists(fedora.leaving)
+
+
+@needs_dconf
 def test_the_leaving_flag_is_there_before_anything_is_taken_away(fedora, monkeypatch):
     assert on(fedora)[0] == 0
     seen = []
@@ -1477,7 +1573,8 @@ def db_value(tmp: Path, db: Path, key: str = "/org/gnome/shell/enabled-extension
 
 
 @needs_dconf
-@pytest.mark.parametrize("other", ["etc-user", "usr-share-user", "greeter-folder", "not-a-profile", "too-large"])
+@pytest.mark.parametrize("other", ["etc-user", "usr-share-user", "greeter-folder", "not-a-profile", "too-large",
+                                   "file-db", "file-db-link", "file-db-folder-link"])
 def test_locks_never_land_in_a_db_another_profile_reads(tmp_path, other):
     """The review's case: gdm reads system-db:local, and so does the desktop users' profile.
     The switch then goes to our own db; a profile that cannot be read counts as naming every db."""
@@ -1486,9 +1583,17 @@ def test_locks_never_land_in_a_db_another_profile_reads(tmp_path, other):
     user = "user-db:user\nsystem-db:local\n"
     where = {"etc-user": "etc/dconf/profile/user", "usr-share-user": "usr/share/dconf/profile/user",
              "greeter-folder": "usr/share/gdm/greeter/dconf/profile/user",
-             "not-a-profile": "etc/dconf/profile/user", "too-large": "etc/dconf/profile/user"}[other]
+             "not-a-profile": "etc/dconf/profile/user"}.get(other, "etc/dconf/profile/user")
     text = {"not-a-profile": "user-db:user\nsomething odd\n",
-            "too-large": "user-db:user\n" + "# x\n" * (lg.MAX_SMALL // 4 + 1)}.get(other, user)
+            "too-large": "user-db:user\n" + "# x\n" * (lg.MAX_SMALL // 4 + 1),
+            # The same compiled db, read by its file: by its own path, or through links.
+            "file-db": "user-db:user\nfile-db:/etc/dconf/db/local\n",
+            "file-db-link": "user-db:user\nfile-db:/etc/site-dconf\n",
+            "file-db-folder-link": "user-db:user\nfile-db:/etc/site-dbs/local\n"}.get(other, user)
+    if other == "file-db-link":
+        os.symlink("dconf/db/local", root / "etc/site-dconf")
+    elif other == "file-db-folder-link":
+        os.symlink("dconf/db", root / "etc/site-dbs")
     (root / where).parent.mkdir(parents=True, exist_ok=True)
     (root / where).write_text(text)
     local = (root / "etc/dconf/db/local").read_bytes()
@@ -1501,6 +1606,27 @@ def test_locks_never_land_in_a_db_another_profile_reads(tmp_path, other):
     assert UUID in effective(paths)
     assert lg.turn_off(paths) == []
     assert snapshot(root) == before
+
+
+def test_a_db_read_by_its_file_counts_as_shared_and_other_files_do_not(tmp_path):
+    root = tmp_path
+    (root / "etc/dconf/db/local.d").mkdir(parents=True)
+    (root / "etc/dconf/db/local").write_bytes(b"")
+    (root / "etc/dconf/profile").mkdir(parents=True)
+    (root / "etc/dconf/profile/gdm").write_text("user-db:user\nsystem-db:local\n")
+    paths = lg.Paths(str(root))
+    for line, want in (("file-db:/etc/dconf/db/local", {"local"}),
+                       ("file-db:/etc/dconf/db/not-there-yet", {"not-there-yet"}),
+                       ("file-db:/usr/share/gdm/greeter-dconf-defaults", set()),
+                       ("file-db:/etc/dconf/db/local.d/00-site", set()),
+                       ("file-db:/etc/dconf/dbx/local", set())):
+        (root / "etc/dconf/profile/user").write_text(f"user-db:user\nsystem-db:site\n{line}\n")
+        assert lg.shared_dbs(paths) == {"site"} | want, line
+    # A loop of links reads no db at all.
+    os.symlink("loop-b", root / "etc/loop-a")
+    os.symlink("loop-a", root / "etc/loop-b")
+    (root / "etc/dconf/profile/user").write_text("user-db:user\nfile-db:/etc/loop-a\n")
+    assert lg.shared_dbs(paths) == set()
 
 
 @needs_dconf
@@ -1607,7 +1733,7 @@ def test_off_takes_away_an_empty_own_db_left_by_a_cut_route_move(fedora):
 def test_status_shape(fedora):
     s = lg.status(fedora)
     assert s == {"version": 1, "available": True, "why": "", "state": "off", "stopped": "", "values": None,
-                 "picture_sha256": ""}
+                 "picture_sha256": "", "leaving": False}
     assert on(fedora)[0] == 0
     s = lg.status(fedora)
     assert s["state"] == "trial" and s["values"] == lg.DEFAULTS and s["available"] is True
@@ -1615,11 +1741,24 @@ def test_status_shape(fedora):
     json.dumps(s)
 
 
+@needs_dconf
+def test_status_as_root_creates_nothing(fedora, monkeypatch):
+    """Where the glass was never on, root's state folder is not there; status (as root
+    too) only looks, and leaves it so."""
+    monkeypatch.setattr(os, "geteuid", lambda: 0)
+    before = sorted(str(p) for p in Path(fedora.root).rglob("*"))
+    s = lg.status(fedora)
+    assert s["available"] is True and s["state"] == "off"
+    assert not os.path.lexists(fedora.state_parent)
+    assert sorted(str(p) for p in Path(fedora.root).rglob("*")) == before
+
+
 def test_status_when_nothing_is_there(tmp_path):
     (tmp_path / "var/lib").mkdir(parents=True)
     s = lg.status(lg.Paths(str(tmp_path)))
     assert s["available"] is False and s["why"] == "no-gdm" and s["state"] == "off"
-    assert set(s) == {"version", "available", "why", "state", "stopped", "values", "picture_sha256"}
+    assert set(s) == {"version", "available", "why", "state", "stopped", "values", "picture_sha256", "leaving"}
+    assert s["leaving"] is False
 
 
 @pytest.fixture
@@ -1693,6 +1832,41 @@ def test_main_exit_codes(main_root, monkeypatch, capsys):
     capsys.readouterr()
     assert lg.main(["x", "on", "{}"], stdin=io.BytesIO(JPEG)) == 3
     assert capsys.readouterr().out.strip() == "no-addon"
+
+
+@needs_dconf
+def test_an_off_that_cannot_finish_says_what_is_left_and_how_to_finish(main_root, monkeypatch, capsys):
+    if os.geteuid() != 0:
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+    assert on(main_root)[0] == 0
+    broken = Path(main_root.root) / "etc/dconf/db/gdm.d/50-broken"
+    broken.write_text("not a keyfile\n")
+    capsys.readouterr()
+    assert lg.main(["x", "off"]) == 4
+    err = capsys.readouterr().err
+    assert "still there" in err
+    ours = f"/etc/dconf/db/gdm.d/{lg.OUR_FILE} /etc/dconf/db/gdm.d/locks/{lg.OUR_FILE}"
+    assert ours in err
+    assert err.index(ours) < err.index("dconf update")
+    assert str(main_root.root) not in err                    # the system's own paths, as root sees them
+    assert len(err.splitlines()) <= 8
+    broken.unlink()
+    assert lg.main(["x", "off"]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_finishing_by_hand_names_our_own_db_and_the_profile_line(tmp_path):
+    paths = lg.Paths(str(tmp_path))
+    own = tmp_path / "etc/dconf/db" / (lg.OWN_DB + ".d")
+    (own / "locks").mkdir(parents=True)
+    (own / lg.OUR_FILE).write_text("[x]\n")
+    (tmp_path / "etc/dconf/profile").mkdir(parents=True)
+    (tmp_path / "etc/dconf/profile/gdm").write_text("user-db:user\n" + lg.PROFILE_LINE + "\n")
+    text = "\n".join(lg.finish_by_hand(paths))
+    assert f"/etc/dconf/db/{lg.OWN_DB}.d /etc/dconf/db/{lg.OWN_DB}" in text
+    assert lg.PROFILE_LINE in text and "/etc/dconf/profile/gdm" in text
+    assert text.index(lg.OWN_DB) < text.index("dconf update")
+    assert str(tmp_path) not in text
 
 
 def test_main_sets_the_umask(main_root, monkeypatch):
@@ -1815,6 +1989,50 @@ def test_a_crash_note_seen_by_the_check_stops_the_watching_too(fedora):
     note(fedora, token=state(fedora)["token"], phase="safe")
     assert lg.guard_check(fedora) == "off: crash"
     assert _said(said)[-1] == f"--no-block stop {lg.CHECK_PATH_UNIT}"
+
+
+GUARD_STOP = f"--no-block --job-mode=replace-irreversibly stop {lg.CHECK_PATH_UNIT}"
+
+
+@needs_dconf
+@pytest.mark.parametrize("end,want", [("no-login", "off: no-login"), ("login", "on"), ("kernel", "off: kernel-arg"),
+                                      ("crash", "off: crash"), ("leaving", "off: leaving")])
+def test_a_trial_the_boot_guard_ends_stops_the_watching(fedora, end, want):
+    """The watcher was started early in this boot, while the trial flag was there. Once the
+    guard ends the trial, it stops the watcher without waiting (the display manager waits
+    for the guard), and so that the guard unit's own later start of it cannot undo that."""
+    said = _fake_systemd(fedora)
+    assert on(fedora)[0] == 0
+    s = state(fedora)
+    if end == "no-login":
+        assert guard(fedora) == "trial"
+        assert GUARD_STOP not in _said(said)               # a trial still runs: still watched
+        reboot(fedora, BOOT_B)
+    elif end == "login":
+        note(fedora, s["token"], "ok", verified=s["token"])
+    elif end == "kernel":
+        Path(fedora.cmdline).write_text("ro fedora-glass-login=off\n")
+    elif end == "crash":
+        note(fedora, s["token"], "safe")
+    else:
+        Path(fedora.leaving).write_text("")
+    assert guard(fedora) == want
+    assert not os.path.exists(fedora.trial)
+    assert _said(said)[-1] == GUARD_STOP and not any(x.startswith("stop") for x in _said(said))
+
+
+@needs_dconf
+def test_the_boot_guard_leaves_a_running_trial_watched(fedora):
+    said = _fake_systemd(fedora)
+    assert on(fedora)[0] == 0
+    assert guard(fedora) == "trial"
+    (Path(fedora.addon) / "extension.js").write_text("export default class { /* 2 */ }\n")
+    s = state(fedora)
+    note(fedora, s["token"], "ok", verified=s["token"])
+    assert lg.guard_check(fedora) == "on"
+    reboot(fedora, BOOT_B)
+    assert guard(fedora) == "new trial"
+    assert GUARD_STOP not in _said(said)
 
 
 @needs_dconf
