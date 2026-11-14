@@ -21,6 +21,16 @@ def _no_accent_key(monkeypatch):
     monkeypatch.setattr(cli, "_has_accent_key", lambda: False)
 
 
+@pytest.fixture(autouse=True)
+def _watcher_env(monkeypatch, fake_env):
+    """The watcher reads GNOME's dark/light style and notes it (Watcher.catch_up) through
+    the fake gsettings in a throwaway home, never through the real `gsettings` (which
+    would also use up the faked monitor processes) nor into the real home."""
+    from fedoraglass import env as env_mod
+    monkeypatch.setattr(env_mod, "Env", lambda *a, **k: fake_env)
+    return fake_env
+
+
 class FakeProc:
     def __init__(self, lines=(), hold=False):
         self.killed = False
@@ -524,3 +534,21 @@ print(code, eng.onlys)
     r = subprocess.run([py, "-c", script], capture_output=True, text=True, env=env, timeout=30)
     assert r.returncode == 0, r.stderr
     assert r.stdout.split("\n")[0] == "75 [{'shell'}, None]", r.stdout + r.stderr
+
+
+# ---- the tests never reach the real home ----------------------------------------------
+def test_the_style_note_lands_in_the_test_home_without_running_gsettings(monkeypatch, _watcher_env, tmp_path_factory):
+    """Watcher.catch_up notes GNOME's style at the first login with this version. In a test it
+    reads the fake gsettings and writes into the throwaway home, wherever `gsettings` is
+    installed (it was the real `gsettings` and the real ~/.local/state before)."""
+    from fedoraglass.engine import applied_style_path
+
+    def no_command(*a, **k):
+        raise AssertionError(f"a real command ran: {a[0] if a else k}")
+    monkeypatch.setattr(cli.subprocess, "run", no_command)
+    monkeypatch.setattr(cli.subprocess, "Popen", no_command)
+    monkeypatch.setattr(cli.settings_mod, "load_checked", lambda: (type("S", (), {"scheme": "auto"})(), None, True))
+    note = applied_style_path(_watcher_env)
+    cli.Watcher(FakeEngine()).catch_up()
+    assert note.read_text() == "dark\n"
+    assert note.is_relative_to(tmp_path_factory.getbasetemp())
