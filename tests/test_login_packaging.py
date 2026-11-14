@@ -575,6 +575,43 @@ def test_the_package_tests_see_every_login_screen_leftover():
     assert script.count("the_look_is_still_applied\n") >= 2 and "dnf_remove liquid-glass\n    the_look_is_undone\n    gone" in script
 
 
+def test_the_removal_check_knows_the_ubuntu_marks_from_a_leftover(tmp_path):
+    """After `apt remove` Ubuntu keeps two marks of its own in /var/lib/fedora-glass until the
+    next install or a purge. The check lets the folder stay for those and for nothing else."""
+    smoke = (ROOT / "qa/package-smoke.sh").read_text()
+    body = smoke.split("--removed ]; then", 1)[1].split("\nfi\n", 1)[0]
+    for top in ("/usr/", "/etc/", "/var/lib/"):
+        body = body.replace(top, f"{tmp_path}{top}")
+    state = tmp_path / "var/lib/fedora-glass"
+
+    def left():
+        r = subprocess.run(["bash", "-euo", "pipefail", "-c", body], capture_output=True, text=True, timeout=30)
+        assert r.stderr == "" and r.returncode in (0, 1), r.stderr
+        assert (r.returncode == 0) == ("nothing of the glass login screen is left" in r.stdout), r.stdout
+        return [x.replace(str(tmp_path), "") for x in r.stdout.split(":", 1)[1].split()] if r.returncode else []
+
+    assert left() == []                                     # Fedora and Arch: the folder is gone
+    state.mkdir(parents=True)
+    assert left() == ["/var/lib/fedora-glass"]              # an empty folder is a leftover
+    (state / "apt-entry-removed").touch()
+    assert left() == []                                     # Ubuntu after `apt remove`
+    (state / "watch-was-on").touch()
+    assert left() == []
+    (state / "login").mkdir()                               # the login screen's own folder
+    assert left() == ["/var/lib/fedora-glass/login", "/var/lib/fedora-glass"]
+    (state / "login").rmdir()
+    for stray in ("state.json", ".lock", "..odd"):
+        (state / stray).touch()
+        assert left() == ["/var/lib/fedora-glass"], stray
+        (state / stray).unlink()
+    assert left() == []
+    for mark in ("apt-entry-removed", "watch-was-on"):
+        (state / mark).unlink()
+    state.rmdir()
+    state.symlink_to(tmp_path / "elsewhere")                # a link, also one that points nowhere
+    assert left() == ["/var/lib/fedora-glass"]
+
+
 def test_the_rpm_install_test_does_not_lean_on_what_an_old_release_brings():
     script = (PKG / "rpm-install-test.sh").read_text()
     # Every look has a home of its own: what one step left behind never reaches the next.

@@ -103,9 +103,11 @@ a_look_is_applied() {
     local user="glassuser$looks"
     look_home="/home/$user"
     useradd -m "$user" || { echo "could not add the test user $user" >&2; exit 1; }
-    runuser -u "$user" -- env -i HOME="$look_home" PATH="$PATH" sh -c 'mkdir -p "$HOME/.config/gtk-4.0" &&
-        printf "/* my own look */\n" > "$HOME/.config/gtk-4.0/gtk.css" &&
-        if command -v dbus-run-session >/dev/null; then dbus-run-session -- liquid-glass apply; else liquid-glass apply; fi' >/dev/null ||
+    local as_user=(runuser -u "$user" -- env -i HOME="$look_home" PATH="$PATH") session=()
+    if command -v dbus-run-session >/dev/null; then session=(dbus-run-session --); fi
+    { "${as_user[@]}" mkdir -p "$look_home/.config/gtk-4.0" &&
+        printf '/* my own look */\n' | "${as_user[@]}" tee "$look_home/.config/gtk-4.0/gtk.css" &&
+        "${as_user[@]}" "${session[@]}" liquid-glass apply; } >/dev/null ||
         echo "liquid-glass apply did not end cleanly for $user (checked by the look it left)" >&2
     the_look_is_still_applied
 }
