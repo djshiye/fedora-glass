@@ -241,6 +241,19 @@ class Settings:
     # so they are never part of a look; the app saves them the moment they are picked.
     look_for_light: str = ""
     look_for_dark: str = ""
+    # ---- weather frost: the glass frosts over when it is cold where you are (the Shell
+    # extension's frost.js, from GNOME's own weather for the place set in GNOME Weather).
+    # Off unless the user turns it on. The steps follow how warm it feels outdoors: just
+    # right from weather_cool up (the glass as set), a mist below it, frosted below
+    # weather_cold, iced over from the edges below weather_freezing. °C, whole degrees, each
+    # at least 1 under the one above. Like day and night looks, the weather changes the desktop by
+    # itself; the settings here reach it only with Apply.
+    weather_frost: bool = False
+    weather_feels_like: bool = True     # "feels like" (wind and humidity), else the air temperature
+    weather_cool: int = 18
+    weather_cold: int = 10
+    weather_freezing: int = 0
+    weather_amount: float = 1.0         # 0.2..1, how far the frost goes at its coldest
 
     def motion_for(self, event: str) -> dict:
         return {**MOTION_DEFAULTS[event], **self.motion.get(event, {})}
@@ -351,7 +364,34 @@ class Settings:
         for k in ("look_for_light", "look_for_dark"):
             if not is_look_id(getattr(s, k)):
                 setattr(s, k, "")
+        # ---- weather frost ----
+        s.weather_frost = s.weather_frost is True
+        s.weather_feels_like = _bool(s.weather_feels_like, True)
+        s.weather_cool, s.weather_cold, s.weather_freezing = clean_weather_steps(
+            s.weather_cool, s.weather_cold, s.weather_freezing)
+        s.weather_amount = min(1.0, max(0.2, _clamp(float(s.weather_amount), Settings.weather_amount)))
         return s
+
+
+# Weather frost: where each step may be, in °C (the extension's frostmath.js RANGES).
+WEATHER_RANGES = {"cool": (5, 26), "cold": (-10, 20), "freezing": (-30, 10)}
+
+
+def clean_weather_steps(cool: object, cold: object, freezing: object) -> tuple[int, int, int]:
+    """The three weather frost temperatures: whole °C, in range, each at least 1 under the one above."""
+    def whole(v: object, fallback: int) -> int:
+        try:
+            f = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return fallback
+        return int(round(f)) if math.isfinite(f) else fallback
+    lo, hi = WEATHER_RANGES["cool"]
+    c = min(hi, max(lo, whole(cool, Settings.weather_cool)))
+    lo, hi = WEATHER_RANGES["cold"]
+    d = min(hi, c - 1, max(lo, whole(cold, Settings.weather_cold)))
+    lo, hi = WEATHER_RANGES["freezing"]
+    f = min(hi, d - 1, max(lo, whole(freezing, Settings.weather_freezing)))
+    return c, d, f
 
 
 _LOOK_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")

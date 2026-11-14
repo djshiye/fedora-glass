@@ -102,6 +102,17 @@ Terminal, Kitty, Ghostty, Alacritty, Foot and WezTerm, Qt apps (through Kvantum)
 
 <p align="center"><img src="docs/screenshots/app.png" width="860" alt="The Fedora Glass app: Home page with the live preview, looks, glass slider and colour"></p>
 
+## Weather frost
+
+The glass can follow the weather where you are. It is off until you turn on **Frost with the
+weather** on the **Glass** page and press **Apply**. When it is cool outside the glass mists over a
+little, when it is cold it frosts, and below freezing it freezes over: the ice glows from within,
+frost gathers at its edges and cold vapour drifts off the menus while you use them. Frozen glass is
+also firmer under a press. You pick the temperatures on the same card.
+
+It uses the place you set in GNOME Weather and only the weather GNOME already shows in its calendar
+menu. Nothing new is told about where you are, and it costs nothing while your desktop is idle.
+
 ## Glass login screen
 
 The login screen can get the same glass as the lock screen: your wallpaper, frosted, with the

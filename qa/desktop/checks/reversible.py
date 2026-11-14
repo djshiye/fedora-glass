@@ -38,6 +38,7 @@ CHANGES: dict[str, dict] = {
     "radius": {"radius": 0}, "radius-max": {"radius": 32}, "highlight": {"highlight": 0.1},
     "opacity": {"opacity": 0.3}, "blur": {"blur": 5}, "reduce_transparency": {"reduce_transparency": True},
     "glass_quality": {"glass_quality": "lightest"}, "panel_style": {"panel_style": "docked"},
+    "weather_frost": {"weather_frost": True, "weather_cool": 22, "weather_cold": 12, "weather_freezing": 2},
     "panel_margin": {"panel_margin": 24}, "blur_app_windows": {"blur_app_windows": False},
     "terminal_opacity": {"terminal_opacity": 0.4}, "refraction": {"refraction": 0.0},
     "dispersion": {"dispersion": 1.0}, "vibrancy": {"vibrancy": 0.1}, "bleed": {"bleed": 0.0},

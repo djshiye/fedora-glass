@@ -32,6 +32,19 @@ Item {
     Behavior on menuProgress { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
 
     readonly property real s: width / 1920
+    // Weather frost: how frosty the glass is now, or in the step the Weather frost card tries.
+    readonly property var ice: Backend.weatherPreview
+    readonly property real iceBlur: ice.blur || 0
+    // Frozen over, the ice is alive as on the desktop: its vapour drifts and the light in it
+    // moves, on a clock that runs only while the app is in front (paused, it keeps its place).
+    property real iceTime: 0
+    readonly property bool appInFront: Window.active
+    NumberAnimation on iceTime {
+        running: true
+        paused: !(root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront)
+        from: 0; to: 3600; duration: 3600 * 1000
+        loops: Animation.Infinite
+    }
     // The part of this virtual screen the pane shows when it is zoomed in (preview px).
     property rect view: Qt.rect(0, 0, width, height)
     function u(n) { return n * root.s }
@@ -161,8 +174,10 @@ Item {
     // preview's taskbar to feel it; moving the How liquid slider plays a short drag.
     readonly property real liquidStrength: Backend.liquidStrength
     // The slider (0..1) as the extension's factor: 0.4 is 1, the original feel (render/glass.py).
-    readonly property real liquid: liquidStrength <= 0.4 ? 0.25 + liquidStrength / 0.4 * 0.75
-                                                         : 1 + (liquidStrength - 0.4) / 0.6 * 1.5
+    readonly property real liquidSet: liquidStrength <= 0.4 ? 0.25 + liquidStrength / 0.4 * 0.75
+                                                            : 1 + (liquidStrength - 0.4) / 0.6 * 1.5
+    // Frozen glass is stiff: it gives less under a press, as on the desktop (glass.js liquidNow).
+    readonly property real liquid: Math.max(0.25, liquidSet * (glassOn ? ice.give ?? 1 : 1))
     readonly property bool liquidOn: Backend.liquidMotion && glassOn && panel.glass
     property bool pressHeld: false
     property point pressPointer: Qt.point(0, 0)    // the pointer, in panel px
@@ -273,8 +288,13 @@ Item {
         // Off (the Glass effects switches, the glass app switch, Reduce transparency): the
         // theme's own surface with a plain edge, and nothing blurred or bent behind it.
         property bool glass: true
-        blurRadius: !glass ? 0 : part ? root.part(part, "blur", t.blur_radius || 0) * root.s : root.blurPx
+        blurRadius: (!glass ? 0 : part ? root.part(part, "blur", t.blur_radius || 0) * root.s : root.blurPx)
+                    + (glass ? root.iceBlur * root.s : 0)
         brightness: glass ? root.brightness : 0
+        frost: glass ? root.ice.frost || 0 : 0
+        flakes: glass ? root.ice.flakes || 0 : 0
+        iceScale: root.s
+        iceTime: root.iceTime
         saturation: glass ? root.saturation : 0
         refraction: !glass || root.reduceTransparency ? 0 : (part ? root.part(part, "lens_bend", 0) * root.s : root.refraction)
         bezel: part ? Math.max(4, root.part(part, "lens_width", 0) * root.s) : root.bezel
@@ -309,7 +329,7 @@ Item {
     component WindowGlass: ShellGlass {
         part: "windows"
         glass: root.windowsBlur
-        blurRadius: root.windowsBlur ? Math.max(root.part("windows", "blur", t.blur_radius || 0) * root.s, root.u(24)) : 0
+        blurRadius: root.windowsBlur ? Math.max(root.part("windows", "blur", t.blur_radius || 0) * root.s, root.u(24)) + root.iceBlur * root.s : 0
         refraction: 0
         fringe: 0
         saturation: root.windowsBlur ? root.saturation : 0
@@ -1532,8 +1552,12 @@ Item {
                 y: bar ? closeUpBox.height * 0.5 - root.panelH / 2 : closeUpBox.height * 0.36
                 width: closeUpBox.width; height: bar ? root.panelH : closeUpBox.height
                 radius: bar ? (root.floating ? Math.min(height / 2, root.lad(root.rPanel, "l")) : 0) : root.lad(root.part(pn, "radius", root.r), "m")
-                blurRadius: root.glassOn ? root.part(pn, "blur", t.blur_radius || 0) : 0
+                blurRadius: root.glassOn ? root.part(pn, "blur", t.blur_radius || 0) + root.iceBlur : 0
                 brightness: root.glassOn ? root.brightness : 0
+                frost: root.glassOn ? root.ice.frost || 0 : 0
+                flakes: root.glassOn ? root.ice.flakes || 0 : 0
+                iceScale: 1
+                iceTime: root.iceTime
                 saturation: root.glassOn ? root.saturation : 0
                 refraction: root.glassOn ? root.part(pn, "lens_bend", 0) : 0
                 bezel: Math.max(4, root.part(pn, "lens_width", 0))

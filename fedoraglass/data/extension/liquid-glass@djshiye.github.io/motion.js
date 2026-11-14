@@ -5,7 +5,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 
-import {moving} from './glass.js';
+import {getFrost, liquidNow, moving} from './glass.js';
 import {followers} from './common.js';
 import {springStep as spring} from './curves.js';
 
@@ -128,7 +128,8 @@ export class Motion {
             a.set_pivot_point(0.5, 0.5);
             this._item = {actor: a, id, s: 1, v: 0, to: 1};
         }
-        this._item.to = PRESS_SCALE;
+        // Frozen glass gives less (weather frost): the item under the press too.
+        this._item.to = 1 - (1 - PRESS_SCALE) * liquidNow(1);
     }
 
     _settleItem() {
@@ -229,7 +230,8 @@ export class Motion {
             // How liquid the glass is (the app's slider): 1 is the original feel. More
             // liquid, the press point trails the pointer further and springs back with
             // more wobble; less, it follows closely and settles without overshoot.
-            const lq = Math.max(0.25, Math.min(2.5, L.liquid ?? 1));
+            // Frozen over (weather frost), the glass is stiff whatever the slider says.
+            const lq = liquidNow(Math.max(0.25, Math.min(2.5, L.liquid ?? 1)));
             const e = 1 - Math.exp(-dt / (0.04 * lq ** 0.75));
             const fade = 1 - Math.exp(-dt / 0.08);
             const prev = [st.x, st.y, st.k, st.press, st.open];
@@ -241,7 +243,8 @@ export class Motion {
             // Press and open: springs with a small overshoot.
             if (animate) {
                 [st.press, st.pressV] = spring(st.press, st.pressV, st.pressT, 1370, Math.min(74, 44 / Math.sqrt(lq)), dt);   // ~180 ms
-                [st.open, st.openV] = spring(st.open, st.openV, 1, 900, 36, dt);           // ~220 ms
+                // Opening, the bevel overshoots a little; frozen, it settles with no bounce.
+                [st.open, st.openV] = spring(st.open, st.openV, 1, 900, 36 + 24 * getFrost().flakes, dt);   // ~220 ms
             } else {
                 [st.press, st.pressV, st.open, st.openV] = [0, 0, 1, 0];
             }

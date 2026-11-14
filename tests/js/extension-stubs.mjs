@@ -2,7 +2,7 @@
 // test fills in through globalThis.fakeMods, so only extension.js itself runs.
 const EXPORTS = {
     'animations.js': ['Animations'], 'arcrescue.js': ['ArcMenuRescue'], 'config.js': ['Config'],
-    'desktop.js': ['DesktopBehaviour'], 'lock.js': ['LockGlass'], 'lockwidgets.js': ['LockWidgets'],
+    'desktop.js': ['DesktopBehaviour'], 'frost.js': ['WeatherFrost'], 'lock.js': ['LockGlass'], 'lockwidgets.js': ['LockWidgets'],
     'popupstyle.js': ['PopupStyle'], 'paused.js': ['PausedStyle'], 'pausestate.js': ['PauseState'], 'safety.js': ['Safety', 'guarded'], 'speed.js': ['Speed'],
     'surfaces.js': ['GlassManager'], 'quicktoggle.js': ['GlassSwitch'], 'themetidy.js': ['UserThemesTidy'], 'tuning.js': ['effectiveConfig'],
     'Extension': ['Extension'],

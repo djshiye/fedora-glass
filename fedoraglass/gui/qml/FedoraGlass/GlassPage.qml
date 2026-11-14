@@ -149,6 +149,8 @@ SettingsPage {
         }
     }
 
+    WeatherFrostCard { width: parent.width }
+
     Card {
         width: parent.width
         height: implicitHeight
