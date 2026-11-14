@@ -298,7 +298,8 @@ test('a dew point over the temperature (a rounding in the weather) is taken as t
 
 test('the frost shader is plain GLSL both GNOME Shell and the app take', () => {
     const g = M.ICE_GLSL;
-    for (const fn of ['iceHash', 'iceNoise', 'iceSkin', 'iceField', 'iceBend', 'iceLook'])
+    for (const fn of ['iceHash', 'iceNoise', 'iceFbm', 'iceSkin', 'iceField', 'iceBend', 'iceVapour', 'iceCrust', 'iceLook',
+        'iceGlow', 'iceHalo'])
         assert.ok(g.includes(` ${fn}(`), fn);
     assert.ok(!/`|\$\{/.test(g), 'nothing that would break the shader\'s JS string');
     assert.ok(!/\b(texture|uniform|OFF)\b/.test(g), 'uses only its own arguments');

@@ -1297,7 +1297,7 @@ msgid "Look of terminal windows"
 msgstr "Estilo de las ventanas de terminal"
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:45
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1329
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1340
 #: fedoraglass/gui/backend.py:39
 msgid "Terminal"
 msgstr "Terminal"
@@ -3178,7 +3178,7 @@ msgid "No apps added. Every window gets glass, except the ones below."
 msgstr "No se añadió ninguna aplicación. Todas las ventanas llevan cristal, salvo las de abajo."
 
 #: fedoraglass/gui/qml/FedoraGlass/PointerPage.qml:19
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:530
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:541
 #: fedoraglass/gui/backend.py:39
 msgid "Desktop"
 msgstr "Escritorio"
@@ -3215,166 +3215,166 @@ msgstr "Qué deja de funcionar: la tecla Super ya no abre la vista de actividade
 msgid "What stops working: the Super key no longer opens the overview, the top-left hot corner does nothing, and the workspace and window overview is gone. Without ArcMenu or Spawn the app grid still opens, so you can open apps from it, Dash to Panel or a dock. Switch this off, or turn off Fedora Glass, and it all comes back at once."
 msgstr "Qué deja de funcionar: la tecla Super ya no abre la vista de actividades, la esquina activa superior izquierda no hace nada y desaparece la vista de áreas de trabajo y ventanas. Sin ArcMenu ni Spawn, la cuadrícula de aplicaciones sigue abriéndose, así que puedes abrir aplicaciones desde ella, Dash to Panel o un dock. Desactiva esto, o desactiva Fedora Glass, y todo vuelve de golpe."
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1029
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1188
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1040
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1199
 msgid "Software"
 msgstr "Software"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1133
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1144
 msgid "Bluetooth"
 msgstr "Bluetooth"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1133
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1144
 msgctxt "wifi network"
 msgid "Home"
 msgstr "Casa"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1133
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1144
 msgid "Wi-Fi"
 msgstr "Wi-Fi"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1134
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1145
 msgctxt "power mode"
 msgid "Balanced"
 msgstr "Equilibrado"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1134
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1145
 msgid "Night Light"
 msgstr "Luz nocturna"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1134
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1145
 msgid "Power Mode"
 msgstr "Modo de energía"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1135
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1146
 msgid "Dark Style"
 msgstr "Estilo oscuro"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1135
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1218
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1146
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1229
 msgid "Do Not Disturb"
 msgstr "No molestar"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1187
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1198
 msgid "2 min"
 msgstr "2 min"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1187
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1198
 msgid "Copied 12 photos to Pictures"
 msgstr "Se copiaron 12 fotos en Imágenes"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1188
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1199
 msgid "1 h"
 msgstr "1 h"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1188
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1199
 msgid "3 updates are ready to install"
 msgstr "Hay 3 actualizaciones listas para instalar"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1304
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1315
 msgid "Type to search"
 msgstr "Escribe para buscar"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1391
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1402
 msgid "Activities is off: no hot corner, Super key or swipe opens this"
 msgstr "Actividades está desactivado: ninguna esquina activa, tecla Super ni gesto lo abre"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1570
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1582
 msgid "Glass edge at full size"
 msgstr "Borde de cristal a tamaño completo"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:455
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:982
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1187
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:466
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:993
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1198
 msgid "Files"
 msgstr "Archivos"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:464
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:530
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1028
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:475
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:541
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1039
 msgid "Documents"
 msgstr "Documentos"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:464
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:507
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1028
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:475
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:518
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1039
 msgctxt "folder"
 msgid "Home"
 msgstr "Carpeta personal"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:464
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:475
 msgid "Recent"
 msgstr "Recientes"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:464
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:475
 msgid "Starred"
 msgstr "Con estrella"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:530
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1028
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:476
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:541
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1039
 msgid "Downloads"
 msgstr "Descargas"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:530
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:476
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:541
 msgid "Music"
 msgstr "Música"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:465
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:530
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1029
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:476
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:541
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1040
 msgid "Pictures"
 msgstr "Imágenes"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:466
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:477
 msgid "Trash"
 msgstr "Papelera"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:466
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:477
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:542
 msgid "Videos"
 msgstr "Vídeos"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:530
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1524
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:541
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1535
 msgid "Projects"
 msgstr "Proyectos"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:542
 msgid "Games"
 msgstr "Juegos"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:542
 msgid "Public"
 msgstr "Público"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:531
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:542
 msgid "Templates"
 msgstr "Plantillas"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:968
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:979
 msgid "Search…"
 msgstr "Buscar…"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:974
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:985
 msgid "Pinned"
 msgstr "Fijadas"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:983
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:994
 msgid "Text Editor"
 msgstr "Editor de texto"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:984
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:995
 msgid "Calculator"
 msgstr "Calculadora"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:985
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:996
 msgid "Extensions"
 msgstr "Extensiones"
 
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:985
-#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1029
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:996
+#: fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml:1040
 msgid "Settings"
 msgstr "Configuración"
 
@@ -4091,8 +4091,8 @@ msgid "Icy below"
 msgstr "Helado por debajo de"
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:180
-msgid "Below this the glass freezes over, like a window on a winter morning: a skin of ice, with frost at its edges. You see less through it and it gives less under a press. Text stays easy to read."
-msgstr "Por debajo, el cristal se congela por completo, como una ventana una mañana de invierno: una piel de hielo, con escarcha en los bordes. Se ve menos a través de él y cede menos al pulsarlo. El texto sigue siendo fácil de leer."
+msgid "Below this the glass freezes over, like a window on a winter morning: ice that glows from within, frost at its edges and cold vapour drifting off it while you use it. You see less through it and it gives less under a press. Text stays easy to read."
+msgstr "Por debajo, el cristal se congela por completo, como una ventana una mañana de invierno: hielo que brilla desde dentro, escarcha en los bordes y un vaho frío que se desprende mientras lo usas. Se ve menos a través de él y cede menos al pulsarlo. El texto sigue siendo fácil de leer."
 
 #: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:185
 #: fedoraglass/gui/changes.py:162

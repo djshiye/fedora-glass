@@ -118,6 +118,34 @@ export function frozenLiquid(liquid, flakes) {
     return Math.max(0.25, liquid * (1 - FROZEN_STIFF * clamp(flakes, 0, 1)));
 }
 
+// The ice is alive while you use the glass: its vapour drifts and the light in it moves on
+// a clock of its own (the shader's t, glass.js iceTick), which runs only while frozen glass
+// is in use (the pointer on or near it, or a menu open), never with animations off.
+// Steps a second at each quality level (speed.js): full, lighter, lightest (it lies still).
+export const ICE_FPS = Object.freeze([30, 15, 0]);
+// Glass at least this many px across its short side is a menu or a popup, open while it is
+// shown; a bar (the panel, a dock) is only in use with the pointer near it.
+export const ICE_BIG = 120;
+// The clock wraps after an hour of use, so the shader never sees a number large enough to
+// lose its fine steps.
+export const ICE_WRAP = 3600;
+// Seconds the clock takes to come to rest (or back up to speed): it slows down, it never jumps.
+export const ICE_EASE = 0.4;
+
+/** The clock's speed, 0..1, one step of dt seconds on from `speed`, towards 1 while in use. */
+export function iceEase(speed, inUse, dt) {
+    const s = clamp(num(speed, 0), 0, 1);
+    const e = 1 - Math.exp(-Math.max(0, num(dt, 0)) / ICE_EASE);
+    const next = s + ((inUse ? 1 : 0) - s) * e;
+    return !inUse && next < 0.01 ? 0 : next;
+}
+
+/** The clock after dt seconds at `speed`: never a jump (dt is at most a tenth of a second). */
+export function iceStep(t, dt, speed) {
+    const next = clamp(num(t, 0), 0, ICE_WRAP) + clamp(num(dt, 0), 0, 0.1) * clamp(num(speed, 0), 0, 1);
+    return next >= ICE_WRAP ? next - ICE_WRAP : next;
+}
+
 // How often GNOME's weather is asked for fresh numbers, and how long a reading counts
 // once it can't be refreshed (offline): after that the glass goes back to your look.
 export const REFRESH_US = 30 * 60 * 1e6;
@@ -139,15 +167,20 @@ export function stale(atUs, nowUs) {
 // (GNOME Shell) and 4.40 (the app) take.
 //
 // Below freezing the glass freezes over, like a window on a winter morning or the top of
-// a frozen pond (the two pictures Dino gave as the look to match):
+// a frozen pond (the two pictures Dino gave as the look to match), and it is alive:
 //   - a skin of ice over the whole pane: wrinkles, bumps and a fine grain, lit from the
 //     side so it has relief, never flat and never a drawn shape;
-//   - the ice is cyan, deeper in some places than others, with a few thin veins where
-//     two sheets of it met, and it hides much of what is behind;
-//   - frost blooms white on it, thickest at the glass's edges where it is coldest, with
-//     the skin's grain in it;
+//   - the ice glows from within: light goes in at its edges and scatters inside, so it
+//     is a luminous cyan, brightest by the edges, and light caught deep in it drifts
+//     slowly; its clouds lie deeper than the skin and shift as you look from another side;
+//   - frost: a white crust along the glass's edges, ragged, never a line, which glows and
+//     catches the light in points that come and go as the pointer moves;
+//   - cold vapour: a mist drifts over the ice and rolls off the glass's edges, furthest
+//     below it (cold air sinks), lit by the ice;
 //   - it starts at the edges and is thin in the middle at first; the colder, the more of
 //     the pane is under it.
+// t is seconds of a clock that runs only while the glass is in use (glass.js), so the
+// vapour and the light in the ice move then, and lie still the rest of the time.
 export const ICE_GLSL = `
 // ---- weather frost (frostmath.js) ----
 // A hash with no sin(), so it is the same on every GPU (Dave Hoskins, MIT).
@@ -162,6 +195,16 @@ float iceNoise(vec2 p) {
     vec2 u = f * f * (3.0 - 2.0 * f);
     return mix(mix(iceHash(i), iceHash(i + vec2(1.0, 0.0)), u.x),
                mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// Soft billows: three octaves of iceNoise, each turned against the last so no grid shows.
+float iceFbm(vec2 p) {
+    float s = 0.5 * iceNoise(p);
+    p = vec2(0.8 * p.x - 0.6 * p.y, 0.6 * p.x + 0.8 * p.y) * 2.03 + 17.0;
+    s += 0.25 * iceNoise(p);
+    p = vec2(0.8 * p.x - 0.6 * p.y, 0.6 * p.x + 0.8 * p.y) * 2.03 + 17.0;
+    s += 0.125 * iceNoise(p);
+    return s / 0.875;
 }
 
 // The skin of the ice, 0..1 high: wrinkles a finger wide, bumps, and a fine grain, each
@@ -198,48 +241,132 @@ vec2 iceBend(vec4 f) {
     return (vec2(f.y, f.w) - 0.5) * 10.0 * f.x;
 }
 
-// The ice over under (what shows behind it, straight rgb). f: iceField; inside: px in
-// from the glass's edge; lightGlass 0..1; shortSide: the pane's short side, px; lit: -1..1,
-// how far this part of the pane lies towards the light.
-vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float shortSide, float lit) {
+// Cold vapour: the air over ice is chilled until its water shows as a mist, and cold air
+// is heavy, so the mist sinks and rolls off the glass in slow curls. q: px on the glass;
+// t: seconds. How thick it is here, 0..1.
+float iceVapour(vec2 q, float t) {
+    vec2 p = q * 0.021;
+    vec2 w = vec2(iceFbm(p * 0.55 + vec2(0.05 * t, -0.08 * t)),
+                  iceFbm(p * 0.55 + vec2(5.2 - 0.04 * t, 1.3 - 0.11 * t)));
+    float d = iceFbm(p + 2.2 * w + vec2(0.0, -0.16 * t));
+    return smoothstep(0.46, 0.80, d);
+}
+
+// The frost at the glass's edges: a crust as wide as about a tenth of the pane (never on a
+// thin bar), its inner edge ragged, not drawn. 0..1.
+float iceCrust(vec2 q, float inside, float shortSide) {
+    float wide = clamp(0.055 * shortSide, 5.0, 20.0) * smoothstep(24.0, 90.0, shortSide);
+    vec2 r = vec2(0.8 * q.x + 0.6 * q.y, -0.6 * q.x + 0.8 * q.y);
+    // Ragged at three sizes: it reaches well in along some stretches of the edge and is
+    // barely there along others, so it never reads as a frame.
+    float ragged = (iceNoise(r * 0.011 + 7.0) - 0.5) * 2.2 + (iceFbm(q * 0.06 + 3.0) - 0.5) * 1.5
+                 + (iceNoise(r * 0.21 + 11.0) - 0.5) * 0.5;
+    float d = 1.0 - smoothstep(0.0, 0.9, (inside - wide) / max(wide, 1.0) + 0.3 - ragged);
+    // Not a flat band: frost is a crust of fine crystals, denser in some places than others.
+    return d * (0.75 + 0.25 * iceNoise(r * 0.55 + 5.0));
+}
+
+// The ice over under (what shows behind it, straight rgb). f: iceField; q: px on the
+// glass; inside: px in from its edge; lightGlass 0..1; shortSide: the pane's short side,
+// px; lit: -1..1, how far this part lies towards the light; inward: px the ice's inside is
+// seen shifted by (looking in at a slant); t: seconds, for the vapour.
+vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float shortSide, float lit,
+             vec2 inward, float t) {
     float cover = f.x;
-    float clouds = smoothstep(0.22, 0.78, f.w);
-    float roomy = smoothstep(24.0, 90.0, shortSide);     // 0 on a thin bar: no line along it
-    // The ice itself: cyan, deeper where it is thick and in the skin's hollows, a shade
-    // lighter on the side of the pane that faces the light. Dark glass gets a deep cyan
-    // that white text still reads on, no brighter than a dark menu can show under its
-    // veil and shadow (about half way up); light glass the pale blue of pond ice.
-    vec3 deep = mix(vec3(0.03, 0.34, 0.45), vec3(0.42, 0.75, 0.93), lightGlass);
-    vec3 pale = mix(vec3(0.05, 0.49, 0.51), vec3(0.70, 0.90, 0.98), lightGlass);
-    float tone = 0.62 * clouds + mix(0.30, 1.5, lightGlass) * (f.y - 0.42) + 0.18 * lit + 0.14;
-    vec3 col = mix(under, mix(deep, pale, clamp(tone, 0.0, 1.0)), 0.86 * cover);
-    // Veins: a few thin lines where two sheets of ice met, wandering with the skin.
-    vec2 vq = vec2(0.96 * q.x + 0.28 * q.y, -0.28 * q.x + 0.96 * q.y);
-    float vn = iceNoise(vq * 0.026 + 21.0) + 0.22 * (f.y - 0.5);
-    float vein = 1.0 - smoothstep(0.0, 0.034, abs(vn - 0.5));
-    col = mix(col, deep * mix(0.78, 0.90, lightGlass), mix(0.30, 0.60, lightGlass) * vein * cover);
-    // Light on the skin: its bumps and wrinkles stand out.
-    col *= 1.0 + mix(0.16, 0.20, lightGlass) * clamp(f.z, -1.0, 1.0) * cover;
-    // Frost blooms white on the ice: thickest at the glass's edges, patchy with the
-    // clouds, and grainy with the skin, whose highest points are whitest.
-    vec3 white = mix(vec3(0.42, 0.50, 0.51), vec3(0.86, 0.97, 1.0), lightGlass);
-    float e = exp(-max(inside, 0.0) / clamp(0.07 * shortSide, 5.0, 20.0)) * roomy;
-    float bloom = mix(0.05, 0.12, lightGlass) + mix(0.14, 0.46, lightGlass) * (clouds - 0.35) + 0.80 * e;
-    bloom *= 0.55 + 0.9 * f.y;
-    bloom += smoothstep(0.66, 0.80, f.y) * mix(0.18, 0.5, max(e, lightGlass));
-    col = mix(col, white, clamp(bloom, 0.0, 0.92) * cover);
+    // Inside the ice: its clouds and veins lie deeper than the skin, so they shift a little
+    // against it as you look in from another side.
+    vec2 qd = q + inward;
+    vec2 w = vec2(0.6 * qd.x + 0.8 * qd.y, -0.8 * qd.x + 0.6 * qd.y);
+    float clouds = smoothstep(0.15, 0.85, 0.6 * iceNoise(w * 0.011 + 5.0) + 0.4 * iceNoise(qd * 0.031 + 9.0));
+    // Light goes into the ice at its edges and scatters inside, so the ice glows from
+    // within: brightest by the edges and on the side towards the light, deepest in the
+    // middle, where the text is.
+    float within = exp(-max(inside, 0.0) / clamp(0.22 * shortSide, 16.0, 90.0));
+    vec3 deepC = mix(vec3(0.0, 0.22, 0.36), vec3(0.38, 0.72, 0.93), lightGlass);
+    vec3 glowC = mix(vec3(0.06, 0.64, 0.80), vec3(0.80, 0.95, 1.0), lightGlass);
+    // Light caught deep in the ice drifts slowly through it, so it never lies dead.
+    float drift = iceFbm(qd * 0.009 + vec2(0.035 * t, -0.022 * t));
+    float tone = 0.26 * clouds + mix(0.22, 1.0, lightGlass) * (f.y - 0.45) + 0.20 * lit + 0.55 * within
+               + 0.45 * (drift - 0.45);
+    vec3 col = mix(under, mix(deepC, glowC, clamp(tone, 0.0, 1.0)), 0.86 * cover);
+    // Veins: a few thin lines where two sheets of ice met, deep inside it.
+    vec2 vq = vec2(0.96 * qd.x + 0.28 * qd.y, -0.28 * qd.x + 0.96 * qd.y);
+    float vn = iceNoise(vq * 0.022 + 21.0) + 0.22 * (f.y - 0.5);
+    float vein = 1.0 - smoothstep(0.0, 0.03, abs(vn - 0.5));
+    col = mix(col, deepC * mix(0.85, 0.92, lightGlass), mix(0.22, 0.45, lightGlass) * vein * cover);
+    // The skin catches the light: its bumps and wrinkles stand out, a wet sheen on the
+    // side of each that faces the light, which moves as the light does.
+    col *= 1.0 + mix(0.14, 0.18, lightGlass) * clamp(f.z, -1.0, 1.0) * cover;
+    col += vec3(0.45, 0.80, 1.0) * smoothstep(0.3, 1.0, f.z) * mix(0.07, 0.05, lightGlass) * cover;
+    // Its glossy top mirrors the light as a broad soft gleam on the side the light is on,
+    // gliding over the ice as the light moves.
+    col += vec3(0.50, 0.85, 1.0) * smoothstep(0.15, 1.0, lit) * mix(0.07, 0.04, lightGlass) * (0.6 + 0.8 * f.y) * cover;
+    // Frost: a white crust at the edges, and fine frost over the skin's high points.
+    vec3 white = mix(vec3(0.40, 0.58, 0.64), vec3(0.90, 0.97, 1.0), lightGlass);
+    float crust = iceCrust(q, inside, shortSide);
+    float fine = smoothstep(0.55, 0.85, f.y) * mix(0.25, 0.45, lightGlass) + mix(0.04, 0.18, lightGlass) * clouds;
+    col = mix(col, white, clamp(0.85 * crust + fine, 0.0, 0.92) * cover);
+    // Vapour drifts over it by the cold edges, a soft mist that comes and goes.
+    float mist = iceVapour(q, t) * (0.2 + 0.8 * within) * cover;
+    col = mix(col, white, mist * mix(0.35, 0.40, lightGlass));
     // White text must stay readable on dark glass: away from the edge, where the text is,
-    // the ice eases into a ceiling on its brightness, in its own colour.
+    // the ice eases into a ceiling on its brightness, in its own colour. The frost is
+    // brightest in the last few px of the edge, where no text lies, and dims as it reaches
+    // further in (a menu's first line may lie on it), as real frost is thinner there.
     if (lightGlass < 0.5) {
         float Y = dot(col * col, vec3(0.2126, 0.7152, 0.0722));     // gamma 2: near enough, and cheap
-        float top = mix(0.175, 0.60, e), knee = 0.6 * top;
+        float top = mix(0.175, 0.60, crust * exp(-max(inside, 0.0) / 5.0)), knee = 0.6 * top;
         if (Y > knee)
             col *= sqrt((knee + (top - knee) * (1.0 - exp(-(Y - knee) / (top - knee)))) / Y);
     }
-    // A fine white grain over it all, as frost has: single points, more of them where the
-    // frost is thick, too small to get in the way of text.
+    // A fine grain over it all, as frost has: too small to get in the way of text.
     vec2 gq = vec2(0.8 * q.x + 0.6 * q.y, -0.6 * q.x + 0.8 * q.y);
-    float grain = smoothstep(0.30, 0.80, iceNoise(gq * 1.1 + 41.0)) * smoothstep(0.30, 0.55, f.y);
-    return mix(col, white, grain * (0.06 + 0.17 * clouds + 0.5 * e) * (1.0 - 0.5 * lightGlass) * cover);
+    float grain = iceNoise(gq * 1.3 + 41.0) - 0.5;
+    return col * (1.0 + 0.10 * grain * cover);
+}
+
+// The ice's own light on dark glass, added on top of it (the content's light layer, glass.js):
+// the frost at the edges glows, light caught in the ice comes out there, lit vapour drifts
+// by, and points of frost catch the light. Added light, rgb.
+// content (0..1): how bright the pane's own text and icons are here, blurred (a line of
+// text gives about 0.01 to 0.1 around it). None is added on or right around them, and the
+// vapour's light thins out near them, so they read as before.
+// L: towards the light, which follows the pointer, so the frost sparkles as it moves.
+vec3 iceGlow(vec4 f, vec2 q, float inside, float shortSide, float lit, vec2 L, float t, float content) {
+    float onIt = smoothstep(0.008, 0.05, content);
+    float nearIt = smoothstep(0.006, 0.025, content);
+    float crust = iceCrust(q, inside, shortSide);
+    float near = exp(-max(inside, 0.0) / clamp(0.22 * shortSide, 16.0, 90.0));
+    float mist = iceVapour(q, t);
+    // Points of frost catch the light, each at its own angle: they sparkle as the light
+    // moves. Only where the frost is.
+    vec2 cell = floor(q / 2.0);
+    float a = 6.2832 * iceHash(cell + 7.1) + 0.35 * t;
+    float facing = max(dot(vec2(cos(a), sin(a)), L), 0.0);
+    float sparkle = step(0.975, iceHash(cell + 3.7)) * pow(facing, 16.0) * crust;
+    // The frost glows most at the very edge, where it is thickest, and its light spreads a
+    // little into the ice around it; light caught deep in the ice drifts through it.
+    float edge = exp(-max(inside, 0.0) / 4.0) * smoothstep(24.0, 90.0, shortSide);
+    float outer = exp(-max(inside, 0.0) / 8.0);
+    float drift = iceFbm(q * 0.009 + vec2(0.035 * t, -0.022 * t));
+    // The vapour's light keeps to the edges too, where no text lies.
+    float rim = exp(-max(inside, 0.0) / 12.0);
+    float glow = (((0.22 + 0.10 * lit) * crust * (0.5 + 0.7 * f.y) + 0.45 * sparkle) * outer + 0.20 * edge) * (1.0 - onIt)
+               + ((0.12 * mist + 0.05) * rim + 0.04 * near * smoothstep(0.45, 0.85, drift)) * (1.0 - 0.7 * nearIt) * (1.0 - onIt);
+    return vec3(0.60, 0.90, 1.0) * glow * f.x;
+}
+
+// Outside the glass, below freezing: cold vapour rolling off it (it sinks, so it spills
+// furthest below the glass) and the ice's light around it. away: px outside the edge;
+// down: 0..1 how far this side faces down; lit: -1..1 towards the light. Premultiplied.
+vec4 iceHalo(float away, vec2 q, float t, float down, float lit, float lightGlass, float grow) {
+    float reach = mix(8.0, 16.0, down);
+    float fall = exp(-away / reach);
+    float v = iceVapour(q, t);
+    float a = clamp(fall * (0.12 + 0.88 * v) * 0.5, 0.0, 0.5) * grow;
+    // The ice's light on the vapour and the air right around it.
+    float glow = exp(-away / 9.0) * (0.20 + 0.12 * lit) * grow * (1.0 - 0.6 * lightGlass);
+    vec3 mc = mix(mix(vec3(0.55, 0.88, 1.0), vec3(0.80, 0.94, 1.0), smoothstep(0.0, 14.0, away)), vec3(0.92, 0.98, 1.0), lightGlass);
+    return vec4(mc * a + vec3(0.25, 0.72, 1.0) * glow * (0.6 + 0.6 * v), a);
 }
 `;

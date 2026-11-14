@@ -33,11 +33,12 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
+import St from 'gi://St';
 
 import {PACKAGE_VERSION} from 'resource:///org/gnome/shell/misc/config.js';
 import System from 'system';
 
-import {ICE_GLSL, frostBlur, frozenLiquid} from './frostmath.js';
+import {ICE_BIG, ICE_FPS, ICE_GLSL, frostBlur, frozenLiquid, iceEase, iceStep} from './frostmath.js';
 import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
@@ -111,6 +112,9 @@ uniform float veil_shade;        // 0..1: the theme's own soft shadow, which fil
 uniform float text_shade;
 uniform float frost;             // 0..1, weather frost (frost.js): the glass mists over in the cold
 uniform float flakes;            // 0..1, and below freezing it freezes over: a skin of ice, edges first
+uniform float ice_t;             // s, the ice's clock: it runs only while the glass is in use (iceTick)
+uniform float ice_k;             // 0..1, how far the ice's light turns towards the pointer
+uniform float ice_live;          // 1: the panel's and menus' glass, where the ice lives (vapour around it)
 // A pane can draw one part of a bigger glass (the rim over an app window is four
 // thin strips): shape_* is that whole glass, padding included, and where this pane
 // starts in it. Every other pane is the whole of its glass: shape_w/h = width/height.
@@ -421,7 +425,22 @@ void main() {
         s = shadow * 0.55 * (1.0 - 0.5 * onBright) * softEdge(ds, spread);
     }
     if (sd > 0.5) {
-        cogl_color_out = vec4(0.0, 0.0, 0.0, s) * cogl_color_in.a;
+        vec4 o = vec4(0.0, 0.0, 0.0, s);
+        // Below freezing, cold vapour rolls off a frozen menu, lit by its ice (frostmath.js
+        // iceHalo); it sinks, so it spills furthest below it. Not around a bar such as the
+        // panel (it would read as a line along it), nor an app window or the lock screen.
+        // It fades out well inside the pad, which ends the pane.
+        if (flakes > OFF && ice_live > 0.5) {
+            float big = smoothstep(80.0, 140.0, 2.0 * min(h.x, h.y));
+            if (big > 0.0) {
+                vec2 nn = normalize(c / h + vec2(1e-4));
+                vec4 v = iceHalo(sd, c + h, ice_t, smoothstep(-0.2, 0.9, nn.y), clamp(dot(nn, L), -1.0, 1.0),
+                                 light_glass, smoothstep(0.0, 0.25, flakes) * big);
+                v *= 1.0 - smoothstep(0.5 * pad, 0.95 * pad, sd);
+                o = v + o * (1.0 - v.a);
+            }
+        }
+        cogl_color_out = o * cogl_color_in.a;
         return;
     }
 
@@ -574,7 +593,29 @@ void main() {
             }
             sh = text_shade * smoothstep(0.01, 0.12, lit) * (1.0 - smoothstep(0.04, 0.12, area));
         }
-        cogl_color_out = vec4(glow * (1.0 - sh) + edgeLight, sh) * cov * cogl_color_in.a;
+        // Below freezing, the ice's own light (frostmath.js iceGlow), added on top of the
+        // ice: the frost at the edges glows and catches the light in points that come and go
+        // with the pointer, and lit vapour drifts by. Kept off the text and icons (the
+        // blurred copy of the content says where they are), so they read as before.
+        vec3 iceLight = vec3(0.0);
+        if (flakes > OFF) {
+            vec4 iceF = iceField(cc, hh, c + h, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);
+            vec2 Li = normalize(mix(vec2(hl_x, hl_y), clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0), ice_k) + vec2(1e-4));
+            vec2 sqi = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
+            // The copy holds the surface's own box too, in the veil's colour: only what is
+            // brighter than that is its text and icons (an empty part reads about 0.005,
+            // from rounding).
+            vec3 content = g.rgb - vec3(veil_r, veil_g, veil_b) * veil_a;
+            float bright = max(max(content.r, max(content.g, content.b)), 0.0);
+            iceLight = iceGlow(iceF, c + h, inside, shortSide, clamp(dot(sqi, Li), -1.0, 1.0), Li, ice_t, bright)
+                     * smoothstep(0.0, 0.25, flakes);
+            // Text or an icon on the white frost at an edge: a soft shade behind it, so it
+            // keeps its contrast (the frost may reach in under a menu's first line).
+            if (bright > 0.008)
+                sh = max(sh, 0.7 * iceCrust(c + h, inside, shortSide) * iceF.x * smoothstep(0.008, 0.04, bright)
+                             * smoothstep(0.0, 0.25, flakes));
+        }
+        cogl_color_out = vec4(glow * (1.0 - sh) + edgeLight + iceLight, sh) * cov * cogl_color_in.a;
         return;
     }
 
@@ -589,7 +630,7 @@ void main() {
     vec4 iceF = vec4(0.0);
     vec2 pxi = px;
     if (flakes > OFF && mode < 1.5) {
-        iceF = iceField(cc, hh, px + at0, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);
+        iceF = iceField(cc, hh, c + h, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);
         pxi += iceBend(iceF) * iceOn;
     }
 
@@ -791,8 +832,10 @@ void main() {
         }
     }
 
-    // Below freezing, the ice itself (frostmath.js iceLook): a cyan skin of ice over the
-    // pane with frost blooming white at its edges. Worked out on what shows through the
+    // Below freezing, the ice itself (frostmath.js iceLook): a skin of ice over the pane
+    // that glows cyan from within, a crust of frost along its edges and vapour drifting
+    // over it (on the panel and menus the content's light layer adds the ice's own light,
+    // and vapour rolls off a menu's edges: see iceGlow, iceHalo). Worked out on what shows through the
     // theme's veil, and drawn so it reads through it. Its colours are chosen so text keeps
     // its contrast: a deep cyan under white text, a pale one under dark text.
     if (iceF.x > OFF) {
@@ -803,7 +846,11 @@ void main() {
         float passes = (1.0 - veil_a) * (1.0 - veil_shade);
         vec3 seen = col.rgb / max(col.a, 1e-3) * passes + vl;
         vec2 sqi = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
-        vec3 iced = iceLook(seen, iceF, px + at0, inside, light_glass, shortIce, clamp(dot(sqi, L), -1.0, 1.0));
+        // Looking in at a slant (the pointer off to one side), what lies deep in the ice
+        // shifts a little against its skin.
+        vec2 inward = -clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0) * 6.0 * ptr_k;
+        vec3 iced = iceLook(seen, iceF, c + h, inside, light_glass, shortIce, clamp(dot(sqi, L), -1.0, 1.0),
+                            inward, ice_t);
         // Through them in its own colour: a white they cannot show is dimmed as a whole.
         // Cut off channel by channel, the frost at the edge of dark glass went brown.
         vec3 raw = max((mix(seen, clamp(iced, 0.0, 1.0), iceOn) - vl) / max(passes, 0.05), 0.0);
@@ -1669,6 +1716,8 @@ export function setQuality(level) {
     DRAG_RERENDER_US = 1e6 / RERENDER_HZ[Math.min(2, q + 1)];
     BUSY_RERENDER_US = 2 * RERENDER_US;
     panes.forEach(p => p._setCheap(p._moving));
+    stopIce();      // at the new level's rate, or not at all on the lightest
+    wakeIce();
 }
 
 export function getQuality() {
@@ -1706,6 +1755,73 @@ export function getFrost() {
 /** How liquid the glass is under a press right now: your setting, less while it is frozen. */
 export function liquidNow(liquid) {
     return frozenLiquid(liquid, frostNow.flakes);
+}
+
+// Frozen glass is alive while you use it: its vapour drifts and the light in the ice moves
+// on a clock of its own (the shader's ice_t). Each pane keeps its own clock, so one that
+// comes back into use goes on from where it stopped and never jumps. The clocks run only
+// for the panel's and menus' glass (never an app window or the lock screen), only while
+// it is in use (the pointer on or near it, or a menu or popup shown) and never with
+// animations off or on the lightest quality (speed.js). A step draws the lens again over
+// the copy the pane already has: nothing is copied or blurred again. Out of use, a clock
+// slows to a stop, and once all are still no more frames are asked for.
+let iceTimer = 0;
+let iceLast = 0;
+let stSettings = null;
+
+function animationsOn() {
+    try {
+        stSettings ??= St.Settings.get();
+        return stSettings.enable_animations !== false;
+    } catch {
+        return true;
+    }
+}
+
+function iceRuns() {
+    return frostNow.flakes > 0 && ICE_FPS[quality] > 0 && animationsOn();
+}
+
+function iceTick() {
+    const now = GLib.get_monotonic_time();
+    const dt = Math.min(0.1, Math.max(0, (now - iceLast) / 1e6));
+    iceLast = now;
+    const runs = iceRuns();
+    let busy = false;
+    for (const p of panes) {
+        const ice = p._ice;
+        const using = runs && p._iceInUse();
+        if (!using && ice.speed <= 0)
+            continue;
+        ice.speed = iceEase(ice.speed, using, dt);
+        ice.t = iceStep(ice.t, dt, ice.speed);
+        if (p.mapped)
+            p._glass.setFloats({ice_t: ice.t});
+        busy ||= using || ice.speed > 0;
+    }
+    if (busy)
+        return GLib.SOURCE_CONTINUE;
+    iceTimer = 0;
+    return GLib.SOURCE_REMOVE;
+}
+
+/** Start the ice's clocks if frozen glass is in use (cheap to call: it does nothing otherwise). */
+export function wakeIce() {
+    if (iceTimer || !iceRuns() || ![...panes].some(p => p._iceInUse()))
+        return;
+    iceLast = GLib.get_monotonic_time();
+    iceTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.round(1000 / ICE_FPS[quality]), iceTick);
+}
+
+function stopIce() {
+    if (iceTimer)
+        GLib.source_remove(iceTimer);
+    iceTimer = 0;
+}
+
+/** Whether the ice's clocks are running (read by the QA tools). */
+export function iceRunning() {
+    return iceTimer !== 0;
 }
 
 /** How many times any pane has rendered since the Shell started. */
@@ -1970,6 +2086,7 @@ class FedoraGlassPane extends Clutter.Actor {
         this._lite = false;
         this._moving = false;
         this._motion = {sx: 0, sy: 0, k: 0, press: 0, open: 1, pullX: 0, pullY: 0};
+        this._ice = {t: 0, speed: 0};    // the ice's clock (see wakeIce)
         this._applyLook();
         panes.add(this);
         followPainting(true);
@@ -1983,6 +2100,8 @@ class FedoraGlassPane extends Clutter.Actor {
             if (this._dropLater)
                 GLib.source_remove(this._dropLater);
             this._dropLater = 0;
+            if (this.mapped)
+                wakeIce();      // a frozen menu opened: its ice comes alive
             if (!this.mapped) {
                 this._dropLater = GLib.timeout_add(GLib.PRIORITY_LOW, DROP_HIDDEN_MS, () => {
                     this._dropLater = 0;
@@ -2006,6 +2125,8 @@ class FedoraGlassPane extends Clutter.Actor {
             panes.delete(this);
             this._glass.drop();
             followPainting(panes.size > 0);
+            if (!panes.size)
+                stopIce();
             this._clones.clear();
         });
     }
@@ -2242,6 +2363,7 @@ class FedoraGlassPane extends Clutter.Actor {
                 this._applyShape();
             }
             this._syncClones();   // windows behind may still have moved
+            wakeIce();
             return;
         }
         this._placed = key;
@@ -2270,6 +2392,7 @@ class FedoraGlassPane extends Clutter.Actor {
         this._applyClip();
         if (this._motion.k > 0)
             this._applyMotion();   // the pointer is held in this pane's own px
+        wakeIce();      // a frozen menu placed as it opens: its ice comes alive
     }
 
     /** Whether the pane is held and has a picture of its size to keep showing. */
@@ -2405,10 +2528,12 @@ class FedoraGlassPane extends Clutter.Actor {
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             rim: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.rim ?? DEFAULT_LOOK.rim)),
             veil_r: veil[0], veil_g: veil[1], veil_b: veil[2], veil_a: veil[3],
-            veil_shade: Math.max(0, Math.min(0.9, L.shade ?? 0)),
+            veil_shade: this._shade(),
             lens_share: this._layer === LAYERS.glass || this._layer === LAYERS.reflections ? 1 : 0,
             text_shade: this._layer === LAYERS.reflections ? Math.max(0, Math.min(0.6, L.textShade ?? 0)) : 0,
             mode: this._layer,
+            ice_live: this._iceLive() ? 1 : 0,
+            ice_t: this._ice.t,
             cheap: this._cheap ? 1 : 0,
             lite: quality >= 1 ? 1 : 0,
         });
@@ -2425,7 +2550,55 @@ class FedoraGlassPane extends Clutter.Actor {
 
     _applyFrost() {
         const on = this._frosts();
-        this._glass.setFloats({frost: on ? frostNow.frost : 0, flakes: on ? frostNow.flakes : 0});
+        // The content's light over the panel or a menu carries the ice's own light: it needs
+        // to know how far the glass under it has frozen over, not its mist.
+        const top = this._layer === LAYERS.reflections && this._iceLive();
+        // Frozen over, a menu sheds the theme's drop shadow (its owner, follower.js, takes it
+        // off the menu): the glass under it is no longer shaded.
+        this.onIce?.(on && frostNow.flakes > 0);
+        this._glass.setFloats({
+            frost: on ? frostNow.frost : 0, flakes: on || top ? frostNow.flakes : 0,
+            veil_shade: this._shade(),
+        });
+        wakeIce();
+    }
+
+    /** Call fn(frozen) now and whenever this glass freezes over or thaws (weather frost). */
+    setOnIce(fn) {
+        this.onIce = fn;
+        this._applyFrost();
+    }
+
+    /** The theme's drop shadow taken off the surface over this glass (or put back). */
+    setShadeShed(shed) {
+        if (this._shadeShed === shed)
+            return;
+        this._shadeShed = shed;
+        this._glass.setFloats({veil_shade: this._shade()});
+    }
+
+    // The theme's own drop shadow under this glass (it fills a menu's box, under its veil),
+    // unless the menu has shed it while frozen.
+    _shade() {
+        return this._shadeShed ? 0 : Math.max(0, Math.min(0.9, this._look.shade ?? 0));
+    }
+
+    // Where the ice lives (see wakeIce): the panel's and menus' glass and the light over them.
+    _iceLive() {
+        return (this._layer === LAYERS.glass || this._layer === LAYERS.reflections) && !(this._look.solid > 0.5);
+    }
+
+    // In use: the pointer on or near it (or pressing it), or a menu or popup shown. A bar is
+    // in use only with the pointer near it, so the panel lies still while you work elsewhere.
+    _iceInUse() {
+        if (!this._iceLive() || !this.mapped || !this.visible)
+            return false;
+        const m = this._motion;
+        if ((m.iceK ?? m.k) > 0.01 || m.press > 0.01)
+            return true;
+        // Its whole size, not the part a menu growing out of its button has reached yet.
+        const p = this._pad;
+        return Math.min(this._whole[0], this._whole[1]) - 2 * p >= ICE_BIG;
     }
 
     // Pointer light, parallax, press and open: set by the motion controller in
@@ -2450,7 +2623,12 @@ class FedoraGlassPane extends Clutter.Actor {
             // Pressed, the slab gives: a deeper bend and a fuller dome you can see.
             refr_amt: Math.max(0, L.bend) * (1 + 0.3 * deep * m.press),
             depth: Math.max(0, Math.min(1, L.depth + 0.25 * deep * m.press)),
+            // The ice's light follows the pointer on the content's light layer too, which
+            // has no pointer light of its own (follower.js hands it the same k as iceK).
+            ice_k: Math.max(0, Math.min(1, m.iceK ?? m.k)),
         });
+        if ((m.iceK ?? m.k) > 0.01)
+            wakeIce();
         // setFloats queued a repaint of the lens over all of the pane, so it shows the
         // new shape in one frame. Never queue_redraw() the pane here: that marks it
         // dirty, and the backdrop is copied and blurred again for every pointer step

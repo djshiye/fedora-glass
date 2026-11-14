@@ -8,6 +8,9 @@ import Meta from 'gi://Meta';
 import {GlassPane} from './glass.js';
 import {HOLD_MAX_MS, MOVES, radiiOf, screenEdges, sourcesFor, windowWatch, followers, motion, Signals, glowSource, grow} from './common.js';
 
+// What a frozen menu's style gets (see Follower._iceStyle).
+const ICE_STYLE = ' box-shadow: none;';
+
 /**
  * A pane that sits right below `anchor` (a child of a free-layout container
  * such as the Shell's UI group) and copies the on-screen rectangle, corner
@@ -40,6 +43,8 @@ export class Follower {
         this.settings = settings;
         this.pane = new GlassPane('glass');
         this.top = new GlassPane('reflections');
+        this._iceWant = false;
+        this.pane.setOnIce(frozen => this._iceStyle(frozen));
         this._signals = new Signals();
         this._later = 0;
         this._onGone = onGone;
@@ -290,6 +295,8 @@ export class Follower {
         this.rect = [sx, sy, w, h];
         pane.show();
         top.show();
+        if (this._iceWant && !pane._shadeShed)
+            this._iceStyle(true);
         // The glass is placed and shown before this frame paints: the surface may
         // show in the same frame, over glass that is already complete.
         this._release();
@@ -321,12 +328,40 @@ export class Follower {
         return fits ? r : null;
     }
 
+    /**
+     * Frozen over (weather frost), a menu sheds the theme's drop shadow. St lays it under
+     * the whole of the menu's box, under its veil, so a dark menu showed its glass at under
+     * half its brightness and the ice could never glow there; around it, it covered the
+     * vapour rolling off the ice, which now makes the menu's edge. Only menus (whose look
+     * says they have such a shadow, `shade`), never the panel, and only while frozen:
+     * thawed, the style is as it was. Other code may restyle the surface meanwhile, so
+     * only our own few words are added and taken out again.
+     */
+    _iceStyle(frozen) {
+        this._iceWant = frozen;
+        const t = this.target;
+        try {
+            const style = t?.get_style?.() ?? '';
+            const shed = style.includes(ICE_STYLE);
+            // peek: a menu never shown yet has no style worked out; it is looked at again
+            // when it shows (sync).
+            if (frozen && !shed && (this.settings?.look?.shade ?? 0) > 0 && t.peek_theme_node?.()?.get_box_shadow?.())
+                t.set_style(style + ICE_STYLE);
+            else if (!frozen && shed)
+                t.set_style(style.replace(ICE_STYLE, '') || null);
+            this.pane?.setShadeShed((t?.get_style?.() ?? '').includes(ICE_STYLE));
+        } catch {
+            // The surface is gone: nothing to put back.
+        }
+    }
+
     setMotion(m) {
         // The pointer brightens the glass's own rim reflection; the content's light
         // layer only gives with a press.
         const {k, ...shape} = m;
         this.pane?.setMotion(m);
-        this.top?.setMotion(shape);
+        // The ice's light (weather frost) follows the pointer over the content as well.
+        this.top?.setMotion(k === undefined ? shape : {...shape, iceK: k});
         // A menu condenses into place as it opens: a little small, then its size.
         // One opened from a button grows out of that button instead.
         if (this.condense && m.open !== undefined && this.target) {
@@ -413,6 +448,7 @@ export class Follower {
             } catch {}
         }
         windowWatch.current?.listeners.delete(this._onWindows);
+        this._iceStyle(false);
         const {pane, top} = this;
         this.pane = this.top = null;
         pane?.destroy();

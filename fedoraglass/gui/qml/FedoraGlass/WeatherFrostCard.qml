@@ -177,7 +177,7 @@ Card {
                     defaultValue: Backend.defaults.weather_freezing
                     format: (v) => card.t(v)
                     onMoved: (v) => { Backend.weatherFreezing = v; Backend.weatherTry = "freezing" }
-                    tip: qsTr("Below this the glass freezes over, like a window on a winter morning: a skin of ice, with frost at its edges. You see less through it and it gives less under a press. Text stays easy to read.")
+                    tip: qsTr("Below this the glass freezes over, like a window on a winter morning: ice that glows from within, frost at its edges and cold vapour drifting off it while you use it. You see less through it and it gives less under a press. Text stays easy to read.")
                 }
                 LabeledSlider {
                     objectName: "weatherAmount"

@@ -46,6 +46,8 @@ Item {
     property real frost: 0
     property real flakes: 0
     property real iceScale: pressScale
+    // s, the ice's clock (PreviewDesktop.qml): its vapour drifts and its light moves.
+    property real iceTime: 0
     property bool live: true
 
     property color shadowColor: "transparent"
@@ -160,6 +162,7 @@ Item {
         property real frost: root.frost
         property real flakes: root.flakes
         property real iceScale: root.iceScale
+        property real iceTime: root.iceTime
         fragmentShader: Qt.resolvedUrl("shaders/glass.frag.qsb")
     }
 

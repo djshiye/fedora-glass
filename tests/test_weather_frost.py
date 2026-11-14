@@ -190,8 +190,11 @@ def test_frost_is_skipped_entirely_when_off():
     assert "vec2 pxi = px;" in src and "pxi += iceBend(iceF) * iceOn;" in src
     assert "if (iceF.x > OFF) {" in src
     # No ice grows in from a side of the glass that lies on the screen's edge, and its skin
-    # is lit by the light where it rests (never the pointer's), so the ice lies still.
-    assert "iceF = iceField(cc, hh, px + at0, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);" in src
+    # is lit by the light where it rests (never the pointer's), so the ice lies still. It is
+    # fixed to the glass's own corner (c + h), so the glass under a menu and the light layer
+    # over it (whose pads differ) draw the very same ice.
+    assert "iceF = iceField(cc, hh, c + h, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);" in src
+    assert "vec4 iceF = iceField(cc, hh, c + h, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);" in src
 
 
 def test_frozen_glass_is_stiff_on_the_desktop_and_in_the_preview():
@@ -230,7 +233,41 @@ def test_menus_tell_the_ice_about_their_own_shadow():
         assert "box-shadow: 0 2px 6px 0 ${shadow};" in block, rule
     src = (EXT / "glass.js").read_text()
     assert "float passes = (1.0 - veil_a) * (1.0 - veil_shade);" in src
-    assert "veil_shade: Math.max(0, Math.min(0.9, L.shade ?? 0))," in src
+    assert "veil_shade: this._shade()," in src
+    assert "return this._shadeShed ? 0 : Math.max(0, Math.min(0.9, this._look.shade ?? 0));" in src
+    # Frozen, a menu sheds that shadow (the ice could not glow through it) and the glass is
+    # told; thawed or gone, the menu has its own style back (tests/js/weather-frost-alive).
+    fol = (EXT / "follower.js").read_text()
+    assert "const ICE_STYLE = ' box-shadow: none;';" in fol
+    assert "this.pane.setOnIce(frozen => this._iceStyle(frozen));" in fol
+    destroy = fol[fol.index("    destroy() {"):]
+    assert destroy.index("this._iceStyle(false);") < destroy.index("pane?.destroy();")
+
+
+def test_frozen_glass_is_alive_only_while_in_use():
+    """The vapour drifts and the light in the ice moves on a clock that runs only while the
+    panel's or a menu's glass is in use, never for app windows or the lock screen, never with
+    animations off or on the lightest quality, and stops once nothing is in use."""
+    src = (EXT / "glass.js").read_text()
+    assert "return frostNow.flakes > 0 && ICE_FPS[quality] > 0 && animationsOn();" in src
+    live = src[src.index("    _iceLive() {"):src.index("    _iceInUse() {")]
+    assert "(this._layer === LAYERS.glass || this._layer === LAYERS.reflections) && !(this._look.solid > 0.5)" in live
+    use = src[src.index("    _iceInUse() {"):]
+    use = use[:use.index("\n    }\n")]
+    assert "!this._iceLive() || !this.mapped || !this.visible" in use
+    tick = src[src.index("function iceTick() {"):src.index("export function wakeIce() {")]
+    assert "iceTimer = 0;\n    return GLib.SOURCE_REMOVE;" in tick, "nothing in use: no more frames asked for"
+    assert "if (!panes.size)\n                stopIce();" in src, "the last glass gone takes its clock along"
+    # A step draws only the lens again (setFloats): nothing is copied or blurred again.
+    assert "p._glass.setFloats({ice_t: ice.t});" in tick
+    # Vapour rolls off a frozen menu, never off a bar such as the panel, an app window or the
+    # lock screen (ice_live), and fades out inside the pane's own room.
+    assert "if (flakes > OFF && ice_live > 0.5) {" in src
+    assert "float big = smoothstep(80.0, 140.0, 2.0 * min(h.x, h.y));" in src
+    assert "ice_live: this._iceLive() ? 1 : 0," in src
+    # The app's preview: its clock runs only while the app is in front.
+    pv = (ROOT / "fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml").read_text()
+    assert "paused: !(root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront)" in pv
 
 
 # ---------------------------------------------------------------- the app

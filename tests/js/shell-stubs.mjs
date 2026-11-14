@@ -128,6 +128,7 @@ const STUBS = {
         constructor(name) { super(); this.name = name; this.pad = 0; }
         setLook() { if (globalThis.fake.glassFails) throw new Error('forced test failure'); }
         setSources() {} setEdges() {} place() {} setMotion() {} setKeep() {} setPart() {}
+        setOnIce(fn) { this.onIce = fn; fn(false); } setShadeShed(v) { this._shadeShed = v; }
     }
     export const DEFAULT_LOOK = {};
     export function windowLanded() {}

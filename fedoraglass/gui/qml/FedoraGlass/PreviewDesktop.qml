@@ -35,6 +35,16 @@ Item {
     // Weather frost: how frosty the glass is now, or in the step the Weather frost card tries.
     readonly property var ice: Backend.weatherPreview
     readonly property real iceBlur: ice.blur || 0
+    // Frozen over, the ice is alive as on the desktop: its vapour drifts and the light in it
+    // moves, on a clock that runs only while the app is in front (paused, it keeps its place).
+    property real iceTime: 0
+    readonly property bool appInFront: Window.active
+    NumberAnimation on iceTime {
+        running: true
+        paused: !(root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront)
+        from: 0; to: 3600; duration: 3600 * 1000
+        loops: Animation.Infinite
+    }
     // The part of this virtual screen the pane shows when it is zoomed in (preview px).
     property rect view: Qt.rect(0, 0, width, height)
     function u(n) { return n * root.s }
@@ -284,6 +294,7 @@ Item {
         frost: glass ? root.ice.frost || 0 : 0
         flakes: glass ? root.ice.flakes || 0 : 0
         iceScale: root.s
+        iceTime: root.iceTime
         saturation: glass ? root.saturation : 0
         refraction: !glass || root.reduceTransparency ? 0 : (part ? root.part(part, "lens_bend", 0) * root.s : root.refraction)
         bezel: part ? Math.max(4, root.part(part, "lens_width", 0) * root.s) : root.bezel
@@ -1546,6 +1557,7 @@ Item {
                 frost: root.glassOn ? root.ice.frost || 0 : 0
                 flakes: root.glassOn ? root.ice.flakes || 0 : 0
                 iceScale: 1
+                iceTime: root.iceTime
                 saturation: root.glassOn ? root.saturation : 0
                 refraction: root.glassOn ? root.part(pn, "lens_bend", 0) : 0
                 bezel: Math.max(4, root.part(pn, "lens_width", 0))
