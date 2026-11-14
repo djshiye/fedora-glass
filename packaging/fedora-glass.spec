@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.6.0
+Version:        1.7.0
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -374,6 +374,16 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Sat Nov 14 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.0-1
+- New: a glass login screen, the same frosted wallpaper, clock and glass card as the lock screen; off until you turn it on in Lock and login
+- The glass login screen is safe: it is on trial until your first login, turns itself off after a crash or a start nobody could log in from, and can be turned off from a text console or the boot menu
+- New: Weather frost on the Glass page, off until you turn it on: the glass mists over when it is cool, frosts when it is cold, and freezes over below freezing
+- Frozen glass glows from within, gathers frost at its edges and breathes cold vapour off menus while you use them; it is firmer under a press and text stays easy to read
+- Weather frost uses only GNOME's own weather, never your location, and costs nothing while the desktop is idle
+- A long list of users on the login screen grows downward, so the clock stays put
+- One Apply brings a new wallpaper to the login screen, and a dark/light switch missed while logged out is caught at login
+- A look switched in by Day and night gets the current wallpaper's tint, and Clearer or More solid on a terminal follows that terminal's look
+
 * Thu Nov 12 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.6.0-1
 - New: the box GNOME shows when you drag a window to a screen edge is glass now
 - New: Day and night on the Home page picks one saved look for GNOME's light style and one for dark, and switches by itself
