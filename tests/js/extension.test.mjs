@@ -18,6 +18,7 @@ globalThis.fakeMods = {
     'animations.js': {Animations: part('animations')},
     'arcrescue.js': {ArcMenuRescue: part('rescue')},
     'config.js': {Config: () => ({value: {desktop: {}}, destroy() {}})},
+    'frost.js': {WeatherFrost: () => ({update() {}, destroy() {}})},
     'desktop.js': {DesktopBehaviour: part('desktop')},
     'lock.js': {LockGlass: part('lock')},
     'lockwidgets.js': {LockWidgets: part('widgets')},

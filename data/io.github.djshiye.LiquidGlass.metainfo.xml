@@ -131,6 +131,13 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.0" date="2026-11-14">
+      <description>
+        <p>New: a glass login screen with the same frosted wallpaper, clock and glass card as the lock screen. It is off until you turn it on, and turns itself off if the login screen ever has trouble.</p>
+        <p>New: Weather frost. The glass mists over when it is cool outside, frosts when it is cold and freezes over below freezing, with glowing ice and cold vapour drifting off the menus. It is off until you turn it on and uses only GNOME's own weather.</p>
+        <p>Long user lists on the login screen, dark and light switches missed while logged out, and the tint of looks switched in by Day and night are fixed.</p>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-11-12">
       <description>
         <p>New: the box shown when you drag a window to a screen edge is glass, Day and night switches between two saved looks with GNOME's light and dark style, apps can have their own glass strength, saved looks can be updated, and there is an Edge reflections slider.</p>

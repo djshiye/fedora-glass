@@ -102,6 +102,19 @@ def test_the_real_sources_exist():
         assert (ROOT / EXT_SRC / name).is_file(), name
 
 
+def test_shared_modules_bring_everything_they_import():
+    """A shared module is copied into the add-on's folder by name. Whatever it imports from
+    beside itself must be copied too, or the login screen's glass cannot load (glass.js
+    imports frostmath.js for the weather frost)."""
+    names = set(_shared_names(ROOT))
+    own = {p.name for p in (ROOT / ADDON_SRC).glob("*.js")}
+    for name in sorted(names):
+        text = (ROOT / EXT_SRC / name).read_text()
+        for spec in re.findall(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]\./([^'"]+)['"]""", text):
+            assert spec in names or spec in own, f"{name} imports ./{spec}: add it to shared-modules.txt"
+    assert "frostmath.js" in names
+
+
 def test_tree_has_the_helper_the_addon_and_the_units(built):
     work, dest, _ = built
     helper = dest / HELPER

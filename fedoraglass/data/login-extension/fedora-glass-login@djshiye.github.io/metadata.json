@@ -4,6 +4,6 @@
   "description": "Real glass on the GDM login screen, matching the Fedora Glass lock screen. Installed and switched on by the Fedora Glass app; runs only on the login screen.",
   "shell-version": ["50", "51"],
   "url": "https://github.com/djshiye/fedora-glass",
-  "version-name": "1.6.0",
+  "version-name": "1.7.0",
   "session-modes": ["gdm"]
 }

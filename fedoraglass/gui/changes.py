@@ -152,6 +152,14 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     "no_glass_apps": (N_("Apps without glass"), "windows", "noGlassCard",
                       lambda v: _("None") if not v else (_("1 app") if len(v) == 1 else _("{n} apps").format(n=len(v)))),
     "app_glass": (N_("Glass strength for apps"), "windows", "noGlassCard", lambda v: _app_glass(v)),
+    # Weather frost
+    "weather_frost": (N_("Weather frost"), "glass", "weatherFrostSwitch", onoff),
+    "weather_feels_like": (N_("Weather frost goes by"), "glass", "weatherFeelsLike",
+                           lambda v: _("Feels like") if v else _("Air temperature")),
+    "weather_cool": (N_("Cool below"), "glass", "weatherCool", lambda v: f"{int(v)} °C"),
+    "weather_cold": (N_("Cold below"), "glass", "weatherCold", lambda v: f"{int(v)} °C"),
+    "weather_freezing": (N_("Icy below"), "glass", "weatherFreezing", lambda v: f"{int(v)} °C"),
+    "weather_amount": (N_("How much frost"), "glass", "weatherAmount", pct),
 }
 # Not shown: saved the moment it is switched, or bookkeeping that follows another setting.
 HIDDEN = {"undo_on_remove", "look_for_light", "look_for_dark", "tint_own", "accent_own", "wallpaper_match"}

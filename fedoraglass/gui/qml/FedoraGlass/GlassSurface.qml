@@ -41,6 +41,13 @@ Item {
     property real liquid: 1              // how far it gives: 1 is the original feel
     property point pull: Qt.point(0, 0)  // px it is drawn out towards the pointer
     property real pressScale: 1          // px here per desktop px
+    // Weather frost (the Weather frost card): 0..1 mist, 0..1 ice grown in from the edges, and
+    // px here per desktop px so the ice is the desktop's size. Both 0 leave the glass as it is.
+    property real frost: 0
+    property real flakes: 0
+    property real iceScale: pressScale
+    // s, the ice's clock (PreviewDesktop.qml): its vapour drifts and its light moves.
+    property real iceTime: 0
     property bool live: true
 
     property color shadowColor: "transparent"
@@ -152,6 +159,10 @@ Item {
         property real liquid: root.liquid
         property point pull: root.pull
         property real pressScale: root.pressScale
+        property real frost: root.frost
+        property real flakes: root.flakes
+        property real iceScale: root.iceScale
+        property real iceTime: root.iceTime
         fragmentShader: Qt.resolvedUrl("shaders/glass.frag.qsb")
     }
 
