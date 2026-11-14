@@ -121,9 +121,11 @@ the card with the prompt, a password check written down, disabling taking everyt
 each clock, the glow and system pictures, the light style, high contrast followed live, a
 crashed start staying safe, a broken look.json drawing nothing while the login still works,
 two screens at 125 % with no stripe at the seam and a spanned picture going on across it, the
-card hugging the prompt (also with GNOME's message after a wrong password), a picture that
-does not decode or never loads giving the glow and never a black screen, GNOME Shell killed
-twice in a row leading to safe, and no repaint storm at rest. Its pictures are compared against
+card hugging the prompt (also with GNOME's message after a wrong password), six users in the
+list (the list grows downward from where the password card begins, the clock and the message
+stay), the card and the clock fading with GNOME's dialog as somebody logs in while the frosted
+picture stays, a picture that does not decode or never loads giving the glow and never a black
+screen, GNOME Shell killed twice in a row leading to safe, and no repaint storm at rest. Its pictures are compared against
 `references/login/gnome50/` and `references/login/gnome51/` (1920x1080, the size GDM most
 often draws at).
 

@@ -12,15 +12,34 @@ makeGreeter();
 registerStubs();
 const {default: FedoraGlassLogin} =
     await import('../../fedoraglass/data/login-extension/fedora-glass-login@djshiye.github.io/extension.js');
-// Loaded once here, so extension.js's own import('./login.js') lands within settle().
-await import('../../fedoraglass/data/login-extension/fedora-glass-login@djshiye.github.io/login.js');
+// Loaded once here, so extension.js's own import('./login.js') only has to be answered.
+const LOGIN_JS = '../../fedoraglass/data/login-extension/fedora-glass-login@djshiye.github.io/login.js';
+await import(LOGIN_JS);
+
+// The login screen's clock ticks on the minute, by the real time of day. The tests get a
+// fixed time of day, well away from the minute's end: run in the last second of a minute,
+// that tick was a 1000 ms timer, and "the wait is over" below took it for the card's wait.
+const RealDate = Date;
+const NOW = new RealDate(2026, 0, 9, 9, 41, 10).getTime();
+globalThis.Date = class extends RealDate {
+    constructor(...a) { super(...(a.length ? a : [NOW])); }
+    static now() { return NOW; }
+};
 
 const logged = [];
 console.error = (...a) => logged.push(a.join(' '));
 console.warn = (...a) => logged.push(a.join(' '));
 
-// Lets extension.js's import('./login.js') land (the loader answers on its own thread).
-const settle = () => new Promise(r => setTimeout(r, 30));
+// Lets extension.js's import('./login.js') land and the fakes' 0 ms callbacks run, however
+// busy the machine is: a fixed 30 ms wait lost that race on a busy test machine. The loader
+// answers on its own thread, in the order it is asked, so an import asked for after the
+// add-on's comes back after it. Then a few turns of the timer queue: in each, whatever a
+// fake asked for earlier runs before us.
+const settle = async () => {
+    await import(LOGIN_JS);
+    for (let i = 0; i < 8; i++)
+        await new Promise(r => setTimeout(r, 0));
+};
 
 /** A greeter with the add-on started on it. */
 async function started(opts = {}) {
@@ -308,6 +327,94 @@ test('the clock stands in the middle of the room above the card, and gives way t
     ext.disable();
 });
 
+test('a long list of users grows downward: one margin above the list, and the clock stays where it is', async () => {
+    const {fake, ext, group, before} = await started();
+    const d = fake.screenShield._dialog, box = d._userSelectionBox, theme = fake.themeContext.theme;
+    const top = ours().find(a => a.name === 'fedora-glass-login-top');
+    const card = ours().find(a => a.name === 'fedora-glass-login-card');
+    const placed = [];
+    card.place = (...a) => placed.push(a.slice(0, 4));
+    const margin = () => fake.fs.get(CSS_PATH).text.match(/user-selection-box {[^}]*}/)[0].match(/margin-top: (\d+)px/)?.[1] ?? null;
+    // GNOME's dialog fills the screen. Its list keeps 59 px of room above and below (our
+    // 4em), and stands in the middle: what it asks for is the rows, "Not listed?", that
+    // room and its margin.
+    Object.assign(d, {width: 1920, height: 1080});
+    box.pad = [59, 59];
+    // What GNOME's layout does with n users (84 px each, 4 between) and the margin our style gives.
+    const layout = n => {
+        const rows = 84 * n + 4 * (n - 1), m = Number(margin() ?? 0);
+        box.margin_top = m;
+        box.prefH = rows + 37 + 118 + m;
+        const y = Math.max(0, Math.floor(540 - box.prefH / 2)) + m + 59;
+        Object.assign(d._userList, {y, height: rows});
+        d._userList._box.get_children().forEach(r => r.destroy());
+        for (let i = 0; i < n; i++)
+            d._userList._box.add_child(new fake.Actor({name: `user${i}`, x: 780, y: y + 88 * i, width: 360, height: 84}));
+        Object.assign(d._notListedButton, {y: y + rows + 6, height: 31});
+        d._userList.emit('notify::allocation');
+        fake.laters.run();
+        return y;
+    };
+    // One user stands in the middle, as GNOME puts it: no margin, the stylesheet loaded once.
+    assert.equal(layout(1), 479);
+    assert.equal(margin(), null);
+    assert.equal(theme.loads, 1);
+    assert.deepEqual([top.y, placed.at(-1)], [90, [752, 451, 416, 177]]);
+    // Six users would begin at 259, far above the prompt's card (380): the list is given
+    // a margin, once, that lowers it to 408...
+    assert.equal(layout(6), 259);
+    assert.equal(margin(), '297');
+    assert.deepEqual([theme.loads, theme.sheets.length], [2, 1], 'the stylesheet again, once, and only one of it');
+    // ...GNOME lays it out with that, and its card begins where the prompt's card begins.
+    assert.equal(layout(6), 408);
+    assert.equal(theme.loads, 2, 'our own margin does not make it ask again');
+    assert.deepEqual(placed.at(-1), [752, 380, 416, 617], 'the card around it, down to 997');
+    assert.equal(fake.timeouts.list.size, [...fake.timeouts.list.values()].filter(t => t.ms !== 16).length, 'in one step, not gliding after the list');
+    // The clock and the message stand where they stood with one user.
+    const [clock, , message] = top.get_children();
+    assert.deepEqual([top.y, clock.visible, message.visible], [90, true, true]);
+    // With the prompt up and back again nothing is asked anew.
+    box.hide();
+    d._authPrompt.show();
+    fake.laters.run();
+    d._authPrompt.hide();
+    box.show();
+    fake.laters.run();
+    assert.deepEqual([margin(), theme.loads], ['297', 2]);
+    // GNOME's logo under the list: the card keeps 8 px clear of it.
+    d._logoBin = new fake.Actor({name: 'logo', x: 936, y: 990, width: 48, height: 48});
+    d.add_child(d._logoBin);
+    layout(6);
+    assert.equal(margin(), '267', 'ends at 990 - 8 - 28');
+    d._logoBin.hide();
+    layout(6);
+    assert.equal(margin(), '297');
+    // A banner: GNOME lays the list out together with it, so it is left alone.
+    d._bannerView = new fake.Actor({name: 'banner'});
+    d.add_child(d._bannerView);
+    layout(6);
+    assert.equal(margin(), null);
+    d._bannerView.hide();
+    layout(6);
+    assert.equal(margin(), '297');
+    // Back to two users: in the middle again, no margin left.
+    const loads = theme.loads;
+    layout(2);
+    assert.equal(margin(), null);
+    assert.equal(layout(2), 435);
+    // Should the list ever keep asking for another place, that ends: 8 times (that one
+    // was the first), until a row comes or goes.
+    for (let i = 0; i < 12; i++) {
+        box.prefH = 209 + 118 + (i % 2 ? 0 : 400) + box.margin_top;
+        d._userList.emit('notify::allocation');
+        fake.laters.run();
+    }
+    assert.equal(theme.loads, loads + 8, 'no more than 8 times');
+    assert.deepEqual(logged, []);
+    ext.disable();
+    assertPlain(fake, group, before);
+});
+
 test('what GNOME shows under the field never ends below the screen: the prompt gets GNOME\'s own place back', async () => {
     const {fake, ext} = await started();
     const d = fake.screenShield._dialog, prompt = d._authPrompt;
@@ -411,6 +518,7 @@ test('GNOME makes its login dialog after the add-on starts: it waits, then draws
     fake.laters.run();
     assert.ok(layer(group));
     assert.equal(group.get_children().indexOf(layer(group)), 0);
+    await settle();     // the picture loads, the glass shows
     fake.timeouts.run(2000);
     assert.equal(note().phase, 'ok');
     fake.timeouts.run(30000);
@@ -474,6 +582,46 @@ test('a screen added: a sheet on each', async () => {
     ext.disable();
 });
 
+test('GNOME fading its login dialog (somebody logged in, or the login screen coming up): the card and the clock go with it, the glass stays', async () => {
+    const {fake, ext, group} = await started();
+    const d = fake.screenShield._dialog, prompt = d._authPrompt;
+    fake.laters.run();
+    const L = layer(group);
+    const card = ours().find(a => a.name === 'fedora-glass-login-card');
+    const top = ours().find(a => a.name === 'fedora-glass-login-top');
+    assert.deepEqual([card.visible, card.opacity, top.opacity, L.opacity], [true, 255, 255, 255]);
+    // Logged in: GNOME takes its dialog to nothing before it starts the session.
+    for (const o of [128, 0]) {
+        d.opacity = o;
+        d.emit('notify::opacity');
+        assert.deepEqual([card.opacity, top.opacity], [o, o], 'at once, in the same frame');
+        fake.laters.run();
+        assert.deepEqual([card.opacity, top.opacity], [o, o], 'and it stays so after the next layout');
+    }
+    assert.equal(L.opacity, 255, 'the frosted picture stays until the desktop comes');
+    assert.ok(sheets().every(s => s.visible && s.opacity === 255));
+    // The session did not start: GNOME brings its dialog back, and ours comes with it.
+    d.opacity = 255;
+    d.emit('notify::opacity');
+    assert.deepEqual([card.opacity, top.opacity], [255, 255]);
+    // A prompt GNOME is still fading in, inside a dialog at half: both count.
+    d._userSelectionBox.hide();
+    prompt.opacity = 0;
+    prompt.show();
+    fake.laters.run();
+    fake.timeouts.run(1000);
+    fake.laters.run();
+    assert.equal(card.visible, false);
+    prompt.opacity = 128;
+    prompt.emit('notify::opacity');
+    d.opacity = 128;
+    d.emit('notify::opacity');
+    fake.laters.run();
+    assert.deepEqual([card.visible, card.opacity], [true, 64]);
+    ext.disable();
+    assert.deepEqual([d.opacity, d.handlerCount()], [128, 0], 'GNOME\'s dialog is only watched, never changed');
+});
+
 test('a successful password check is written down; the phase stays', async () => {
     const {fake, ext} = await started();
     fake.timeouts.run(2000);
@@ -499,7 +647,44 @@ test('high contrast: nothing of ours, followed live both ways', async () => {
     assertPlain(hc.fake, hc.group, hc.before);
     hc.fake.timeouts.run(2000);
     assert.equal(note().phase, 'ok', 'drawing nothing on purpose is no failure');
+    // A login on GNOME's own login screen says nothing about the glass: the trial goes on.
+    hc.fake.screenShield._dialog._authPrompt._userVerifier.emit('verification-complete');
+    assert.equal(note().verified, '', 'no glass was shown: not a login through the glass');
     hc.ext.disable();
+});
+
+test('high contrast switched on before the glass first shows: the start still finishes', async () => {
+    const fake = makeGreeter();
+    fake.bgNeverLoads = true;
+    const ext = new FedoraGlassLogin({});
+    ext.enable();
+    await settle();
+    assert.equal(note().phase, 'starting');
+    fake.stSettings.high_contrast = true;
+    fake.stSettings.emit('notify::high-contrast');
+    fake.laters.run();
+    assert.equal(layer(fake.screenShield._lockDialogGroup), null);
+    fake.timeouts.advance(1999);
+    assert.equal(note().phase, 'starting');
+    fake.timeouts.advance(1);
+    assert.equal(note().phase, 'ok', 'drawing nothing on purpose is no failure, whenever it began');
+    ext.disable();
+});
+
+test('a login before the glass is up does not count as a login through the glass', async () => {
+    const fake = makeGreeter();
+    fake.bgNeverLoads = true;
+    const ext = new FedoraGlassLogin({});
+    ext.enable();
+    await settle();
+    const verifier = fake.screenShield._dialog._authPrompt._userVerifier;
+    verifier.emit('verification-complete');
+    assert.equal(note().verified, '', 'nothing of the glass was seen yet');
+    for (const m of fake.bgManagers)
+        m.emit('loaded');
+    verifier.emit('verification-complete');
+    assert.equal(note().verified, TOKEN, 'with the glass up it counts');
+    ext.disable();
 });
 
 test('a theme reload gets our stylesheet once, never twice', async () => {
@@ -578,7 +763,11 @@ test('no glass before the picture has loaded; not loaded in time: the glow inste
     fake.screenShield._dialog._authPrompt.show();
     fake.laters.run();
     assert.equal(ours().find(a => a.name === 'fedora-glass-login-card').visible, false, 'no card on no glass');
-    fake.timeouts.run(4000);
+    // Built, but nothing of it has been painted yet: the start has not finished. Going
+    // down now, or as the glass first shows, leaves "starting" (no glass the next time).
+    fake.timeouts.advance(3999);
+    assert.equal(note().phase, 'starting', 'not ok before any glass was shown');
+    fake.timeouts.advance(1);
     fake.laters.run();
     await settle();
     assert.equal(fake.bgManagers.size, 0, 'the glow needs no picture');
@@ -586,9 +775,37 @@ test('no glass before the picture has loaded; not loaded in time: the glow inste
     assert.equal(layer(fake.screenShield._lockDialogGroup).opacity, 255);
     assert.equal(smallClock(fake).visible, false, 'the big clock is up: the small one goes');
     assert.ok(logged.some(l => l.includes('did not load within')));
-    fake.timeouts.run(2000);
+    fake.timeouts.advance(1999);
+    assert.equal(note().phase, 'starting', 'the 2 s count from when the glass showed');
+    fake.timeouts.advance(1);
     assert.equal(note().phase, 'ok', 'a picture that will not load is no failure of the add-on');
     ext.disable();
+});
+
+test('a start that goes down as the glass first shows never finished: no glass the next time', async () => {
+    // The picture takes 3 s. GNOME Shell goes down the moment the glass is first painted.
+    const fake = makeGreeter();
+    fake.bgNeverLoads = true;
+    const ext = new FedoraGlassLogin({});
+    ext.enable();
+    await settle();
+    fake.timeouts.advance(3000);
+    for (const m of fake.bgManagers)
+        m.emit('loaded');
+    assert.ok(sheets().every(s => s.visible), 'the glass shows');
+    fake.timeouts.advance(500);
+    assert.equal(note().phase, 'starting');
+    // Killed here: no shutdown, no disable. The next start with the same note draws nothing.
+    const fs = new Map(fake.fs);
+    const next = makeGreeter();
+    next.fs.clear();
+    for (const [k, v] of fs) next.fs.set(k, v);
+    const again = new FedoraGlassLogin({});
+    again.enable();
+    await settle();
+    assert.deepEqual(ours(), [], 'nothing is drawn after a start that never finished');
+    assert.equal(note().phase, 'safe');
+    again.disable();
 });
 
 test('a picture that does not decode: the glow at once', async () => {

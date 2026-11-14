@@ -4,7 +4,46 @@
 # and the window must open. Run by the package jobs (packages.yml) after the install,
 # so a missing dependency or a file the package forgot shows up before a release.
 #   sh qa/package-smoke.sh [command]     (default: the installed fedora-glass)
+#   bash qa/package-smoke.sh --removed   after the package was removed: nothing of the glass
+#                                        login screen may be left on the system
 set -euo pipefail
+
+if [ "${1:-}" = --removed ]; then
+    left=""
+    for f in /usr/libexec/fedora-glass-login \
+             /usr/share/gdm/greeter/gnome-shell/extensions/fedora-glass-login@djshiye.github.io \
+             /usr/lib/systemd/system/fedora-glass-login-guard.service \
+             /usr/lib/systemd/system/fedora-glass-login-guard-check.path \
+             /usr/lib/systemd/system/fedora-glass-login-guard-check.service \
+             /usr/lib/systemd/system/graphical.target.wants/fedora-glass-login-guard.service \
+             /usr/lib/systemd/system/graphical.target.wants/fedora-glass-login-guard-check.path \
+             /etc/dconf/db/fedora-glass-login /etc/fedora-glass /var/lib/fedora-glass/login \
+             /etc/dconf/db/*.d/90-fedora-glass-login /etc/dconf/db/*.d/locks/90-fedora-glass-login; do
+        # -L too: a link whose target is gone still counts.
+        if [ -e "$f" ] || [ -L "$f" ]; then left="$left $f"; fi
+    done
+    # The folder above it goes too. Only the Ubuntu package keeps it after `apt remove`, for
+    # two marks of its own that the next install or a purge takes away (prerm, postrm): it
+    # may stay for those, never empty and never with anything else in it.
+    state=/var/lib/fedora-glass
+    if [ -e "$state" ] || [ -L "$state" ]; then
+        marks=0 other=0
+        if [ -d "$state" ] && ! [ -L "$state" ]; then
+            for f in "$state"/* "$state"/.[!.]* "$state"/..?*; do
+                [ -e "$f" ] || [ -L "$f" ] || continue
+                case "${f##*/}" in
+                    watch-was-on|apt-entry-removed) marks=$((marks + 1)) ;;
+                    *) other=$((other + 1)) ;;
+                esac
+            done
+        fi
+        if [ "$marks" = 0 ] || [ "$other" != 0 ]; then left="$left $state"; fi
+    fi
+    if grep -qsx 'system-db:fedora-glass-login' /etc/dconf/profile/gdm; then left="$left /etc/dconf/profile/gdm(profile line)"; fi
+    [ -z "$left" ] || { echo "the glass login screen left behind:$left"; exit 1; }
+    echo "nothing of the glass login screen is left"
+    exit 0
+fi
 app="${1:-fedora-glass}"
 home="$(mktemp -d)"
 trap 'rm -rf "$home"' EXIT

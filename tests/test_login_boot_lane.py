@@ -438,7 +438,8 @@ class _FakeGuest:
 
     def __init__(self, guard_works=True, glass_draws=True, guard_too_eager=False, confirm_after=0, path_state="active",
                  addon_confirm_after=0, update_keeps_token=False, watcher="stops", stop_after=2,
-                 shell_journal=(), gdm_retries=0):
+                 shell_journal=(), gdm_retries=0, leaves_a_lock=False, guard_condition="yes"):
+        self.leaves_a_lock, self.guard_condition = leaves_a_lock, guard_condition
         self.shell_journal, self.gdm_pending = list(shell_journal), gdm_retries
         self.watcher, self.stop_after, self.on_since = watcher, stop_after, None
         self.addon_confirm_after, self.update_keeps_token = addon_confirm_after, update_keeps_token
@@ -523,8 +524,9 @@ class _FakeGuest:
         if cmd == f"{lb.HELPER} status":
             out = json.dumps({"version": 1, "available": True, "why": "", "state": self.state, "stopped": self.stopped,
                               "values": self.values, "picture_sha256": ""})
-        elif cmd == f"systemctl show -p Result,ExecMainStatus {lb.GUARD}":
-            out = "Result=success\nExecMainStatus=0"
+        elif cmd == f"systemctl show -p Result,ExecMainStatus,ConditionResult,ExecMainStartTimestampMonotonic {lb.GUARD}":
+            out = ("Result=success\nExecMainStatus=0\nConditionResult=" + self.guard_condition +
+                   "\nExecMainStartTimestampMonotonic=" + ("1234" if self.guard_condition == "yes" else "0"))
         elif cmd == "sudo cat /var/lib/fedora-glass/login/state.json":
             out = json.dumps({"silent_boots": self.silent, "route": "a", "db": "gdm",
                               "trial_boots": self.boots}) if self.state != "off" else ""
@@ -603,7 +605,7 @@ class _FakeGuest:
         if args == ("dconf-state",):
             exts = f"['{lb.UUID}']" if on else "@as []"
             etc = [{"path": ".", "kind": "d", "mode": "0o755", "owner": "0:0"}]
-            if on:
+            if on or (self.removed and self.leaves_a_lock):
                 etc.append({"path": "db/gdm.d/50-fedora-glass", "kind": "f", "mode": "0o644", "owner": "0:0", "sha256": "x"})
             return {"gsettings": {"org.gnome.shell enabled-extensions": exts}, "dump": exts, "etc": etc}
         if args == ("denials",):
@@ -627,7 +629,7 @@ def test_every_step_passes_on_a_pc_that_keeps_the_contract(monkeypatch, tmp_path
     out = capsys.readouterr().out
     assert "----- BEGIN PNG 01-plain (64x40) -----" in out and "----- BEGIN PNG 02-glass (64x40) -----" in out
     assert out.count("PASS step") == 12
-    assert "silent_boots: 0" in out and out.count("the boot guard ran and succeeded") == 2
+    assert "silent_boots: 0" in out and out.count("the boot guard ran in this boot and succeeded") == 2
     assert guest.cmds.count(f"sudo journalctl -b -u {lb.GUARD} --no-pager") == 2
     assert not any("systemd-analyze" in c for c in guest.cmds)        # only printed on a failure
     assert json.loads((tmp_path / "results.json").read_text())["results"]["removal"] == "PASS"
@@ -660,6 +662,18 @@ def test_a_guard_that_turns_the_glass_off_on_a_plain_reboot_fails_restart(monkey
     assert f"systemd-analyze security {lb.GUARD} | tail -3" in guest.cmds
     assert f"sudo journalctl -b -u {lb.GUARD} --no-pager -n 200" in guest.cmds
     assert "----- BEGIN PNG fail-restart" in capsys.readouterr().out
+
+
+def test_a_removal_that_leaves_a_file_under_etc_dconf_fails_the_removal_step(monkeypatch, tmp_path):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(leaves_a_lock=True))
+    assert not lane.run(lb.plan())
+    assert lane.results["removal"] == "FAIL" and "/etc/dconf is as it was" in lane.notes["removal"]
+
+
+def test_a_guard_that_did_not_run_this_boot_fails_restart_although_systemd_says_success(monkeypatch, tmp_path):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(guard_condition="no"))
+    assert not lane.run(lb.plan())
+    assert lane.results["restart"] == "FAIL" and "the boot guard ran in this boot" in lane.notes["restart"]
 
 
 # ---- L1: a download that ends early carries on with a Range request -----------------------------

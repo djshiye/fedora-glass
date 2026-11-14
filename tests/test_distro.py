@@ -329,9 +329,13 @@ def _sh(script: str, *args: str, state: Path):
 
 
 def _spec_section(name: str) -> str:
-    """The body of one scriptlet of the main package (not -n liquid-glass) in the spec."""
+    """The body of one scriptlet in the spec, named as on its header line ("postun" is the
+    main package's, "postun -n liquid-glass" the old-name package's), with the spec's own
+    multi-line macros written out as rpm puts them into the scriptlet."""
     spec = (PKG / "fedora-glass.spec").read_text()
-    m = re.search(r"^%" + name + r"\n(.*?)(?=^%[a-z])", spec, re.M | re.S)
+    for macro, body in re.findall(r"^%define (\w+) \\\n(.*?)^%\{nil\}\n", spec, re.M | re.S):
+        spec = spec.replace("%{" + macro + "}", "\n".join(re.sub(r" \\$", "", x) for x in body.splitlines()))
+    m = re.search(r"^%" + re.escape(name) + r"\n(.*?)(?=^%[a-z])", spec, re.M | re.S)
     assert m, name
     return m.group(1)
 
@@ -344,8 +348,23 @@ def test_rpm_removal_takes_the_empty_login_screen_folder_but_never_on_upgrade(tm
     assert _sh(body, "0", state=state).returncode == 0 and not state.exists()
     state = _login_state(tmp_path, ["login-screen.json"])
     assert _sh(body, "0", state=state).returncode == 0 and (state / "login-screen.json").is_file()
-    # Only the app that has the login screen helper does it (the liquid-glass stand-in is replaced by it).
-    assert not re.search(r"^%postun -n liquid-glass", (PKG / "fedora-glass.spec").read_text(), re.M)
+
+
+def test_rpm_old_name_package_takes_the_folder_only_when_it_is_not_being_replaced(tmp_path):
+    marker = tmp_path / "main-package"
+    body = _spec_section("postun -n liquid-glass")
+    assert "%{_prefix}/lib/fedora-glass/main-package" in body
+    body = body.replace("%{_prefix}/lib/fedora-glass/main-package", str(marker))
+    # fedora-glass replaces it: that package's own file is there already, so nothing is taken.
+    marker.write_text("")
+    state = _login_state(tmp_path)
+    assert _sh(body, "0", state=state).returncode == 0 and state.is_dir()
+    # Removed on its own: the same tidy-up as the main package, and never on an upgrade.
+    marker.unlink()
+    assert _sh(body, "1", state=state).returncode == 0 and state.is_dir()
+    assert _sh(body, "0", state=state).returncode == 0 and not state.exists()
+    state = _login_state(tmp_path, ["login-screen.json"])
+    assert _sh(body, "0", state=state).returncode == 0 and (state / "login-screen.json").is_file()
 
 
 def test_arch_removal_takes_the_empty_login_screen_folder_but_never_on_upgrade(tmp_path):

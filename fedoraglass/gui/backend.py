@@ -397,6 +397,18 @@ class Backend(QObject):
         self._gl_picture_failed = False
         self._gl_see_proc: QProcess | None = None
         self._gl_see_note = ""
+        # A helper step ended and the status that says what it did isn't in yet: the card
+        # waits for it rather than show the state from before.
+        self._gl_after_run = False
+        # What Apply or Restore asked of the login screen while a step, a status read or the
+        # wallpaper's copy was still under way: run once that ends (only the latest Apply).
+        self._gl_pending_refresh: Settings | None = None
+        self._gl_pending_off = False
+        # Restore asked the status once more because it could not be read (once per Restore).
+        self._gl_off_asked = False
+        # The glass may be on (an `on` ran, or the last good status said so): Restore turns
+        # it off even when the status can't be read just then.
+        self._gl_maybe_on = False
         self._read_glass_status()
         # Removing the app (Restore original, then dnf remove through pkexec).
         self._remove_proc: QProcess | None = None
@@ -589,12 +601,13 @@ class Backend(QObject):
         new = loaded.settings
         if not loaded.usable:
             return
-        if self._took_day_night_look(old, new):
-            return
-        if not wallcolour.follows(old) or all(getattr(new, k) == getattr(old, k) for k in self._WALL_KEYS):
-            return
         same = {k: getattr(old, k) for k in self._WALL_KEYS}
-        if asdict(replace(new, **same).normalized()) != asdict(old.normalized()):
+        # Only the wallpaper's colours changed: taken as such below, also when day and night
+        # looks are picked, so the editor's colours follow even while it has unapplied changes.
+        wall_only = wallcolour.follows(old) and any(getattr(new, k) != getattr(old, k) for k in self._WALL_KEYS) \
+            and asdict(replace(new, **same).normalized()) == asdict(old.normalized())
+        if not wall_only:
+            self._took_day_night_look(old, new)
             return
         took = {k: getattr(new, k) for k in self._WALL_KEYS}
         self._saved = replace(old, **took)
@@ -736,6 +749,11 @@ class Backend(QObject):
                 changed = True
         if changed:
             self.wallpaperChanged.emit()
+            # The login screen copies the wallpaper: start its copy now, so the card soon
+            # says it is behind and Apply finds it ready.
+            if self._glass_on():
+                self._cached_login_picture()
+            self.loginGlassChanged.emit()
 
     def _find_dock(self) -> list[dict]:
         """The real dock: installed favourites, then the apps the preview shows running."""
@@ -2355,10 +2373,14 @@ class Backend(QObject):
     def loginGlass(self) -> str:
         """The painted glass: off, on, undone, unavailable, or busy while either helper
         runs (closing the app waits for that, see Main.qml)."""
-        return "busy" if self._login_busy() else self._login_state
+        return "busy" if self._login_shown_busy() else self._login_state
 
     def _login_busy(self) -> bool:
-        return self._login_proc is not None or self._gl_preparing
+        return self._login_proc is not None or self._gl_preparing or self._gl_after_run
+
+    def _login_shown_busy(self) -> bool:
+        """Busy, or a step Apply or Restore asked for is still to come (closing waits for it)."""
+        return self._login_busy() or self._gl_pending_off or self._gl_pending_refresh is not None
 
     @Property(str, notify=loginGlassChanged)
     def loginGlassNote(self) -> str:
@@ -2372,7 +2394,10 @@ class Backend(QObject):
     def _login_stale(self, s: Settings | None = None) -> bool:
         """Glass is on the login screen, but not the look Apply gives now: other colours,
         or the rules of an older Fedora Glass (1.5.7 made the password prompt compact).
-        For the glass login screen: its values or picture differ from the look's."""
+        For the glass login screen: its values or picture differ from the look's. Never while
+        a Turn off is unfinished: Apply leaves the login screen alone then."""
+        if self._glass_leaving():
+            return False
         return self._glass_behind(self._saved if s is None else s) or self._old_stale(s)
 
     def _old_stale(self, s: Settings | None = None) -> bool:
@@ -2385,7 +2410,7 @@ class Backend(QObject):
 
     @Property(bool, notify=loginGlassChanged)
     def loginGlassStale(self) -> bool:
-        return not self._login_busy() and self._login_stale(self._saved)
+        return not self._login_shown_busy() and self._login_stale(self._saved)
 
     def login_values(self, s: Settings | None = None) -> list[str]:
         """The three values the painted glass takes: accent, tint and frost from the current
@@ -2456,6 +2481,8 @@ class Backend(QObject):
         p.errorOccurred.connect(lambda e: self._login_finished(p, -1, step)
                                 if e == QProcess.ProcessError.FailedToStart else None)
         self._login_proc = p
+        if step.get("cmd") == "on":
+            self._gl_maybe_on = True
         self.loginGlassChanged.emit()
         p.start()
         # The picture goes on stdin (pkexec passes it through): root never opens a file of
@@ -2481,17 +2508,18 @@ class Backend(QObject):
             self._login_note = _("Not changed: the password wasn't given.")
         elif step["helper"] == "new":
             self._login_failed = True
-            self._login_note = self._glass_failure(code, out, err, step.get("cmd", ""))
+            self._login_note = self._glass_failure(code, out, err, step.get("cmd", ""), step.get("update", False))
         else:
             self._login_failed = True
             first = err.splitlines()[-1] if err else _("the helper didn't finish")
             self._login_note = first if first.startswith("Nothing was changed") else _("Nothing was changed: {reason}").format(reason=first)
         self._login_state = self._read_login_state()
+        self._gl_after_run = True
         self._read_glass_status()
         self.loginGlassChanged.emit()
 
     @staticmethod
-    def _glass_failure(code: int, out: str, err: str, cmd: str = "on") -> str:
+    def _glass_failure(code: int, out: str, err: str, cmd: str = "on", update: bool = False) -> str:
         """The new helper's exit codes, in plain words (login-contract.md)."""
         if cmd == "off":
             # `off` keeps going past a part it can't remove, then says 4: some of it may be
@@ -2503,6 +2531,9 @@ class Backend(QObject):
         elif code == 3:
             word = (out.split() or [""])[-1]
             reason = loginlook.why_text(word if word in loginlook.WHY else "error")
+        elif code == 4 and update:
+            # The helper rolled back to the glass that was on: that one stays, not GNOME's.
+            reason = _("the new look could not be set up, so the login screen keeps the look it had")
         elif code == 4:
             reason = _("it could not be set up, so the normal login screen stays")
         else:
@@ -2514,9 +2545,10 @@ class Backend(QObject):
         """Ask the helper how the login screen is (no root needed), off the UI thread's
         back: the answer comes with loginGlassChanged."""
         if not self._root_owned(self.GLASS_LOGIN):
-            if self._gl_status is not None or self._gl_checking:
-                self._gl_status, self._gl_checking = None, False
+            if self._gl_status is not None or self._gl_checking or self._gl_after_run:
+                self._gl_status, self._gl_checking, self._gl_after_run = None, False, False
                 self.loginGlassChanged.emit()
+            self._login_settle()
             return
         if self._gl_status_proc is not None:
             self._gl_reread = True        # ask again once this answer is in
@@ -2525,7 +2557,9 @@ class Backend(QObject):
         p.setProgram(str(self.GLASS_LOGIN))
         p.setArguments(["status"])
         p.setStandardInputFile(QProcess.nullDevice())
-        p.finished.connect(lambda code, _status: self._glass_status_done(p, code))
+        # Killed for taking too long counts as no answer, whatever it printed by then.
+        p.finished.connect(lambda code, status: self._glass_status_done(
+            p, code if status == QProcess.ExitStatus.NormalExit else -1))
         p.errorOccurred.connect(lambda e: self._glass_status_done(p, -1)
                                 if e == QProcess.ProcessError.FailedToStart else None)
         QTimer.singleShot(self.GLASS_STATUS_TIMEOUT, p, p.kill)
@@ -2540,15 +2574,22 @@ class Backend(QObject):
         p.deleteLater()
         st = loginlook.parse_status(text) if code == 0 else None
         if st is None:
-            # Not the helper's answer: nothing can be offered, and nothing is claimed to be on.
+            # Not the helper's answer (or none in time): it can't be told now whether the
+            # glass is on, so nothing is offered, the painted glass neither, and it is
+            # asked again when the page shows or after the next step.
             st = {"available": False, "why": "error", "state": "off", "stopped": "", "values": None,
-                  "picture_sha256": ""}
+                  "picture_sha256": "", "leaving": False, "unknown": True}
+        else:
+            self._gl_maybe_on = st["state"] in ("on", "trial") or st["leaving"]
         self._gl_status = st
         self._gl_checking = False
         if self._gl_reread:
             self._gl_reread = False
             self._read_glass_status()
+        else:
+            self._gl_after_run = False
         self.loginGlassChanged.emit()
+        self._login_settle()
 
     @Slot(result=bool)
     def waitLoginGlass(self) -> bool:
@@ -2565,8 +2606,25 @@ class Backend(QObject):
         return self._gl_status_proc is None and self._gl_pic_task is None and self._login_proc is None
 
     def _glass_on(self) -> bool:
+        """On or on trial. Not while a Turn off is unfinished: then it counts as off."""
         st = self._gl_status
-        return bool(st) and st["state"] in ("on", "trial")
+        return bool(st) and st["state"] in ("on", "trial") and not st.get("leaving")
+
+    def _glass_leaving(self) -> bool:
+        """A Turn off did not finish: only another Turn off (or Restore) is offered, never
+        `on`, which would start the glass again."""
+        st = self._gl_status
+        return bool(st) and bool(st.get("leaving"))
+
+    def _glass_unknown(self) -> bool:
+        st = self._gl_status
+        return bool(st) and bool(st.get("unknown"))
+
+    @Slot()
+    def checkGlassLogin(self) -> None:
+        """The page shows: a status that couldn't be read before is asked again."""
+        if self._glass_unknown():
+            self._read_glass_status()
 
     @Property(str, notify=loginGlassChanged)
     def loginCardKind(self) -> str:
@@ -2578,7 +2636,7 @@ class Backend(QObject):
             return ""
         if st is None:
             return old
-        if st["available"] or st["state"] != "off" or not old:
+        if st["available"] or st["state"] != "off" or st.get("leaving") or st.get("unknown") or not old:
             return "new"
         return "old"
 
@@ -2612,12 +2670,15 @@ class Backend(QObject):
 
     @Property(str, notify=loginGlassChanged)
     def glassLoginState(self) -> str:
-        """busy, off, trial, on, behind, stopped (turned itself off) or unavailable."""
+        """busy, off, trial, on, behind, stopped (turned itself off), leaving (a Turn off did
+        not finish) or unavailable (also while the status can't be read)."""
         st = self._gl_status
-        if self._login_busy():
+        if self._login_shown_busy():
             return "busy"
         if st is None:
             return "unavailable"
+        if st.get("leaving"):
+            return "leaving"
         if st["state"] in ("on", "trial"):
             if not st["available"]:
                 return "unavailable"
@@ -2632,7 +2693,11 @@ class Backend(QObject):
         state = self.glassLoginState
         st = self._gl_status or {}
         if state == "busy":
-            return _("Getting your wallpaper ready…") if self._gl_preparing else _("Waiting for your password…")
+            if self._gl_preparing:
+                return _("Getting your wallpaper ready…")
+            return _("Waiting for your password…") if self._login_proc is not None else _("Checking the login screen…")
+        if state == "leaving":
+            return _("Not fully off yet: Turn off finishes it")
         if state == "trial":
             return _("On trial: log in once and it stays on")
         if state == "on":
@@ -2653,7 +2718,13 @@ class Backend(QObject):
     @Property(bool, notify=loginGlassChanged)
     def glassLoginCanTurnOn(self) -> bool:
         st = self._gl_status
-        return bool(st) and st["available"] and not self._glass_on() and self._glass_login_available()
+        return bool(st) and st["available"] and not self._glass_on() and not self._glass_leaving() \
+            and self._glass_login_available()
+
+    @Property(bool, notify=loginGlassChanged)
+    def glassLoginLeaving(self) -> bool:
+        """A Turn off did not finish: the card offers Turn off only."""
+        return self._glass_leaving()
 
     @Property(bool, notify=loginGlassChanged)
     def glassLoginReplacesPainted(self) -> bool:
@@ -2754,6 +2825,7 @@ class Backend(QObject):
         for cb in waiters:
             cb(data)
         self.loginGlassChanged.emit()
+        self._login_settle()
 
     def _with_login_picture(self, then: Callable[[bytes | None], None]) -> None:
         """Call `then` with the wallpaper's bytes (None: it can't be read), right away when
@@ -2781,7 +2853,9 @@ class Backend(QObject):
                                      "Glow or the system picture work without it.")
                 self.loginGlassChanged.emit()
                 return
-            then([*before, self._new_step(["on", arg], done, data or b"")])
+            step = self._new_step(["on", arg], done, data or b"")
+            step["update"] = self._glass_on()       # a failure then keeps the glass that is on
+            then([*before, step])
         if values["picture"] == "wallpaper":
             self._with_login_picture(go)
         else:
@@ -2819,10 +2893,46 @@ class Backend(QObject):
             return
         self._run_login_steps([self._new_step(["off"], _("The normal login screen is back."))])
 
+    def _login_waiting(self) -> bool:
+        """A helper step, a status read or the wallpaper's copy is under way: what the login
+        screen has is not known well enough yet to decide what to run."""
+        return self._login_busy() or self._gl_status_proc is not None
+
+    def _login_settle(self) -> None:
+        """Run what Restore or Apply left waiting, once nothing is under way any more."""
+        if self._login_waiting():
+            return
+        if self._gl_pending_off:
+            self._gl_pending_off = False
+            self._login_off_after_restore()
+        elif self._gl_pending_refresh is not None:
+            s, self._gl_pending_refresh = self._gl_pending_refresh, None
+            self._login_refresh(s)
+        else:
+            return
+        self.loginGlassChanged.emit()
+
     def _login_refresh(self, s: Settings) -> None:
         """After Apply: bring whichever login screen glass is on up to date (one password
         prompt each, only when it is behind)."""
         old = _("The login screen has your new look. You'll see it the next time you restart your PC.")
+        if self._login_waiting():
+            # Decided once that ends, with the latest Apply's look.
+            self._gl_pending_refresh = s
+            self.loginGlassChanged.emit()
+            return
+        if self._glass_leaving():
+            # `on` would finish the off and start the glass again: only Turn off is offered.
+            self.loginGlassChanged.emit()
+            return
+        if self._glass_on() and self._glass_login_available() and self.glass_login_values(s)["picture"] == "wallpaper":
+            # The wallpaper changed and its copy isn't ready yet: decided once it is, so one
+            # Apply brings the new picture along.
+            self._gl_pending_refresh, self._gl_preparing = s, True
+            if self._cached_login_picture() is None:
+                self.loginGlassChanged.emit()
+                return
+            self._gl_pending_refresh, self._gl_preparing = None, False
         if self._glass_behind(s) and self._glass_login_available():
             # The painted glass is never on beside it (turning this on took it off).
             self._glass_on_steps(s, _("The login screen has your new look. You'll see it the next time it shows."),
@@ -2834,9 +2944,24 @@ class Backend(QObject):
 
     def _login_off_after_restore(self) -> None:
         """Restore original: the normal login screen comes back too. The password is asked
-        for only when one of them is actually on."""
+        for only when one of them is actually on. Decided once any step or status read under
+        way has ended, so a glass being turned on right now goes off too."""
+        if self._login_waiting():
+            self._gl_pending_off = True
+            self._gl_pending_refresh = None        # the look Restore takes away
+            self._gl_pic_waiters = []              # and a Turn on still waiting for its picture
+            self.loginGlassChanged.emit()
+            return
+        if self._glass_unknown() and not self._gl_off_asked:
+            # It could not be told whether the glass is on: ask once more before deciding.
+            self._gl_off_asked = self._gl_pending_off = True
+            self.loginGlassChanged.emit()
+            self._read_glass_status()
+            return
+        self._gl_off_asked = False
         steps = []
-        if self._glass_on() and self._glass_login_available():
+        maybe_on = self._glass_on() or self._glass_leaving() or (self._glass_unknown() and self._gl_maybe_on)
+        if maybe_on and self._glass_login_available():
             steps.append(self._new_step(["off"], _("The normal login screen is back.")))
         if self._login_state in ("on", "undone") and self._login_available():
             steps.append(self._old_step(["undo"], _("The normal login screen is back.")))
@@ -2858,8 +2983,9 @@ class Backend(QObject):
             self._see_failed()
             return
         lock = QProcess(self)
-        lock.finished.connect(lambda _c, _s: self._create_login_display(lock, gdbus))
-        lock.errorOccurred.connect(lambda e: self._create_login_display(lock, gdbus)
+        lock.finished.connect(lambda code, st: self._create_login_display(
+            lock, gdbus, code if st == QProcess.ExitStatus.NormalExit else -1))
+        lock.errorOccurred.connect(lambda e: self._create_login_display(lock, gdbus, -1)
                                    if e == QProcess.ProcessError.FailedToStart else None)
         self._gl_see_proc = lock
         lock.start(gdbus, ["call", "--session", "--dest", "org.gnome.ScreenSaver",
@@ -2873,10 +2999,14 @@ class Backend(QObject):
             return False
         return (v or "").strip() == "true"
 
-    def _create_login_display(self, lock: QProcess, gdbus: str) -> None:
+    def _create_login_display(self, lock: QProcess, gdbus: str, code: int) -> None:
         if self._gl_see_proc is not lock:
             return
         lock.deleteLater()
+        if code != 0:
+            # Not locked: a login screen beside an open session would leave it unattended.
+            self._see_failed()
+            return
         p = QProcess(self)
         p.finished.connect(lambda code, _s: self._see_done(p, code))
         p.errorOccurred.connect(lambda e: self._see_done(p, -1) if e == QProcess.ProcessError.FailedToStart else None)

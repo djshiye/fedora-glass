@@ -118,6 +118,30 @@ def test_the_watchers_look_never_takes_unapplied_changes_away(qml, fake_env, tmp
     assert _disk(tmp_path)["frost"] == pytest.approx(0.9)
 
 
+def test_a_new_wallpapers_colour_reaches_the_editor_with_looks_picked(qml, fake_env, tmp_path):
+    """Day and night looks picked, unapplied changes in the editor, and the watcher took the
+    tint of a new wallpaper (nothing else changed): the editor takes that tint too, so
+    See changes does not offer to put the old one back."""
+    b = _backend(fake_env, tmp_path)
+    night = b.saveLook("Night")
+    b.setProperty("scheme", "auto")
+    b.setProperty("tintFromWallpaper", True)
+    _apply(b)
+    b.setProperty("lookForDark", night)
+    b.setProperty("radius", 5)          # the user is busy with something
+    path = _cfg(tmp_path)
+    s = settings_mod.load(path)
+    assert s.tint_from_wallpaper and s.look_for_dark == night
+    new_tint = "#cc8899" if s.tint != "#cc8899" else "#336699"
+    settings_mod.save(replace(s, tint=new_tint, wallpaper_match="/new.png|1|2|dark"), path)
+    _bump(path)
+    b._poll_saved_colours()
+    assert b.settings().tint == new_tint and b.property("tint") == new_tint
+    assert b.settings().radius == 5, "the unapplied change stays"
+    keys = {r["key"] for r in b.property("changeList")}
+    assert "radius" in keys and "tint" not in keys
+
+
 def test_other_changes_on_disk_are_still_left_alone(qml, fake_env, tmp_path):
     b = _backend(fake_env, tmp_path)
     night = b.saveLook("Night")
