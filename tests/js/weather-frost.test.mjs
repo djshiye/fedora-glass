@@ -298,7 +298,7 @@ test('a dew point over the temperature (a rounding in the weather) is taken as t
 
 test('the frost shader is plain GLSL both GNOME Shell and the app take', () => {
     const g = M.ICE_GLSL;
-    for (const fn of ['iceHash', 'iceNoise', 'iceSheet', 'iceField', 'iceBend', 'iceLook'])
+    for (const fn of ['iceHash', 'iceNoise', 'iceSkin', 'iceField', 'iceBend', 'iceLook'])
         assert.ok(g.includes(` ${fn}(`), fn);
     assert.ok(!/`|\$\{/.test(g), 'nothing that would break the shader\'s JS string');
     assert.ok(!/\b(texture|uniform|OFF)\b/.test(g), 'uses only its own arguments');
@@ -306,3 +306,37 @@ test('the frost shader is plain GLSL both GNOME Shell and the app take', () => {
     const code = g.replace(/\/\/.*$/gm, '');
     assert.ok(!/\b(fern|needle|crystal|star|glint|flake|drop|branch)/i.test(code), 'no patterns: just frost and ice');
 });
+
+test('frozen glass is stiff: the further it has frozen over, the less liquid it is', () => {
+    // Not frozen: your own "How liquid", untouched.
+    for (const set of [0.25, 1, 2.5])
+        assert.equal(M.frozenLiquid(set, 0), set);
+    // All ice: a quarter of it, and never under the least the slider goes to.
+    assert.ok(Math.abs(M.frozenLiquid(2, 1) - 2 * (1 - M.FROZEN_STIFF)) < 1e-9);
+    assert.equal(M.frozenLiquid(1, 1), 0.25);
+    assert.equal(M.frozenLiquid(0.25, 1), 0.25);
+    // In between it eases off, step by step.
+    let last = M.frozenLiquid(2.5, 0);
+    for (const k of [0.2, 0.4, 0.6, 0.8, 1]) {
+        const now = M.frozenLiquid(2.5, k);
+        assert.ok(now < last, `less liquid at ${k}`);
+        last = now;
+    }
+    // Liquid at 1 or under has no pull along a drag (motion.js): frozen glass is not drawn out.
+    assert.ok(M.frozenLiquid(2.5, 1) <= 1);
+    // Out of range counts as its nearest end.
+    assert.equal(M.frozenLiquid(1, 7), M.frozenLiquid(1, 1));
+    assert.equal(M.frozenLiquid(1, -3), 1);
+});
+
+test('the ice knows what lies over a menu: its veil and its own soft shadow', () => {
+    // config.js passes the theme's shadow under the veil through, checked.
+    const look = (shade) => C.parse(JSON.stringify({version: 1, menus: {enabled: true, look: {shade}}})).menus.look.shade;
+    assert.equal(look(0.36), 0.36);
+    assert.equal(look(5), 0.9);
+    // None unless the theme says so (glass.js reads a missing one as 0).
+    assert.equal(look('x') ?? 0, 0);
+    assert.equal(C.parse('{}').menus.look.shade ?? 0, 0);
+    assert.equal(look(-1), 0);
+});
+

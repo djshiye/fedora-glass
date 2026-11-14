@@ -138,6 +138,8 @@ const STUBS = {
     export function moving() {} export function stopMoving() {} export function releaseAllPanes() {}
     export function setQuality(l) { globalThis.fake.quality = l; }
     export function setFrost(f, k) { (globalThis.fake.frosts ??= []).push([f, k]); }
+    export function getFrost() { return {frost: 0, flakes: globalThis.fake.flakes ?? 0, blur: 0}; }
+    export function liquidNow(l) { return l * (1 - 0.75 * (globalThis.fake.flakes ?? 0)); }
     export function glassRenders() { return globalThis.fake.renders ?? 0; }
     export function redrawAllPanes() {}
     export function shownPanes() { return globalThis.fake.shown ?? 0; }`,

@@ -25,6 +25,7 @@ COOL_TOP = 0.5
 FLAKES_START = 0.4
 FLAKES_SPAN = 10
 FROST_BLUR = 18
+FROZEN_STIFF = 0.75
 
 # Where GNOME Weather's launcher is, installed from the distro or as a Flatpak.
 WEATHER_APP = "org.gnome.Weather.desktop"
@@ -63,7 +64,7 @@ def _humidity(temp: float | None, dew: float | None) -> float:
 def frost_for(temp: float | None, cool: int, cold: int, freezing: int, amount: float = 1.0,
               dew: float | None = None) -> dict:
     """{level, frost, flakes} for `temp` °C and dew point `dew`, as frostmath.js frostFor
-    (thresholds already clean). flakes is how far the glass has iced over from its edges."""
+    (thresholds already clean). flakes is how far the glass has frozen over, edges first."""
     if not _finite(temp) or temp >= cool:
         return {"level": "neutral", "frost": 0.0, "flakes": 0.0}
     flakes = 0.0
@@ -81,6 +82,12 @@ def frost_for(temp: float | None, cool: int, cold: int, freezing: int, amount: f
     h = _humidity(temp, dew)
     return {"level": level, "frost": _round3(_clamp(frost * h, 0, 1) * a),
             "flakes": _round3(_clamp(flakes * h, 0, 1) * a)}
+
+
+def frozen_give(flakes: float) -> float:
+    """How much of its give the glass keeps while frozen, 1 = all of it: ice is stiff, so the
+    liquid motion eases off as the glass freezes over (frostmath.js frozenLiquid)."""
+    return _round3(1 - FROZEN_STIFF * _clamp(flakes, 0, 1))
 
 
 def frost_blur(frost: float) -> float:

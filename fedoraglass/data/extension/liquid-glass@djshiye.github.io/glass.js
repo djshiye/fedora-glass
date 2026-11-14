@@ -37,7 +37,7 @@ import Meta from 'gi://Meta';
 import {PACKAGE_VERSION} from 'resource:///org/gnome/shell/misc/config.js';
 import System from 'system';
 
-import {ICE_GLSL, frostBlur} from './frostmath.js';
+import {ICE_GLSL, frostBlur, frozenLiquid} from './frostmath.js';
 import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
@@ -107,9 +107,10 @@ uniform float veil_r;            // the theme's veil painted over this glass (st
 uniform float veil_g;            // the line is drawn so it still reads as bright through it
 uniform float veil_b;
 uniform float veil_a;
+uniform float veil_shade;        // 0..1: the theme's own soft shadow, which fills a menu under its veil
 uniform float text_shade;
 uniform float frost;             // 0..1, weather frost (frost.js): the glass mists over in the cold
-uniform float flakes;            // 0..1, and below freezing it ices over from its edges
+uniform float flakes;            // 0..1, and below freezing it freezes over: a skin of ice, edges first
 // A pane can draw one part of a bigger glass (the rim over an app window is four
 // thin strips): shape_* is that whole glass, padding included, and where this pane
 // starts in it. Every other pane is the whole of its glass: shape_w/h = width/height.
@@ -577,18 +578,18 @@ void main() {
         return;
     }
 
-    // Weather frost, below freezing: the glass is under a sheet of ice that has grown in
-    // from its edges (frostmath.js). Where the ice is and how it slopes is worked out
-    // first, because what is behind bends as it comes through it. Only the band the ice
-    // can reach is worked out; weather frost off, or above freezing: skipped. No ice grows
-    // in from a side that lies on the screen's edge (cc, hh: those sides are far away).
+    // Weather frost, below freezing: the glass freezes over (frostmath.js). Where the ice
+    // lies and what its skin is like is worked out first, because what is behind is
+    // scattered as it comes through. Weather frost off, or above freezing: skipped. The
+    // skin is lit by the light where it rests, not where the pointer draws it, so the
+    // ice lies still. A side that lies on the screen's edge is no cold edge (cc, hh:
+    // those sides are far away).
     float shortIce = 2.0 * min(h.x, h.y);
-    float iceReach = min(0.3 * shortIce, 72.0);
     float iceOn = smoothstep(0.0, 0.25, flakes);     // it sets in softly at freezing
-    vec3 iceF = vec3(0.0);
+    vec4 iceF = vec4(0.0);
     vec2 pxi = px;
-    if (flakes > OFF && mode < 1.5 && inside < iceReach * 1.2 + 4.0) {
-        iceF = iceField(cc, hh, px + at0, iceReach, flakes);
+    if (flakes > OFF && mode < 1.5) {
+        iceF = iceField(cc, hh, px + at0, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);
         pxi += iceBend(iceF) * iceOn;
     }
 
@@ -694,7 +695,7 @@ void main() {
     // it is coldest, its colours cooler and paler, with the fine even grain of frosted
     // glass. Before the ceiling, so white text on dark glass keeps its contrast; dark glass
     // mists less for that too. Below freezing the mist at the edges has frozen into the
-    // ice there, which is clear. Weather frost off, or warm enough out: skipped.
+    // ice there. Weather frost off, or warm enough out: skipped.
     if (frost > OFF && mode < 1.5) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         float rimF = (1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside)) * (1.0 - 0.7 * flakes);
@@ -790,15 +791,23 @@ void main() {
         }
     }
 
-    // Below freezing, the ice itself (frostmath.js iceLook): clear and cool blue, a white
-    // crust at the glass's edge, and a rounded front that catches the light. Worked out on
-    // what shows through the theme's veil, and drawn so it reads through it. The middle,
-    // where text sits, has no ice and stays clear.
+    // Below freezing, the ice itself (frostmath.js iceLook): a cyan skin of ice over the
+    // pane with frost blooming white at its edges. Worked out on what shows through the
+    // theme's veil, and drawn so it reads through it. Its colours are chosen so text keeps
+    // its contrast: a deep cyan under white text, a pale one under dark text.
     if (iceF.x > OFF) {
-        vec3 seen = col.rgb / max(col.a, 1e-3) * (1.0 - veil_a) + vec3(veil_r, veil_g, veil_b) * veil_a;
+        // What lies over the glass: the theme's veil and, on a menu, its soft shadow under
+        // that (St fills the whole box with it). Without the shadow the ice of a dark menu
+        // came out a third too dark, a dull steel blue.
+        vec3 vl = vec3(veil_r, veil_g, veil_b) * veil_a;
+        float passes = (1.0 - veil_a) * (1.0 - veil_shade);
+        vec3 seen = col.rgb / max(col.a, 1e-3) * passes + vl;
         vec2 sqi = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
-        vec3 iced = iceLook(seen, iceF, L, light_glass, inside, iceReach, clamp(dot(sqi, L), -1.0, 1.0));
-        col.rgb = throughVeil(mix(seen, iced, iceOn)) * col.a;
+        vec3 iced = iceLook(seen, iceF, px + at0, inside, light_glass, shortIce, clamp(dot(sqi, L), -1.0, 1.0));
+        // Through them in its own colour: a white they cannot show is dimmed as a whole.
+        // Cut off channel by channel, the frost at the edge of dark glass went brown.
+        vec3 raw = max((mix(seen, clamp(iced, 0.0, 1.0), iceOn) - vl) / max(passes, 0.05), 0.0);
+        col.rgb = raw / max(1.0, max(raw.r, max(raw.g, raw.b))) * col.a;
     }
 
     // Reflection of the real surroundings. A ray mirrored off the rounded edge
@@ -827,6 +836,9 @@ void main() {
         // Fade in from the flat top: no hard line where the bevel starts, which a
         // press would tilt into stair-steps.
         a *= smoothstep(0.0, 0.25, x);
+        // Frost is matt: an edge under ice mirrors little of the room, so the frost there
+        // stays white instead of taking the wallpaper's colour.
+        a *= 1.0 - 0.8 * iceF.x * iceOn;
         // Restraint: the reflection may light the edge only a little above the glass
         // itself, so a bright backdrop gives no brighter a line than a dark one.
         vec3 base = col.rgb / max(col.a, 1e-3);
@@ -1588,6 +1600,7 @@ export const DEFAULT_LOOK = Object.freeze({
     rim: 0.85,          // 0..1, the thin bright line along the very edge
     veil: [0, 0, 0, 0], // straight rgba: the theme's veil over this glass, so the line reads through it
     textShade: 0,       // 0..1, a soft shade right behind bright text (clear glass)
+    shade: 0,           // 0..0.9, the theme's own soft shadow under the veil (it fills a menu's box)
 });
 
 /**
@@ -1663,7 +1676,7 @@ export function getQuality() {
 }
 
 // Weather frost (frost.js): how frosty all the glass is now, 0..1, and how far it has
-// iced over from its edges. Both 0 unless weather frost is on and it is cool out. A change sets two numbers on each
+// frozen over. Both 0 unless weather frost is on and it is cool out. A change sets two numbers on each
 // pane, so it is drawn again from the copy it already has; only when the extra blur
 // steps (frostBlur) is the backdrop blurred again.
 let frostNow = {frost: 0, flakes: 0, blur: 0};
@@ -1676,11 +1689,23 @@ export function setFrost(frost, flakes) {
         return;
     const reblur = blur !== frostNow.blur;
     frostNow = {frost: f, flakes: k, blur};
-    panes.forEach(p => (reblur ? p._applyLook() : p._applyFrost()));
+    panes.forEach(p => {
+        if (reblur) {
+            p._applyLook();
+        } else {
+            p._applyFrost();
+            p._applyMotion();   // frozen glass gives less under a press
+        }
+    });
 }
 
 export function getFrost() {
     return {...frostNow};
+}
+
+/** How liquid the glass is under a press right now: your setting, less while it is frozen. */
+export function liquidNow(liquid) {
+    return frozenLiquid(liquid, frostNow.flakes);
 }
 
 /** How many times any pane has rendered since the Shell started. */
@@ -2380,6 +2405,7 @@ class FedoraGlassPane extends Clutter.Actor {
             shadow: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.shadow)),
             rim: this._layer === LAYERS.reflections ? 0 : Math.max(0, Math.min(1, L.rim ?? DEFAULT_LOOK.rim)),
             veil_r: veil[0], veil_g: veil[1], veil_b: veil[2], veil_a: veil[3],
+            veil_shade: Math.max(0, Math.min(0.9, L.shade ?? 0)),
             lens_share: this._layer === LAYERS.glass || this._layer === LAYERS.reflections ? 1 : 0,
             text_shade: this._layer === LAYERS.reflections ? Math.max(0, Math.min(0.6, L.textShade ?? 0)) : 0,
             mode: this._layer,
@@ -2412,7 +2438,8 @@ class FedoraGlassPane extends Clutter.Actor {
     _applyMotion() {
         const L = this._look, m = this._motion;
         const [ox, oy] = this._stage ?? [0, 0];
-        const lq = Math.max(0.25, Math.min(2.5, L.liquid ?? 1));
+        const set = Math.max(0.25, Math.min(2.5, L.liquid ?? 1));
+        const lq = this._frosts() ? liquidNow(set) : set;
         const deep = Math.min(lq, 1) + 0.35 * Math.max(lq - 1, 0);   // as in the shader
         this._glass.setFloats({
             ptr_x: m.sx - ox, ptr_y: m.sy - oy, ptr_k: Math.max(0, Math.min(1, m.k)),

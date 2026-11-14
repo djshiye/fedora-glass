@@ -130,7 +130,7 @@ Card {
                     { value: "", label: qsTr("Now"), tip: qsTr("The glass as the weather has it now") },
                     { value: "cool", label: qsTr("Cool"), tip: qsTr("A light mist, below %1").arg(card.t(Backend.weatherCool)) },
                     { value: "cold", label: qsTr("Cold"), tip: qsTr("Frosted glass, below %1").arg(card.t(Backend.weatherCold)) },
-                    { value: "freezing", label: qsTr("Freezing"), tip: qsTr("Ice creeps in from the edges, below %1").arg(card.t(Backend.weatherFreezing)) }
+                    { value: "freezing", label: qsTr("Freezing"), tip: qsTr("The glass freezes over, below %1").arg(card.t(Backend.weatherFreezing)) }
                 ]
                 Accessible.name: qsTr("Try a step in the preview")
                 onActivated: (v) => Backend.weatherTry = v
@@ -177,7 +177,7 @@ Card {
                     defaultValue: Backend.defaults.weather_freezing
                     format: (v) => card.t(v)
                     onMoved: (v) => { Backend.weatherFreezing = v; Backend.weatherTry = "freezing" }
-                    tip: qsTr("Below this, the glass ices over from its edges, thickest in the corners, like a car window on a winter morning. The middle, where text is, stays clear.")
+                    tip: qsTr("Below this the glass freezes over, like a window on a winter morning: a skin of ice, with frost at its edges. You see less through it and it gives less under a press. Text stays easy to read.")
                 }
                 LabeledSlider {
                     objectName: "weatherAmount"

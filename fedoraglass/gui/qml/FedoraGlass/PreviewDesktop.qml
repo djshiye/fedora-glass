@@ -164,8 +164,10 @@ Item {
     // preview's taskbar to feel it; moving the How liquid slider plays a short drag.
     readonly property real liquidStrength: Backend.liquidStrength
     // The slider (0..1) as the extension's factor: 0.4 is 1, the original feel (render/glass.py).
-    readonly property real liquid: liquidStrength <= 0.4 ? 0.25 + liquidStrength / 0.4 * 0.75
-                                                         : 1 + (liquidStrength - 0.4) / 0.6 * 1.5
+    readonly property real liquidSet: liquidStrength <= 0.4 ? 0.25 + liquidStrength / 0.4 * 0.75
+                                                            : 1 + (liquidStrength - 0.4) / 0.6 * 1.5
+    // Frozen glass is stiff: it gives less under a press, as on the desktop (glass.js liquidNow).
+    readonly property real liquid: Math.max(0.25, liquidSet * (glassOn ? ice.give ?? 1 : 1))
     readonly property bool liquidOn: Backend.liquidMotion && glassOn && panel.glass
     property bool pressHeld: false
     property point pressPointer: Qt.point(0, 0)    // the pointer, in panel px

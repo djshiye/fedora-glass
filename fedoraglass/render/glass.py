@@ -166,6 +166,11 @@ def _part_config(t: Tokens, name: str, veiled: bool) -> dict:
             "shadow": _shadow(t, name), "rim": _rim(t, p["glare"]), **_milk(t, name)}
     if veiled and name != "overview":
         look["veil"] = _veil(t, name)
+        # A menu's own soft shadow (the theme's box-shadow) is under all of the menu, not
+        # only around it: St fills the box with it, between the glass and the veil. The
+        # weather frost counts it in, so its ice comes out in its true colours.
+        if name in shell.MENU_PARTS:
+            look["shade"] = round(t.shadow.a, 3)
         # Clear glass has almost no veil: bright text gets a soft shade right behind it.
         look["textShade"] = round(0.3 * shell.clarity(p["blur"]), 3)
         # Clear dark glass keeps white text at 4.5:1 or better over any backdrop: over
@@ -328,7 +333,7 @@ def config(s: Settings, t: Tokens) -> dict:
         "panel": {"enabled": s.glass_panel and not off, "behind": behind, "look": panel_look},
         "menus": {"enabled": s.glass_menus and not off, "behind": behind,
                   "look": {"blur": menus_look["blur"], "bleed": menus_look["bleed"],
-                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "textShade", "rim", "ceiling", "floor", "haze") if k in menus_look},
+                           **{k: menus_look[k] for k in ("lift", "milk", "veil", "shade", "textShade", "rim", "ceiling", "floor", "haze") if k in menus_look},
                            **({"brightness": menus_look["brightness"]} if "brightness" in menus_look else {})}},
         # Behind app windows: a lens along the edge and a rim that mirrors the real
         # surroundings, under the window's own background. Terminals have their own look.

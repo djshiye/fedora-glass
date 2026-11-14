@@ -1667,11 +1667,12 @@ class Backend(QObject):
             temp = (now.get("feels") if s.weather_feels_like else now.get("temp")) if ok else None
             dew = now.get("dew") if ok else None
         f = weather_mod.frost_for(temp, s.weather_cool, s.weather_cold, s.weather_freezing, s.weather_amount, dew)
-        return {**f, "blur": weather_mod.frost_blur(f["frost"])}
+        return {**f, "blur": weather_mod.frost_blur(f["frost"]), "give": weather_mod.frozen_give(f["flakes"])}
 
     @Property("QVariantMap", notify=weatherFrostChanged)
     def weatherPreview(self) -> dict:
-        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px)}."""
+        """How frosty the preview's glass is: {level, frost, flakes, blur (desktop px), give
+        (how much of its liquid motion the glass keeps while frozen)}."""
         return self._weather_preview()
 
     @Property(bool, constant=True)

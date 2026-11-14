@@ -40,7 +40,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 pull;         // px the press is drawn out towards the pointer while dragged
     float pressScale;  // preview px per desktop px: the give reaches as far as on the desktop
     float frost;       // 0..1, weather frost (glass.js frost): the glass mists over in the cold
-    float flakes;      // 0..1, and below freezing it ices over from the edges
+    float flakes;      // 0..1, and below freezing it freezes over: a skin of ice, edges first
     float iceScale;    // preview px per desktop px, so the frost is the desktop's size
 };
 layout(binding = 1) uniform sampler2D source;
@@ -245,72 +245,83 @@ float iceNoise(vec2 p) {
                mix(iceHash(i + vec2(0.0, 1.0)), iceHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-// How thick the ice is, 0..1. A window ices over from its edges, the coldest glass, and
-// thickest in the corners, where two edges meet. The sheet thins a little on its way in
-// and ends in a rounded front, a little uneven, never a pattern. On a thin bar (a panel)
-// there is no room for a front: there the ice just thins out towards the middle.
-// c: px from the pane's middle; h: half its size; q: px on the glass, fixed to it;
-// reach: how far in the ice can grow; grow 0..1 how far it has.
-float iceSheet(vec2 c, vec2 h, vec2 q, float reach, float grow) {
-    // Distance in from the edges, softly rounded where two meet: so the ice runs round the
-    // corners in a curve, thicker there, with no seam.
-    float sm = 0.35 * reach;
+// The skin of the ice, 0..1 high: wrinkles a finger wide, bumps, and a fine grain, each
+// turned against the others so no grid shows. q: px on the glass, fixed to it.
+float iceSkin(vec2 q) {
+    vec2 a = vec2(0.8 * q.x - 0.6 * q.y, 0.6 * q.x + 0.8 * q.y);
+    vec2 b = vec2(0.28 * q.x + 0.96 * q.y, -0.96 * q.x + 0.28 * q.y);
+    vec2 d = vec2(0.6 * q.x + 0.8 * q.y, -0.8 * q.x + 0.6 * q.y);
+    float wrinkle = abs(2.0 * iceNoise(a * 0.105) - 1.0);
+    return 0.46 * wrinkle + 0.30 * iceNoise(b * 0.31 + 13.0) + 0.24 * iceNoise(d * 0.71 + 29.0);
+}
+
+// The ice at a point. x: how much of it lies here, 0..1; y: its skin's height; z: the
+// skin's slope towards the light L; w: the broad clouds in it, 0..1.
+// A pane freezes from its edges, the coldest glass: there the ice is whole as soon as it
+// freezes, and the middle follows as it gets colder, unevenly, with no line between.
+// c: px from the pane's middle; h: half its size; grow 0..1 how far it has frozen.
+vec4 iceField(vec2 c, vec2 h, vec2 q, vec2 L, float grow) {
+    float least = min(h.x, h.y);
+    float sm = 0.22 * least;
     float u = -sm * log(exp(-(h.x - abs(c.x)) / sm) + exp(-(h.y - abs(c.y)) / sm));
-    float n = 0.7 * iceNoise(q * 0.009) + 0.3 * iceNoise(q * 0.021);
-    float edge = (0.6 + 0.28 * n) * reach * (0.35 + 0.65 * grow);
-    float roomy = smoothstep(12.0, 44.0, reach);
-    float front = 1.0 - smoothstep(edge - mix(0.9 * edge, clamp(0.32 * edge, 5.0, 13.0), roomy), edge + 2.0, u);
-    float body = 1.0 - 0.45 * smoothstep(-0.3 * edge, edge, u);
-    return front * body;
+    vec2 w = vec2(0.6 * q.x + 0.8 * q.y, -0.8 * q.x + 0.6 * q.y);
+    float clouds = 0.6 * iceNoise(w * 0.017 + 5.0) + 0.4 * iceNoise(q * 0.047 + 9.0);
+    float middle = smoothstep(0.0, 0.9, u / least + 0.5 * (clouds - 0.5));
+    float cover = mix(smoothstep(0.0, 0.35, grow), smoothstep(0.3, 0.9, grow), middle);
+    float s0 = iceSkin(q);
+    float s1 = iceSkin(q - L * 1.3);
+    return vec4(cover, s0, (s0 - s1) * 3.4, clouds);
 }
 
-// The ice at a point: x its thickness 0..1, yz how that changes per px (its slope).
-vec3 iceField(vec2 c, vec2 h, vec2 q, float reach, float grow) {
-    float t0 = iceSheet(c, h, q, reach, grow);
-    float tx = iceSheet(c + vec2(2.0, 0.0), h, q + vec2(2.0, 0.0), reach, grow);
-    float ty = iceSheet(c + vec2(0.0, 2.0), h, q + vec2(0.0, 2.0), reach, grow);
-    return vec3(t0, (tx - t0) * 0.5, (ty - t0) * 0.5);
+// How far (px) what is behind is moved as it comes through the ice: scattered by its
+// uneven skin, so nothing behind it keeps a sharp outline.
+vec2 iceBend(vec4 f) {
+    return (vec2(f.y, f.w) - 0.5) * 10.0 * f.x;
 }
 
-const float ICE_DEEP = 16.0;     // px: the ice at its thickest, drawn deeper than life
-
-// How far (px) what is behind is moved as it comes through the ice: bent at its sloping
-// top, more the more ice lies under the slope.
-vec2 iceBend(vec3 f) {
-    return -f.yz * ICE_DEEP * (4.0 + ICE_DEEP * f.x) * 0.5;
-}
-
-// The ice over under (what shows behind it, straight rgb). f: iceField; L: towards the
-// light; lightGlass 0..1; inside: px in from the glass's edge; reach: as for iceSheet;
-// lit: -1..1, how far this part of the pane lies towards the light.
-vec3 iceLook(vec3 under, vec3 f, vec2 L, float lightGlass, float inside, float reach, float lit) {
-    float T = f.x;
-    vec3 N = normalize(vec3(-f.yz * ICE_DEEP, 1.0));
-    float on = smoothstep(0.0, 0.12, T);
-    float roomy = smoothstep(12.0, 44.0, reach);     // 0 on a thin bar: no lines along it
-    // Clear ice is a cool blue: it takes the red out of the light that crosses it. Its
-    // polished top is a shade lighter on the side of the pane that faces the light.
-    vec3 deep = mix(vec3(0.40, 0.67, 1.0), vec3(0.52, 0.76, 1.0), lightGlass);
-    vec3 col = mix(under, deep, (0.26 + 0.07 * lit * (1.0 - lightGlass)) * T);
-    // At the glass's edge the ice is thickest and full of caught air: a white crust that
-    // fades fast into the clear ice. A bright line at the very edge only where there is
-    // room for it; a thin bar keeps the soft part alone.
-    float crust = (0.6 * exp(-inside / 6.0) * roomy + 0.32 * exp(-inside / (0.35 * reach + 2.0))) * on;
-    col = vec3(1.0) - (vec3(1.0) - col) * (vec3(1.0) - vec3(0.86, 0.94, 1.0) * crust);
-    // The rounded front: lighter where it faces the light. Past it on the far side the
-    // light that crossed it gathers in a faint line (dark glass) or leaves a soft shade
-    // (light glass, which has no room left to get lighter).
-    float facing = dot(N.xy, L);
-    float edgy = on * roomy;
-    col *= 1.0 + mix(0.45, 0.2, lightGlass) * max(facing, 0.0) * edgy;
-    float lee = smoothstep(0.12, 0.6, -facing) * edgy;
-    col *= 1.0 - 0.09 * lee * lightGlass;
-    vec3 gather = vec3(0.80, 0.90, 1.0) * 0.14 * lee * (1.0 - lightGlass);
-    // Its wet, glassy top catches the light: one soft highlight along the front.
-    vec3 H = normalize(normalize(vec3(L * 0.75, 0.66)) + vec3(0.0, 0.0, 1.0));
-    float nh = max(dot(N, H), 0.0);
-    float shine = (0.9 * pow(nh, 70.0) + 0.1 * pow(nh, 12.0)) * mix(1.0, 0.6, lightGlass) * edgy;
-    return vec3(1.0) - (vec3(1.0) - col) * (vec3(1.0) - gather) * (vec3(1.0) - vec3(0.95, 0.98, 1.0) * min(shine, 1.0));
+// The ice over under (what shows behind it, straight rgb). f: iceField; inside: px in
+// from the glass's edge; lightGlass 0..1; shortSide: the pane's short side, px; lit: -1..1,
+// how far this part of the pane lies towards the light.
+vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float shortSide, float lit) {
+    float cover = f.x;
+    float clouds = smoothstep(0.22, 0.78, f.w);
+    float roomy = smoothstep(24.0, 90.0, shortSide);     // 0 on a thin bar: no line along it
+    // The ice itself: cyan, deeper where it is thick and in the skin's hollows, a shade
+    // lighter on the side of the pane that faces the light. Dark glass gets a deep cyan
+    // that white text still reads on, no brighter than a dark menu can show under its
+    // veil and shadow (about half way up); light glass the pale blue of pond ice.
+    vec3 deep = mix(vec3(0.03, 0.34, 0.45), vec3(0.42, 0.75, 0.93), lightGlass);
+    vec3 pale = mix(vec3(0.05, 0.49, 0.51), vec3(0.70, 0.90, 0.98), lightGlass);
+    float tone = 0.62 * clouds + mix(0.30, 1.5, lightGlass) * (f.y - 0.42) + 0.18 * lit + 0.14;
+    vec3 col = mix(under, mix(deep, pale, clamp(tone, 0.0, 1.0)), 0.86 * cover);
+    // Veins: a few thin lines where two sheets of ice met, wandering with the skin.
+    vec2 vq = vec2(0.96 * q.x + 0.28 * q.y, -0.28 * q.x + 0.96 * q.y);
+    float vn = iceNoise(vq * 0.026 + 21.0) + 0.22 * (f.y - 0.5);
+    float vein = 1.0 - smoothstep(0.0, 0.034, abs(vn - 0.5));
+    col = mix(col, deep * mix(0.78, 0.90, lightGlass), mix(0.30, 0.60, lightGlass) * vein * cover);
+    // Light on the skin: its bumps and wrinkles stand out.
+    col *= 1.0 + mix(0.16, 0.20, lightGlass) * clamp(f.z, -1.0, 1.0) * cover;
+    // Frost blooms white on the ice: thickest at the glass's edges, patchy with the
+    // clouds, and grainy with the skin, whose highest points are whitest.
+    vec3 white = mix(vec3(0.42, 0.50, 0.51), vec3(0.86, 0.97, 1.0), lightGlass);
+    float e = exp(-max(inside, 0.0) / clamp(0.07 * shortSide, 5.0, 20.0)) * roomy;
+    float bloom = mix(0.05, 0.12, lightGlass) + mix(0.14, 0.46, lightGlass) * (clouds - 0.35) + 0.80 * e;
+    bloom *= 0.55 + 0.9 * f.y;
+    bloom += smoothstep(0.66, 0.80, f.y) * mix(0.18, 0.5, max(e, lightGlass));
+    col = mix(col, white, clamp(bloom, 0.0, 0.92) * cover);
+    // White text must stay readable on dark glass: away from the edge, where the text is,
+    // the ice eases into a ceiling on its brightness, in its own colour.
+    if (lightGlass < 0.5) {
+        float Y = dot(col * col, vec3(0.2126, 0.7152, 0.0722));     // gamma 2: near enough, and cheap
+        float top = mix(0.175, 0.60, e), knee = 0.6 * top;
+        if (Y > knee)
+            col *= sqrt((knee + (top - knee) * (1.0 - exp(-(Y - knee) / (top - knee)))) / Y);
+    }
+    // A fine white grain over it all, as frost has: single points, more of them where the
+    // frost is thick, too small to get in the way of text.
+    vec2 gq = vec2(0.8 * q.x + 0.6 * q.y, -0.6 * q.x + 0.8 * q.y);
+    float grain = smoothstep(0.30, 0.80, iceNoise(gq * 1.1 + 41.0)) * smoothstep(0.30, 0.55, f.y);
+    return mix(col, white, grain * (0.06 + 0.17 * clouds + 0.5 * e) * (1.0 - 0.5 * lightGlass) * cover);
 }
 
 void main() {
@@ -366,18 +377,17 @@ void main() {
     vec4 col = vec4(0.0);
     float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bev) : 1.0;
     // Weather frost is the desktop's (glass.js), at the desktop's size: worked out in
-    // desktop px (q, inq), drawn in preview px. Below freezing the glass is under a sheet
-    // of ice; where it is and how it slopes comes first, because what is behind bends as
-    // it comes through it.
+    // desktop px (q, inq), drawn in preview px. Below freezing the glass freezes over;
+    // where the ice lies and what its skin is like comes first, because what is behind
+    // is scattered as it comes through. Its skin is lit by the room's light, so it lies still.
     float k = max(iceScale, 0.05);
     vec2 q = px0 / k;
     float inq = inside / k;
     float shortIce = shortSide / k;
-    float iceReach = min(0.3 * shortIce, 72.0);
     float iceOn = smoothstep(0.0, 0.25, flakes);
-    vec3 iceF = vec3(0.0);
-    if (flakes > 0.001 && mode < 1.5 && inq < iceReach * 1.2 + 4.0) {
-        iceF = iceField(p / k, c / k, q, iceReach, flakes);
+    vec4 iceF = vec4(0.0);
+    if (flakes > 0.001 && mode < 1.5) {
+        iceF = iceField(p / k, c / k, q, ROOM, flakes);
         px += iceBend(iceF) * iceOn * k;
     }
     if (mode < 1.5) {
@@ -419,8 +429,8 @@ void main() {
         if (iceF.x > 0.001) {
             vec3 seen = col.rgb / max(col.a, 1e-3);
             vec2 sqi = p / c * vec2(min(1.0, 2.0 * c.y / c.x), min(1.0, 2.0 * c.x / c.y));
-            vec3 iced = iceLook(seen, iceF, LIGHT, lightGlass, inq, iceReach, clamp(dot(sqi, LIGHT), -1.0, 1.0));
-            col.rgb = mix(seen, iced, iceOn) * col.a;
+            vec3 iced = iceLook(seen, iceF, q, inq, lightGlass, shortIce, clamp(dot(sqi, LIGHT), -1.0, 1.0));
+            col.rgb = mix(seen, clamp(iced, 0.0, 1.0), iceOn) * col.a;
         }
     }
     if (mode > 0.5 && mode < 1.5) {

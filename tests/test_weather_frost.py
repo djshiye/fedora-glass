@@ -99,7 +99,7 @@ def test_the_preview_draws_the_same_frost_as_the_desktop():
         pytest.skip("needs node")
     script = f"import('{(EXT / 'frostmath.js').as_uri()}').then(M => process.stdout.write(M.ICE_GLSL))"
     ice = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, check=True).stdout
-    assert "float iceSheet(" in ice and "vec3 iceLook(" in ice
+    assert "float iceSkin(" in ice and "vec4 iceField(" in ice and "vec3 iceLook(" in ice
     frag = (ROOT / "fedoraglass/gui/qml/FedoraGlass/shaders/glass.frag").read_text()
     assert ice in frag, "glass.frag's frost differs from frostmath.js ICE_GLSL: copy it over"
     assert "${ICE_GLSL}" in (EXT / "glass.js").read_text()
@@ -184,13 +184,53 @@ def test_frost_is_skipped_entirely_when_off():
     """Weather frost off (or warm out): both uniforms 0, so the shader skips its frost branches."""
     src = (EXT / "glass.js").read_text()
     assert "if (frost > OFF && mode < 1.5)" in src
-    assert "if (flakes > OFF && mode < 1.5 && inside < iceReach" in src
+    assert "if (flakes > OFF && mode < 1.5) {" in src
     assert "let frostNow = {frost: 0, flakes: 0, blur: 0};" in src
     # Without ice nothing is bent (the taps read where they always did) and nothing is drawn over.
     assert "vec2 pxi = px;" in src and "pxi += iceBend(iceF) * iceOn;" in src
     assert "if (iceF.x > OFF) {" in src
-    # No ice grows in from a side of the glass that lies on the screen's edge.
-    assert "iceF = iceField(cc, hh, px + at0, iceReach, flakes);" in src
+    # No ice grows in from a side of the glass that lies on the screen's edge, and its skin
+    # is lit by the light where it rests (never the pointer's), so the ice lies still.
+    assert "iceF = iceField(cc, hh, px + at0, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);" in src
+
+
+def test_frozen_glass_is_stiff_on_the_desktop_and_in_the_preview():
+    """Ice does not give like liquid glass: the press, the pull and the open bounce ease off
+    as the glass freezes over, by the same rule in the extension and in the app."""
+    glass = (EXT / "glass.js").read_text()
+    motion = (EXT / "motion.js").read_text()
+    assert "export function liquidNow(liquid)" in glass and "frozenLiquid(liquid, frostNow.flakes)" in glass
+    assert "const lq = this._frosts() ? liquidNow(set) : set;" in glass, "only glass that frosts stiffens"
+    assert "p._applyMotion();" in glass, "a change in the weather reaches the press at once"
+    assert "const lq = liquidNow(" in motion and "liquidNow(1)" in motion
+    # The app's copy of the rule (the preview): the same number, the same ends.
+    math = (EXT / "frostmath.js").read_text()
+    assert f"export const FROZEN_STIFF = {weather.FROZEN_STIFF};" in math
+    assert weather.frozen_give(0) == 1 and weather.frozen_give(1) == pytest.approx(1 - weather.FROZEN_STIFF)
+    assert weather.frozen_give(0.5) == pytest.approx(1 - weather.FROZEN_STIFF / 2)
+    assert weather.frozen_give(9) == weather.frozen_give(1) and weather.frozen_give(-2) == 1
+    qml = (ROOT / "fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml").read_text()
+    assert "Math.max(0.25, liquidSet * (glassOn ? ice.give ?? 1 : 1))" in qml
+
+
+def test_menus_tell_the_ice_about_their_own_shadow():
+    """St fills a menu's box with the theme's box-shadow, under the veil: 36 % black on dark
+    glass. Not counted in, the ice of a dark menu came out a third too dark and dull."""
+    s = Settings().normalized()
+    for dark in (True, False):
+        t = build(s, dark=dark)
+        cfg = render_glass.config(s, t)
+        for part in ("arcmenu", "quicksettings", "calendar"):
+            assert cfg["parts"][part]["look"]["shade"] == round(t.shadow.a, 3) > 0, part
+        assert cfg["menus"]["look"]["shade"] == round(t.shadow.a, 3)
+        assert "shade" not in cfg["parts"]["panel"]["look"], "the panel's bar has no such shadow under it"
+    tpl = (ROOT / "fedoraglass/data/shell/glass.css.tpl").read_text()
+    for rule in (".popup-menu-content, .candidate-popup-content {", ".quick-settings {"):
+        block = tpl[tpl.index(rule):tpl.index("; }", tpl.index(rule)) + 1]
+        assert "box-shadow: 0 2px 6px 0 ${shadow};" in block, rule
+    src = (EXT / "glass.js").read_text()
+    assert "float passes = (1.0 - veil_a) * (1.0 - veil_shade);" in src
+    assert "veil_shade: Math.max(0, Math.min(0.9, L.shade ?? 0))," in src
 
 
 # ---------------------------------------------------------------- the app
