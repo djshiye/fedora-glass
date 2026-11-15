@@ -116,6 +116,44 @@ def test_error_toast_wraps_stays_and_closes(qml, win):
     assert not toast.property("shown")
 
 
+def test_esc_goes_to_the_search_field_and_to_a_sheet_before_an_error_toast(qml, win):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    b = _backend(qml)
+    toast = _find(win, "toast")
+    bar = _find(win, "searchField")
+    b.failed.emit("Could not save settings: disk full")
+    _spin(300)
+    assert toast.property("shown")
+    # Typing in the search: Esc clears it, then leaves it; only then does it close the toast.
+    bar.forceActiveFocus(Qt.TabFocusReason)
+    bar.setProperty("text", "blur")
+    QTest.keyClick(win, Qt.Key_Escape)
+    _spin(200)
+    assert toast.property("shown") and bar.property("text") == ""
+    QTest.keyClick(win, Qt.Key_Escape)
+    _spin(200)
+    assert toast.property("shown") and not bar.property("activeFocus")
+    QTest.keyClick(win, Qt.Key_Escape)
+    _spin(300)
+    assert not toast.property("shown")
+    # A sheet open over the page takes Esc first.
+    b.failed.emit("Could not save settings: disk full")
+    _spin(300)
+    b.setProperty("frost", 0.9 if b.property("frost") < 0.85 else 0.2)
+    win.close()                         # unapplied changes: asks before closing
+    _spin(500)
+    sheet = _find(win, "leaveSheet")
+    assert sheet.property("opened") and toast.property("shown")
+    QTest.keyClick(win, Qt.Key_Escape)
+    _spin(500)
+    assert not sheet.property("opened"), "Esc closed the sheet"
+    assert toast.property("shown"), "and left the toast"
+    QTest.keyClick(win, Qt.Key_Escape)
+    _spin(300)
+    assert not toast.property("shown")
+
+
 def test_info_toast_still_goes_by_itself(qml, win):
     from PySide6.QtCore import QMetaObject, Qt, Q_ARG
     toast = _find(win, "toast")
@@ -327,4 +365,24 @@ def test_resets_that_change_the_style_match_the_wallpaper(make_backend):
     assert b.property("scheme") == "auto" and calls
     calls.clear()
     b.resetDefaults()                    # nothing to change: nothing to match
+    assert not calls
+
+
+def test_undo_and_put_back_match_the_wallpaper_when_the_style_changes(make_backend):
+    b = make_backend()
+    b.setProperty("scheme", "light")
+    calls = []
+    b._match_wallpaper = lambda: calls.append(1)
+    b.discardChanges()                   # back to auto: light and dark can have their own pictures
+    assert b.property("scheme") == "auto" and calls
+    calls.clear()
+    b.restoreDiscarded()
+    assert b.property("scheme") == "light" and calls
+    calls.clear()
+    b.discardChanges()
+    calls.clear()
+    b.setProperty("frost", 0.9 if b.property("frost") < 0.85 else 0.2)
+    b.discardChanges()                   # the style did not change: nothing to match
+    assert not calls
+    b.applyPreset("Frosted")             # a preset leaves the style alone
     assert not calls

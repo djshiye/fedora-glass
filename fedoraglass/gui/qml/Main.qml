@@ -84,6 +84,16 @@ Window {
     }
     // Typing in a text field: "?" and Ctrl+Z belong to it then.
     readonly property bool typing: !!activeFocusItem && activeFocusItem.cursorPosition !== undefined
+    // Esc belongs to the search field (it clears it), and to whatever is open over the page
+    // (a sheet, a menu, the colour picker), before it belongs to an error toast. The toast's
+    // own Esc is a window-wide shortcut, which gets the key ahead of all of them.
+    readonly property bool escapeTaken: {
+        for (let it = activeFocusItem; it; it = it.parent) {
+            if (it === sidebar.searchField || it === C.Overlay.overlay)
+                return true
+        }
+        return false
+    }
     Shortcut { sequences: ["Return", "Enter"]; enabled: win.pressable(win.activeFocusItem); onActivated: win.activeFocusItem.click() }
     Shortcut { sequence: "F1"; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
     Shortcut { sequence: "?"; enabled: !win.typing; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
@@ -870,7 +880,7 @@ Window {
                 }
             }
 
-            Toast { id: toast; objectName: "toast"; onActionTriggered: Backend.restoreDiscarded(); anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
+            Toast { id: toast; objectName: "toast"; escapeTaken: win.escapeTaken; onActionTriggered: Backend.restoreDiscarded(); anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
         }
     }
 

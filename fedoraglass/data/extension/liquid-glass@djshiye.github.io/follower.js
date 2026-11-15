@@ -20,6 +20,11 @@ export function shadeGone(shed, frozen, sure, shadow) {
     return shed || (frozen && sure && !shadow);
 }
 
+/** Whether two [x, y, w, h] / {x, y, width, height} rectangles share any area. */
+export function rectsMeet([x, y, w, h], r) {
+    return r.x < x + w && r.x + r.width > x && r.y < y + h && r.y + r.height > y;
+}
+
 /**
  * A pane that sits right below `anchor` (a child of a free-layout container
  * such as the Shell's UI group) and copies the on-screen rectangle, corner
@@ -102,8 +107,8 @@ export class Follower {
             this.top = null;
             this.destroy();
         });
-        this._onWindows = () => {
-            if (this.settings.behind === 'windows' && this.target.mapped)
+        this._onWindows = win => {
+            if (this.settings.behind === 'windows' && this.target.mapped && this._windowMatters(win))
                 this.queue();
         };
         windowWatch.current?.listeners.add(this._onWindows);
@@ -112,6 +117,26 @@ export class Follower {
         anchor.get_parent().insert_child_below(this.pane, anchor);
         anchor.get_parent().insert_child_below(this.top, anchor);
         this.update(settings);
+    }
+
+    /**
+     * Whether a window that moved, changed size or came or went is one this glass shows
+     * or could show: where it is now, or where it was when the glass last looked, meets
+     * the part of the stage the glass copies. A window dragged across the screen asks
+     * this of every surface on every frame, and most are far from it.
+     */
+    _windowMatters(win) {
+        const seen = this._seen;
+        if (!win || !seen)
+            return true;      // anything may have changed (a restack, another workspace)
+        try {
+            if (rectsMeet(seen.area, win.get_buffer_rect()))
+                return true;
+            const was = seen.rects.get(win);
+            return Boolean(was && rectsMeet(seen.area, was));
+        } catch {
+            return true;      // its window is going away: look again
+        }
     }
 
     _hold() {
@@ -193,6 +218,15 @@ export class Follower {
             pane.hide();
             top.hide();
             this.rect = null;
+            this._seen = null;
+            // Hidden panes keep no copies of the windows behind: on GNOME 50 each copy
+            // still passes on its window's redraws, a few hundred a second behind a
+            // full-screen game, to a pane nobody sees. Shown again, sync copies them anew.
+            if (this._copying) {
+                this._copying = false;
+                pane.setSources([]);
+                top.setSources([]);
+            }
             // A menu that flowed back into its button is its own size again once gone.
             if (this._shrunk) {
                 this._shrunk = false;
@@ -285,12 +319,17 @@ export class Follower {
         const [gok, glx, gly] = room ? parent.transform_stage_point(gx, gy) : [true, lx, ly];
         const still = !room || !gok;
         const reach = this._onlyBehind ? 0 : p;
-        if (this._sources)
+        this._copying = true;
+        if (this._sources) {
+            this._seen = null;
             pane.setSources(this._sources());
-        else {
-            pane.setSources(still
-                ? sourcesFor(this.settings.behind, sx - reach, sy - reach, w + 2 * reach, h + 2 * reach)
-                : sourcesFor(this.settings.behind, gx - reach, gy - reach, gw + 2 * reach, gh + 2 * reach));
+        } else {
+            const area = still ? [sx - reach, sy - reach, w + 2 * reach, h + 2 * reach]
+                : [gx - reach, gy - reach, gw + 2 * reach, gh + 2 * reach];
+            const sources = sourcesFor(this.settings.behind, ...area);
+            // Where each window was when this looked (see _windowMatters).
+            this._seen = {area, rects: new Map(sources.filter(a => a.meta_window).map(a => [a.meta_window, a.meta_window.get_buffer_rect()]))};
+            pane.setSources(sources);
         }
         // The light the content casts into the glass comes from the content itself.
         // Both panes are the anchor's siblings; never clone an actor into itself.
@@ -402,6 +441,7 @@ export class Follower {
                 this.onFullSize?.();
             } else if (!this._applyGrow(m.open)) {
                 const sc = 0.96 + 0.04 * Math.min(m.open, 1.0) + 0.02 * Math.max(0, m.open - 1);
+                this._keepPivot();
                 this.target.set_pivot_point(0.5, 0.5);
                 this.target.set_scale(sc, sc);
             }
@@ -456,9 +496,16 @@ export class Follower {
         const ex = 1 - (1 - c) * (1 - c);
         const sx = g.fx + (1 - g.fx) * ex + 0.015 * Math.max(0, k - 1);
         const sy = g.fy + (1 - g.fy) * c + 0.03 * Math.max(0, k - 1);
+        this._keepPivot();
         this.target.set_pivot_point(g.px, g.py);
         this.target.set_scale(sx, sy);
         return true;
+    }
+
+    // The target's own pivot point, noted before ours first replaces it, so destroy puts it back.
+    _keepPivot() {
+        if (!this._pivot)
+            this._pivot = this.target.get_pivot_point();
     }
 
     destroy() {
@@ -473,6 +520,8 @@ export class Follower {
         if (this.condense) {
             try {
                 this.target.set_scale(1, 1);
+                if (this._pivot)
+                    this.target.set_pivot_point(...this._pivot);
             } catch {}
         }
         windowWatch.current?.listeners.delete(this._onWindows);

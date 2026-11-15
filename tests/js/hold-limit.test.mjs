@@ -189,3 +189,29 @@ test('manual steps (QA) let one pane go per step', () => {
     assert.equal(hold.step(), null);
     assert.equal(hold.held, false);
 });
+
+test('the window order is read once per sort, not once per comparison', () => {
+    const panes = ['c', 'a', 'b', 'd'].map(name => ({name, stale: true}));
+    const order = {a: 0, b: 1, c: 2, d: 3};
+    let looked = 0;
+    const hold = new GlassHold({
+        panes: () => panes,
+        alive: () => true,
+        isStale: p => p.stale,
+        ranker: () => {
+            looked++;
+            return p => order[p.name];
+        },
+        keep: () => {},
+        free: () => {},
+        renders: () => 0,
+        afterFrame: () => 1,
+        cancelFrame: () => {},
+        endAll: () => {},
+    });
+    hold.manual = true;
+    hold.hold('a');
+    hold.release('a');
+    assert.equal(looked, 1);
+    assert.deepEqual([hold.step().name, hold.step().name, hold.step().name], ['a', 'b', 'c']);
+});

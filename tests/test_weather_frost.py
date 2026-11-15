@@ -383,3 +383,26 @@ def test_glass_page_has_the_card_and_search_finds_it(qml):
         assert _find(win, name) is not None, name
     index = (ROOT / "fedoraglass/gui/qml/FedoraGlass/searchindex.js").read_text()
     assert 'name: "weatherFrostSwitch"' in index
+
+
+def test_temperature_controls_are_dimmed_with_a_hint_until_weather_frost_is_on(qml):
+    from tests.test_gui_polish import _find, _goto, _spin, _window
+    from tests.test_gui_small_fixes import _backend
+    win = _window(qml)
+    _goto(win, "glass", 300)
+    hint = _find(win, "weatherOffHint")
+    scale = _find(win, "weatherScale")
+    body = _find(win, "weatherStepsBody")
+    try_row = _find(win, "weatherTry")
+    cool = _find(win, "weatherCool")
+    assert hint.property("visible") and "once frost with the weather is on" in hint.property("text")
+    _spin(400)
+    assert scale.property("opacity") < 1 and body.property("opacity") < 1
+    assert cool.property("enabled"), "they can still be set up beforehand"
+    assert try_row.property("enabled") and try_row.property("opacity") == 1, "Try in the preview keeps working"
+    b = _backend(qml)
+    b.setProperty("weatherFrost", True)
+    _spin(500)
+    assert not hint.property("visible")
+    assert scale.property("opacity") == 1 and body.property("opacity") == 1
+    b.setProperty("weatherFrost", False)

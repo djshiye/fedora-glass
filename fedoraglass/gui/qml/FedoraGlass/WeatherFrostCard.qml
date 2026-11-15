@@ -63,6 +63,17 @@ Card {
             onToggled: (v) => Backend.weatherFrost = v
         }
 
+        // Off, the scale and the temperatures below can still be set up, but do nothing yet.
+        Text {
+            objectName: "weatherOffHint"
+            visible: !card.on
+            width: parent.width
+            text: qsTr("These take effect once frost with the weather is on.")
+            wrapMode: Text.WordWrap
+            color: Theme.textDim
+            font.pixelSize: Theme.fsSmall + 1
+        }
+
         // What it does now on the desktop, and the way to GNOME Weather when it needs a place.
         Item {
             objectName: "weatherStatus"
@@ -107,6 +118,8 @@ Card {
         TempScale {
             objectName: "weatherScale"
             width: parent.width
+            opacity: card.on ? 1 : 0.5
+            Behavior on opacity { NumberAnimation { duration: Theme.normal } }
         }
 
         Item { width: 1; height: 2 }
@@ -145,8 +158,12 @@ Card {
             // (a sentence was cut off after the second one).
             summary: [card.t(Backend.weatherCool), card.t(Backend.weatherCold), card.t(Backend.weatherFreezing)].join(" · ")
             Column {
+                objectName: "weatherStepsBody"
                 width: parent.width
                 spacing: 2
+                // Still live (set them up before turning it on), but dimmed while off.
+                opacity: card.on ? 1 : 0.5
+                Behavior on opacity { NumberAnimation { duration: Theme.normal } }
                 LabeledSlider {
                     objectName: "weatherCool"
                     inline: true

@@ -154,7 +154,7 @@ export class Popups {
         this._waiting = new Map();     // surface -> [signal ids], until it first opens
         this._signals = new Signals();
         const ui = Main.layoutManager.uiGroup;
-        this._laters = new Set();
+        this._laters = new Map();      // pending later -> [child, its destroy handler]
         this._switchers = new Map();   // Alt+Tab pop-up -> [signal ids]
         this._tints = new Map();       // Dash to Panel's window previews -> PreviewTint
         // Some pop-ups (Alt+Tab) are added before they finish building, so look a moment later.
@@ -200,7 +200,7 @@ export class Popups {
             fn();
             return GLib.SOURCE_REMOVE;
         });
-        this._laters.add(id);
+        this._laters.set(id, [child, gone]);
     }
 
     _consider(child) {
@@ -342,7 +342,13 @@ export class Popups {
     destroy() {
         this._signals.clear();
         const laters = global.compositor.get_laters();
-        this._laters.forEach(id => laters.remove(id));
+        // The children that were still waiting keep no handler of ours.
+        for (const [id, [child, gone]] of this._laters) {
+            laters.remove(id);
+            try {
+                child.disconnect(gone);
+            } catch {}   // already gone
+        }
         this._laters.clear();
         for (const surface of [...this._waiting.keys()])
             this._stopWaiting(surface);

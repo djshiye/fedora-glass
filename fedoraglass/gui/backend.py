@@ -1393,8 +1393,11 @@ class Backend(QObject):
         s = settings_mod.apply_preset(self._s, name)
         s.targets = dict(self._s.targets)
         if s != self._s:
+            scheme = self._s.scheme
             self._s = s
             self._changed()
+            if s.scheme != scheme:
+                self._match_wallpaper()     # as _set does: light and dark can have their own pictures
 
     def _all_reset(self) -> Settings:
         """Every setting at its default but this PC's own choices: which apps get the look,
@@ -1487,6 +1490,8 @@ class Backend(QObject):
         self.previewChanged.emit()
         self._changed()
         self.targetStatesChanged.emit()   # the app switches and the glass edges follow the saved state
+        if dropped.scheme != self._s.scheme:
+            self._match_wallpaper()     # as _set does: light and dark can have their own pictures
         if dropped != self._s:
             self._discarded = dropped
             self.restorableChanged.emit()
@@ -1509,11 +1514,14 @@ class Backend(QObject):
             return
         self._discarded = None
         self.restorableChanged.emit()
+        scheme = self._s.scheme
         self._s = replace(kept, targets=dict(self._s.targets), **_at_once(self._saved))
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
         self.targetStatesChanged.emit()
+        if self._s.scheme != scheme:
+            self._match_wallpaper()     # as _set does: light and dark can have their own pictures
 
     @Slot(str, result=bool)
     def isColor(self, value: str) -> bool:

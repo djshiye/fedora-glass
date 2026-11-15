@@ -15,6 +15,8 @@ Rectangle {
     property string actionText: ""
     signal actionTriggered()
     property bool shown: false
+    // Something else wants Esc first (the search field, an open sheet): set by the window.
+    property bool escapeTaken: false
 
     function show(msg, icon, color) { _open(msg, icon, color, false, "", 4200) }
     function showError(msg) { _open(msg, "alert", Theme.bad, true, "", 0) }
@@ -87,6 +89,6 @@ Rectangle {
             contentItem: Item { Icon { anchors.centerIn: parent; name: "close"; size: 14; strokeWidth: 2; color: Theme.textDim } }
         }
     }
-    Shortcut { sequence: "Escape"; enabled: toast.shown && toast.sticky; onActivated: toast.hide() }
+    Shortcut { sequence: "Escape"; enabled: toast.shown && toast.sticky && !toast.escapeTaken; onActivated: toast.hide() }
     Timer { id: timer; interval: 4200; onTriggered: toast.shown = false }
 }

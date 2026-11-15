@@ -125,8 +125,9 @@ export class Motion {
                 if (this._item?.actor === a)
                     this._item = null;
             });
+            const pivot = a.get_pivot_point();     // put back when it settles
             a.set_pivot_point(0.5, 0.5);
-            this._item = {actor: a, id, s: 1, v: 0, to: 1};
+            this._item = {actor: a, id, pivot, s: 1, v: 0, to: 1};
         }
         // Frozen glass gives less (weather frost): the item under the press too.
         this._item.to = 1 - (1 - PRESS_SCALE) * liquidNow(1);
@@ -139,6 +140,7 @@ export class Motion {
             return;
         try {
             it.actor.set_scale(1, 1);
+            it.actor.set_pivot_point(...it.pivot);
             it.actor.disconnect(it.id);
         } catch {}   // already gone
     }

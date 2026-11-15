@@ -1096,13 +1096,23 @@ function offHome(a) {
 
 // The screen being painted right now (null between screen paints), followed while
 // any glass exists.
-const painting = {view: null, ids: []};
+const painting = {view: null, ids: [], monitors: null, monitorsId: 0, frame: 0};
 function followPainting(on) {
     if (on && !painting.ids.length) {
         painting.ids = [
             global.stage.connect('before-paint', (_s, view) => (painting.view = view)),
-            global.stage.connect('after-paint', () => (painting.view = null)),
+            global.stage.connect('after-paint', () => {
+                painting.view = null;
+                painting.frame++;   // see FedoraGlassPane.place
+            }),
         ];
+        // A new screen size or layout: see GlassPane._stageChanged.
+        const stageChanged = () => panes.forEach(p => p._stageChanged());
+        painting.ids.push(global.stage.connect('notify::width', stageChanged),
+            global.stage.connect('notify::height', stageChanged));
+        painting.monitors = global.backend?.get_monitor_manager?.() ?? null;
+        if (painting.monitors)
+            painting.monitorsId = painting.monitors.connect('monitors-changed', stageChanged);
         // The graphics driver threw the pictures away (NVIDIA, after a resume). GNOME 51
         // has no such signal.
         if (GObject.signal_lookup('gl-video-memory-purged', global.stage.constructor.$gtype)) {
@@ -1114,6 +1124,10 @@ function followPainting(on) {
     } else if (!on && painting.ids.length) {
         painting.ids.forEach(id => global.stage.disconnect(id));
         painting.ids = [];
+        if (painting.monitorsId)
+            painting.monitors.disconnect(painting.monitorsId);
+        painting.monitors = null;
+        painting.monitorsId = 0;
         painting.view = null;
     }
 }
@@ -1275,6 +1289,7 @@ class FedoraGlassEffect extends Clutter.Effect {
         this._targetFor = '';
         this._pipeline = lensPipeline();
         this._uniformAt = new Map();
+        this._sent = new Map();     // uniform name -> the number it was last given
         this._opacity = -1;
         this._keep = false;
         this._out = null;
@@ -1645,10 +1660,20 @@ class FedoraGlassEffect extends Clutter.Effect {
 
     _set(values) {
         GLASS.setOn(this._pipeline, this._uniformAt, values);
+        for (const [k, v] of Object.entries(values))
+            this._sent.set(k, v);
     }
 
+    /** Only what differs from what the shader already has: a same value queues no repaint. */
     setFloats(values) {
-        this._set(values);
+        let changed = null;
+        for (const [k, v] of Object.entries(values)) {
+            if (this._sent.get(k) !== v)
+                (changed ??= {})[k] = v;
+        }
+        if (!changed)
+            return;
+        this._set(changed);
         this._lensDirty = true;
         this.queue_repaint();
     }
@@ -1773,11 +1798,18 @@ export function setFrost(frost, flakes) {
     const reblur = blur !== frostNow.blur;
     frostNow = {frost: f, flakes: k, blur};
     panes.forEach(p => {
-        if (reblur) {
-            p._applyLook();
-        } else {
+        // Only the glass itself frosts, and the light over a menu carries the ice: the
+        // rest (a window's rim, a full-screen sheet) is left alone, so a 3 s ease does
+        // not mark them dirty on every step.
+        if (p._frosts()) {
+            if (reblur) {
+                p._applyLook();
+            } else {
+                p._applyFrost();
+                p._applyMotion();   // frozen glass gives less under a press
+            }
+        } else if (p._iceLive()) {
             p._applyFrost();
-            p._applyMotion();   // frozen glass gives less under a press
         }
     });
 }
@@ -1975,13 +2007,15 @@ const hold = new GlassHold({
     alive: p => panes.has(p),
     isStale: p => Boolean(p._glass._stale),
     // Bottom window first; Shell surfaces (the panel, menus) sit above all windows.
-    rank: p => {
-        const order = global.get_window_actors();
-        let a = p;
-        while (a && !a.meta_window)
-            a = a.get_parent();
-        const i = a ? order.indexOf(a) : -1;
-        return i < 0 ? order.length : i;
+    // The window order is read once per sort, not once per comparison.
+    ranker: () => {
+        const order = new Map(global.get_window_actors().map((a, i) => [a, i]));
+        return p => {
+            let a = p;
+            while (a && !a.meta_window)
+                a = a.get_parent();
+            return a && order.has(a) ? order.get(a) : order.size;
+        };
     },
     keep: p => {
         p._free = false;
@@ -2297,6 +2331,7 @@ class FedoraGlassPane extends Clutter.Actor {
             below = clone;
         }
         this._syncClones();
+        this._syncedFrame = painting.frame;    // for a place() in the same frame (see there)
     }
 
     /** Keep the finished glass (see FedoraGlassEffect.keep). */
@@ -2403,7 +2438,12 @@ class FedoraGlassPane extends Clutter.Actor {
                 this._radii = radii.map(r => Math.max(0, Math.min(r, (inner?.[2] ?? w) / 2, (inner?.[3] ?? h) / 2)));
                 this._applyShape();
             }
-            this._syncClones();   // windows behind may still have moved
+            // Windows behind may still have moved. setSources has just looked, though,
+            // when the owner calls both (a window's glass on every frame of a drag):
+            // looking twice made each sync cost double. Only in the same frame: a setSources()
+            // some frames ago says nothing about where the windows are now.
+            if (this._syncedFrame !== painting.frame)
+                this._syncClones();
             wakeIce();
             return;
         }
@@ -2423,17 +2463,31 @@ class FedoraGlassPane extends Clutter.Actor {
         this._size = [aw, ah];
         this.set_size(...this._size);
         this._stage = [Math.round(sx - p) + ax, Math.round(sy - p) + ay];
-        const [W, H] = global.stage.get_size();
-        this._glass.setFloats({
-            valid_x0: Math.max(0, -this._stage[0]), valid_y0: Math.max(0, -this._stage[1]),
-            valid_x1: Math.min(this._size[0], W - this._stage[0]), valid_y1: Math.min(this._size[1], H - this._stage[1]),
-        });
+        this._applyValid();
         this._syncClones();
         this._applyShape();
         this._applyClip();
         if (this._motion.k > 0)
             this._applyMotion();   // the pointer is held in this pane's own px
         wakeIce();      // a frozen menu placed as it opens: its ice comes alive
+    }
+
+    // The part of the pane that lies on the stage: the shader keeps its samples inside it.
+    _applyValid() {
+        const [W, H] = global.stage.get_size();
+        this._glass.setFloats({
+            valid_x0: Math.max(0, -this._stage[0]), valid_y0: Math.max(0, -this._stage[1]),
+            valid_x1: Math.min(this._size[0], W - this._stage[0]), valid_y1: Math.min(this._size[1], H - this._stage[1]),
+        });
+    }
+
+    // The screens changed (a monitor came or went): a pane that stayed where it is has
+    // another part of itself on the stage now, and another screen to be cut at.
+    _stageChanged() {
+        if (!this._placed)
+            return;
+        this._applyValid();
+        this._applyClip();
     }
 
     /** Whether the pane is held and has a picture of its size to keep showing. */
