@@ -191,3 +191,26 @@ export function clockMiddle(H, clockH, notesTop) {
         y = Math.min(y, Math.round(notesTop - NOTES_GAP - clockH));
     return Math.max(0, y);
 }
+
+// ---- the lock screen's password card (lock.js) ----
+export const CARD_LOOKS = 30;   // frames the card waits for GNOME to lay the prompt out, at most
+
+/**
+ * What the glass card does about the password prompt right now: 'hide' (nothing to sit
+ * behind), 'place' (the prompt has a place from GNOME: read it) or 'wait' (not yet).
+ *
+ * The card is placed just before a frame, and GNOME lays the screen out after that. A
+ * prompt with a layout due says the size it would like, not the one it gets, and one GNOME
+ * has just made says none at all. Up to 1.7.1 the card took that as it came: on a slow
+ * machine it ended up 18 px too tall, or stayed hidden behind a prompt that was there,
+ * because the layout that followed left the box around the prompt as it was and so nothing
+ * said to look again. Asking for the prompt's box has GNOME do a layout that is due.
+ */
+export function cardStep(box, prompt) {
+    if (!prompt || !box?.visible || box.opacity === 0 || !prompt.visible)
+        return 'hide';
+    prompt.get_allocation_box();
+    if (!prompt.has_allocation())
+        return 'wait';
+    return prompt.width < 2 ? 'hide' : 'place';
+}

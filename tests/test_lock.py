@@ -136,3 +136,36 @@ def test_lock_stylesheet_never_stays_after_unlock():
     assert "has || theme.load_stylesheet(STYLESHEET)" in body
     unlocking = js[js.index("    unlocking() {"):js.index("    _shapeSlide() {")]
     assert "this._unloadStyle()" in unlocking
+
+
+def test_lock_card_waits_for_gnomes_layout_of_the_prompt():
+    """1.7.1 placed the password card just before a frame from what the prompt said before GNOME had
+    laid it out: on a slow machine the card came out 18 px too tall, or stayed hidden behind a new
+    prompt (lock-card.test.mjs has the rule; the lock release check stages both on a real desktop)."""
+    js = (EXT / "lock.js").read_text()
+    sync = js[js.index("    _sync() {"):js.index("    _followPrompt(prompt) {")]
+    assert "const step = cardStep(box, prompt);" in sync
+    assert "prompt.width" not in sync, "the prompt's size is only read once GNOME has laid it out"
+    wait = sync[sync.index("if (step === 'wait') {"):sync.index("if (step === 'hide') {")]
+    # Waiting leaves the card alone and looks again on the next frame, a limited number of times.
+    assert "if (this._looks++ < CARD_LOOKS)" in wait and "this._queue(true);" in wait
+    assert "card.hide()" not in wait and "card.place(" not in wait
+    assert sync.index("const step = cardStep(box, prompt);") < sync.index("prompt.get_transformed_size()")
+    queue = js[js.index("    _queue(again = false) {"):js.index("    _sync() {")]
+    assert "if (!again)\n            this._looks = 0;" in queue, "a real change starts the count again"
+    common = (EXT / "common.js").read_text()
+    step = common[common.index("export function cardStep(box, prompt) {"):]
+    assert step.index("prompt.get_allocation_box();") < step.index("prompt.has_allocation()") < step.index("prompt.width < 2")
+
+
+def test_lock_card_follows_the_prompt_itself():
+    # The box around the prompt can stay as it is while the prompt changes size or is made anew.
+    js = (EXT / "lock.js").read_text()
+    sync = js[js.index("    _sync() {"):js.index("    _followPrompt(prompt) {")]
+    assert sync.index("this._followPrompt(prompt);") < sync.index("const step = cardStep(box, prompt);")
+    follow = js[js.index("    _followPrompt(prompt) {"):js.index("    _styleClock() {")]
+    assert "this._promptSignals.on(prompt, 'notify::allocation', () => this._queue());" in follow
+    # A prompt GNOME destroys is never touched again, and the hooks go with the glass.
+    assert "this._promptSignals.on(prompt, 'destroy'" in follow and "this._promptSignals.forget(prompt);" in follow
+    detach = js[js.index("    _detach() {"):js.index("    destroy() {")]
+    assert "this._promptSignals.clear();" in detach and "this._prompt = null;" in detach

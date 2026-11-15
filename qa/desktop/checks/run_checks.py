@@ -990,6 +990,55 @@ def lock_mask(ctx: Ctx, shape) -> np.ndarray:
     return lgqa.rect_mask(shape, [ctx.px(b) for b in boxes], grow=8) | clock_mask(ctx, shape)
 
 
+# True when the lock screen's glass card sits right behind the password prompt, CARD_PAD px (locklook.js)
+# around it. A prompt GNOME has not laid out yet does not count: it says the size it would like.
+LOCK_CARD_JS = """
+ const d = Main.screenShield._dialog; const p = d._promptBox.get_first_child();
+ const card = d.get_children().find(k => k.constructor.name === 'FedoraGlassPane' && k.name !== 'fedora-glass-lock-sheet');
+ const round = v => v.map(n => Math.round(n));
+ if (!p?.visible || !p.has_allocation())
+     return {fits: false, why: 'the password prompt is not laid out'};
+ const [x, y] = p.get_transformed_position(), [w, h] = p.get_transformed_size();
+ const want = [x - 28, y - 28, w + 56, h + 56];
+ if (!card?.visible || card.opacity === 0)
+     return {fits: false, why: `no card shows behind the prompt (it should be at ${round(want)})`};
+ const P = card._pad, [cx, cy] = card.get_transformed_position();
+ const has = [cx + P, cy + P, card.width - 2 * P, card.height - 2 * P];
+ const fits = has.every((v, i) => Math.abs(v - want[i]) <= 1.5);
+ return {fits, why: `the card is at ${round(has)}, the prompt needs it at ${round(want)}`};
+"""
+
+
+def lock_card_behind_prompt(sh, wait: float = 5) -> str:
+    """Empty when the glass card sits behind the password prompt within `wait` seconds, or what is wrong."""
+    if sh.wait_for(f"return (() => {{ {LOCK_CARD_JS} }})().fits;", wait):
+        return ""
+    return sh.json(LOCK_CARD_JS)["why"]
+
+
+def lock_card_follows(c: Check, sh) -> None:
+    """At the password screen: the card follows the prompt whenever GNOME lays it out or makes a new one."""
+    why = lock_card_behind_prompt(sh)
+    c.add(not why, "The glass card sits right behind the password prompt." if not why else
+          f"The glass card is not behind the password prompt: {why}.")
+    # The card looks just before a frame and GNOME lays the screen out after that: with a layout due, the
+    # prompt says the size it would like. 1.7.1 took that and kept it (a card 18 px too tall on GNOME 51).
+    asked, got = sh.json("""const b = Main.screenShield._dialog._promptBox; const p = b.get_first_child();
+     const got = p.height; p.queue_relayout(); const asked = p.height; b.notify('opacity'); return [asked, got];""")
+    settle(0.5)
+    why = lock_card_behind_prompt(sh)
+    c.add(not why, "The card keeps its place when it looks just before GNOME lays the prompt out "
+          f"(the prompt asks for {asked:.0f} px and gets {got:.0f})." if not why else
+          f"The card looked before GNOME had laid the prompt out and took the wrong place: {why}.")
+    # GNOME makes a new prompt in the old one's place, in a box that stays where it is: 1.7.1 hid the card
+    # for the new prompt (it has no size yet at the first look) and nothing made it look again.
+    sh.eval("const d = Main.screenShield._dialog; d._maybeDestroyAuthPrompt(); d._ensureAuthPrompt(); 1")
+    settle(1)
+    why = lock_card_behind_prompt(sh)
+    c.add(not why, "A new password prompt gets its glass card." if not why else
+          f"GNOME made a new password prompt and the glass card did not follow: {why}.")
+
+
 def check_lock(ctx: Ctx) -> Check:
     c = Check("lock", "Locking the screen works",
               "Locks the screen with windows open, compares the lock screen and the password screen with reference "
@@ -1033,6 +1082,7 @@ def check_lock(ctx: Ctx) -> Check:
             settle(1.5)
             now = lgqa.load(sh.shot("lock-prompt"))
             against_reference(ctx, c, "lock-prompt", "Password screen", now, lock_mask(ctx, now.shape), LIMITS["lock"])
+            lock_card_follows(c, sh)
         sh.eval("Main.screenShield.deactivate(true); 1")
         if not sh.wait_for("return !Main.screenShield.locked && Main.sessionMode.currentMode === 'user';", 15):
             c.add(False, f"Lock {cycle}: the desktop did not come back after unlocking.")
