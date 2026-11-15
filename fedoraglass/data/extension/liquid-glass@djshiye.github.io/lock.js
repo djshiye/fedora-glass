@@ -19,7 +19,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GlassPane} from './glass.js';
-import {Signals, clockMiddle, notificationsTop} from './common.js';
+import {CARD_LOOKS, Signals, cardStep, clockMiddle, notificationsTop} from './common.js';
 import {CARD_PAD, CLOCK_STYLES, cardLook, sheetLook} from './locklook.js';
 import {Wallpaper} from './wallpaper.js';
 
@@ -56,10 +56,13 @@ export class LockGlass {
         this.cfg = cfg.lock;
         this._signals = new Signals();
         this._dialogSignals = new Signals();
+        this._promptSignals = new Signals();
         this._dialog = null;
         this._sheets = [];
         this._card = null;
+        this._prompt = null;
         this._later = 0;
+        this._looks = 0;
         this._ended = false;
         this._styled = [];
         this._safe(() => {
@@ -212,7 +215,11 @@ export class LockGlass {
         this._queue();
     }
 
-    _queue() {
+    // A change asks for a look and starts the count again. A look that has to wait for
+    // GNOME's layout asks for the next one itself (again), CARD_LOOKS times at most.
+    _queue(again = false) {
+        if (!again)
+            this._looks = 0;
         if (this._later || !this._dialog)
             return;
         this._later = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
@@ -231,8 +238,16 @@ export class LockGlass {
         if (!card)
             return;
         const box = dialog._promptBox;
-        const prompt = box?.get_first_child();
-        if (!prompt || !box.visible || box.opacity === 0 || prompt.width < 2) {
+        const prompt = box?.get_first_child() ?? null;
+        this._followPrompt(prompt);
+        const step = cardStep(box, prompt);
+        if (step === 'wait') {
+            // No place from GNOME yet: the card stays as it is and looks again next frame.
+            if (this._looks++ < CARD_LOOKS)
+                this._queue(true);
+            return;
+        }
+        if (step === 'hide') {
             card.hide();
             return;
         }
@@ -254,6 +269,25 @@ export class LockGlass {
         card.place(lx, ly, w, h, [r, r, r, r], x, y);
         card.opacity = box.opacity;
         card.show();
+    }
+
+    // The card hugs the prompt, so it listens to the prompt itself: GNOME can give it
+    // another size inside a box that stays as it is, and it makes a new prompt each time
+    // the password screen comes back.
+    _followPrompt(prompt) {
+        if (prompt === this._prompt)
+            return;
+        this._promptSignals.clear();
+        this._prompt = prompt;
+        if (!prompt)
+            return;
+        this._promptSignals.on(prompt, 'notify::allocation', () => this._queue());
+        // A prompt GNOME takes away is disposed: never touch it again.
+        this._promptSignals.on(prompt, 'destroy', () => {
+            this._promptSignals.forget(prompt);
+            if (this._prompt === prompt)
+                this._prompt = null;
+        });
     }
 
     // Clock look and place: only how GNOME's own clock is drawn and where it sits.
@@ -359,6 +393,8 @@ export class LockGlass {
             global.compositor.get_laters().remove(this._later);
         this._later = 0;
         this._dialogSignals.clear();
+        this._promptSignals.clear();
+        this._prompt = null;
         for (const [label, css] of this._styled) {
             try {
                 label.set_style(css);
