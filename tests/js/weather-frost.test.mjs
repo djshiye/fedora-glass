@@ -403,3 +403,25 @@ test('the ice knows what lies over a menu: its veil and its own soft shadow', ()
     assert.equal(look(-1), 0);
 });
 
+
+test('locking and unlocking does not ask the weather service again (1.7.1 asked at every unlock)', async () => {
+    const F = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/frost.js');
+    M.forgetWeatherAsked();
+    const c = client({temp: -5, feels: -5});
+    globalThis.fake.panel.statusArea.dateMenu._weatherItem._weatherClient = c;
+    now = 1e12;
+    for (let i = 0; i < 5; i++) {           // five locks and unlocks, a minute apart
+        const f = new F.WeatherFrost({weather: {enabled: true}});
+        f.destroy();
+        now += 60e6;
+    }
+    assert.equal(c.updates, 1, 'asked once, not once per unlock');
+    now += 30 * 60e6;                       // half an hour later it is due again
+    const f = new F.WeatherFrost({weather: {enabled: true}});
+    f.destroy();
+    assert.equal(c.updates, 2);
+    assert.equal(M.askWeatherNow(now + 60e6), false);
+    assert.equal(M.askWeatherNow(now - 60e6), true, 'the clock was set back');
+    M.forgetWeatherAsked();
+    globalThis.fake.panel.statusArea.dateMenu._weatherItem._weatherClient = null;
+});

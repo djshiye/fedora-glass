@@ -46,7 +46,7 @@ Card {
                       ? qsTr("Save two looks to switch between them with GNOME's light and dark style.")
                       : card.follows
                       ? qsTr("When GNOME turns light or dark, the matching look goes on your desktop without Apply.")
-                      : qsTr("Works only when Style is Auto, so it follows GNOME.")
+                      : qsTr("Works only when the style is set to Auto (under Colour), so it follows GNOME.")
                 color: Theme.textDim
                 font.pixelSize: Theme.fsSmall + 1
                 lineHeight: 1.1

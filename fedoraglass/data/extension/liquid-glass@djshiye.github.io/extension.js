@@ -401,6 +401,7 @@ export default class FedoraGlassExtension extends Extension {
         this._leavingWidgets?.destroy();
         this._leavingWidgets = null;
         this._stopSession();
+        Speed.forget?.();
         this._dropLeavingPopups();
         this._config?.destroy();
         this._config = null;

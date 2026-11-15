@@ -52,14 +52,29 @@ function now() {
     return GLib.get_monotonic_time();
 }
 
+// What the last Speed knew when it went away (the screen locking takes the glass, and
+// Speed with it): the level auto had settled on and the power state. Without it every
+// unlock started at full glass again: a slow PC stuttered for a few seconds until auto
+// stepped down once more, and on battery the glass drew at full and then switched to
+// lighter a moment later (every look applied twice).
+let kept = null;
+
+
 export class Speed {
+    /** Fedora Glass switched off (not a lock): the next start begins afresh. */
+    static forget() {
+        kept = null;
+    }
+
     /** onLevel(level) is called when the glass should redraw at another level. */
     constructor(cfg, onLevel) {
         this._onLevel = onLevel;
-        this._tuner = new Tuner();
         this._quality = cleanQuality(cfg?.speed);
         this._lighterOnBattery = cfg?.speed?.lighterOnBattery !== false;
-        this._power = {battery: false, saver: false};
+        const before = kept;
+        kept = null;
+        this._tuner = this._quality === 'auto' && before?.quality === 'auto' ? before.tuner : new Tuner();
+        this._power = this._lighterOnBattery && before?.power ? before.power : {battery: false, saver: false};
         this._powerWatch = null;
         this._level = this._fixedLevel();
         this._since = Math.floor(Date.now() / 1000);
@@ -70,6 +85,7 @@ export class Speed {
         this._drag = null;         // the window drag going on: {start, windows, views}
         this._writeId = 0;         // the status write waiting for a quiet moment
         this._writeReason = undefined;
+        this._level = this._wanted();
         setQuality(this._level);
 
         this._cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'liquid-glass']);
@@ -105,6 +121,7 @@ export class Speed {
             this._monitor = null;
         }
         this._watchPower();
+        this._scheduleRetry();     // a try at better glass that was due before the lock
         this._writeStatus();
     }
 
@@ -131,7 +148,7 @@ export class Speed {
     _watchPower() {
         if (this._lighterOnBattery && !this._powerWatch) {
             try {
-                this._powerWatch = new PowerWatch(state => this._powerChanged(state));
+                this._powerWatch = new PowerWatch(state => this._powerChanged(state), this._power);
             } catch (e) {
                 console.warn(`Fedora Glass: no lighter glass on battery: ${e}`);
                 this._powerWatch = null;
@@ -524,6 +541,7 @@ export class Speed {
             this._writeId = 0;
             this._writeNow();
         }
+        kept = {quality: this._quality, tuner: this._tuner, power: this._power};
         this._drag = null;
         this._grabMove?.destroy();
         this._grabMove = null;

@@ -57,10 +57,8 @@ SettingsPage {
                     Text { id: lookTitle; text: qsTr("Look"); color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
                     Text {
                         anchors.baseline: lookTitle.baseline
-                        // Gives way to the buttons in a narrow window.
-                        width: Math.max(0, Math.min(implicitWidth, lookButtons.x - lookTitle.width - 10 - 16))
-                        visible: width >= 80
-                        elide: Text.ElideRight
+                        // Gives way to the buttons in a narrow window: shown whole or not at all.
+                        visible: implicitWidth <= lookButtons.x - lookTitle.width - 10 - 16
                         text: qsTr("Pick one to start. Everything else follows it.")
                         color: Theme.textFaint
                         font.pixelSize: Theme.fsSmall + 1
@@ -173,7 +171,7 @@ SettingsPage {
                     width: parent.width
                     value: Backend.frost
                     ticks: Backend.frostTicks
-                    onMoved: (v) => Backend.frost = v
+                    onMoved: (v) => Backend.setFrost(v)
                 }
             }
         },

@@ -231,11 +231,14 @@ export class Follower {
         const appearing = !pane.visible;
         if (appearing)
             motion.current?.opened(this);
-        const [sx, sy] = target.get_transformed_position();
         // Size from the allocation, which is what is painted: width/height (and so
         // get_transformed_size()) fall back to the preferred size while a relayout is
-        // pending, and the volume OSD prefers twice the height it gets.
+        // pending, and the volume OSD prefers twice the height it gets. Asked for before
+        // the position: it makes Clutter do a layout that is due, and a position read
+        // before that is last frame's (a menu that grows upward, like Quick Settings
+        // opening a submenu, showed its glass one frame behind its top edge).
         const box = target.get_allocation_box();
+        const [sx, sy] = target.get_transformed_position();
         const far = target.apply_transform_to_point(new Graphene.Point3D({x: box.get_width(), y: box.get_height(), z: 0}));
         const [w, h] = [far.x - sx, far.y - sy];
         let [ok, lx, ly] = parent.transform_stage_point(sx, sy);

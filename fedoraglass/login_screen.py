@@ -334,7 +334,10 @@ def build(original: str, out: str, accent: str, tint: str, frost: float) -> str:
         for n in names:
             data = extract(original, n)
             if n in targets:
-                data = (strip_block(data.decode()) + block).encode()
+                try:
+                    data = (strip_block(data.decode()) + block).encode()
+                except UnicodeDecodeError:
+                    raise LoginScreenError(f"{n} in the theme file is not text") from None
             files[n] = data
             dest = os.path.join(work, "root" + n)
             os.makedirs(os.path.dirname(dest), exist_ok=True)

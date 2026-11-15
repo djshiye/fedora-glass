@@ -28,11 +28,13 @@ function unpack(v) {
 
 export class PowerWatch {
     /** onChange({battery, saver}) is called when either changes; never before the first answer. */
-    constructor(onChange) {
+    constructor(onChange, known = null) {
         this._onChange = onChange;
         this._cancel = new Gio.Cancellable();
         this._proxies = [];
-        this._state = {battery: false, saver: false};
+        // `known`: what the owner already goes by (kept across a lock), so that an answer
+        // that differs from it is told, and one that matches it is not.
+        this._state = {battery: !!known?.battery, saver: !!known?.saver};
         for (const s of SERVICES) {
             try {
                 // Never start a service from the Shell (DO_NOT_AUTO_START): one that isn't

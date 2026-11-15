@@ -27,6 +27,7 @@ Window {
     // Pages are built the first time they are shown, then kept.
     property var visited: ({ home: true })
     onPageChanged: {
+        if (page !== "glass") Backend.weatherTry = ""      // "Try in the preview" is for the Glass page
         if (!visited[page]) {
             const v = Object.assign({}, visited)
             v[page] = true
@@ -258,7 +259,7 @@ Window {
             objectName: "sidebar"
             // Above the pages: search results float out over them (they were drawn under the preview).
             z: 1
-            width: 232
+            width: 248
             height: parent.height
             pages: win.pageList
             current: win.page
@@ -869,7 +870,7 @@ Window {
                 }
             }
 
-            Toast { id: toast; anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
+            Toast { id: toast; objectName: "toast"; onActionTriggered: Backend.restoreDiscarded(); anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
         }
     }
 
@@ -910,7 +911,7 @@ Window {
             win.closeAfterLogin = false
             // A closed password dialog was the user's own choice; an error stays in view.
             if (Backend.loginGlassFailed) {
-                toast.show(Backend.loginGlassNote, "alert", Theme.bad)
+                toast.showError(Backend.loginGlassNote)
                 return
             }
             win.closeAnyway = true
@@ -920,7 +921,14 @@ Window {
             win.closeAfterApply = false
             win.closeAfterLogin = false
             win.closeWhenIdle = false
-            toast.show(message, "alert", Theme.bad)
+            toast.showError(message)
+        }
+        function onUndone() {
+            toast.showAction(qsTr("Changes undone"), "undo", Theme.accentText, qsTr("Put back"))
+        }
+        function onRestorableChanged() {
+            // Something changed, so there is nothing to put back any more: the offer goes too.
+            if (!Backend.canRestore && toast.actionText.length > 0) toast.hide()
         }
         function onNoticed(message) { toast.show(message, "okCircle", Theme.good) }
     }

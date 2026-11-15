@@ -186,6 +186,8 @@ install -d %{buildroot}%{_userunitdir}
 cat > %{buildroot}%{_userunitdir}/liquid-glass-watch.service <<'UNIT'
 [Unit]
 Description=Fedora Glass: follow GNOME dark and light style
+# Not for system users (the gdm greeter has a user manager too, and no look of its own).
+ConditionUser=!@system
 PartOf=graphical-session.target
 After=graphical-session.target
 
@@ -204,6 +206,8 @@ UNIT
 cat > %{buildroot}%{_userunitdir}/fedora-glass-before-login.service <<'UNIT'
 [Unit]
 Description=Fedora Glass: bring the glass up to date before GNOME Shell starts
+# Not for system users (the gdm greeter has a user manager too, and no look of its own).
+ConditionUser=!@system
 # An update installed while logged out would otherwise need a second restart (see
 # `fedora-glass before-login`). GNOME's session manager, and with it GNOME Shell, starts
 # after gnome-session-pre.target; outside GNOME nothing pulls this in.

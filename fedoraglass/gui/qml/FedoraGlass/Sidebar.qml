@@ -170,7 +170,10 @@ Item {
         Accessible.role: Accessible.PageTab
         Accessible.selected: selected
         onClicked: root.picked(modelData.id)
-        LgToolTip { shown: nav.hovered && !!nav.modelData.tip && !nav.pressed; text: nav.modelData.tip || "" }
+        // The page's name in full when it doesn't fit, above what the page holds.
+        readonly property string fullTip: navLabel.truncated ? nav.modelData.label + (nav.modelData.tip ? "\n" + nav.modelData.tip : "")
+                                                              : (nav.modelData.tip || "")
+        LgToolTip { shown: nav.hovered && nav.fullTip.length > 0 && !nav.pressed; text: nav.fullTip }
         background: Rectangle {
             radius: Theme.rS
             color: nav.selected ? Theme.wellHi : nav.down ? Theme.pressed : nav.hovered ? Theme.hover : "transparent"
@@ -188,6 +191,7 @@ Item {
                 color: nav.selected ? Theme.text : Theme.textDim
             }
             Text {
+                id: navLabel
                 anchors.left: navIcon.right
                 anchors.leftMargin: 12
                 anchors.right: changedDot.visible ? changedDot.left : parent.right

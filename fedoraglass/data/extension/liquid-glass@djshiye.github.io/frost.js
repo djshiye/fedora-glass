@@ -23,7 +23,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {setFrost} from './glass.js';
-import {between, cleanFrost, frostFor, refreshDue, stale} from './frostmath.js';
+import {askWeatherNow, between, cleanFrost, frostFor, stale} from './frostmath.js';
 
 export const STATE = 'weather-frost.json';
 const TICK_S = 600;
@@ -86,7 +86,6 @@ export class WeatherFrost {
         this._clientId = 0;
         this._tick = 0;
         this._ease = 0;
-        this._askedAt = 0;
         // A start with the weather already there (unlocking, the Shell's parts starting
         // again) shows its frost at once: the glass was frosted a moment ago. Weather that
         // comes later (a few seconds after you log in), or frost you just turned on, eases
@@ -165,10 +164,8 @@ export class WeatherFrost {
         this._connect();
         const client = this._client;
         const now = GLib.get_real_time();
-        if (client?.available && client.hasLocation && refreshDue(this._askedAt, now)) {
-            this._askedAt = now;
+        if (client?.available && client.hasLocation && askWeatherNow(now))
             client.update();
-        }
         this._sync();   // a reading may have gone stale meanwhile
     }
 

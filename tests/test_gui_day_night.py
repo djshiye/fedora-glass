@@ -305,7 +305,7 @@ def test_day_and_night_card_hint_picks_and_forced_style(qml):
         b.setProperty("scheme", "dark")
         _spin(100)
         assert not dark.property("enabled") and not _find(win, "dayNightLight").property("enabled")
-        assert caption.property("text") == "Works only when Style is Auto, so it follows GNOME."
+        assert caption.property("text") == "Works only when the style is set to Auto (under Colour), so it follows GNOME."
         b.setProperty("scheme", "auto")
         _spin(100)
         assert dark.property("enabled")

@@ -156,6 +156,25 @@ export function refreshDue(lastUs, nowUs) {
     return !lastUs || nowUs - lastUs >= REFRESH_US || nowUs < lastUs;
 }
 
+// When GNOME's weather was last asked, for everything that asks it (the frost and the lock
+// screen's weather chip): one time for the whole session. Each used to keep its own and
+// start from "never" at every lock and unlock, so each of those asked the weather service
+// again (1.7.1), far more often than every 30 minutes.
+let weatherAskedUs = 0;
+
+/** Whether to ask GNOME's weather now; says yes at most once per 30 minutes, whoever asks. */
+export function askWeatherNow(nowUs) {
+    if (!refreshDue(weatherAskedUs, nowUs))
+        return false;
+    weatherAskedUs = nowUs;
+    return true;
+}
+
+/** For tests: as if the weather was never asked. */
+export function forgetWeatherAsked() {
+    weatherAskedUs = 0;
+}
+
 /** Whether a reading taken at `atUs` is too old to frost the glass by. */
 export function stale(atUs, nowUs) {
     return !atUs || nowUs - atUs >= STALE_US || nowUs < atUs - 60e6;
