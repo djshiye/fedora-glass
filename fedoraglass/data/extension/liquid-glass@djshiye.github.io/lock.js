@@ -184,6 +184,7 @@ export class LockGlass {
         if (this.cfg.card) {
             this._card = new GlassPane('full');
             this._card.setLook(cardLook(this.cfg));
+            this._card.setOnPad(() => this._queue());
             this._card.setSources([this._wall.actor]);
             // Each sheet went in right above the wallpaper, so the first screen's sheet is
             // the top one. Above the last sheet the card sat under the first screen's sheet

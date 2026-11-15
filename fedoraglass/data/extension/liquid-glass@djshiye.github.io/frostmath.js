@@ -270,8 +270,11 @@ float iceCrust(vec2 q, float inside, float shortSide) {
 // glass; inside: px in from its edge; lightGlass 0..1; shortSide: the pane's short side,
 // px; lit: -1..1, how far this part lies towards the light; inward: px the ice's inside is
 // seen shifted by (looking in at a slant); t: seconds, for the vapour.
-vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float shortSide, float lit,
-             vec2 inward, float t) {
+// crusted 0..1: how much of the frost crust at the edges lies here. 1 on the glass itself;
+// less where the pane's own text and icons are, so the frost thins out around them and
+// they keep their contrast (see iceLook, and the content's light layer in glass.js).
+vec3 iceLookAt(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float shortSide, float lit,
+               vec2 inward, float t, float crusted) {
     float cover = f.x;
     // Inside the ice: its clouds and veins lie deeper than the skin, so they shift a little
     // against it as you look in from another side.
@@ -303,7 +306,7 @@ vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float s
     col += vec3(0.50, 0.85, 1.0) * smoothstep(0.15, 1.0, lit) * mix(0.07, 0.04, lightGlass) * (0.6 + 0.8 * f.y) * cover;
     // Frost: a white crust at the edges, and fine frost over the skin's high points.
     vec3 white = mix(vec3(0.40, 0.58, 0.64), vec3(0.90, 0.97, 1.0), lightGlass);
-    float crust = iceCrust(q, inside, shortSide);
+    float crust = crusted > 0.0 ? iceCrust(q, inside, shortSide) * crusted : 0.0;
     float fine = smoothstep(0.55, 0.85, f.y) * mix(0.25, 0.45, lightGlass) + mix(0.04, 0.18, lightGlass) * clouds;
     col = mix(col, white, clamp(0.85 * crust + fine, 0.0, 0.92) * cover);
     // Vapour drifts over it by the cold edges, a soft mist that comes and goes.
@@ -325,16 +328,21 @@ vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float s
     return col * (1.0 + 0.10 * grain * cover);
 }
 
+// The ice with all of its frost crust: the glass itself.
+vec3 iceLook(vec3 under, vec4 f, vec2 q, float inside, float lightGlass, float shortSide, float lit,
+             vec2 inward, float t) {
+    return iceLookAt(under, f, q, inside, lightGlass, shortSide, lit, inward, t, 1.0);
+}
+
 // The ice's own light on dark glass, added on top of it (the content's light layer, glass.js):
 // the frost at the edges glows, light caught in the ice comes out there, lit vapour drifts
 // by, and points of frost catch the light. Added light, rgb.
-// content (0..1): how bright the pane's own text and icons are here, blurred (a line of
-// text gives about 0.01 to 0.1 around it). None is added on or right around them, and the
-// vapour's light thins out near them, so they read as before.
+// content (0..1): how much of the pane's own text and icons lies here, soft (iceOver).
+// The frost's and the vapour's light fade out on and around them, so they read as before;
+// the thin line of light at the very edge stays nearly whole, so the rim never breaks.
 // L: towards the light, which follows the pointer, so the frost sparkles as it moves.
 vec3 iceGlow(vec4 f, vec2 q, float inside, float shortSide, float lit, vec2 L, float t, float content) {
-    float onIt = smoothstep(0.008, 0.05, content);
-    float nearIt = smoothstep(0.006, 0.025, content);
+    float clear = 1.0 - clamp(content, 0.0, 1.0);
     float crust = iceCrust(q, inside, shortSide);
     float near = exp(-max(inside, 0.0) / clamp(0.22 * shortSide, 16.0, 90.0));
     float mist = iceVapour(q, t);
@@ -351,9 +359,18 @@ vec3 iceGlow(vec4 f, vec2 q, float inside, float shortSide, float lit, vec2 L, f
     float drift = iceFbm(q * 0.009 + vec2(0.035 * t, -0.022 * t));
     // The vapour's light keeps to the edges too, where no text lies.
     float rim = exp(-max(inside, 0.0) / 12.0);
-    float glow = (((0.22 + 0.10 * lit) * crust * (0.5 + 0.7 * f.y) + 0.45 * sparkle) * outer + 0.20 * edge) * (1.0 - onIt)
-               + ((0.12 * mist + 0.05) * rim + 0.04 * near * smoothstep(0.45, 0.85, drift)) * (1.0 - 0.7 * nearIt) * (1.0 - onIt);
+    float glow = ((0.22 + 0.10 * lit) * crust * (0.5 + 0.7 * f.y) + 0.45 * sparkle) * outer * clear
+               + 0.20 * edge * (0.6 + 0.4 * clear)
+               + ((0.12 * mist + 0.05) * rim + 0.04 * near * smoothstep(0.45, 0.85, drift)) * clear;
     return vec3(0.60, 0.90, 1.0) * glow * f.x;
+}
+
+// How much of a pane's own text and icons lies at a point, 0..1, from how bright the
+// blurred copy of its content is there (bright; a line of text gives about 0.01 to 0.1 around it;
+// an empty part reads about 0.005, from rounding). The copy has only 256 levels, so the
+// caller hands in the mean of a few reads spread around the point: one read gave steps.
+float iceOver(float bright) {
+    return smoothstep(0.008, 0.055, bright);
 }
 
 // Outside the glass, below freezing: cold vapour rolling off it (it sinks, so it spills

@@ -603,6 +603,8 @@ class WindowGlass {
         if (this.pane)
             return;
         this.pane = new GlassPane();
+        // Weather frost changed how much room the glass needs: place it again.
+        this.pane.setOnPad(() => this.queue());
         // Each pane sits in a holder that places it, and keeps its finished glass
         // (GlassPane.setKeep). A window's glass is big, and without that the lens
         // would be drawn again for every frame that repaints the window (a workspace

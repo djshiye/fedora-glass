@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.0
+Version:        1.7.1
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -374,6 +374,13 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Sun Nov 15 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.1-1
+- Weather frost: the dark smudges behind text and buttons on the frost are gone; the frost thins out around them instead
+- Weather frost: the panel's glass no longer shrinks to a thin strip when the frost level changes
+- Weather frost: a taskbar's window previews and the volume pop-up no longer freeze too bright
+- Weather frost: the glass freezes over in three seconds when the weather arrives or you turn the frost on, instead of jumping
+- Weather frost: GNOME's weather is found even when it starts late, without logging in again
+
 * Sat Nov 14 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.0-1
 - New: a glass login screen, the same frosted wallpaper, clock and glass card as the lock screen; off until you turn it on in Lock and login
 - The glass login screen is safe: it is on trial until your first login, turns itself off after a crash or a start nobody could log in from, and can be turned off from a text console or the boot menu

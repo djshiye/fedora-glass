@@ -12,6 +12,15 @@ import {HOLD_MAX_MS, MOVES, radiiOf, screenEdges, sourcesFor, windowWatch, follo
 const ICE_STYLE = ' box-shadow: none;';
 
 /**
+ * Whether no theme shadow lies under a frozen surface's veil: it was shed (our style is on
+ * it), or its style is known for sure (it shows) and has none. Not sure: the look's own
+ * `shade` counts until it shows.
+ */
+export function shadeGone(shed, frozen, sure, shadow) {
+    return shed || (frozen && sure && !shadow);
+}
+
+/**
  * A pane that sits right below `anchor` (a child of a free-layout container
  * such as the Shell's UI group) and copies the on-screen rectangle, corner
  * radii and opacity of `target`, a descendant of `anchor`.
@@ -43,8 +52,12 @@ export class Follower {
         this.settings = settings;
         this.pane = new GlassPane('glass');
         this.top = new GlassPane('reflections');
+        this.top.shareIce(this.pane);
         this._iceWant = false;
+        this._iceSettled = true;    // nothing left to look at on the surface (see _iceStyle)
         this.pane.setOnIce(frozen => this._iceStyle(frozen));
+        // Weather frost changed how much room the glass needs: place it again.
+        this.pane.setOnPad(() => this.queue());
         this._signals = new Signals();
         this._later = 0;
         this._onGone = onGone;
@@ -295,7 +308,7 @@ export class Follower {
         this.rect = [sx, sy, w, h];
         pane.show();
         top.show();
-        if (this._iceWant && !pane._shadeShed)
+        if (this._iceWant && !this._iceSettled)
             this._iceStyle(true);
         // The glass is placed and shown before this frame paints: the surface may
         // show in the same frame, over glass that is already complete.
@@ -339,17 +352,32 @@ export class Follower {
      */
     _iceStyle(frozen) {
         this._iceWant = frozen;
+        this._iceSettled = !frozen;
         const t = this.target;
         try {
             const style = t?.get_style?.() ?? '';
             const shed = style.includes(ICE_STYLE);
             // peek: a menu never shown yet has no style worked out; it is looked at again
             // when it shows (sync).
-            if (frozen && !shed && (this.settings?.look?.shade ?? 0) > 0 && t.peek_theme_node?.()?.get_box_shadow?.())
+            const node = t?.peek_theme_node?.() ?? null;
+            const shadow = node?.get_box_shadow?.() ?? null;
+            if (frozen && !shed && (this.settings?.look?.shade ?? 0) > 0 && shadow)
                 t.set_style(style + ICE_STYLE);
             else if (!frozen && shed)
                 t.set_style(style.replace(ICE_STYLE, '') || null);
-            this.pane?.setShadeShed((t?.get_style?.() ?? '').includes(ICE_STYLE));
+            const now = (t?.get_style?.() ?? '').includes(ICE_STYLE);
+            // St works a style out only while a widget shows: a hidden menu may still hold
+            // the one it last showed with (ours, without a shadow, after a thaw). Its style
+            // is believed only while it shows; until then it is looked at again (sync).
+            const sure = !!node && t?.mapped !== false;
+            this._iceSettled = !frozen || now || sure;
+            // No shadow lies under the veil once it is shed, nor where the theme never drew
+            // one (a taskbar's window previews have the menus' look but no shadow): the ice
+            // must not be brightened to make up for one. 1.7.0 did for those, and they
+            // froze too bright. Both panes lie under the veil, so both are told.
+            const none = shadeGone(now, frozen, sure, !!shadow);
+            this.pane?.setShadeShed(none);
+            this.top?.setShadeShed(none);
         } catch {
             // The surface is gone: nothing to put back.
         }

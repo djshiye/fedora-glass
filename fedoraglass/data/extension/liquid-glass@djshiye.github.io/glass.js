@@ -381,6 +381,24 @@ vec3 vivid(vec3 c, float k) {
 }
 
 ${ICE_GLSL}
+// How bright the surface's own text and icons are around px, on the content's light layer
+// (its texture is a blurred copy of the content; g: that copy at px). The copy holds the
+// surface's own box too, in the veil's colour: only what is brighter than that is its text
+// and icons. The mean of five reads a few px apart, because the copy has only 256 levels:
+// one read showed them as steps in whatever is drawn by it (see iceOver).
+float contentAround(vec2 px, vec4 g) {
+    vec3 v = vec3(veil_r, veil_g, veil_b) * veil_a;
+    vec3 d = g.rgb - v;
+    float s = max(max(d.r, max(d.g, d.b)), 0.0);
+    vec2 o = vec2(7.0, 3.0);
+    for (int i = 0; i < 4; i++) {
+        d = at(px + o).rgb - v;
+        s += max(max(d.r, max(d.g, d.b)), 0.0);
+        o = vec2(-o.y, o.x);
+    }
+    return s * 0.2;
+}
+
 void main() {
     vec2 size = vec2(width, height);
     vec2 px = cogl_tex_coord_in[0].st * vec2(tex_w, tex_h) - vec2(org_x, org_y);
@@ -598,24 +616,40 @@ void main() {
         // with the pointer, and lit vapour drifts by. Kept off the text and icons (the
         // blurred copy of the content says where they are), so they read as before.
         vec3 iceLight = vec3(0.0);
+        vec4 thin = vec4(0.0);
         if (flakes > OFF) {
+            float iceOn = smoothstep(0.0, 0.25, flakes);
             vec4 iceF = iceField(cc, hh, c + h, normalize(vec2(hl_x, hl_y) + vec2(1e-4)), flakes);
             vec2 Li = normalize(mix(vec2(hl_x, hl_y), clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0), ice_k) + vec2(1e-4));
             vec2 sqi = c / h * vec2(min(1.0, 2.0 * h.y / h.x), min(1.0, 2.0 * h.x / h.y));
-            // The copy holds the surface's own box too, in the veil's colour: only what is
-            // brighter than that is its text and icons (an empty part reads about 0.005,
-            // from rounding).
-            vec3 content = g.rgb - vec3(veil_r, veil_g, veil_b) * veil_a;
-            float bright = max(max(content.r, max(content.g, content.b)), 0.0);
-            iceLight = iceGlow(iceF, c + h, inside, shortSide, clamp(dot(sqi, Li), -1.0, 1.0), Li, ice_t, bright)
-                     * smoothstep(0.0, 0.25, flakes);
-            // Text or an icon on the white frost at an edge: a soft shade behind it, so it
-            // keeps its contrast (the frost may reach in under a menu's first line).
-            if (bright > 0.008)
-                sh = max(sh, 0.7 * iceCrust(c + h, inside, shortSide) * iceF.x * smoothstep(0.008, 0.04, bright)
-                             * smoothstep(0.0, 0.25, flakes));
+            float litI = clamp(dot(sqi, Li), -1.0, 1.0);
+            float content = iceOver(contentAround(px, g));
+            iceLight = iceGlow(iceF, c + h, inside, shortSide, litI, Li, ice_t, content) * iceOn;
+            // Text or an icon on the white frost at an edge (it may reach in under a menu's
+            // first line): the frost thins out around it, down to the bare ice, as frost
+            // does on glass that is touched, so it keeps its contrast. The bare ice is
+            // drawn over the frost there, as the glass under this layer draws it (through
+            // the theme's veil), softly, by how much content is near. Up to 1.7.0 a dark
+            // shade was laid behind such text instead: it came out as blotchy black smudges
+            // on the frost.
+            float melt = content * iceF.x * iceOn;
+            if (melt > 0.004)
+                melt *= smoothstep(0.02, 0.30, iceCrust(c + h, inside, shortSide));
+            if (melt > 0.004) {
+                vec3 vl = vec3(veil_r, veil_g, veil_b) * veil_a;
+                float passes = (1.0 - veil_a) * (1.0 - veil_shade);
+                vec2 inward = -clamp(toPtr / max(h, vec2(1.0)), -1.0, 1.0) * 6.0 * ice_k;
+                // What is behind the ice is not known here; the ice lets little of it
+                // through, and dark glass is dark behind: a dim blue-grey stands in.
+                vec3 bare = iceLookAt(vl + vec3(0.07, 0.09, 0.12) * passes, iceF, c + h, inside, 0.0, shortSide, litI,
+                                      inward, ice_t, 0.0);
+                vec3 raw = max((clamp(bare, 0.0, 1.0) - vl) / max(passes, 0.05), 0.0);
+                thin = vec4(raw / max(1.0, max(raw.r, max(raw.g, raw.b))), 1.0) * melt;
+            }
         }
-        cogl_color_out = vec4(glow * (1.0 - sh) + edgeLight + iceLight, sh) * cov * cogl_color_in.a;
+        // The shade lies over the thinned frost; the lights are added on top of both.
+        cogl_color_out = vec4((glow + thin.rgb) * (1.0 - sh) + edgeLight + iceLight, sh + thin.a * (1.0 - sh))
+                       * cov * cogl_color_in.a;
         return;
     }
 
@@ -1787,17 +1821,24 @@ function iceTick() {
     const dt = Math.min(0.1, Math.max(0, (now - iceLast) / 1e6));
     iceLast = now;
     const runs = iceRuns();
+    // A menu's glass and the light layer over it share one clock (shareIce): it runs while
+    // either is in use, and steps once.
+    const clocks = new Map();
+    for (const p of panes)
+        clocks.set(p._ice, (clocks.get(p._ice) ?? false) || (runs && p._iceInUse()));
     let busy = false;
-    for (const p of panes) {
-        const ice = p._ice;
-        const using = runs && p._iceInUse();
+    for (const [ice, using] of clocks) {
         if (!using && ice.speed <= 0)
             continue;
         ice.speed = iceEase(ice.speed, using, dt);
         ice.t = iceStep(ice.t, dt, ice.speed);
-        if (p.mapped)
-            p._glass.setFloats({ice_t: ice.t});
         busy ||= using || ice.speed > 0;
+    }
+    for (const p of panes) {
+        if (p.mapped && p._iceShown !== p._ice.t) {
+            p._iceShown = p._ice.t;
+            p._glass.setFloats({ice_t: p._ice.t});
+        }
     }
     if (busy)
         return GLib.SOURCE_CONTINUE;
@@ -2498,10 +2539,12 @@ class FedoraGlassPane extends Clutter.Actor {
         this._glass.radius = blur;
         // Room around the surface for the blur and the edge reflections to see past
         // the edge, and for the shadow.
+        const padWas = this._pad;
         this._pad = Math.ceil(Math.min(64, Math.max(blur, top ? 0 : blur * 0.5 + ENV_REACH, !top && L.shadow > 0 ? SHADOW_PAD : 0, 2)));
         const a = L.lightAngle * Math.PI / 180;
         const [tr, tg, tb, ta] = L.tint;
         const veil = veilOf(L.veil);
+        this._iceShown = this._ice.t;
         this._glass.setFloats({
             refr_h: Math.max(0, L.refraction),
             refr_amt: Math.max(0, L.bend),
@@ -2540,6 +2583,17 @@ class FedoraGlassPane extends Clutter.Actor {
         this._applyFrost();
         this._applyMotion();
         this._applyShape();
+        // The pane was placed with the room it needed then. Weather frost changes the blur,
+        // and so the room, by itself: placed as it was, the glass is drawn that much too
+        // small or too big (in 1.7.0 the panel's glass shrank to a thin strip as it frosted,
+        // until something else moved it). Its owner places it again.
+        if (this._pad !== padWas && this._placed)
+            this.onPad?.();
+    }
+
+    /** fn(): called when the room this pane needs around its surface (pad) has changed. */
+    setOnPad(fn) {
+        this.onPad = fn;
     }
 
     // Weather frost: the glass itself (not the content's light over a menu, not the rim over
@@ -2569,7 +2623,20 @@ class FedoraGlassPane extends Clutter.Actor {
         this._applyFrost();
     }
 
-    /** The theme's drop shadow taken off the surface over this glass (or put back). */
+    /**
+     * This pane shows the same ice as `pane` (the light layer over a menu's glass): one
+     * clock for both. With a clock each, the two came into use a frame or two apart, and
+     * the vapour on the glass and its light above it drifted a little further apart with
+     * every use.
+     */
+    shareIce(pane) {
+        this._ice = pane._ice;
+    }
+
+    /**
+     * No theme drop shadow lies under the veil over this glass: it was taken off the
+     * surface while frozen, or the theme draws none there (or it is back).
+     */
     setShadeShed(shed) {
         if (this._shadeShed === shed)
             return;

@@ -131,6 +131,12 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.1" date="2026-11-15">
+      <description>
+        <p>Weather frost fixes: the dark smudges behind text on the frost are gone, the panel's glass no longer shrinks to a thin strip as it frosts, and taskbar previews no longer freeze too bright.</p>
+        <p>The glass now freezes over in three seconds instead of jumping, and GNOME's weather is found even when it starts late.</p>
+      </description>
+    </release>
     <release version="1.7.0" date="2026-11-14">
       <description>
         <p>New: a glass login screen with the same frosted wallpaper, clock and glass card as the lock screen. It is off until you turn it on, and turns itself off if the login screen ever has trouble.</p>

@@ -195,6 +195,68 @@ test('a new reading eases in, and warm again goes back to your look', () => {
     w.destroy();
 });
 
+test('weather that comes after the start freezes the glass over as you watch, it does not jump', () => {
+    // A few seconds after you log in: GNOME's weather is still loading at the start.
+    now = 2.2e12;
+    const c = client({temp: -6, feels: -6, loading: true});
+    withClient(c);
+    globalThis.fake.frosts = [];
+    const w = new WeatherFrost(C.parse(JSON.stringify(on())));
+    assert.ok(globalThis.fake.frosts.every(([f, k]) => f === 0 && k === 0), 'nothing to show yet');
+    c.loading = false;
+    c.emit();
+    const want = M.frostFor(-6, {});
+    assert.ok((globalThis.fake.frosts.at(-1)?.[1] ?? 0) < want.flakes, 'not at once (1.7.0 snapped to frozen here)');
+    settle();
+    assert.deepEqual(globalThis.fake.frosts.at(-1), [want.frost, want.flakes]);
+    const flakes = globalThis.fake.frosts.map(([, k]) => k);
+    assert.ok(flakes.every((k, i) => i === 0 || k >= flakes[i - 1]), 'it only grows on the way');
+    assert.ok(flakes.filter(k => k > 0 && k < want.flakes).length > 20, 'in many small steps');
+    w.destroy();
+});
+
+test('turned on with Apply while it is freezing: the frost eases in', () => {
+    now = 2.4e12;
+    const c = client({temp: -6, feels: -6});
+    withClient(c);
+    globalThis.fake.frosts = [];
+    const w = new WeatherFrost(C.parse('{}'));
+    w.update(C.parse(JSON.stringify(on())));
+    const want = M.frostFor(-6, {});
+    assert.ok((globalThis.fake.frosts.at(-1)?.[1] ?? 0) < want.flakes, 'not at once');
+    settle();
+    assert.deepEqual(globalThis.fake.frosts.at(-1), [want.frost, want.flakes]);
+    // Unlocking (the Shell's parts start again with the weather there): at once, as before.
+    w.destroy();
+    globalThis.fake.frosts = [];
+    const again = new WeatherFrost(C.parse(JSON.stringify(on())));
+    assert.deepEqual(globalThis.fake.frosts.at(-1), [want.frost, want.flakes]);
+    assert.equal(globalThis.fake.frosts.filter(([f]) => f > 0 && f < want.frost).length, 0, 'no steps in between');
+    again.destroy();
+});
+
+test('GNOME\'s weather not built yet at the start is found at the next check', () => {
+    now = 2.6e12;
+    withClient(null);
+    globalThis.fake.frosts = [];
+    const w = new WeatherFrost(C.parse(JSON.stringify(on())));
+    assert.equal(JSON.parse(globalThis.fake.fs.get(STATE).text).status, 'no-weather');
+    const c = client({temp: 3, feels: 3});
+    withClient(c);
+    const tick = [...timers.values()].find(t => t.ms === 600e3);
+    now += 10 * 60e6;
+    tick.fn();
+    assert.equal(c.handlers.size, 1, 'listens to it from now on (1.7.0 looked once, at the start)');
+    assert.equal(c.updates, 1, 'and asks it for fresh numbers');
+    settle();
+    assert.deepEqual(globalThis.fake.frosts.at(-1), [M.frostFor(3, {}).frost, 0]);
+    assert.equal(JSON.parse(globalThis.fake.fs.get(STATE).text).status, 'ok');
+    tick.fn();
+    assert.equal(c.handlers.size, 1, 'only once');
+    w.destroy();
+    assert.equal(c.handlers.size, 0);
+});
+
 test('refreshes every 30 minutes, keeps a reading through a failed refresh, and lets it go after 3 hours', () => {
     now = 3e12;
     const c = client({temp: -5, feels: -5});
@@ -298,8 +360,8 @@ test('a dew point over the temperature (a rounding in the weather) is taken as t
 
 test('the frost shader is plain GLSL both GNOME Shell and the app take', () => {
     const g = M.ICE_GLSL;
-    for (const fn of ['iceHash', 'iceNoise', 'iceFbm', 'iceSkin', 'iceField', 'iceBend', 'iceVapour', 'iceCrust', 'iceLook',
-        'iceGlow', 'iceHalo'])
+    for (const fn of ['iceHash', 'iceNoise', 'iceFbm', 'iceSkin', 'iceField', 'iceBend', 'iceVapour', 'iceCrust', 'iceLookAt',
+        'iceLook', 'iceGlow', 'iceOver', 'iceHalo'])
         assert.ok(g.includes(` ${fn}(`), fn);
     assert.ok(!/`|\$\{/.test(g), 'nothing that would break the shader\'s JS string');
     assert.ok(!/\b(texture|uniform|OFF)\b/.test(g), 'uses only its own arguments');

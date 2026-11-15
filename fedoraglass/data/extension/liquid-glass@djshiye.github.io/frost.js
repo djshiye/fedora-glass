@@ -87,7 +87,11 @@ export class WeatherFrost {
         this._tick = 0;
         this._ease = 0;
         this._askedAt = 0;
-        this._first = true;         // the first frost after a start shows at once
+        // A start with the weather already there (unlocking, the Shell's parts starting
+        // again) shows its frost at once: the glass was frosted a moment ago. Weather that
+        // comes later (a few seconds after you log in), or frost you just turned on, eases
+        // in, so you see the glass freeze over rather than jump.
+        this._first = true;
         this._start();
     }
 
@@ -98,7 +102,7 @@ export class WeatherFrost {
         const was = this._cfg.enabled;
         this._cfg = next;
         if (next.enabled && !was) {
-            this._first = true;
+            this._first = false;        // turned on: it eases in as you watch
             this._start();
         } else if (!next.enabled && was) {
             this._stop();
@@ -112,18 +116,23 @@ export class WeatherFrost {
             this._removeState();
             return;
         }
-        this._client = gnomeWeather();
-        if (this._client) {
-            this._clientId = this._client.connect('changed', () => this._safe(() => this._sync()));
-        }
+        this._connect();
         this._tick = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, TICK_S, () => {
             this._safe(() => this._refresh());
             return GLib.SOURCE_CONTINUE;
         });
-        this._safe(() => {
-            this._sync();
-            this._refresh();
-        });
+        this._safe(() => this._sync());
+        this._first = false;        // only a reading that is there at the start shows at once
+        this._safe(() => this._refresh());
+    }
+
+    /** Finds GNOME's weather and listens to it. It may not be there yet: asked again later. */
+    _connect() {
+        if (this._client)
+            return;
+        this._client = gnomeWeather();
+        if (this._client)
+            this._clientId = this._client.connect('changed', () => this._safe(() => this._sync()));
     }
 
     _stop() {
@@ -151,6 +160,9 @@ export class WeatherFrost {
 
     /** Asks GNOME's weather for fresh numbers when they are due. */
     _refresh() {
+        // 1.7.0 looked for GNOME's weather once: had the calendar menu not built it yet at
+        // the start, the glass never frosted until the next login.
+        this._connect();
         const client = this._client;
         const now = GLib.get_real_time();
         if (client?.available && client.hasLocation && refreshDue(this._askedAt, now)) {
@@ -176,8 +188,6 @@ export class WeatherFrost {
         const f = frostFor(t, this._cfg, r?.dew ?? null);
         this._level = f.level;
         this._go({frost: f.frost, flakes: f.flakes}, this._first);
-        if (r)
-            this._first = false;
         this._writeState(r, f.level);
     }
 
