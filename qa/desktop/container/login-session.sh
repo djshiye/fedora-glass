@@ -62,9 +62,12 @@ printf "[org/gnome/mutter]\nexperimental-features=['scale-monitor-framebuffer']\
 dconf update
 
 # What a real install has that a container lacks, so the root helper (fedoraglass/login_glass.py)
-# can run here: GDM as the display manager, and the helper's boot guard enabled (the package
-# enables it; systemd itself does not run here, so the guard never runs).
+# can run here: GDM as the display manager, and the helper's boot guard installed and enabled
+# (the package does both; systemd itself does not run here, so the guard never runs). The unit
+# file has to be there: the helper does not count a link that leads nowhere.
 mkdir -p /etc/systemd/system/graphical.target.wants
+install -D -m 0644 "$SRC/data/systemd/fedora-glass-login-guard.service" \
+    /usr/lib/systemd/system/fedora-glass-login-guard.service
 ln -sf /usr/lib/systemd/system/gdm3.service /etc/systemd/system/display-manager.service
 ln -sf /usr/lib/systemd/system/fedora-glass-login-guard.service \
     /etc/systemd/system/graphical.target.wants/fedora-glass-login-guard.service
