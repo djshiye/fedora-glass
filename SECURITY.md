@@ -12,10 +12,14 @@ reproduce it.
 
 ## What counts
 
-Fedora Glass runs as your own user and changes only your own settings. Two parts run as root
-and are the most important to get right: the opt-in login screen glass
-(`fedoraglass/login_screen.py`, through `pkexec` after your password) and the package scripts
-that run when the package is installed, upgraded or removed. Problems in how the packages
+Fedora Glass runs as your own user and changes only your own settings. A few parts run as
+root and are the most important to get right: the opt-in login screen glass, which is two
+helpers (`fedoraglass/login_screen.py` for the GNOME Shell theme, and `fedoraglass/login_glass.py`,
+installed as `/usr/libexec/fedora-glass-login`, for the glass on the GDM login screen and its
+boot guard units), both run through `pkexec` after your password; the package scripts that
+run when the package is installed, upgraded or removed; and `packaging/undo-for-users.sh`
+(installed as `/usr/libexec/fedora-glass-undo-for-users`), which on removal runs the app as
+each person to put their look back. Problems in how the packages
 are built, signed and published (`docs/SIGNING.md`) count too.
 
 ## Supported versions

@@ -274,7 +274,7 @@ def test_frozen_glass_is_alive_only_while_in_use():
     assert "ice_live: this._iceLive() ? 1 : 0," in src
     # The app's preview: its clock runs only while the app is in front.
     pv = (ROOT / "fedoraglass/gui/qml/FedoraGlass/PreviewDesktop.qml").read_text()
-    assert "paused: !(root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront)" in pv
+    assert "running: root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront" in pv
 
 
 def test_frost_thins_out_around_text_instead_of_a_dark_shade():

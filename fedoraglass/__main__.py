@@ -312,6 +312,13 @@ def update_after_upgrade(eng) -> bool:
         # the other parts still need the new version's look (1.5.2 never updated them),
         # and the stamp says which version they have.
         had = stamped
+        if had is None and getattr(eng, "env", None) is not None:
+            # The look is on but no Apply of every part ever stamped it (the only one had a
+            # part that failed): the other parts may be older, so one update Apply runs. It
+            # stamps the version or notes its failures, so the next login leaves it alone.
+            from .engine import read_failed_version
+            noted = read_failed_version(eng.env)
+            had = noted if noted and noted != __version__ else "older"
     if had is None or had == __version__:
         return False
     if (s := _auto_settings()) is None:

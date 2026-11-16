@@ -38,7 +38,7 @@ import St from 'gi://St';
 import {PACKAGE_VERSION} from 'resource:///org/gnome/shell/misc/config.js';
 import System from 'system';
 
-import {ICE_BIG, ICE_FPS, ICE_GLSL, frostBlur, frozenLiquid, iceEase, iceStep} from './frostmath.js';
+import {ICE_BIG, ICE_FPS, ICE_GLSL, ICE_LINGER_US, frostBlur, frozenLiquid, iceEase, iceStep} from './frostmath.js';
 import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
@@ -1369,6 +1369,17 @@ class FedoraGlassEffect extends Clutter.Effect {
         this._target = null;
         this._targetFor = '';
         this._pipeline.set_layer_null_texture(0);
+        this._forgetKept();
+    }
+
+    // The pipeline that draws the kept picture holds on to its texture: let go of it
+    // too, or a picture that was "dropped" stays in graphics memory (a maximized
+    // window's is about 22 MB) until this pane next draws a kept picture.
+    _forgetKept() {
+        if (!this._blitTex)
+            return;
+        this._blit?.set_layer_null_texture(0);
+        this._blitTex = null;
     }
 
     /** px of picture per px of pane, and the picture's size, for this pane now. */
@@ -1391,8 +1402,7 @@ class FedoraGlassEffect extends Clutter.Effect {
         return `${w}x${h}@${s}/${this._radius}`;
     }
 
-    _ensureTarget(a) {
-        const want = this._wants(a);
+    _ensureTarget(a, want = this._wants(a)) {
         if (this._target && this._targetFor === want)
             return this._target;
         const [size, rest] = want.split('@');
@@ -1454,6 +1464,7 @@ class FedoraGlassEffect extends Clutter.Effect {
         if (!on) {
             retire(this._out);
             this._out = null;
+            this._forgetKept();
         }
         this.queue_repaint();
     }
@@ -1492,8 +1503,8 @@ class FedoraGlassEffect extends Clutter.Effect {
     }
 
     /** Draw the glass: render its picture first when asked, then the lens over it. */
-    _draw(node, a, render) {
-        const t = this._ensureTarget(a);
+    _draw(node, a, render, want) {
+        const t = this._ensureTarget(a, want);
         if (!t) {
             node.add_child(Clutter.ActorNode.new(a, -1));
             return;
@@ -1546,7 +1557,9 @@ class FedoraGlassEffect extends Clutter.Effect {
 
     /** Run the lens into the kept picture when anything changed; returns that picture. */
     _keepLens(node, a, t, w, h) {
-        const s = screenScale(a);
+        // A sharp picture (a window's rim) is already at the screen's own px: no need to
+        // look the screens up again for every paint.
+        const s = this._radius > 0 ? screenScale(a) : t.s;
         const out = this._fit(this._out, w, h, s);
         if (!out)
             return null;
@@ -1580,7 +1593,9 @@ class FedoraGlassEffect extends Clutter.Effect {
             return;
         }
         // No picture yet (new, resized, or let go of while hidden): render now.
-        if (!this._target || this._targetFor !== this._wants(a))
+        // Worked out once per paint (it looks up the pane's place and the screens).
+        const want = this._wants(a);
+        if (!this._target || this._targetFor !== want)
             flags |= Clutter.EffectPaintFlags.ACTOR_DIRTY;
         const dirty = Clutter.EffectPaintFlags.ACTOR_DIRTY;
         const size = a ? `${a.width}x${a.height}` : '';
@@ -1591,7 +1606,7 @@ class FedoraGlassEffect extends Clutter.Effect {
         if ((flags & dirty) && hold.held && !a?._free && this._picture === size) {
             this._stale = true;
             this.held = (this.held ?? 0) + 1;    // read by the QA tools
-            this._draw(node, a, false);
+            this._draw(node, a, false, want);
             return;
         }
         // A window behind that repaints all the time (a chat app streaming text, a
@@ -1604,7 +1619,7 @@ class FedoraGlassEffect extends Clutter.Effect {
             if (wait > 0) {
                 this.throttled = (this.throttled ?? 0) + 1;    // read by the QA tools
                 this._catchUpIn(wait);
-                this._draw(node, a, false);
+                this._draw(node, a, false, want);
                 return;
             }
             // Time to catch up, but this frame redraws only part of the screen (the
@@ -1615,7 +1630,7 @@ class FedoraGlassEffect extends Clutter.Effect {
             this._stale = true;
             this.deferred = (this.deferred ?? 0) + 1;    // read by the QA tools
             a?.queueFull?.();
-            this._draw(node, a, false);
+            this._draw(node, a, false, want);
             return;
         }
         // Painted along with the other screen, the glass would copy only that
@@ -1628,7 +1643,7 @@ class FedoraGlassEffect extends Clutter.Effect {
             this._stale = true;
             this.offScreen = (this.offScreen ?? 0) + 1;    // read by the QA tools
             a?.queueFull?.(home);
-            this._draw(node, a, false);
+            this._draw(node, a, false, want);
             return;
         }
         if (flags & dirty)
@@ -1665,7 +1680,7 @@ class FedoraGlassEffect extends Clutter.Effect {
             else if (!whole)
                 this.get_actor()?.queueFull?.();
         }
-        this._draw(node, a, Boolean(flags & dirty));
+        this._draw(node, a, Boolean(flags & dirty), want);
     }
 
     _set(values) {
@@ -2719,22 +2734,32 @@ class FedoraGlassPane extends Clutter.Actor {
         return (this._layer === LAYERS.glass || this._layer === LAYERS.reflections) && !(this._look.solid > 0.5);
     }
 
-    // In use: the pointer on or near it (or pressing it), or a menu or popup shown. A bar is
-    // in use only with the pointer near it, so the panel lies still while you work elsewhere.
+    // In use: a menu or popup shown, or the pointer at work on or near a bar (or pressing
+    // it), so the panel lies still while you work elsewhere. A pointer left resting by the
+    // taskbar is not use: up to 1.7.4 the ice then ran for as long as it stayed there
+    // (30 redraws a second of the whole panel, for hours), so a bar now comes to rest a
+    // few seconds after the pointer last moved.
     _iceInUse() {
         if (!this._iceLive() || !this.mapped || !this.visible)
             return false;
         const m = this._motion;
-        if ((m.iceK ?? m.k) > 0.01 || m.press > 0.01)
+        if (m.press > 0.01)
             return true;
         // Its whole size, not the part a menu growing out of its button has reached yet.
         const p = this._pad;
-        return Math.min(this._whole[0], this._whole[1]) - 2 * p >= ICE_BIG;
+        if (Math.min(this._whole[0], this._whole[1]) - 2 * p >= ICE_BIG)
+            return true;
+        return (m.iceK ?? m.k) > 0.01 && GLib.get_monotonic_time() - (this._motionAt ?? 0) < ICE_LINGER_US;
     }
 
     // Pointer light, parallax, press and open: set by the motion controller in
     // motion.js. Only lens uniforms change, so the blur is not re-run.
     setMotion(m) {
+        // When the pointer last did something to this glass (see _iceInUse). The motion
+        // controller only calls with what changed, and not at all while the pointer rests.
+        const was = this._motion;
+        if (['sx', 'sy', 'k', 'iceK', 'press'].some(key => m[key] !== undefined && m[key] !== was[key]))
+            this._motionAt = GLib.get_monotonic_time();
         Object.assign(this._motion, m);
         this._applyMotion();
     }

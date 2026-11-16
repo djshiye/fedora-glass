@@ -15,7 +15,7 @@ Card {
     readonly property bool on: Backend.weatherFrost
     readonly property var now: Backend.weatherNow
     readonly property var ranges: Backend.weatherRanges
-    readonly property string why: Backend.weatherState     // ready, no-app or no-place
+    readonly property string why: Backend.weatherState     // ready, no-app, no-place or no-location
     function t(c) { return Backend.showTemp(c) }
     // What the desktop's glass does now, in a sentence.
     readonly property string status: {
@@ -25,6 +25,8 @@ Card {
             return reading()
         if (why === "no-app")
             return qsTr("Needs the GNOME Weather app. Install it from Software and pick your place, and the glass follows its weather.")
+        if (why === "no-location")
+            return qsTr("Turn on Location Services in Settings, or pick a place in GNOME Weather.")
         if (why === "no-place" || now.status === "no-place")
             return qsTr("Pick your place in GNOME Weather, and the glass follows its weather.")
         if (now.status === "no-weather")
@@ -104,7 +106,7 @@ Card {
             LgButton {
                 id: openWeather
                 objectName: "openWeatherApp"
-                visible: card.why === "no-place" || card.now.status === "no-place"
+                visible: card.why === "no-place" || card.why === "no-location" || card.now.status === "no-place"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 implicitHeight: 32

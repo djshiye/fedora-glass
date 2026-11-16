@@ -82,7 +82,7 @@ def test_undo_for_users_runs_on_remove_as_each_person_with_a_backup(tmp_path):
     (bin_ / "getent").write_text("#!/bin/sh\ncat <<'X'\n" + "\n".join(lines) + "\nX\n")
     (bin_ / "runuser").write_text("#!/bin/sh\n"
                                   # reading their environment.d files (as them): run, don't log
-                                  "[ \"$4\" = cat ] && { shift 3; exec \"$@\"; }\n"
+                                  "case $4 in cat|sh|test) shift 3; exec \"$@\" ;; esac\n"
                                   f"echo \"runuser $*\" >> {log}\n"
                                   # its session and input, to see it is apart from root's terminal
                                   f"cut -d' ' -f6 /proc/$$/stat > {tmp_path}/sid\n"
@@ -122,7 +122,7 @@ def _undo_with_env_d(tmp_path, conf, backup_at):
     log = tmp_path / "log"
     (bin_ / "getent").write_text(f"#!/bin/sh\necho 'dino:x:1000:1000::{home}:/bin/bash'\n")
     (bin_ / "runuser").write_text("#!/bin/sh\n"
-                                  "[ \"$4\" = cat ] && { shift 3; exec \"$@\"; }\n"
+                                  "case $4 in cat|sh|test) shift 3; exec \"$@\" ;; esac\n"
                                   f"echo \"runuser $*\" >> {log}\n")
     (bin_ / "dbus-run-session").write_text("#!/bin/sh\nexit 0\n")
     for f in bin_.iterdir():
@@ -184,11 +184,11 @@ def test_undo_for_users_is_detached_from_roots_terminal():
     """Every run as a person goes through setsid, with input from /dev/null: a process of
     theirs could otherwise push keystrokes into root's terminal (TIOCSTI)."""
     script = (ROOT / "packaging/undo-for-users.sh").read_text()
-    runs = [l for l in script.splitlines() if "runuser -u" in l and "-- cat " not in l]
+    runs = [l for l in script.splitlines() if "runuser -u" in l and '-- "$@"' not in l]
     assert len(runs) == 2
     assert all(l.strip().startswith("setsid -w timeout 120 runuser -u") for l in runs)
     # Reading their environment.d files is as them too, never as root.
-    assert [l for l in script.splitlines() if "-- cat " in l and 'setsid -w timeout 10 runuser -u "$name"' in l]
+    assert 'setsid -w timeout 10 runuser -u "$name" -- "$@"' in script
     assert script.count('on-remove </dev/null') == 2
     assert "for tool in runuser setsid" in script
 

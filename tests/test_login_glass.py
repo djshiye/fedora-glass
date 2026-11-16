@@ -85,6 +85,8 @@ def make_system(root: Path, kind: str = "fedora", base_exts: str | None = None, 
     os.symlink(f"/usr/lib/systemd/system/{dm}", root / "etc/systemd/system/display-manager.service")
     os.symlink(f"/usr/lib/systemd/system/{lg.GUARD_UNIT}",
                root / "etc/systemd/system/graphical.target.wants" / lg.GUARD_UNIT)
+    (root / "usr/lib/systemd/system").mkdir(parents=True)       # the guard counts only if its unit is there
+    (root / "usr/lib/systemd/system" / lg.GUARD_UNIT).write_text("[Unit]\n")
     (root / "usr/bin").mkdir(parents=True)
     os.symlink(DCONF, root / "usr/bin/dconf")
     script(root / "usr/bin/gnome-shell", f'echo "GNOME Shell {shell}"')

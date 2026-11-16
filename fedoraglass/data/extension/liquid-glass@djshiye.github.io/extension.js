@@ -56,18 +56,43 @@ export default class FedoraGlassExtension extends Extension {
         // Safe mode: if the glass keeps failing it is turned off (plain panels and
         // menus) until the Fedora Glass app turns it back on.
         this._safety = new Safety(tripped => this._safeMode(tripped));
+        // Each part follows a settings change on its own: one that throws must not stop the
+        // others from getting it. Up to 1.7.4 the first failure left every part after it on
+        // the old settings until the next change. It still counts as one error for safe mode.
         this._config = new Config(guarded('settings change', cfg => {
-            this._speed?.update(cfg);
-            this._manager?.update(this._effective(cfg));
-            this._frost?.update(cfg);
-            this._desktop?.update(cfg);
-            this._lock?.update(cfg);
-            this._widgets?.update(cfg);
-            this._animations?.update(cfg);
-            this._popupStyle?.update(cfg);
-            this._pausedStyle?.update(cfg);
-            if (this._locked === false)
-                this._syncSwitch(cfg);
+            let failed = null;
+            const part = (name, fn) => {
+                try {
+                    fn();
+                } catch (e) {
+                    if (failed)
+                        console.error(`Fedora Glass: settings change (${name}) failed too: ${e}`);
+                    else
+                        failed = new Error(`${name}: ${e?.message ?? e}`, {cause: e});
+                }
+            };
+            // The glass is updated with the new level just below, so the speed callback
+            // must not update all of it a second time meanwhile.
+            this._inConfigChange = true;
+            try {
+                part('speed', () => this._speed?.update(cfg));
+            } finally {
+                this._inConfigChange = false;
+            }
+            part('glass', () => this._manager?.update(this._effective(cfg)));
+            part('frost', () => this._frost?.update(cfg));
+            part('desktop', () => this._desktop?.update(cfg));
+            part('lock', () => this._lock?.update(cfg));
+            part('widgets', () => this._widgets?.update(cfg));
+            part('animations', () => this._animations?.update(cfg));
+            part('popups', () => this._popupStyle?.update(cfg));
+            part('paused style', () => this._pausedStyle?.update(cfg));
+            part('switch', () => {
+                if (this._locked === false)
+                    this._syncSwitch(cfg);
+            });
+            if (failed)
+                throw failed;
         }));
         this._modeId = Main.sessionMode.connect('updated', () => this._sync());
         // User Themes leaves a listener behind at every lock (see themetidy.js).
@@ -147,7 +172,10 @@ export default class FedoraGlassExtension extends Extension {
             // How much the glass draws (the glass quality setting, or auto when frames drop).
             try {
                 this._speed = new Speed(cfg, guarded('speed change',
-                    () => this._manager?.update(this._effective(this._config.value))));
+                    () => {
+                        if (!this._inConfigChange)
+                            this._manager?.update(this._effective(this._config.value));
+                    }));
             } catch (e) {
                 console.error(`Fedora Glass: no speed check or auto quality: ${e}`);
                 this._speed = null;

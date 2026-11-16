@@ -16,7 +16,9 @@
 # backup there, and the app looks for it there. So those four are read from their
 # environment.d files and handed to their run. The files are theirs, so they are read
 # as them (a link out of their home gets them nothing they could not read anyway) and
-# only looked at, never run: plain NAME=VALUE lines, where only $HOME and ${HOME} are
+# only looked at, never run (every look at a path under a home is made as that person,
+# with a time limit: root may not see into a network home, and a hung one must not hold
+# up the removal): plain NAME=VALUE lines, where only $HOME and ${HOME} are
 # expanded and anything else with a $, a backtick or a control character, or a value
 # that is not an absolute path, is ignored.
 #
@@ -29,6 +31,13 @@ app=/usr/bin/fedora-glass
 for tool in runuser setsid; do
     command -v "$tool" >/dev/null 2>&1 || { echo "Fedora Glass: $tool is missing, so your look was left as it is. Run: fedora-glass revert"; exit 0; }
 done
+
+# Run "$@" as the person $name, apart from root's terminal and with a time limit. Used for
+# every look at something under their home, so it works where root cannot see (an NFS home
+# with root_squash) and a stuck home costs ten seconds, not the package transaction.
+as_person() {
+    setsid -w timeout 10 runuser -u "$name" -- "$@" </dev/null 2>/dev/null
+}
 
 # The value of NAME in the environment.d text $1 ($2: their home), or nothing. The last
 # good assignment wins, as in systemd.
@@ -71,17 +80,15 @@ getent passwd | while IFS=: read -r name _pw uid _gid _gecos home _shell; do
     case "$uid" in ''|*[!0-9]*) continue ;; esac
     [ "$uid" -ge "$uid_min" ] && [ "$uid" -lt 60000 ] || continue      # people, not system users or nobody
     case "$home" in /*) ;; *) continue ;; esac
-    conf=
-    if [ -d "$home/.config/environment.d" ]; then
-        conf=$(setsid -w timeout 10 runuser -u "$name" -- cat -- "$home"/.config/environment.d/*.conf </dev/null 2>/dev/null)
-    fi
+    # The *.conf is spread by their shell, not root's; no such files just gives nothing.
+    conf=$(as_person sh -c 'cat -- "$1"/.config/environment.d/*.conf' sh "$home")
     xs=$(env_value "$conf" "$home" XDG_STATE_HOME)
     xc=$(env_value "$conf" "$home" XDG_CONFIG_HOME)
     xk=$(env_value "$conf" "$home" XDG_CACHE_HOME)
     xd=$(env_value "$conf" "$home" XDG_DATA_HOME)
-    if [ -f "${xs:-$home/.local/state}/liquid-glass/backup/manifest.json" ]; then
+    if as_person test -f "${xs:-$home/.local/state}/liquid-glass/backup/manifest.json"; then
         :
-    elif [ -f "$home/.local/state/liquid-glass/backup/manifest.json" ]; then
+    elif as_person test -f "$home/.local/state/liquid-glass/backup/manifest.json"; then
         xs='' xc='' xk='' xd=''     # the app would look in the default place
     else
         continue

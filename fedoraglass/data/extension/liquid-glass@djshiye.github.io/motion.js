@@ -208,8 +208,18 @@ export class Motion {
             if (!r) {
                 // Hidden: let go at once, so it never reopens still pressed.
                 const st = this._state.get(f);
-                if (st)
+                if (st) {
                     [st.press, st.pressV, st.pressT] = [0, 0, 0];
+                    // And its pointer light goes out. A menu closes with the pointer on it
+                    // (you clicked an item), and up to 1.7.4 its light then stayed "on" for
+                    // good: every pointer move after that woke this controller for nothing,
+                    // also with no glass on screen at all, and the menu reopened lit where
+                    // the pointer had been.
+                    if (st.k > 0) {
+                        [st.k, st.x, st.y] = [0, null, null];
+                        f.setMotion({k: 0});
+                    }
+                }
                 continue;
             }
             const L = this._look(f);

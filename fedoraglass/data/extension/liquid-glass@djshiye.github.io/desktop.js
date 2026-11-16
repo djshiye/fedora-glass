@@ -249,6 +249,8 @@ export class DesktopBehaviour {
 
     destroy() {
         this._endStartup();
+        // With the overview off 'showing' never fires, so the dash would keep our handler.
+        this._stopStylingDash();
         if (this._dashId)
             Main.overview.disconnect(this._dashId);
         this._dashId = 0;

@@ -548,7 +548,7 @@ def test_weather_switch_says_when_gnome_weather_has_nothing_to_show(tmp_path, mo
     gs[("org.gnome.shell.weather", "locations")] = "@av []"
     gs[("org.gnome.shell.weather", "automatic-location")] = "true"
     gs[("org.gnome.system.location", "enabled")] = "false"
-    assert backend_mod._weather_state(env) == "no-place"      # automatic, but Location Services off
+    assert backend_mod._weather_state(env) == "no-location"   # automatic, but Location Services off: its own advice
     gs[("org.gnome.system.location", "enabled")] = "true"
     assert backend_mod._weather_state(env) == "ready"
     gs[("org.gnome.shell.weather", "automatic-location")] = "false"
