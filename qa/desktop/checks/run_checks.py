@@ -1092,7 +1092,13 @@ def check_lock(ctx: Ctx) -> Check:
                           " g.push(a.constructor.name); a.get_children().forEach(w); }; w(global.stage); return g;")
             c.add(not bad, "The lock screen glass never takes clicks or keyboard focus." if not bad else
                   f"{len(bad)} glass pieces on the lock screen can take clicks or focus.")
-            sh.eval("Main.screenShield._dialog._showPrompt(); 1")
+            # Without PAM GNOME's password check fails by itself; a few seconds later GNOME resets the prompt
+            # with that failure, goes back to the clock and takes the prompt down (authPrompt 'failed' ->
+            # UnlockDialog._fail). On a slow machine that lands on the picture or the card checks (a 12x416 px
+            # strip at the card's edge). A real PC waits for the password instead: keep the prompt up for
+            # these checks, the way PAM does. The prompt binds _fail when it is made, so make it anew.
+            sh.eval("""const d = Main.screenShield._dialog; d._lgqaFail ??= d._fail; d._fail = () => {};
+             d._maybeDestroyAuthPrompt(); d._showPrompt(); 1""")
             settle(1.5)
             # There is no PAM in the test desktop, so the check for the password fails at once. GNOME 50
             # keeps the field shown after that; GNOME 51 hides it until it asks again. Ask once more, the
@@ -1102,6 +1108,7 @@ def check_lock(ctx: Ctx) -> Check:
             now = lgqa.load(sh.shot("lock-prompt"))
             against_reference(ctx, c, "lock-prompt", "Password screen", now, lock_mask(ctx, now.shape), LIMITS["lock"])
             lock_card_follows(c, sh)
+            sh.eval("const d = Main.screenShield._dialog; if (d._lgqaFail) { d._fail = d._lgqaFail; delete d._lgqaFail; } 1")
         sh.eval("Main.screenShield.deactivate(true); 1")
         if not sh.wait_for("return !Main.screenShield.locked && Main.sessionMode.currentMode === 'user';", 15):
             c.add(False, f"Lock {cycle}: the desktop did not come back after unlocking.")
