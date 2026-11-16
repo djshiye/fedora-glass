@@ -305,6 +305,8 @@ class Backend(QObject):
     applyFinished = Signal("QVariantList")
     revertFinished = Signal("QVariantList")
     failed = Signal(str)
+    undone = Signal()                   # Undo dropped changes: the window offers to put them back
+    restorableChanged = Signal()
     headerNoteChanged = Signal()
     loginGlassChanged = Signal()
     safeModeChanged = Signal()
@@ -446,6 +448,8 @@ class Backend(QObject):
         self._saved_stamp = self._settings_stamp()
         self._safe_timer.timeout.connect(self._poll_saved_colours)
         # Speed: what the extension reports, and the check the user can ask for.
+        self._fahrenheit: bool | None = None
+        self._discarded: Settings | None = None    # what Undo dropped, until anything changes
         self._speed_status: dict = {}
         self._speed_state = "idle"
         self._speed_result: dict = {}
@@ -462,6 +466,7 @@ class Backend(QObject):
         self._apps_state = "idle"           # idle, loading or ready
         self._apps_task: _Task | None = None
         self.settingsChanged.connect(self.noGlassAppsChanged)
+        self.settingsChanged.connect(self._forget_discarded)     # any change (or Apply) ends "Put back"
         self.settingsChanged.connect(self.weatherFrostChanged)    # the preview's frost follows the sliders
         self.installedAppsChanged.connect(self.noGlassAppsChanged)
         # GNOME's two wallpapers (picture-uri for light, picture-uri-dark for dark), as file URLs.
@@ -536,6 +541,7 @@ class Backend(QObject):
         self._paused = paused
         if self.glassPaused != was:
             self.glassPausedChanged.emit()
+        self._check_speed_watch()
 
     @Property(bool, notify=safeModeChanged)
     def safeMode(self) -> bool:
@@ -835,10 +841,10 @@ class Backend(QObject):
         value = self._memo[name]
         return list(value) if isinstance(value, list) else value
 
-    def _set(self, name: str, value: Any) -> None:
+    def _set(self, name: str, value: Any, also: dict | None = None) -> None:
         if getattr(self._s, name) == value:
             return
-        extra = self._hand_picked(name)
+        extra = {**self._hand_picked(name), **(also or {})}
         try:
             s = replace(self._s, **{name: value, **extra}).normalized()
         except (TypeError, ValueError):
@@ -1172,12 +1178,22 @@ class Backend(QObject):
         self._rewatch_speed()
         self.speedChanged.emit()
 
-    def _rewatch_speed(self) -> None:
+    def _rewatch_speed(self) -> bool:
+        """Watch the speed folder and file where they exist now. True when something was
+        added that was not watched before."""
         path = self._speed_status_path()
+        added = False
         if str(path.parent) not in self._speed_watch.directories() and path.parent.is_dir():
-            self._speed_watch.addPath(str(path.parent))
+            added = self._speed_watch.addPath(str(path.parent)) or added
         if str(path) not in self._speed_watch.files() and path.exists():
-            self._speed_watch.addPath(str(path))     # an atomic replace drops it, so add it again
+            added = self._speed_watch.addPath(str(path)) or added    # an atomic replace drops it, so add it again
+        return added
+
+    def _check_speed_watch(self) -> None:
+        """The folder the extension writes to is only there once glass has run: it can appear
+        after this app started. Watch it as soon as it does, and read what it holds."""
+        if self._rewatch_speed():
+            self._on_speed_file()
 
     def _on_speed_file(self, _path: str = "") -> None:
         self._rewatch_speed()
@@ -1354,6 +1370,22 @@ class Backend(QObject):
     def systemAccent(self) -> str:
         return self._system_accent or "blue"
 
+    @Slot(float)
+    def setFrost(self, value: float) -> None:
+        """The "How much glass" slider. A preset can pin the blur (Clear, Frosted) or the
+        opacity (Solid); while the slider sits on that preset and they still are what it
+        pinned, moving the slider lets them go, so the blur follows it. A blur or opacity
+        picked by hand in Advanced is a different number and stays."""
+        old = self._s.frost
+        free: dict = {}
+        for values in PRESETS.values():
+            if _close(old, values["frost"]):
+                for key in ("blur", "opacity"):
+                    if key in values and _close(getattr(self._s, key), values[key]):
+                        free[key] = None
+                break
+        self._set("frost", float(value), free)
+
     @Slot(str)
     def applyPreset(self, name: str) -> None:
         if name not in PRESETS:
@@ -1361,8 +1393,11 @@ class Backend(QObject):
         s = settings_mod.apply_preset(self._s, name)
         s.targets = dict(self._s.targets)
         if s != self._s:
+            scheme = self._s.scheme
             self._s = s
             self._changed()
+            if s.scheme != scheme:
+                self._match_wallpaper()     # as _set does: light and dark can have their own pictures
 
     def _all_reset(self) -> Settings:
         """Every setting at its default but this PC's own choices: which apps get the look,
@@ -1383,14 +1418,18 @@ class Backend(QObject):
 
     @Slot()
     def resetDefaults(self) -> None:
+        self.weatherTry = ""
         s = self._all_reset()
         if s != self._s:
             was_dark = self._effective_dark()
+            scheme = self._s.scheme
             self._s = s
             if self._effective_dark() != was_dark:
                 self._preview_dark = self._effective_dark()
                 self.previewChanged.emit()
             self._changed()
+            if s.scheme != scheme:
+                self._match_wallpaper()     # as _set does: light and dark can have their own pictures
 
     # ---- defaults, one setting or one card at a time ------------------------------------
     # Every slider shows where its default is and every card can go back to its defaults,
@@ -1429,22 +1468,60 @@ class Backend(QObject):
         if s == self._s:
             return
         was_dark = self._effective_dark()
+        scheme = self._s.scheme
         self._s = s
         if self._effective_dark() != was_dark:
             self._preview_dark = self._effective_dark()
             self.previewChanged.emit()
         self._changed()
+        if s.scheme != scheme:
+            self._match_wallpaper()     # as _set does: light and dark can have their own pictures
 
     @Slot()
     def discardChanges(self) -> None:
         """Undo: back to the look applied last. After an Apply where some parts failed (nothing
-        changed since), back to the last look that applied fully, to apply again."""
+        changed since), back to the last look that applied fully, to apply again.
+        What was dropped is kept (restoreDiscarded) until the next change or Apply."""
         back = self._saved if self.dirty or not self._partial else self._good
+        dropped = self._s
         self._s = replace(back, targets=dict(back.targets), **_at_once(self._saved))
+        self.weatherTry = ""
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
         self.targetStatesChanged.emit()   # the app switches and the glass edges follow the saved state
+        if dropped.scheme != self._s.scheme:
+            self._match_wallpaper()     # as _set does: light and dark can have their own pictures
+        if dropped != self._s:
+            self._discarded = dropped
+            self.restorableChanged.emit()
+            self.undone.emit()
+
+    def _forget_discarded(self) -> None:
+        if self._discarded is not None:
+            self._discarded = None
+            self.restorableChanged.emit()
+
+    @Property(bool, notify=restorableChanged)
+    def canRestore(self) -> bool:
+        return self._discarded is not None
+
+    @Slot()
+    def restoreDiscarded(self) -> None:
+        """Put back what Undo just dropped. Gone as soon as anything else changes."""
+        kept = self._discarded
+        if kept is None:
+            return
+        self._discarded = None
+        self.restorableChanged.emit()
+        scheme = self._s.scheme
+        self._s = replace(kept, targets=dict(self._s.targets), **_at_once(self._saved))
+        self._preview_dark = self._effective_dark()
+        self.previewChanged.emit()
+        self._changed()
+        self.targetStatesChanged.emit()
+        if self._s.scheme != scheme:
+            self._match_wallpaper()     # as _set does: light and dark can have their own pictures
 
     @Slot(str, result=bool)
     def isColor(self, value: str) -> bool:
@@ -1678,11 +1755,13 @@ class Backend(QObject):
     @Property(bool, constant=True)
     def weatherFahrenheit(self) -> bool:
         """Show °F: GNOME Weather's own unit, or for its default, the region (as libgweather)."""
-        try:
-            unit = self._env.gsettings_get("org.gnome.GWeather4", "temperature-unit")
-        except Exception:  # noqa: BLE001 (no schema: go by the region)
-            unit = None
-        return weather_mod.fahrenheit(unit)
+        if self._fahrenheit is None:      # asked on every slider tick: read once
+            try:
+                unit = self._env.gsettings_get("org.gnome.GWeather4", "temperature-unit")
+            except Exception:  # noqa: BLE001 (no schema: go by the region)
+                unit = None
+            self._fahrenheit = weather_mod.fahrenheit(unit)
+        return self._fahrenheit
 
     @Slot(float, result=str)
     def showTemp(self, celsius: float) -> str:
@@ -2250,6 +2329,7 @@ class Backend(QObject):
         # Not known yet: worked out on a worker thread first, then Apply goes on.
         if not self._take_wallpaper_colours():
             return
+        self._forget_discarded()
         s = self._s.normalized()
         header_changed = _header_key(s) != _header_key(self._saved)
         # The look applied until now, kept as the one to go back to once this Apply ends.
@@ -2338,6 +2418,7 @@ class Backend(QObject):
             # and waits for it.
             self._login_state = self._read_login_state()
             self._login_refresh(self._saved)
+            self._check_speed_watch()       # the first Apply is what makes the extension's folder
             self.applyFinished.emit(rows)
             self._lock_if_asked(results)
         self._run("apply", job, done)

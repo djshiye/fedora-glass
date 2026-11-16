@@ -4,7 +4,7 @@ const EXPORTS = {
     'animations.js': ['Animations'], 'arcrescue.js': ['ArcMenuRescue'], 'config.js': ['Config'],
     'desktop.js': ['DesktopBehaviour'], 'frost.js': ['WeatherFrost'], 'lock.js': ['LockGlass'], 'lockwidgets.js': ['LockWidgets'],
     'popupstyle.js': ['PopupStyle'], 'paused.js': ['PausedStyle'], 'pausestate.js': ['PauseState'], 'safety.js': ['Safety', 'guarded'], 'speed.js': ['Speed'],
-    'surfaces.js': ['GlassManager'], 'quicktoggle.js': ['GlassSwitch'], 'themetidy.js': ['UserThemesTidy'], 'tuning.js': ['effectiveConfig'],
+    'surfaces.js': ['GlassManager'], 'quicktoggle.js': ['GlassSwitch'], 'themetidy.js': ['UserThemesTidy'], 'gcsweep.js': ['SettingsSweep'], 'tuning.js': ['effectiveConfig'],
     'Extension': ['Extension'],
 };
 

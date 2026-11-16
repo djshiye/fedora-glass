@@ -80,7 +80,10 @@ def test_undo_for_users_runs_on_remove_as_each_person_with_a_backup(tmp_path):
         lines.append(f"{name}:x:{uid}:{uid}::{h}:/bin/bash")
     log = tmp_path / "log"
     (bin_ / "getent").write_text("#!/bin/sh\ncat <<'X'\n" + "\n".join(lines) + "\nX\n")
-    (bin_ / "runuser").write_text(f"#!/bin/sh\necho \"runuser $*\" >> {log}\n"
+    (bin_ / "runuser").write_text("#!/bin/sh\n"
+                                  # reading their environment.d files (as them): run, don't log
+                                  "[ \"$4\" = cat ] && { shift 3; exec \"$@\"; }\n"
+                                  f"echo \"runuser $*\" >> {log}\n"
                                   # its session and input, to see it is apart from root's terminal
                                   f"cut -d' ' -f6 /proc/$$/stat > {tmp_path}/sid\n"
                                   f"readlink /proc/$$/fd/0 > {tmp_path}/stdin\n")
@@ -105,13 +108,87 @@ def test_undo_for_users_runs_on_remove_as_each_person_with_a_backup(tmp_path):
     assert (tmp_path / "stdin").read_text().strip() == "/dev/null"
 
 
+def _undo_with_env_d(tmp_path, conf, backup_at):
+    """One person whose environment.d holds `conf` (with @HOME@ for their home) and whose
+    backup is at `backup_at` (under their home); returns the runuser calls."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    home = tmp_path / "home" / "dino"
+    (home / ".config/environment.d").mkdir(parents=True)
+    for name, text in conf.items():
+        (home / ".config/environment.d" / name).write_text(text.replace("@HOME@", str(home)))
+    (home / backup_at / "liquid-glass/backup").mkdir(parents=True)
+    (home / backup_at / "liquid-glass/backup/manifest.json").write_text("{}")
+    log = tmp_path / "log"
+    (bin_ / "getent").write_text(f"#!/bin/sh\necho 'dino:x:1000:1000::{home}:/bin/bash'\n")
+    (bin_ / "runuser").write_text("#!/bin/sh\n"
+                                  "[ \"$4\" = cat ] && { shift 3; exec \"$@\"; }\n"
+                                  f"echo \"runuser $*\" >> {log}\n")
+    (bin_ / "dbus-run-session").write_text("#!/bin/sh\nexit 0\n")
+    for f in bin_.iterdir():
+        f.chmod(0o755)
+    script = (ROOT / "packaging/undo-for-users.sh").read_text()
+    script = script.replace("PATH=/usr/sbin:/usr/bin:/sbin:/bin", f"PATH={bin_}:/usr/bin:/bin") \
+                   .replace("app=/usr/bin/fedora-glass", f"app={bin_}/getent")
+    run = tmp_path / "undo.sh"
+    run.write_text(script)
+    out = subprocess.run(["sh", str(run)], capture_output=True, text=True, timeout=30,
+                         env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+    assert out.returncode == 0
+    return home, (log.read_text().splitlines() if log.exists() else [])
+
+
+def test_undo_for_users_follows_xdg_folders_set_in_environment_d(tmp_path):
+    """Someone who moved XDG_STATE_HOME in ~/.config/environment.d keeps the backup there:
+    the app is run for them with that folder (and the other three when set), and only
+    $HOME is expanded."""
+    home, calls = _undo_with_env_d(tmp_path, {
+        "10-xdg.conf": "# mine\nXDG_STATE_HOME=@HOME@/old\nXDG_STATE_HOME=$HOME/st ate\n"
+                       "XDG_CONFIG_HOME=${HOME}/cfg\nXDG_CACHE_HOME=/var/tmp/cache\n",
+        "20-more.conf": "XDG_DATA_HOME=$HOME/data\nOTHER=/x\n",
+        "readme.txt": "XDG_DATA_HOME=/not/a/conf/file\n",
+    }, "st ate")
+    assert len(calls) == 1
+    c = calls[0]
+    assert f"XDG_STATE_HOME={home}/st ate " in c and f"XDG_CONFIG_HOME={home}/cfg " in c
+    assert "XDG_CACHE_HOME=/var/tmp/cache " in c and f"XDG_DATA_HOME={home}/data " in c
+    assert c.endswith("on-remove")
+
+
+def test_undo_for_users_ignores_what_it_cannot_trust_in_environment_d(tmp_path):
+    """Other variables, a $ that is not $HOME, backticks, a relative path: ignored, and
+    nothing in the files is ever run."""
+    marker = tmp_path / "ran"
+    home, calls = _undo_with_env_d(tmp_path, {
+        "10-bad.conf": f"XDG_STATE_HOME=$(touch {marker})\nXDG_CONFIG_HOME=$HOMEDIR/x\n"
+                       f"XDG_CACHE_HOME=`touch {marker}`\nXDG_DATA_HOME=relative/dir\n"
+                       "XDG_STATE_HOME=$OTHER/state\nexport XDG_CONFIG_HOME=/ignored\n",
+    }, ".local/state")
+    assert not marker.exists()
+    assert len(calls) == 1 and "XDG_" not in calls[0].split("--", 1)[1].replace("XDG_RUNTIME_DIR", "")
+
+
+def test_undo_for_users_still_uses_the_default_folder_when_the_backup_is_there(tmp_path):
+    """XDG_STATE_HOME points somewhere with no backup, the backup is in the default place:
+    the app is run without the moved folders, as it would look in the default place."""
+    _, calls = _undo_with_env_d(tmp_path, {"10.conf": "XDG_STATE_HOME=/nowhere/state\n"}, ".local/state")
+    assert len(calls) == 1 and "XDG_STATE_HOME" not in calls[0]
+
+
+def test_undo_for_users_skips_people_with_no_backup_where_the_app_looks(tmp_path):
+    _, calls = _undo_with_env_d(tmp_path, {"10.conf": "XDG_STATE_HOME=@HOME@/moved\n"}, "elsewhere")
+    assert calls == []
+
+
 def test_undo_for_users_is_detached_from_roots_terminal():
     """Every run as a person goes through setsid, with input from /dev/null: a process of
     theirs could otherwise push keystrokes into root's terminal (TIOCSTI)."""
     script = (ROOT / "packaging/undo-for-users.sh").read_text()
-    runs = [l for l in script.splitlines() if "runuser -u" in l]
+    runs = [l for l in script.splitlines() if "runuser -u" in l and "-- cat " not in l]
     assert len(runs) == 2
     assert all(l.strip().startswith("setsid -w timeout 120 runuser -u") for l in runs)
+    # Reading their environment.d files is as them too, never as root.
+    assert [l for l in script.splitlines() if "-- cat " in l and 'setsid -w timeout 10 runuser -u "$name"' in l]
     assert script.count('on-remove </dev/null') == 2
     assert "for tool in runuser setsid" in script
 

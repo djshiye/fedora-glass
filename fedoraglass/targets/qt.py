@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..i18n import _, N_
 from .. import distro
-from ..render import kvantum
+from ..render import apps as ra, kvantum
 from .base import Action, Context, FlatpakOverride, Detection, Target, WriteFile
 from ..env import Env
 
@@ -59,22 +59,29 @@ class QtKvantum(Target):
         env = ctx.env
         kv = env.config / "Kvantum"
         main = kv / "kvantum.kvconfig"
-        try:
-            existing = main.read_text(encoding="utf-8") if main.is_file() and not main.is_symlink() else None
-        except (OSError, UnicodeDecodeError):
-            existing = None
+        existing = ra.read_text(main) if main.exists() else None
+        # A link, or a file that isn't text: the user's own, left alone (live_notes says so).
+        left_alone = main.is_symlink() or (main.exists() and existing is None)
         theme = kv / kvantum.THEME
         actions: list[Action] = [
             WriteFile(theme / f"{kvantum.THEME}.kvconfig", kvantum.build_config(ctx.tokens)),
             WriteFile(theme / f"{kvantum.THEME}.svg", kvantum.build_svg(ctx.tokens)),
-            WriteFile(main, kvantum.build_main_config(existing), edits=("ini", "General", ("theme",))),
-            WriteFile(env.config / "environment.d/90-liquid-glass-qt.conf", environment(ctx.settings)),
         ]
+        if not left_alone:
+            actions.append(WriteFile(main, kvantum.build_main_config(existing), edits=("ini", "General", ("theme",))))
+        actions.append(WriteFile(env.config / "environment.d/90-liquid-glass-qt.conf", environment(ctx.settings)))
         if env.which("flatpak"):
             # Let Flatpak Qt apps load the Kvantum theme.
             actions.append(FlatpakOverride(filesystems=("xdg-config/Kvantum:ro",),
                                            env=(("QT_STYLE_OVERRIDE", "kvantum"),)))
         return actions
+
+    def live_notes(self, ctx: Context) -> list[str]:
+        out = list(self.notes)
+        main = ctx.env.config / "Kvantum/kvantum.kvconfig"
+        if main.is_symlink() or (main.exists() and ra.read_text(main) is None):
+            out.insert(0, _("Left alone because kvantum.kvconfig is a link or not text: select the FedoraGlass theme in Kvantum Manager."))
+        return out
 
 
 TARGETS: list[Target] = [QtKvantum()]

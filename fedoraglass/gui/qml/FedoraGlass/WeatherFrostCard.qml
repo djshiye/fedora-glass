@@ -63,6 +63,17 @@ Card {
             onToggled: (v) => Backend.weatherFrost = v
         }
 
+        // Off, the scale and the temperatures below can still be set up, but do nothing yet.
+        Text {
+            objectName: "weatherOffHint"
+            visible: !card.on
+            width: parent.width
+            text: qsTr("These take effect once frost with the weather is on.")
+            wrapMode: Text.WordWrap
+            color: Theme.textDim
+            font.pixelSize: Theme.fsSmall + 1
+        }
+
         // What it does now on the desktop, and the way to GNOME Weather when it needs a place.
         Item {
             objectName: "weatherStatus"
@@ -107,6 +118,8 @@ Card {
         TempScale {
             objectName: "weatherScale"
             width: parent.width
+            opacity: card.on ? 1 : 0.5
+            Behavior on opacity { NumberAnimation { duration: Theme.normal } }
         }
 
         Item { width: 1; height: 2 }
@@ -141,11 +154,16 @@ Card {
             card: false
             divider: true
             title: qsTr("Temperatures and frost")
-            summary: qsTr("Cool below %1, cold below %2, icy below %3")
-                     .arg(card.t(Backend.weatherCool)).arg(card.t(Backend.weatherCold)).arg(card.t(Backend.weatherFreezing))
+            // The three steps, short enough to fit beside the title in every language
+            // (a sentence was cut off after the second one).
+            summary: [card.t(Backend.weatherCool), card.t(Backend.weatherCold), card.t(Backend.weatherFreezing)].join(" · ")
             Column {
+                objectName: "weatherStepsBody"
                 width: parent.width
                 spacing: 2
+                // Still live (set them up before turning it on), but dimmed while off.
+                opacity: card.on ? 1 : 0.5
+                Behavior on opacity { NumberAnimation { duration: Theme.normal } }
                 LabeledSlider {
                     objectName: "weatherCool"
                     inline: true
@@ -171,7 +189,7 @@ Card {
                 LabeledSlider {
                     objectName: "weatherFreezing"
                     inline: true
-                    label: qsTr("Icy below")
+                    label: qsTr("Freezing below")
                     from: card.ranges.freezing[0]; to: card.ranges.freezing[1]; stepSize: 1
                     value: Backend.weatherFreezing
                     defaultValue: Backend.defaults.weather_freezing
@@ -230,7 +248,7 @@ Card {
                                         ? (Backend.weatherFeelsLike ? card.now.feels : card.now.temp) : NaN
         implicitHeight: bar.height + 30
         Accessible.role: Accessible.StaticText
-        Accessible.name: qsTr("Icy below %1, frosted below %2, misty below %3, just right above")
+        Accessible.name: qsTr("Freezing below %1, cold below %2, cool below %3, just right above")
                          .arg(card.t(Backend.weatherFreezing)).arg(card.t(Backend.weatherCold)).arg(card.t(Backend.weatherCool))
 
         Rectangle {
@@ -280,9 +298,9 @@ Card {
             width: parent.width
             Repeater {
                 model: [
-                    { label: qsTr("Icy"), a: ts.lo, b: Backend.weatherFreezing },
-                    { label: qsTr("Frosted"), a: Backend.weatherFreezing, b: Backend.weatherCold },
-                    { label: qsTr("Misty"), a: Backend.weatherCold, b: Backend.weatherCool },
+                    { label: qsTr("Freezing"), a: ts.lo, b: Backend.weatherFreezing },
+                    { label: qsTr("Cold"), a: Backend.weatherFreezing, b: Backend.weatherCold },
+                    { label: qsTr("Cool"), a: Backend.weatherCold, b: Backend.weatherCool },
                     { label: qsTr("Just right"), a: Backend.weatherCool, b: ts.hi }
                 ]
                 delegate: Text {

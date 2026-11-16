@@ -41,7 +41,8 @@ def read_text(path: Path) -> str | None:
     try:
         if path.is_symlink():
             return None
-        return path.read_text(encoding="utf-8")
+        with open(path, encoding="utf-8", newline="") as f:     # as written: a CRLF file keeps its CRLF
+            return f.read()
     except (OSError, UnicodeDecodeError):
         return None
 
@@ -85,7 +86,7 @@ def ini_set(text: str, section: str, values: dict[str, str]) -> str:
 def conf_set(text: str, values: dict[str, str]) -> str:
     """Replace `key = value` lines (btop.conf style); other lines stay byte-identical."""
     lines = text.splitlines(keepends=True)
-    nl = "\n"
+    nl = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
     pending = dict(values)
     for i, ln in enumerate(lines):
         m = re.match(r"\s*([A-Za-z0-9_]+)\s*=", ln)

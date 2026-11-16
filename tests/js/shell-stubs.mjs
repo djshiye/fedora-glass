@@ -2,9 +2,9 @@
 // gi:// and resource:// imports, and the GPU glass itself, become the stubs below.
 const STUBS = {
     'gi/GLib': `export default {
-        PRIORITY_HIGH: 0, PRIORITY_DEFAULT: 0, PRIORITY_DEFAULT_IDLE: 0, SOURCE_REMOVE: false, SOURCE_CONTINUE: true,
+        PRIORITY_HIGH: -100, PRIORITY_DEFAULT: 0, PRIORITY_DEFAULT_IDLE: 0, SOURCE_REMOVE: false, SOURCE_CONTINUE: true,
         timeout_add: (_p, ms, fn) => globalThis.fake.timeouts.add(ms, fn),
-        idle_add: (_p, fn) => globalThis.fake.timeouts.add(0, fn),
+        idle_add: (p, fn) => globalThis.fake.timeouts.add(0, fn, p),
         source_remove: id => globalThis.fake.timeouts.remove(id),
         get_monotonic_time: () => globalThis.fake.now?.() ?? 0,
         get_real_time: () => globalThis.fake.realNow?.() ?? globalThis.fake.now?.() ?? 0,
@@ -101,6 +101,8 @@ const STUBS = {
             FileIcon: class { constructor(p) { this.file = p.file; } },
             Cancellable: class { cancel() { this._c = true; } is_cancelled() { return !!this._c; } },
         };`,
+    // GJS's own System module: gc() is counted (gcsweep.js).
+    'system': 'export default {gc: () => globalThis.fake.gc?.()};',
     'resource/signalTracker.js': 'export const debugGetSignalTrackers = () => globalThis.fake.signalTrackers;',
     'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},
         Settings: {get: () => globalThis.fake.stSettings},
@@ -154,6 +156,8 @@ export async function resolve(specifier, context, next) {
         return {url: `stub:resource/${specifier.split('/').pop()}`, shortCircuit: true};
     if (specifier === './glass.js')
         return {url: 'stub:glass', shortCircuit: true};
+    if (specifier === 'system')
+        return {url: 'stub:system', shortCircuit: true};
     return next(specifier, context);
 }
 

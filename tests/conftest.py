@@ -157,6 +157,14 @@ def _throwaway_home(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _not_root(monkeypatch):
+    """Tests run the commands as a person, also where the suite runs as root (a container);
+    tests/test_root_refused.py covers root."""
+    from fedoraglass import __main__ as cli
+    monkeypatch.setattr(cli, "_is_root", lambda: False)
+
+
+@pytest.fixture(autouse=True)
 def _fedora_by_default(monkeypatch):
     """Tests see a Fedora PC wherever they run (install hints, remove command);
     tests/test_distro.py covers Ubuntu and Arch."""

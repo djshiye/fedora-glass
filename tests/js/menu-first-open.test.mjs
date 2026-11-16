@@ -189,6 +189,17 @@ test('if the glass never comes up, the menu shows after HOLD_MAX_MS', () => {
     p.destroy();
 });
 
+test('turning off with a pop-up still waiting for its look leaves no handler on it', () => {
+    const child = new Actor();
+    const p = start(new Popups(cfg));
+    fake.ui.emit('child-added', child);
+    assert.equal(child.handlerCount(), 1, 'waiting for its later');
+    assert.equal(laters._fns.size, 1);
+    p.destroy();
+    assert.equal(child.handlerCount(), 0, 'no destroy handler of ours left behind');
+    assert.equal(laters._fns.size, 0, 'and the later is gone');
+});
+
 // Weather frost (glass.js): frost changes the blur, and so the room a pane needs around its
 // surface; and frozen glass runs on a clock.
 test('glass that needs new room is placed again, and a menu\'s two layers share one ice clock', () => {

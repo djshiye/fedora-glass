@@ -25,7 +25,7 @@ SettingsPage {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - pill.width - 12
                     text: qsTr("How much glass")
-                    resetKeys: ["frost"]
+                    resetKeys: ["frost", "blur", "opacity", "highlight", "tint_strength"]
                     resetTip: qsTr("Back to Balanced")
                 }
                 Rectangle {
@@ -50,7 +50,7 @@ SettingsPage {
                 width: parent.width
                 value: Backend.frost
                 ticks: Backend.frostTicks
-                onMoved: (v) => Backend.frost = v
+                onMoved: (v) => Backend.setFrost(v)
             }
             Fold {
                 id: effects

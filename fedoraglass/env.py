@@ -305,6 +305,8 @@ class Env:
         argv, sid = self._gs(schema, path)
         if self.dry_run:
             return RunResult(0, "", "")
+        if self._batch is not None and (r := self._set_here(schema, key, None, path)) is not None:
+            return r            # goes out with the batch, in the same change as its sets
         self._flush_batch()     # what was set before it goes out first, in its order
         return self.run(argv + ["reset", sid, key])
 
@@ -315,6 +317,9 @@ class Env:
     # together at its end: one change per schema, so Dash to Panel hears of them once.
     # Whatever can't be done here (no PyGObject, a value or schema only gsettings can tell
     # about, a key that is locked) goes through `gsettings`, which says why it failed.
+    # Resets go in the same change. Each change the Shell hears is one more moment its dconf
+    # thread walks every settings object it has, and the fewer of those the better (GJS can
+    # deadlock the Shell when that meets its garbage collector, see gcsweep.js).
     @contextlib.contextmanager
     def gsettings_batch(self):
         if self._batch is not None or self.dry_run:
@@ -340,8 +345,9 @@ class Env:
                 self._glib = False
         return self._glib or None
 
-    def _set_here(self, schema: str, key: str, value: str, path: str | None) -> RunResult | None:
-        """Set one key in the batch, as `gsettings set` would. None: gsettings does it."""
+    def _set_here(self, schema: str, key: str, value: str | None, path: str | None) -> RunResult | None:
+        """Set one key in the batch, as `gsettings set` would (value None: reset it, as
+        `gsettings reset`). None: gsettings does it."""
         found = self._schema_here(schema, path)
         if found is None or found is self._NOT_HERE:
             return None
@@ -352,12 +358,14 @@ class Env:
             if not found.has_key(key) or (path is None and found.get_path() is None):
                 return None
             k = found.get_key(key)
-            try:
-                v = GLib.Variant.parse(k.get_value_type(), value, None, None)
-            except Exception:
-                return None     # gsettings says what is wrong with the value
-            if not k.range_check(v):
-                return None
+            v = None
+            if value is not None:
+                try:
+                    v = GLib.Variant.parse(k.get_value_type(), value, None, None)
+                except Exception:
+                    return None     # gsettings says what is wrong with the value
+                if not k.range_check(v):
+                    return None
             entry = self._batch.get((schema, path))
             if entry is not None and key in entry["values"]:
                 # The same key twice (User Themes' name, away and back so it loads the new
@@ -368,11 +376,19 @@ class Env:
             if entry is None:
                 gs = Gio.Settings.new_full(found, None, path)
                 gs.delay()
-                entry = {"settings": gs, "values": {}}
+                entry = {"settings": gs, "values": {}, "resets": set()}
             gs = entry["settings"]
-            if not gs.is_writable(key) or not gs.set_value(key, v):
+            if not gs.is_writable(key):
                 return None     # locked by the administrator: gsettings says so
-            entry["values"][key] = v.print_(True)
+            if v is None:
+                gs.reset(key)
+                # Read back as the default while it waits (gsettings_get); written as a reset.
+                entry["values"][key] = gs.get_default_value(key).print_(True)
+                entry["resets"].add(key)
+            else:
+                if not gs.set_value(key, v):
+                    return None
+                entry["values"][key] = v.print_(True)
             self._batch[(schema, path)] = entry
         except Exception:
             return None
@@ -394,7 +410,10 @@ class Env:
             for (schema, path), entry in batch.items():
                 argv, sid = self._gs(schema, path)
                 for key, text in entry["values"].items():
-                    self.run(argv + ["set", sid, key, text])
+                    if key in entry.get("resets", ()):
+                        self.run(argv + ["reset", sid, key])
+                    else:
+                        self.run(argv + ["set", sid, key, text])
 
     def gsettings_is_default(self, schema: str, key: str, value: str, path: str | None = None) -> bool | None:
         """Whether `value` (as `gsettings get` prints it) is the key's default. None when

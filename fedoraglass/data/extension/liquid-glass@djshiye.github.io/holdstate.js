@@ -13,7 +13,8 @@ export const HOLD_LIMIT_MS = 1500;
 export const CATCH_UP_STEP_MS = 100;
 
 /**
- * ops: panes() lists the panes; alive(p); isStale(p); rank(p), lower first;
+ * ops: panes() lists the panes; alive(p); isStale(p); rank(p), lower first (or
+ * ranker(), which looks the window order up once and returns the rank function);
  * keep(p) holds a pane (again); free(p) lets one go and has it render now;
  * renders(p) counts its renders; endAll() lets every pane go at the end;
  * afterFrame(fn) runs fn after each frame and returns an id for cancelFrame(id).
@@ -94,11 +95,15 @@ export class GlassHold {
             this._queue = [];
             this._freed = new Set();
         }
+        const queued = new Set(this._queue);
         for (const p of ops.panes()) {
-            if (ops.isStale(p) && !this._queue.includes(p) && !this._freed.has(p))
+            if (ops.isStale(p) && !queued.has(p) && !this._freed.has(p))
                 this._queue.push(p);
         }
-        this._queue.sort((a, b) => ops.rank(a) - ops.rank(b));
+        // Each pane's rank is looked up once, not on every comparison of the sort.
+        const rank = ops.ranker ? ops.ranker() : p => ops.rank(p);
+        const ranks = new Map(this._queue.map(p => [p, rank(p)]));
+        this._queue.sort((a, b) => ranks.get(a) - ranks.get(b));
         if (fresh && !this.manual)
             this._next();
     }

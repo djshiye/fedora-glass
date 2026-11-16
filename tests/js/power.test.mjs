@@ -98,8 +98,10 @@ const status = () => {
     return JSON.parse(globalThis.fake.fs.get(SPEED).text);
 };
 const levels = [];
-function speed(cfg) {
+function speed(cfg, afterLock = false) {
     levels.length = 0;
+    if (!afterLock)
+        Speed.forget();
     return new Speed(cfg, l => levels.push(l));
 }
 
@@ -276,4 +278,49 @@ test('shell-glass.json: the switch is on unless it says false', () => {
     assert.equal(parse('{}').speed.lighterOnBattery, true);
     assert.equal(parse('{"speed": {"quality": "full"}}').speed.lighterOnBattery, true);
     assert.equal(parse('{"speed": {"quality": "full", "lighterOnBattery": false}}').speed.lighterOnBattery, false);
+});
+
+test('unlocking on battery starts at the lighter glass at once (1.7.1 drew full, then switched)', () => {
+    bus.run(UPOWER, {OnBattery: true});
+    let s = speed({speed: {quality: 'auto'}});
+    bus.answer();
+    assert.equal(s.level, 1);
+    s.destroy();                                    // the screen locks
+    s = speed({speed: {quality: 'auto'}}, true);    // and unlocks
+    assert.equal(s.level, 1, 'lighter from the first frame');
+    assert.deepEqual(levels, [], 'no switch after the start');
+    bus.answer();
+    assert.deepEqual(levels, []);
+    // Plugged in while locked: the first answer puts the full glass back.
+    s.destroy();
+    bus.set(UPOWER, 'OnBattery', false);
+    s = speed({speed: {quality: 'auto'}}, true);
+    bus.answer();
+    assert.equal(s.level, 0);
+    s.destroy();
+});
+
+test('auto keeps the level it settled on across a lock, and forgets it when Fedora Glass is switched off', () => {
+    let s = speed({speed: {quality: 'auto'}});
+    bus.answer();
+    const view = {get_refresh_rate: () => 60};
+    for (let i = 0; i < 800 && s.level === 0; i++) {
+        globalThis.fake.renders++;
+        usNow += 50000;
+        global.stage.emit('before-paint', view);
+        usNow += 30000;      // slow frames
+        global.stage.emit('after-paint', view);
+    }
+    const settled = s.level;
+    assert.ok(settled > 0, 'auto stepped down');
+    s.destroy();
+    s = speed({speed: {quality: 'auto'}}, true);
+    assert.equal(s.level, settled, 'the same level after unlocking');
+    s.destroy();
+    s = speed({speed: {quality: 'full'}}, true);
+    assert.equal(s.level, 0, 'another quality setting starts afresh');
+    s.destroy();
+    s = speed({speed: {quality: 'auto'}});          // switched off and on
+    assert.equal(s.level, 0);
+    s.destroy();
 });

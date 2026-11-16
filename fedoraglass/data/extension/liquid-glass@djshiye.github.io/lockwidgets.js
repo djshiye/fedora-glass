@@ -22,6 +22,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {loadInterfaceXML} from 'resource:///org/gnome/shell/misc/fileUtils.js';
 
 import {Signals} from './common.js';
+import {askWeatherNow} from './frostmath.js';
 import {CHIP, CHIP_TEXT, MESSAGE, batteryIcon} from './locklook.js';
 import {_} from './strings.js';
 
@@ -223,10 +224,10 @@ export class LockWidgets {
             this._greeting.text = greetingFor(GLib.DateTime.new_now_local().get_hour());
         const client = this._weatherClient;
         const now = GLib.get_real_time();
-        if (client?.hasLocation && weatherDue(this._weatherAt, now)) {
-            this._weatherAt = now;
+        // One time for the whole session, shared with the weather frost: a lock or an
+        // unlock by itself never asks the weather service again.
+        if (client?.hasLocation && askWeatherNow(now))
             client.update();
-        }
     }
 
     _watchBattery() {
@@ -261,7 +262,6 @@ export class LockWidgets {
             return;
         this._weatherClient = client;
         this._weatherId = client.connect('changed', () => this._safe(() => this._syncWeather()));
-        this._weatherAt = 0;    // the first tick asks for fresh numbers
         this._syncWeather();
     }
 
@@ -313,7 +313,6 @@ export class LockWidgets {
         if (this._timer)
             GLib.source_remove(this._timer);
         this._timer = 0;
-        this._weatherAt = 0;
         this._cancel?.cancel();
         this._cancel = null;
         // Each one on its own: one that fails must not keep the rest connected.

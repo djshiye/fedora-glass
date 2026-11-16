@@ -96,22 +96,7 @@ Item {
         }
 
         // Top bar of the lock screen: GNOME's own, only the status icons.
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: root.u(24)
-            y: root.u(10)
-            spacing: root.u(16)
-            Repeater {
-                model: ["wifi", "volume", "power"]
-                delegate: Icon {
-                    required property string modelData
-                    name: modelData
-                    size: root.u(22)
-                    color: "white"
-                    layered: false
-                }
-            }
-        }
+        StatusIcons { }
 
         // ---- the clock column (GNOME's stack: clock, or the password prompt) ----------
         Column {
@@ -387,22 +372,7 @@ Item {
             font.pixelSize: root.pt(11)
             font.weight: Font.Bold
         }
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: root.u(24)
-            y: root.u(10)
-            spacing: root.u(16)
-            Repeater {
-                model: ["wifi", "volume", "power"]
-                delegate: Icon {
-                    required property string modelData
-                    name: modelData
-                    size: root.u(22)
-                    color: "white"
-                    layered: false
-                }
-            }
-        }
+        StatusIcons { }
 
         // The big clock, at the top, and what goes under it.
         Column {
@@ -518,6 +488,27 @@ Item {
                         font.pixelSize: root.pt(11.5)
                     }
                 }
+            }
+        }
+    }
+
+    // GNOME's status icons in the top right. At the preview's scale 22 px of the virtual
+    // screen is 5 px: the strokes ran together into blobs, and the row sat inside the
+    // rounded corner. So they keep a size that reads, and stay clear of the corner.
+    component StatusIcons: Row {
+        anchors.right: parent.right
+        anchors.rightMargin: Math.max(root.u(24), Theme.rM + 4)
+        y: Math.max(root.u(10), Theme.rM * 0.6)
+        spacing: Math.max(root.u(16), 7)
+        Repeater {
+            model: ["wifi", "volume", "power"]
+            delegate: Icon {
+                required property string modelData
+                name: modelData
+                size: Math.max(root.u(22), 11)
+                strokeWidth: size < 16 ? 1.3 : 1.8
+                color: "white"
+                layered: false
             }
         }
     }

@@ -53,6 +53,7 @@ globalThis.fakeMods = {
     'speed.js': {Speed: part('speed')},
     'surfaces.js': {GlassManager: part('glass')},
     'themetidy.js': {UserThemesTidy: part('tidy')},
+    'gcsweep.js': {SettingsSweep: part('sweep')},
     'tuning.js': {effectiveConfig: cfg => cfg},
     'quicktoggle.js': {GlassSwitch: (dir, onPause) => {
         const sw = {onPause, gone: false, setState() {}, destroy() { this.gone = true; }};

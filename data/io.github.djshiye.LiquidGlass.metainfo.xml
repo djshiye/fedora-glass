@@ -131,6 +131,12 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.2" date="2026-11-16">
+      <description>
+        <p>Steadier and lighter: GNOME Shell no longer risks freezing when Apply or Restore restarts other extensions, menus open more smoothly, and the glass does less work while you drag windows.</p>
+        <p>The lock screen's password card is the right size on slow machines, removing the package undoes the look for every user, and the app's sliders, messages and Undo are friendlier.</p>
+      </description>
+    </release>
     <release version="1.7.1" date="2026-11-15">
       <description>
         <p>Weather frost fixes: the dark smudges behind text on the frost are gone, the panel's glass no longer shrinks to a thin strip as it frosts, and taskbar previews no longer freeze too bright.</p>

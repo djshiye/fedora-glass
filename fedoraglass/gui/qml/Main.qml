@@ -27,6 +27,7 @@ Window {
     // Pages are built the first time they are shown, then kept.
     property var visited: ({ home: true })
     onPageChanged: {
+        if (page !== "glass") Backend.weatherTry = ""      // "Try in the preview" is for the Glass page
         if (!visited[page]) {
             const v = Object.assign({}, visited)
             v[page] = true
@@ -83,6 +84,16 @@ Window {
     }
     // Typing in a text field: "?" and Ctrl+Z belong to it then.
     readonly property bool typing: !!activeFocusItem && activeFocusItem.cursorPosition !== undefined
+    // Esc belongs to the search field (it clears it), and to whatever is open over the page
+    // (a sheet, a menu, the colour picker), before it belongs to an error toast. The toast's
+    // own Esc is a window-wide shortcut, which gets the key ahead of all of them.
+    readonly property bool escapeTaken: {
+        for (let it = activeFocusItem; it; it = it.parent) {
+            if (it === sidebar.searchField || it === C.Overlay.overlay)
+                return true
+        }
+        return false
+    }
     Shortcut { sequences: ["Return", "Enter"]; enabled: win.pressable(win.activeFocusItem); onActivated: win.activeFocusItem.click() }
     Shortcut { sequence: "F1"; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
     Shortcut { sequence: "?"; enabled: !win.typing; onActivated: { aboutSheet.openedByKeyboard = true; aboutSheet.open() } }
@@ -258,7 +269,7 @@ Window {
             objectName: "sidebar"
             // Above the pages: search results float out over them (they were drawn under the preview).
             z: 1
-            width: 232
+            width: 248
             height: parent.height
             pages: win.pageList
             current: win.page
@@ -869,7 +880,7 @@ Window {
                 }
             }
 
-            Toast { id: toast; anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
+            Toast { id: toast; objectName: "toast"; escapeTaken: win.escapeTaken; onActionTriggered: Backend.restoreDiscarded(); anchors.horizontalCenter: parent.horizontalCenter; y: footer.y - height - 12 }
         }
     }
 
@@ -910,7 +921,7 @@ Window {
             win.closeAfterLogin = false
             // A closed password dialog was the user's own choice; an error stays in view.
             if (Backend.loginGlassFailed) {
-                toast.show(Backend.loginGlassNote, "alert", Theme.bad)
+                toast.showError(Backend.loginGlassNote)
                 return
             }
             win.closeAnyway = true
@@ -920,7 +931,14 @@ Window {
             win.closeAfterApply = false
             win.closeAfterLogin = false
             win.closeWhenIdle = false
-            toast.show(message, "alert", Theme.bad)
+            toast.showError(message)
+        }
+        function onUndone() {
+            toast.showAction(qsTr("Changes undone"), "undo", Theme.accentText, qsTr("Put back"))
+        }
+        function onRestorableChanged() {
+            // Something changed, so there is nothing to put back any more: the offer goes too.
+            if (!Backend.canRestore && toast.actionText.length > 0) toast.hide()
         }
         function onNoticed(message) { toast.show(message, "okCircle", Theme.good) }
     }

@@ -1016,13 +1016,36 @@ def lock_card_behind_prompt(sh, wait: float = 5) -> str:
     return sh.json(LOCK_CARD_JS)["why"]
 
 
+# Ask for the password the way GNOME does when PAM wants it, so the field shows on GNOME 50 and 51.
+LOCK_ASK_JS = """(() => { const a = Main.screenShield._dialog._authPrompt;
+ if (!a || a._entry.get_parent().visible || a._onAskQuestion.length !== 1) return 1;
+ a._pendingCallback = null;
+ a._onAskQuestion({serviceName: 'gdm-password', question: 'Password:', secret: true, answerHandler: () => {}});
+ return 1; })()"""
+
+
+def lock_prompt_shown(c: Check, sh) -> None:
+    """The test desktop has no PAM, so GNOME's check for the password fails on its own, and GNOME 51 can then go
+    back to the clock and take the prompt down (its authPrompt 'cancelled' -> UnlockDialog._fail). When it did,
+    show the prompt again, the way a key press would; the checks after this are about our card, not that."""
+    if sh.json("return !!Main.screenShield._dialog._promptBox.get_first_child();"):
+        return
+    sh.eval("Main.screenShield._dialog._showPrompt(); 1")
+    settle(1.5)
+    sh.eval(LOCK_ASK_JS)
+    settle(1)
+    c.info("GNOME went back to the clock (no PAM in the test desktop); the password prompt was shown again.")
+
+
 def lock_card_follows(c: Check, sh) -> None:
     """At the password screen: the card follows the prompt whenever GNOME lays it out or makes a new one."""
+    lock_prompt_shown(c, sh)
     why = lock_card_behind_prompt(sh)
     c.add(not why, "The glass card sits right behind the password prompt." if not why else
           f"The glass card is not behind the password prompt: {why}.")
     # The card looks just before a frame and GNOME lays the screen out after that: with a layout due, the
     # prompt says the size it would like. 1.7.1 took that and kept it (a card 18 px too tall on GNOME 51).
+    lock_prompt_shown(c, sh)
     asked, got = sh.json("""const b = Main.screenShield._dialog._promptBox; const p = b.get_first_child();
      const got = p.height; p.queue_relayout(); const asked = p.height; b.notify('opacity'); return [asked, got];""")
     settle(0.5)
@@ -1074,11 +1097,7 @@ def check_lock(ctx: Ctx) -> Check:
             # There is no PAM in the test desktop, so the check for the password fails at once. GNOME 50
             # keeps the field shown after that; GNOME 51 hides it until it asks again. Ask once more, the
             # way GNOME does when PAM wants the password, so the field shows on both.
-            sh.eval("""(() => { const a = Main.screenShield._dialog._authPrompt;
-             if (a._entry.get_parent().visible || a._onAskQuestion.length !== 1) return 1;
-             a._pendingCallback = null;
-             a._onAskQuestion({serviceName: 'gdm-password', question: 'Password:', secret: true, answerHandler: () => {}});
-             return 1; })()""")
+            sh.eval(LOCK_ASK_JS)
             settle(1.5)
             now = lgqa.load(sh.shot("lock-prompt"))
             against_reference(ctx, c, "lock-prompt", "Password screen", now, lock_mask(ctx, now.shape), LIMITS["lock"])

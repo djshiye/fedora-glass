@@ -12,8 +12,11 @@ C.Button {
     property bool busy: false
 
     readonly property bool _primary: kind === "primary" || kind === "destructive"
-    readonly property color _fill: kind === "destructive" ? Theme.bad : Theme.accent
-    readonly property color _fg: kind === "destructive" ? "white" : _primary ? Theme.accentFg
+    // A red button that can't be used is not an error: it goes plain grey like any other.
+    readonly property bool _redOff: !enabled && (kind === "destructive" || kind === "danger")
+    readonly property color _fill: kind === "destructive" ? (_redOff ? Theme.wellHi : Theme.bad) : Theme.accent
+    readonly property color _fg: _redOff ? Theme.textFaint
+                                 : kind === "destructive" ? "white" : _primary ? Theme.accentFg
                                  : kind === "danger" ? Theme.bad : Theme.text
 
     implicitHeight: 40
@@ -22,7 +25,7 @@ C.Button {
     rightPadding: 20
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
-    opacity: enabled ? 1 : 0.45
+    opacity: enabled ? 1 : _redOff ? 0.8 : 0.45
     Behavior on opacity { NumberAnimation { duration: Theme.fast } }
 
     LgToolTip { shown: control.tip.length > 0 && control.hovered && !control.pressed; text: control.tip; below: control.tipBelow }

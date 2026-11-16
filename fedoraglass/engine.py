@@ -35,7 +35,8 @@ from .targets import all_targets
 from .render.glass import UUID as GLASS_UUID
 from .targets.shell import USER_THEME, GlassEffects, extension_info, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
-from .unmerge import unmerge
+from .render.apps import ini_set
+from .unmerge import _ini_section, ini_del, ini_get, unmerge
 
 
 @dataclass
@@ -266,6 +267,10 @@ def format_strv(items: list[str]) -> str:
     return "[" + ", ".join("'" + i.replace("\\", "\\\\").replace("'", "\\'") + "'" for i in items) + "]"
 
 
+class LockUnavailable(Exception):
+    """Engine._locked can't open its lock file: Apply and Restore stop with this said."""
+
+
 class BackupUnreadable(Exception):
     """The backup of the user's original look exists but can't be read. Apply and Restore
     stop instead of starting a new, empty backup over it."""
@@ -314,7 +319,34 @@ class Backup:
             raise ValueError("not a Fedora Glass backup") from err
         if not isinstance(loaded, dict) or not all(isinstance(loaded.get(k, {}), dict) for k in cls.SECTIONS):
             raise ValueError("not a Fedora Glass backup")
-        return {k: dict(loaded.get(k, {})) for k in cls.SECTIONS}
+        data = {k: dict(loaded.get(k, {})) for k in cls.SECTIONS}
+        for section, entries in data.items():
+            for key, e in entries.items():
+                if not cls._entry_ok(section, key, e):
+                    raise ValueError(f"damaged entry in {section}: {key}")
+        return data
+
+    @staticmethod
+    def _entry_ok(section: str, key: str, e) -> bool:
+        """Whether one entry has what Restore and the checks read from it (a hand edit or a
+        disk error can leave a manifest that is valid JSON and still unusable)."""
+        if not isinstance(e, dict) or not isinstance(e.get("target"), str):
+            return False
+        if section == "files":
+            return e.get("kind") in ("file", "missing", "symlink") \
+                and (e["kind"] != "file" or isinstance(e.get("copy"), str)) \
+                and (e["kind"] != "symlink" or isinstance(e.get("link"), str))
+        if section in ("gsettings", "lists") and key.count("|") != 2:
+            return False
+        if section == "gsettings":
+            return "value" in e
+        if section == "lists":
+            return isinstance(e.get("added"), list) and isinstance(e.get("removed"), list)
+        if section == "commands":
+            return isinstance(e.get("undo"), list) and bool(e["undo"]) and all(isinstance(a, str) for a in e["undo"])
+        if section == "dirlinks":
+            return isinstance(e.get("link"), str)
+        return True
 
     def _unreadable(self, err: Exception) -> str:
         return _("Fedora Glass can't read its backup of your original look ({path}: {error}). "
@@ -705,21 +737,25 @@ class Backup:
         for key, e in list(self.data["dirlinks"].items()):
             if mine(e) and (problem := self._restore_folder(key, e)):
                 problems.append(problem)
-        for key, e in list(self.data["gsettings"].items()):
-            if not mine(e):
-                continue
-            schema, path, k = key.split("|", 2)
-            if self.changed_since(self.env, key, e):
-                del self.data["gsettings"][key]
-                continue
-            r = _put_back(self.env, schema, k, path or None, e)
-            if r.ok or _setting_gone(self.env, schema, k, path or None):
-                # Gone: the app (Spawn, ArcMenu, ...) was removed after Apply and took its
-                # settings with it. Keeping the record would fail every Restore for good and
-                # leave the look "applied", so the watcher would bring it back.
-                del self.data["gsettings"][key]
-            else:
-                problems.append(f"{schema} {k}: {r.err.strip()}")
+        # The settings go out together, one change per schema (Env.gsettings_batch), before
+        # the extension list: changing that list restarts extensions in the Shell, and no
+        # setting of ours should arrive while their old settings are being freed (see gcsweep.js).
+        with self.env.gsettings_batch():
+            for key, e in list(self.data["gsettings"].items()):
+                if not mine(e):
+                    continue
+                schema, path, k = key.split("|", 2)
+                if self.changed_since(self.env, key, e):
+                    del self.data["gsettings"][key]
+                    continue
+                r = _put_back(self.env, schema, k, path or None, e)
+                if r.ok or _setting_gone(self.env, schema, k, path or None):
+                    # Gone: the app (Spawn, ArcMenu, ...) was removed after Apply and took its
+                    # settings with it. Keeping the record would fail every Restore for good and
+                    # leave the look "applied", so the watcher would bring it back.
+                    del self.data["gsettings"][key]
+                else:
+                    problems.append(f"{schema} {k}: {r.err.strip()}")
         for key, e in list(self.data["lists"].items()):
             # Several targets share one list (the Shell theme and the glass both add an
             # extension to enabled-extensions): only this target's own items go back.
@@ -808,6 +844,15 @@ class Backup:
                     self._used_copies.append(e["copy"])
                 del self.data["files"][key]
                 return None
+            if e.get("wrote") and e.get("edits") and e["kind"] in ("file", "symlink") \
+                    and not (p.exists() or p.is_symlink()):
+                # The app is gone, and its settings with it (the user removed it after Apply):
+                # a file of an app's own, where we only set a few keys, is not ours to bring
+                # back. (A whole file of ours that replaced the user's still goes back.)
+                if e.get("copy"):
+                    self._used_copies.append(e["copy"])
+                del self.data["files"][key]
+                return None
             if p.is_symlink() or p.exists():
                 p.unlink()
             if e["kind"] == "symlink":
@@ -824,7 +869,8 @@ class Backup:
 
     def _unmerge_file(self, key: str, p: Path, e: dict, original: bytes | None) -> str | None:
         try:
-            current = p.read_text(encoding="utf-8")
+            with open(p, encoding="utf-8", newline="") as f:     # a CRLF file keeps its CRLF
+                current = f.read()
             before = original.decode("utf-8") if original is not None else None
         except (OSError, UnicodeDecodeError):
             current = before = None
@@ -931,12 +977,34 @@ def _flatpak_read(path: Path) -> configparser.RawConfigParser:
     return cp
 
 
-def _flatpak_write(path: Path, cp: configparser.RawConfigParser) -> None:
-    buf = io.StringIO()
-    cp.write(buf, space_around_delimiters=False)
+def _drop_if_empty(text: str, section: str) -> str:
+    """`text` without [section] when nothing but blank lines is left in it (the section our
+    own key was in alone; Apply put it there, with a blank line before it)."""
+    lines, start, end = _ini_section(text, section)
+    if start is None or any(ln.strip() for ln in lines[start + 1:end]):
+        return text
+    del lines[start:end]
+    if start == len(lines) and start and not lines[-1].strip():
+        del lines[-1]
+    return "".join(lines)
+
+
+def _flatpak_write(path: Path, cp: configparser.RawConfigParser, keys: list[tuple[str, str]]) -> None:
+    """Make the file say what `cp` says for `keys` (ours) and leave every other byte as it
+    is: the user's comments, order and blank lines, and the file's own mode."""
+    try:
+        text = path.read_bytes().decode("utf-8", "surrogateescape") if path.is_file() else ""
+    except OSError:
+        text = ""
+    new = text
+    for sec, key in keys:
+        if cp.has_option(sec, key):
+            new = ini_set(new, sec, {key: cp.get(sec, key)})
+        elif ini_get(new, sec, key) is not None:
+            new = _drop_if_empty(ini_del(new, sec, key), sec)
     # Unchanged (every Apply after the first): Flatpak and whatever watches the file are
     # not woken for nothing.
-    write_if_changed(path, buf.getvalue().encode("utf-8", "surrogateescape"), 0o644)
+    write_if_changed(path, new.encode("utf-8", "surrogateescape"), _kept_mode(path, 0o644))
 
 
 def _fs_list(cp: configparser.RawConfigParser) -> list[str]:
@@ -977,7 +1045,7 @@ def _flatpak_apply(env: Env, target: str, a: FlatpakOverride, backup: Backup) ->
         cp.set("Environment", k, v)
     if not env.dry_run:
         backup.save()       # what was there before is on record before the file changes
-        _flatpak_write(path, cp)
+        _flatpak_write(path, cp, [("Context", "filesystems"), *(("Environment", k) for k, _v in a.env)])
 
 
 def _flatpak_undo(env: Env, rec: dict) -> None:
@@ -992,10 +1060,7 @@ def _flatpak_undo(env: Env, rec: dict) -> None:
                 cp.remove_option("Environment", k)
         else:
             cp.set("Environment", k, old)
-    for sec in ("Context", "Environment"):
-        if cp.has_section(sec) and not cp.items(sec):
-            cp.remove_section(sec)
-    _flatpak_write(path, cp)
+    _flatpak_write(path, cp, [("Context", "filesystems"), *(("Environment", k) for k in rec.get("env", {}))])
 
 
 # Told as each part of an Apply starts: (index from 0, number of parts, the part's name).
@@ -1011,8 +1076,14 @@ class Engine:
     def _locked(self) -> Iterator[None]:
         """One Apply/Revert at a time (the app and the dark/light watcher may race)."""
         d = self.env.state / "liquid-glass"
-        d.mkdir(parents=True, exist_ok=True)
-        with open(d / "lock", "w") as f:
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            f = open(d / "lock", "w")
+        except OSError as e:
+            # A folder or lock that isn't ours to write (left by a run as root, say).
+            raise LockUnavailable(_("Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. "
+                                    "Check that the folder belongs to you.").format(folder=d, error=e.strerror or e)) from e
+        with f:
             fcntl.flock(f, fcntl.LOCK_EX)
             self.env.forget_cache()     # extensions may have come or gone since last time
             try:
@@ -1073,6 +1144,13 @@ class Engine:
 
     def apply(self, settings: Settings, only: set[str] | None = None, if_applied: bool = False,
               applied_only: bool = False, progress: Progress | None = None) -> list[Result]:
+        try:
+            return self._apply_locked(settings, only, if_applied, applied_only, progress)
+        except LockUnavailable as e:
+            return [Result("backup", _("Backup"), "failed", str(e))]
+
+    def _apply_locked(self, settings: Settings, only: set[str] | None, if_applied: bool,
+                      applied_only: bool, progress: Progress | None) -> list[Result]:
         """`if_applied`: only while the look is on (see look_on), checked once the lock is
         held (the dark/light watcher can wait on a Restore or `dnf remove` and must not
         re-apply after). Without it, this is the user's own Apply, which turns the look on.
@@ -1222,6 +1300,12 @@ class Engine:
             waited += step_s
 
     def revert(self, target: str | None = None) -> list[str]:
+        try:
+            return self._revert_locked(target)
+        except LockUnavailable as e:
+            return [str(e)]
+
+    def _revert_locked(self, target: str | None) -> list[str]:
         with self._locked():
             try:
                 backup = Backup(self.env)

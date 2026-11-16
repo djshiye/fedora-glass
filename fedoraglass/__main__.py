@@ -52,7 +52,10 @@ def _unknown_parts(eng, wanted: set[str]) -> bool:
 
 
 def cmd_apply(args: argparse.Namespace) -> int:
-    s = settings_mod.load()
+    s, problem, usable = settings_mod.load_checked()
+    if problem:
+        # Said, not applied in silence: a damaged file means the last good copy or the defaults.
+        print(f"fedora-glass: {problem}" + ("" if usable else " Applying the defaults."), file=sys.stderr)
     if args.preset:
         s = settings_mod.apply_preset(s, args.preset)
     if args.frost is not None:
@@ -749,6 +752,32 @@ def cmd_gui(args: argparse.Namespace) -> int:
     return main(args.qt_args)
 
 
+# Commands that write the user's own look: as root in the user's home (`sudo -E fedora-glass
+# apply`) they would leave root-owned files there, which the user's own Apply then can't change.
+USER_ONLY = {"apply", "revert", "watch", "before-login", "gui"}
+
+
+def _is_root() -> bool:
+    """Root in somebody else's home (sudo that keeps HOME). Root in root's own home is a
+    person using the desktop as root, and is left alone."""
+    import os
+    from pathlib import Path
+    if os.geteuid() != 0:
+        return False
+    try:
+        return Path.home().stat().st_uid != 0
+    except OSError:
+        return False
+
+
+def _refuse_root(cmd: str | None) -> int | None:
+    if not _is_root() or (cmd is not None and cmd not in USER_ONLY):
+        return None
+    print("fedora-glass: run this as your own user, without sudo (root would leave files in your "
+          "home folder that you can't change afterwards).", file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="fedora-glass", description="Glass theme for Fedora GNOME")
     p.add_argument("--version", action="version", version=f"fedora-glass {__version__}")
@@ -777,10 +806,14 @@ def main(argv: list[str] | None = None) -> int:
     g.set_defaults(func=cmd_gui)
 
     raw = sys.argv[1:] if argv is None else list(argv)
+    if raw[:1] == ["gui"] and (refused := _refuse_root("gui")) is not None:
+        return refused
     if raw[:1] == ["gui"]:
         # argparse's REMAINDER drops leading options (gui --screenshot ...), so hand them over as-is.
         return cmd_gui(argparse.Namespace(qt_args=raw[1:]))
     args = p.parse_args(raw)
+    if (refused := _refuse_root(args.cmd)) is not None:
+        return refused
     if not args.cmd:
         return cmd_gui(argparse.Namespace(qt_args=raw))
     return args.func(args)
