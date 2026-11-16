@@ -20,6 +20,8 @@ class Dconf:
         self.syncs = 0
         self.locked: set[tuple[str, str]] = set()
         self.fail_apply = False
+        self.defaults: dict[str, dict[str, str]] = {}
+        self.order: list[tuple] = []     # changes and `gsettings` runs, as they happen
 
 
 class Variant:
@@ -82,14 +84,23 @@ def fake_gi(store):
             self.pending[key] = v.text
             return True
 
+        def reset(self, key):
+            assert self.delayed, "only delayed settings are reset here"
+            self.pending[key] = None
+
+        def get_default_value(self, key):
+            return Variant(store.defaults.get(self.schema.sid, {}).get(key, "''"))
+
         def get_value(self, key):
             return Variant(store.values[self.schema.sid][key])
 
         def apply(self):
             if store.fail_apply:
                 raise RuntimeError("no dconf")
-            store.values[self.schema.sid].update(self.pending)
+            for key, text in self.pending.items():   # a reset (None) reads as the default after
+                store.values[self.schema.sid][key] = text if text is not None else self.get_default_value(key).text
             store.changes.append((self.schema.sid, dict(self.pending)))
+            store.order.append(("change", self.schema.sid))
             self.pending = {}
 
     class Gio:
@@ -163,14 +174,49 @@ def test_the_same_key_twice_goes_out_twice_in_order(dconf):
     assert store.syncs == 2 and ran == []
 
 
-def test_a_reset_waits_for_what_was_set_before_it(dconf):
+def test_a_reset_goes_out_in_the_same_change_as_the_sets(dconf):
+    """Each change is one more moment the Shell's dconf thread walks all its settings objects
+    (where GJS can deadlock the Shell, see gcsweep.js): a reset rides along, no `gsettings`."""
     env, store, ran = dconf
     store.values = {DTP: {"a": "'1'", "b": "'2'"}}
+    store.defaults = {DTP: {"b": "'default'"}}
     with env.gsettings_batch():
         env.gsettings_set(DTP, "a", "'x'")
         env.gsettings_reset(DTP, "b")
-        assert store.changes == [(DTP, {"a": "'x'"})], "written before the reset ran"
+        assert env.gsettings_get(DTP, "b") == "'default'", "reads as its default while it waits"
+        assert store.changes == []
+    assert store.changes == [(DTP, {"a": "'x'", "b": None})]
+    assert ran == [] and store.values[DTP]["b"] == "'default'"
+
+
+def test_a_reset_then_a_set_of_the_same_key_go_out_in_order(dconf):
+    env, store, ran = dconf
+    store.values = {DTP: {"a": "'1'"}}
+    with env.gsettings_batch():
+        env.gsettings_reset(DTP, "a")
+        env.gsettings_set(DTP, "a", "'x'")
+    assert store.changes == [(DTP, {"a": None}), (DTP, {"a": "'x'"})]
+
+
+def test_a_locked_key_is_reset_by_gsettings(dconf):
+    env, store, ran = dconf
+    store.values = {DTP: {"a": "'1'", "b": "'2'"}}
+    store.locked = {(DTP, "b")}
+    with env.gsettings_batch():
+        env.gsettings_set(DTP, "a", "'x'")
+        env.gsettings_reset(DTP, "b")
+        assert store.changes == [(DTP, {"a": "'x'"})], "what was set before goes out first"
     assert ran[-1][-3:] == ["reset", DTP, "b"]
+
+
+def test_a_failing_store_resets_by_gsettings_instead(dconf):
+    env, store, ran = dconf
+    store.values = {DTP: {"a": "'1'", "b": "'2'"}}
+    store.fail_apply = True
+    with env.gsettings_batch():
+        env.gsettings_set(DTP, "a", "'x'")
+        env.gsettings_reset(DTP, "b")
+    assert sorted(tuple(a[1:]) for a in ran) == [("reset", DTP, "b"), ("set", DTP, "a", "'x'")]
 
 
 def test_outside_a_batch_gsettings_writes_as_before(dconf):
@@ -263,3 +309,46 @@ def test_a_dark_light_switch_starts_no_gsettings(dconf):
     # Restore original still puts everything back.
     assert eng.revert() == []
     assert set(store.values[DTP][f"k{i}"] for i in range(13)) == {"'theirs'"}
+
+
+class Listing(Panelish):
+    """Panelish plus an extension on GNOME's list, like the glass extension."""
+
+    def plan(self, ctx):
+        from fedoraglass.targets.base import ListEdit
+        return super().plan(ctx) + [ListEdit("org.gnome.shell", "enabled-extensions", add=("glass@x",))]
+
+
+def test_restore_writes_one_change_per_schema_and_the_extension_list_last(dconf):
+    """Restore original put some 50 keys back one `gsettings` call at a time, each a change
+    the Shell's dconf thread handled while GNOME was restarting extensions: now the settings
+    go out together, one change per schema, and only then the extension list (which
+    restarts extensions in the Shell)."""
+    env, store, ran = dconf
+    store.values = {DTP: {f"k{i}": "'theirs'" for i in range(13)} | {"animate": "true"},
+                    THEME: {"name": "'Theirs'"},
+                    "org.gnome.shell": {"enabled-extensions": "@as []"},
+                    "org.gnome.desktop.interface": {"color-scheme": "'prefer-dark'"},
+                    "org.gnome.desktop.a11y.interface": {"high-contrast": "'false'"}}
+    eng = Engine(env, [Listing()])
+    eng.apply(Settings())
+    order = store.order
+    real_run = env.run
+
+    def run(argv, timeout=30):
+        order.append(("gsettings", tuple(argv[1:4])))
+        return real_run(argv, timeout)
+    env.run = run
+    store.changes.clear()
+    order.clear()
+    ran.clear()
+    assert eng.revert() == []
+    batched = [c[0] for c in store.changes]
+    assert batched.count(DTP) == 1 and batched.count(THEME) == 1, store.changes
+    assert set(store.values[DTP][f"k{i}"] for i in range(13)) == {"'theirs'"}
+    assert store.values[THEME]["name"] == "'Theirs'"
+    # The list goes through gsettings (or the store) only after every setting is out.
+    at = [i for i, o in enumerate(order) if o[0] == "gsettings" and o[1] == ("set", "org.gnome.shell", "enabled-extensions")]
+    assert at, order
+    assert max(i for i, o in enumerate(order) if o[0] == "change") < at[0], order
+    assert not [o for o in order if o[0] == "gsettings" and o[1][1] in (DTP, THEME)], "none one at a time"

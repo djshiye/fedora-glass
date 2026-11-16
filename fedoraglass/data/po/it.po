@@ -101,24 +101,24 @@ msgstr "Modalità sicura"
 msgid "remove the {package} package"
 msgstr "rimuovi il pacchetto {package}"
 
-#: fedoraglass/engine.py:1080
+#: fedoraglass/engine.py:1084
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass non può usare la sua cartella {folder} ({error}). Non è stato modificato nulla. Controlla che la cartella ti appartenga."
 
-#: fedoraglass/engine.py:1146
-#: fedoraglass/engine.py:1164
+#: fedoraglass/engine.py:1150
+#: fedoraglass/engine.py:1168
 msgid "Backup"
 msgstr "Backup"
 
-#: fedoraglass/engine.py:1186
+#: fedoraglass/engine.py:1190
 msgid "Couldn't start: {error}"
 msgstr "Impossibile avviare: {error}"
 
-#: fedoraglass/engine.py:1251
+#: fedoraglass/engine.py:1255
 msgid "Colours for other apps"
 msgstr "Colori per le altre app"
 
-#: fedoraglass/engine.py:1381
+#: fedoraglass/engine.py:1385
 msgid "missing setting {schema} {key}"
 msgstr "impostazione mancante {schema} {key}"
 
@@ -138,31 +138,31 @@ msgstr "Lasciato com'è: {folder} è un collegamento a una cartella fuori dalla 
 msgid "{path} is a folder"
 msgstr "{path} è una cartella"
 
-#: fedoraglass/engine.py:787
+#: fedoraglass/engine.py:791
 msgid "Flatpak overrides: {error}"
 msgstr "Override di Flatpak: {error}"
 
-#: fedoraglass/engine.py:813
+#: fedoraglass/engine.py:817
 msgid "is now a folder, left as it is"
 msgstr "ora è una cartella, lasciata com'è"
 
-#: fedoraglass/engine.py:824
+#: fedoraglass/engine.py:828
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr "{path}: la copia salvata dell'originale è andata persa, quindi il file è stato lasciato com'è (potrebbe avere ancora l'aspetto di Fedora Glass)"
 
-#: fedoraglass/engine.py:880
+#: fedoraglass/engine.py:884
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr "{path}: modificato dopo Applica e non leggibile, quindi lasciato com'è"
 
-#: fedoraglass/engine.py:908
+#: fedoraglass/engine.py:912
 msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr "La cartella {folder} è stata mantenuta perché contiene file aggiunti da te ({files}). Usa ancora {owner}. Per ripristinare il collegamento a {owner}, sposta quei file altrove e premi di nuovo Ripristina originale."
 
-#: fedoraglass/engine.py:920
+#: fedoraglass/engine.py:924
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr "La cartella {folder} è stata mantenuta perché contiene file aggiunti da te. Il collegamento a {owner} non è stato ripristinato."
 
-#: fedoraglass/engine.py:922
+#: fedoraglass/engine.py:926
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "Impossibile ripristinare il collegamento di {folder} a {owner}: {reason}."
 

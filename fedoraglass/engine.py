@@ -737,21 +737,25 @@ class Backup:
         for key, e in list(self.data["dirlinks"].items()):
             if mine(e) and (problem := self._restore_folder(key, e)):
                 problems.append(problem)
-        for key, e in list(self.data["gsettings"].items()):
-            if not mine(e):
-                continue
-            schema, path, k = key.split("|", 2)
-            if self.changed_since(self.env, key, e):
-                del self.data["gsettings"][key]
-                continue
-            r = _put_back(self.env, schema, k, path or None, e)
-            if r.ok or _setting_gone(self.env, schema, k, path or None):
-                # Gone: the app (Spawn, ArcMenu, ...) was removed after Apply and took its
-                # settings with it. Keeping the record would fail every Restore for good and
-                # leave the look "applied", so the watcher would bring it back.
-                del self.data["gsettings"][key]
-            else:
-                problems.append(f"{schema} {k}: {r.err.strip()}")
+        # The settings go out together, one change per schema (Env.gsettings_batch), before
+        # the extension list: changing that list restarts extensions in the Shell, and no
+        # setting of ours should arrive while their old settings are being freed (see gcsweep.js).
+        with self.env.gsettings_batch():
+            for key, e in list(self.data["gsettings"].items()):
+                if not mine(e):
+                    continue
+                schema, path, k = key.split("|", 2)
+                if self.changed_since(self.env, key, e):
+                    del self.data["gsettings"][key]
+                    continue
+                r = _put_back(self.env, schema, k, path or None, e)
+                if r.ok or _setting_gone(self.env, schema, k, path or None):
+                    # Gone: the app (Spawn, ArcMenu, ...) was removed after Apply and took its
+                    # settings with it. Keeping the record would fail every Restore for good and
+                    # leave the look "applied", so the watcher would bring it back.
+                    del self.data["gsettings"][key]
+                else:
+                    problems.append(f"{schema} {k}: {r.err.strip()}")
         for key, e in list(self.data["lists"].items()):
             # Several targets share one list (the Shell theme and the glass both add an
             # extension to enabled-extensions): only this target's own items go back.

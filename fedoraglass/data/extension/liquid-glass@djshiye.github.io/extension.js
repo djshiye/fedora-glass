@@ -20,6 +20,7 @@ import {Animations} from './animations.js';
 import {ArcMenuRescue} from './arcrescue.js';
 import {Config} from './config.js';
 import {DesktopBehaviour} from './desktop.js';
+import {SettingsSweep} from './gcsweep.js';
 import {WeatherFrost} from './frost.js';
 import {LockGlass} from './lock.js';
 import {LockWidgets} from './lockwidgets.js';
@@ -35,6 +36,13 @@ import {effectiveConfig} from './tuning.js';
 
 export default class FedoraGlassExtension extends Extension {
     enable() {
+        // First, so it also sees the extensions GNOME restarts after this one starts.
+        try {
+            this._sweep = new SettingsSweep(this.uuid);
+        } catch (e) {
+            console.error(`Fedora Glass: no settings sweep: ${e}`);
+            this._sweep = null;
+        }
         this._locked = null;
         // Paused from Quick Settings: held here, so it lasts through locking the screen and
         // is gone at the next login. Only said for the app (pausestate.js), never read back.
@@ -415,5 +423,8 @@ export default class FedoraGlassExtension extends Extension {
         this._pauseState = null;
         this._paused = false;
         this._locked = null;
+        // Last, so everything let go above is collected too (see gcsweep.js).
+        this._sweep?.destroy();
+        this._sweep = null;
     }
 }
