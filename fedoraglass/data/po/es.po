@@ -101,28 +101,32 @@ msgstr "Modo seguro"
 msgid "remove the {package} package"
 msgstr "eliminar el paquete {package}"
 
-#: fedoraglass/engine.py:1084
+#: fedoraglass/engine.py:1110
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass no puede usar su carpeta {folder} ({error}). No se ha cambiado nada. Compruebe que la carpeta le pertenece."
 
-#: fedoraglass/engine.py:1150
-#: fedoraglass/engine.py:1168
+#: fedoraglass/engine.py:1176
+#: fedoraglass/engine.py:1198
 msgid "Backup"
 msgstr "Copia de seguridad"
 
-#: fedoraglass/engine.py:1190
+#: fedoraglass/engine.py:1220
 msgid "Couldn't start: {error}"
 msgstr "No se pudo iniciar: {error}"
 
-#: fedoraglass/engine.py:1255
+#: fedoraglass/engine.py:1285
 msgid "Colours for other apps"
 msgstr "Colores para otras aplicaciones"
 
-#: fedoraglass/engine.py:1385
+#: fedoraglass/engine.py:1415
 msgid "missing setting {schema} {key}"
 msgstr "falta el ajuste {schema} {key}"
 
-#: fedoraglass/engine.py:352
+#: fedoraglass/engine.py:245
+msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
+msgstr "Fedora Glass se actualizó mientras estaba abierto. Ciérralo, vuelve a abrirlo y pulsa Aplicar."
+
+#: fedoraglass/engine.py:378
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr "Fedora Glass no puede leer su copia de seguridad de tu estilo original ({path}: {error}). No se cambió nada, así que esa copia se queda como está. Si no necesitas recuperar tu estilo original, mueve ese archivo a otro sitio e inténtalo de nuevo."
 
@@ -134,35 +138,35 @@ msgstr "Termina al reiniciar el equipo. GNOME solo inicia la extensión de Fedor
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr "Se dejó como está: {folder} es un enlace a una carpeta fuera de tu carpeta personal, o a una que no es tuya."
 
-#: fedoraglass/engine.py:637
+#: fedoraglass/engine.py:663
 msgid "{path} is a folder"
 msgstr "{path} es una carpeta"
 
-#: fedoraglass/engine.py:791
+#: fedoraglass/engine.py:817
 msgid "Flatpak overrides: {error}"
 msgstr "Anulaciones de Flatpak: {error}"
 
-#: fedoraglass/engine.py:817
+#: fedoraglass/engine.py:843
 msgid "is now a folder, left as it is"
 msgstr "ahora es una carpeta, se dejó como está"
 
-#: fedoraglass/engine.py:828
+#: fedoraglass/engine.py:854
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr "{path}: se perdió la copia guardada de tu original, así que este archivo se dejó como está (puede que aún tenga el estilo de Fedora Glass)"
 
-#: fedoraglass/engine.py:884
+#: fedoraglass/engine.py:910
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr "{path}: cambió desde que se aplicó y no se puede leer, así que se dejó como está"
 
-#: fedoraglass/engine.py:912
+#: fedoraglass/engine.py:938
 msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr "Se conservó tu carpeta {folder} porque tiene archivos que añadiste ({files}). Aún usa {owner}. Para recuperar tu enlace a {owner}, saca esos archivos y pulsa Restaurar original otra vez."
 
-#: fedoraglass/engine.py:924
+#: fedoraglass/engine.py:950
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr "Se conservó tu carpeta {folder} porque tiene archivos que añadiste. No se restauró tu enlace a {owner}."
 
-#: fedoraglass/engine.py:926
+#: fedoraglass/engine.py:952
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "No se pudo restaurar tu enlace de {folder} a {owner}: {reason}."
 
@@ -5584,56 +5588,56 @@ msgstr "Cristal real detrás del panel o dock, los menús, los ajustes rápidos,
 msgid "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."
 msgstr "Usa la propia extensión de GNOME Shell de Fedora Glass; no hace falta Blur my Shell."
 
-#: fedoraglass/targets/shell.py:187
+#: fedoraglass/targets/shell.py:192
 msgid "Restart your PC once so GNOME Shell starts the Fedora Glass extension. The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly."
 msgstr "Reinicia el equipo una vez para que GNOME Shell inicie la extensión de Fedora Glass. Entonces el panel, los menús, ArcMenu y Spawn pasan a cristal. Después, los cambios se ven al instante."
 
-#: fedoraglass/targets/shell.py:200
+#: fedoraglass/targets/shell.py:205
 msgid "Restart your PC to finish the update. Until then the glass from the older version keeps running."
 msgstr "Reinicia el equipo para terminar la actualización. Hasta entonces sigue ejecutándose el cristal de la versión anterior."
 
-#: fedoraglass/targets/shell.py:204
+#: fedoraglass/targets/shell.py:209
 msgid "Extensions are switched off in GNOME, so the glass can't start."
 msgstr "Las extensiones están desactivadas en GNOME, así que el cristal no puede iniciarse."
 
-#: fedoraglass/targets/shell.py:205
+#: fedoraglass/targets/shell.py:210
 msgid "This version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to get the glass back."
 msgstr "Esta versión de Fedora Glass aún no es compatible con tu versión de GNOME. Actualiza Fedora Glass para recuperar el cristal."
 
-#: fedoraglass/targets/shell.py:207
+#: fedoraglass/targets/shell.py:212
 msgid "The glass effects hit an error and stopped. Your desktop works as usual."
 msgstr "Los efectos de cristal sufrieron un error y se detuvieron. Tu escritorio funciona como siempre."
 
-#: fedoraglass/targets/shell.py:211
+#: fedoraglass/targets/shell.py:216
 msgid "Extensions are switched off in GNOME, so this part can't show. Switch them on, then Apply again."
 msgstr "Las extensiones están desactivadas en GNOME, así que esta parte no puede mostrarse. Actívalas y vuelve a aplicar."
 
-#: fedoraglass/targets/shell.py:212
+#: fedoraglass/targets/shell.py:217
 msgid "Left as it is: this version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to fix it."
 msgstr "Se dejó como está: esta versión de Fedora Glass aún no es compatible con tu versión de GNOME. Actualiza Fedora Glass para arreglarlo."
 
-#: fedoraglass/targets/shell.py:214
+#: fedoraglass/targets/shell.py:219
 msgid "Left as it is: the glass effects hit an error, and this part needs them."
 msgstr "Se dejó como está: los efectos de cristal sufrieron un error, y esta parte los necesita."
 
-#: fedoraglass/targets/shell.py:413
+#: fedoraglass/targets/shell.py:418
 msgid "Sets Dash to Panel's colours, border and hover effect so your panel looks like glass."
 msgstr "Define los colores, el borde y el efecto al pasar el cursor de Dash to Panel para que tu panel parezca de cristal."
 
-#: fedoraglass/targets/shell.py:416
+#: fedoraglass/targets/shell.py:421
 msgid "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
 msgstr "Panel de cristal: fondo translúcido, borde de cristal, flotante o acoplado, efecto al pasar el cursor y puntos con tema."
 
-#: fedoraglass/targets/shell.py:445
+#: fedoraglass/targets/shell.py:450
 msgid "Sets ArcMenu's colours and corners so the menu and its button look like glass."
 msgstr "Define los colores y esquinas de ArcMenu para que el menú y su botón parezcan de cristal."
 
-#: fedoraglass/targets/shell.py:448
-#: fedoraglass/targets/shell.py:468
+#: fedoraglass/targets/shell.py:453
+#: fedoraglass/targets/shell.py:473
 msgid "Glass menu and menu button; colours, radius, search pill and hover washes."
 msgstr "Menú y botón de menú de cristal; colores, radio, píldora de búsqueda y resaltados al pasar el cursor."
 
-#: fedoraglass/targets/shell.py:465
+#: fedoraglass/targets/shell.py:470
 msgid "Sets Spawn's colours and corners so the menu and its button look like glass."
 msgstr "Define los colores y esquinas de Spawn para que el menú y su botón parezcan de cristal."
 

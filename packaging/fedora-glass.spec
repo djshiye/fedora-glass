@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.2
+Version:        1.7.3
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,10 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Mon Nov 16 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.3-1
+- An update no longer stops the glass at the next login: a new glass file left out during the update is put in before GNOME Shell starts
+- A Fedora Glass app or watcher left running across an update no longer writes a mix of old and new files
+
 * Mon Nov 16 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.2-1
 - GNOME Shell no longer risks freezing when Apply or Restore restarts other extensions
 - Menus open and close more smoothly; glass does less work while you drag windows and while frost changes

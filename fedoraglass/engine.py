@@ -219,6 +219,32 @@ def same_file(path: Path, data: bytes, mode: int) -> bool:
         return False
 
 
+def disk_version() -> str | None:
+    """The Fedora Glass version on disk now. After `dnf upgrade` it differs from the version
+    this process runs (the watcher, or an app left open across the update)."""
+    import re
+    try:
+        text = (Path(__file__).resolve().parent / "__init__.py").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", text)
+    return m.group(1) if m else None
+
+
+def runs_installed_version() -> bool:
+    """Whether this process runs the Fedora Glass that is installed. A process started before
+    an update still holds the old version's code, while the files it reads (the glass
+    extension, the templates) are the new version's: an Apply from it would write a mix of
+    both, such as the new extension without the files only the new one has (1.7.2's
+    gcsweep.js was missing that way, and GNOME stopped the glass at the next login)."""
+    v = disk_version()
+    return v is None or v == __version__
+
+
+# An Apply asked of an app left open across an update (see runs_installed_version).
+UPDATED_SINCE_OPENED = N_("Fedora Glass was updated while it was open. Close it and open it again, then press Apply.")
+
+
 def write_if_changed(path: Path, data: bytes, mode: int = 0o644) -> None:
     if not same_file(path, data, mode):
         atomic_write(path, data, mode)
@@ -1161,6 +1187,10 @@ class Engine:
         with self._locked():
             if if_applied and not self.look_on():
                 return []
+            if not runs_installed_version():
+                # The new version takes over: the watcher restarts as it within a minute
+                # (Watcher.poll), and an app left open asks to be opened again.
+                return [] if if_applied else [Result("apply", _("Apply"), "failed", tr(UPDATED_SINCE_OPENED))]
             try:
                 have = Backup(self.env).targets_with_changes()
             except BackupUnreadable as e:

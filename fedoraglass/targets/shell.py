@@ -151,7 +151,12 @@ class GlassEffects(Target):
     def plan(self, ctx: Context) -> list[Action]:
         env = ctx.env
         d = self.ext_dir(env)
-        acts: list[Action] = [WriteFile(d / name, text) for name, text in rg.extension_files().items()]
+        # extension.js and metadata.json go in last: if writing stops part way (a full disk, a
+        # restart), the folder still says the older version, so the next login's update step
+        # (`fedora-glass before-login`) sees it isn't done and finishes it.
+        files = sorted(rg.extension_files().items(), key=lambda f: ("extension.js", "metadata.json").index(f[0]) + 1
+                       if f[0] in ("extension.js", "metadata.json") else 0)
+        acts: list[Action] = [WriteFile(d / name, text) for name, text in files]
         acts.append(WriteFile(self.config_path(env), rg.render_config(self.resolved(ctx), ctx.tokens)))
         acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,)))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))

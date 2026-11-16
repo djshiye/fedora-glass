@@ -131,6 +131,11 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.3" date="2026-11-16">
+      <description>
+        <p>Updating no longer stops the glass: after the update to 1.7.2 the glass could stop at the next login with "The glass effects hit an error and stopped" until you logged out once more. The glass now starts right after an update.</p>
+      </description>
+    </release>
     <release version="1.7.2" date="2026-11-16">
       <description>
         <p>Steadier and lighter: GNOME Shell no longer risks freezing when Apply or Restore restarts other extensions, menus open more smoothly, and the glass does less work while you drag windows.</p>
