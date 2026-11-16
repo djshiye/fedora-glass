@@ -265,6 +265,27 @@ def installed_glass_version(eng) -> str | None:
     return v if isinstance(v, str) else None
 
 
+def glass_files_current(eng) -> bool:
+    """Whether every file of this version's glass extension is in the home folder as this
+    version ships it. The version in metadata.json alone can't say: an Apply from a process
+    still running the older version (a watcher started before the update) writes the new
+    metadata.json with the older version's list of files, so a file only the new version
+    has (gcsweep.js in 1.7.2) is missing, and GNOME stops the glass at the next login."""
+    from .render import glass as rg
+    env = getattr(eng, "env", None)
+    if env is None:
+        return False
+    d = env.data / "gnome-shell/extensions" / rg.UUID
+    try:
+        for name, text in rg.extension_files().items():
+            p = d / name
+            if p.is_symlink() or p.read_bytes() != text.encode():
+                return False
+    except OSError:
+        return False
+    return True
+
+
 def update_after_upgrade(eng) -> bool:
     """After `dnf upgrade` the app is new but the look this user applied (the glass
     extension in their home folder, the theme files) is still the old version's. Apply
@@ -319,13 +340,17 @@ def update_glass_before_login(eng) -> bool:
     except BackupUnreadable:
         return False
     had = installed_glass_version(eng)
-    if had is None or had == __version__:
+    if had is None or (had == __version__ and glass_files_current(eng)):
         return False
     if (s := _auto_settings()) is None or not s.target_enabled("glass"):
         return False
-    print(f"fedora-glass: bringing the glass from {had} up to {__version__} before GNOME Shell starts", file=sys.stderr)
+    if had == __version__:
+        print(f"fedora-glass: the glass extension {had} is missing files or has older ones; "
+              "putting them in before GNOME Shell starts", file=sys.stderr)
+    else:
+        print(f"fedora-glass: bringing the glass from {had} up to {__version__} before GNOME Shell starts", file=sys.stderr)
     eng.apply(s, only={"glass"}, if_applied=True, applied_only=True)
-    return installed_glass_version(eng) == __version__
+    return installed_glass_version(eng) == __version__ and glass_files_current(eng)
 
 
 def cmd_before_login(args: argparse.Namespace) -> int:
@@ -336,14 +361,8 @@ def cmd_before_login(args: argparse.Namespace) -> int:
 
 def disk_version() -> str | None:
     """The app version on disk now; after `dnf upgrade` it differs from the running one."""
-    import re
-    from pathlib import Path
-    try:
-        text = (Path(__file__).resolve().parent / "__init__.py").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", text)
-    return m.group(1) if m else None
+    from .engine import disk_version as on_disk
+    return on_disk()
 
 
 TICK = "tick"

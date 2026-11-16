@@ -101,28 +101,32 @@ msgstr ""
 msgid "remove the {package} package"
 msgstr ""
 
-#: fedoraglass/engine.py:1084
+#: fedoraglass/engine.py:1110
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr ""
 
-#: fedoraglass/engine.py:1150
-#: fedoraglass/engine.py:1168
+#: fedoraglass/engine.py:1176
+#: fedoraglass/engine.py:1198
 msgid "Backup"
 msgstr ""
 
-#: fedoraglass/engine.py:1190
+#: fedoraglass/engine.py:1220
 msgid "Couldn't start: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:1255
+#: fedoraglass/engine.py:1285
 msgid "Colours for other apps"
 msgstr ""
 
-#: fedoraglass/engine.py:1385
+#: fedoraglass/engine.py:1415
 msgid "missing setting {schema} {key}"
 msgstr ""
 
-#: fedoraglass/engine.py:352
+#: fedoraglass/engine.py:245
+msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
+msgstr ""
+
+#: fedoraglass/engine.py:378
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr ""
 
@@ -134,35 +138,35 @@ msgstr ""
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr ""
 
-#: fedoraglass/engine.py:637
+#: fedoraglass/engine.py:663
 msgid "{path} is a folder"
 msgstr ""
 
-#: fedoraglass/engine.py:791
+#: fedoraglass/engine.py:817
 msgid "Flatpak overrides: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:817
+#: fedoraglass/engine.py:843
 msgid "is now a folder, left as it is"
 msgstr ""
 
-#: fedoraglass/engine.py:828
+#: fedoraglass/engine.py:854
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr ""
 
-#: fedoraglass/engine.py:884
+#: fedoraglass/engine.py:910
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr ""
 
-#: fedoraglass/engine.py:912
+#: fedoraglass/engine.py:938
 msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr ""
 
-#: fedoraglass/engine.py:924
+#: fedoraglass/engine.py:950
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr ""
 
-#: fedoraglass/engine.py:926
+#: fedoraglass/engine.py:952
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr ""
 
@@ -5584,56 +5588,56 @@ msgstr ""
 msgid "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:187
+#: fedoraglass/targets/shell.py:192
 msgid "Restart your PC once so GNOME Shell starts the Fedora Glass extension. The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:200
+#: fedoraglass/targets/shell.py:205
 msgid "Restart your PC to finish the update. Until then the glass from the older version keeps running."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:204
+#: fedoraglass/targets/shell.py:209
 msgid "Extensions are switched off in GNOME, so the glass can't start."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:205
+#: fedoraglass/targets/shell.py:210
 msgid "This version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to get the glass back."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:207
+#: fedoraglass/targets/shell.py:212
 msgid "The glass effects hit an error and stopped. Your desktop works as usual."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:211
+#: fedoraglass/targets/shell.py:216
 msgid "Extensions are switched off in GNOME, so this part can't show. Switch them on, then Apply again."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:212
+#: fedoraglass/targets/shell.py:217
 msgid "Left as it is: this version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to fix it."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:214
+#: fedoraglass/targets/shell.py:219
 msgid "Left as it is: the glass effects hit an error, and this part needs them."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:413
+#: fedoraglass/targets/shell.py:418
 msgid "Sets Dash to Panel's colours, border and hover effect so your panel looks like glass."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:416
+#: fedoraglass/targets/shell.py:421
 msgid "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:445
+#: fedoraglass/targets/shell.py:450
 msgid "Sets ArcMenu's colours and corners so the menu and its button look like glass."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:448
-#: fedoraglass/targets/shell.py:468
+#: fedoraglass/targets/shell.py:453
+#: fedoraglass/targets/shell.py:473
 msgid "Glass menu and menu button; colours, radius, search pill and hover washes."
 msgstr ""
 
-#: fedoraglass/targets/shell.py:465
+#: fedoraglass/targets/shell.py:470
 msgid "Sets Spawn's colours and corners so the menu and its button look like glass."
 msgstr ""
 

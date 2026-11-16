@@ -101,28 +101,32 @@ msgstr "Modo seguro"
 msgid "remove the {package} package"
 msgstr "remover o pacote {package}"
 
-#: fedoraglass/engine.py:1084
+#: fedoraglass/engine.py:1110
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "O Fedora Glass não consegue usar a pasta {folder} ({error}). Nada foi alterado. Verifique se a pasta pertence a você."
 
-#: fedoraglass/engine.py:1150
-#: fedoraglass/engine.py:1168
+#: fedoraglass/engine.py:1176
+#: fedoraglass/engine.py:1198
 msgid "Backup"
 msgstr "Backup"
 
-#: fedoraglass/engine.py:1190
+#: fedoraglass/engine.py:1220
 msgid "Couldn't start: {error}"
 msgstr "Não foi possível iniciar: {error}"
 
-#: fedoraglass/engine.py:1255
+#: fedoraglass/engine.py:1285
 msgid "Colours for other apps"
 msgstr "Cores para outros apps"
 
-#: fedoraglass/engine.py:1385
+#: fedoraglass/engine.py:1415
 msgid "missing setting {schema} {key}"
 msgstr "configuração ausente: {schema} {key}"
 
-#: fedoraglass/engine.py:352
+#: fedoraglass/engine.py:245
+msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
+msgstr "O Fedora Glass foi atualizado enquanto estava aberto. Feche-o, abra-o de novo e clique em Aplicar."
+
+#: fedoraglass/engine.py:378
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr "O Fedora Glass não consegue ler o backup do seu visual original ({path}: {error}). Nada foi alterado, então o backup continua como está. Se você não precisa do visual original de volta, mova esse arquivo para outro lugar e tente de novo."
 
@@ -134,35 +138,35 @@ msgstr "Termina depois que você reiniciar o computador. O GNOME só inicia a ex
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr "Deixado como está: {folder} é um link para uma pasta fora da sua pasta pessoal, ou para uma que não é sua."
 
-#: fedoraglass/engine.py:637
+#: fedoraglass/engine.py:663
 msgid "{path} is a folder"
 msgstr "{path} é uma pasta"
 
-#: fedoraglass/engine.py:791
+#: fedoraglass/engine.py:817
 msgid "Flatpak overrides: {error}"
 msgstr "Substituições do Flatpak: {error}"
 
-#: fedoraglass/engine.py:817
+#: fedoraglass/engine.py:843
 msgid "is now a folder, left as it is"
 msgstr "agora é uma pasta, deixada como está"
 
-#: fedoraglass/engine.py:828
+#: fedoraglass/engine.py:854
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr "{path}: a cópia salva do seu original foi perdida, então este arquivo foi deixado como está (ele ainda pode ter o visual do Fedora Glass)"
 
-#: fedoraglass/engine.py:884
+#: fedoraglass/engine.py:910
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr "{path}: mudou desde o Aplicar e não pode ser lido, então foi deixado como está"
 
-#: fedoraglass/engine.py:912
+#: fedoraglass/engine.py:938
 msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr "A pasta {folder} foi mantida porque tem arquivos que você adicionou ({files}). Ela ainda usa {owner}. Para recuperar seu link para {owner}, tire esses arquivos de lá e clique em Restaurar original de novo."
 
-#: fedoraglass/engine.py:924
+#: fedoraglass/engine.py:950
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr "A pasta {folder} foi mantida porque tem arquivos que você adicionou. Seu link para {owner} não foi restaurado."
 
-#: fedoraglass/engine.py:926
+#: fedoraglass/engine.py:952
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "Não foi possível restaurar seu link de {folder} para {owner}: {reason}."
 
@@ -5584,56 +5588,56 @@ msgstr "Vidro de verdade atrás do painel ou dock, menus, configurações rápid
 msgid "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."
 msgstr "Usa a extensão de GNOME Shell do próprio Fedora Glass; o Blur my Shell não é necessário."
 
-#: fedoraglass/targets/shell.py:187
+#: fedoraglass/targets/shell.py:192
 msgid "Restart your PC once so GNOME Shell starts the Fedora Glass extension. The panel, menus, ArcMenu and Spawn switch to glass then. After that, changes show up instantly."
 msgstr "Reinicie o computador uma vez para o GNOME Shell iniciar a extensão do Fedora Glass. O painel, os menus, o ArcMenu e o Spawn passam a ter vidro então. Depois disso, as alterações aparecem na hora."
 
-#: fedoraglass/targets/shell.py:200
+#: fedoraglass/targets/shell.py:205
 msgid "Restart your PC to finish the update. Until then the glass from the older version keeps running."
 msgstr "Reinicie o computador para concluir a atualização. Até lá, o vidro da versão anterior continua rodando."
 
-#: fedoraglass/targets/shell.py:204
+#: fedoraglass/targets/shell.py:209
 msgid "Extensions are switched off in GNOME, so the glass can't start."
 msgstr "As extensões estão desligadas no GNOME, então o vidro não consegue iniciar."
 
-#: fedoraglass/targets/shell.py:205
+#: fedoraglass/targets/shell.py:210
 msgid "This version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to get the glass back."
 msgstr "Esta versão do Fedora Glass ainda não é compatível com a sua versão do GNOME. Atualize o Fedora Glass para recuperar o vidro."
 
-#: fedoraglass/targets/shell.py:207
+#: fedoraglass/targets/shell.py:212
 msgid "The glass effects hit an error and stopped. Your desktop works as usual."
 msgstr "Os efeitos de vidro encontraram um erro e pararam. Sua área de trabalho funciona normalmente."
 
-#: fedoraglass/targets/shell.py:211
+#: fedoraglass/targets/shell.py:216
 msgid "Extensions are switched off in GNOME, so this part can't show. Switch them on, then Apply again."
 msgstr "As extensões estão desligadas no GNOME, então esta parte não pode aparecer. Ligue-as e depois Aplique de novo."
 
-#: fedoraglass/targets/shell.py:212
+#: fedoraglass/targets/shell.py:217
 msgid "Left as it is: this version of Fedora Glass doesn't support your GNOME version yet. Update Fedora Glass to fix it."
 msgstr "Deixado como está: esta versão do Fedora Glass ainda não é compatível com a sua versão do GNOME. Atualize o Fedora Glass para corrigir."
 
-#: fedoraglass/targets/shell.py:214
+#: fedoraglass/targets/shell.py:219
 msgid "Left as it is: the glass effects hit an error, and this part needs them."
 msgstr "Deixado como está: os efeitos de vidro encontraram um erro, e esta parte precisa deles."
 
-#: fedoraglass/targets/shell.py:413
+#: fedoraglass/targets/shell.py:418
 msgid "Sets Dash to Panel's colours, border and hover effect so your panel looks like glass."
 msgstr "Define as cores, a borda e o efeito de foco do Dash to Panel para o painel parecer vidro."
 
-#: fedoraglass/targets/shell.py:416
+#: fedoraglass/targets/shell.py:421
 msgid "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
 msgstr "Painel de vidro: fundo translúcido, borda de vidro, flutuante ou encaixado, foco e pontos com tema."
 
-#: fedoraglass/targets/shell.py:445
+#: fedoraglass/targets/shell.py:450
 msgid "Sets ArcMenu's colours and corners so the menu and its button look like glass."
 msgstr "Define as cores e os cantos do ArcMenu para o menu e seu botão parecerem vidro."
 
-#: fedoraglass/targets/shell.py:448
-#: fedoraglass/targets/shell.py:468
+#: fedoraglass/targets/shell.py:453
+#: fedoraglass/targets/shell.py:473
 msgid "Glass menu and menu button; colours, radius, search pill and hover washes."
 msgstr "Menu e botão de menu de vidro; cores, raio, pílula de pesquisa e realces de foco."
 
-#: fedoraglass/targets/shell.py:465
+#: fedoraglass/targets/shell.py:470
 msgid "Sets Spawn's colours and corners so the menu and its button look like glass."
 msgstr "Define as cores e os cantos do Spawn para o menu e seu botão parecerem vidro."
 
