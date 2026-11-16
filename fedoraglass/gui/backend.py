@@ -266,9 +266,26 @@ def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     return d
 
 
+WEATHER_STALE = 3 * 3600     # s: the extension drops a reading older than this (frostmath.js STALE_US)
+
+
+def _fresh_reading(state: dict, now: float | None = None) -> dict:
+    """The extension keeps its last file while the glass is paused or in safe mode, so an "ok"
+    reading can be hours old. Past the extension's own limit it is "waiting" again (its `at`
+    is Unix seconds; a file without one is left as it is)."""
+    at = state.get("at") or 0
+    if state.get("status") != "ok" or not at:
+        return state
+    now = time.time() if now is None else now
+    if now - at >= WEATHER_STALE or now < at - 60:
+        return {**state, "status": "waiting"}
+    return state
+
+
 def _weather_state(env: Env) -> str:
     """Whether GNOME's own weather (the one the lock screen shows) has anything to say:
-    "ready", "no-app" (GNOME Weather isn't installed) or "no-place" (no place chosen in it).
+    "ready", "no-app" (GNOME Weather isn't installed), "no-place" (no place chosen in it) or
+    "no-location" (automatic location, but Location Services is off).
     The Shell's weather needs the Weather app, and either places from it or automatic
     location with Location Services on."""
     try:
@@ -279,7 +296,9 @@ def _weather_state(env: Env) -> str:
             return "ready"
         auto = (env.gsettings_get("org.gnome.shell.weather", "automatic-location") or "").strip() == "true"
         located = (env.gsettings_get("org.gnome.system.location", "enabled") or "").strip() == "true"
-        return "ready" if auto and located else "no-place"
+        if auto and not located:
+            return "no-location"
+        return "ready" if auto else "no-place"
     except Exception:
         return "ready"     # can't tell: don't claim it won't work
 
@@ -920,6 +939,9 @@ class Backend(QObject):
 
     @Slot()
     def shutdown(self) -> None:
+        if self._shut_down:     # connected twice (app.py and _watch_scheme): once is enough
+            return
+        self._shut_down = True
         self._speed_poll.stop()
         self._speed_watch.removePaths(self._speed_watch.files() + self._speed_watch.directories())
         if self._task is not None:
@@ -933,7 +955,8 @@ class Backend(QObject):
         if self._gl_status_proc is not None:
             self._gl_status_proc.kill()
             self._gl_status_proc.waitForFinished(500)
-        for t in [*self._luma_tasks.values(), getattr(self, "_weather_task", None), self._apps_task, self._gl_pic_task]:
+        for t in [*self._luma_tasks.values(), *self._wall_tasks.values(), getattr(self, "_weather_task", None),
+              self._apps_task, self._gl_pic_task]:
             if t is not None:
                 t.wait(2000)
 
@@ -1484,6 +1507,7 @@ class Backend(QObject):
         What was dropped is kept (restoreDiscarded) until the next change or Apply."""
         back = self._saved if self.dirty or not self._partial else self._good
         dropped = self._s
+        self._apply_step = ""
         self._s = replace(back, targets=dict(back.targets), **_at_once(self._saved))
         self.weatherTry = ""
         self._preview_dark = self._effective_dark()
@@ -1515,7 +1539,7 @@ class Backend(QObject):
         self._discarded = None
         self.restorableChanged.emit()
         scheme = self._s.scheme
-        self._s = replace(kept, targets=dict(self._s.targets), **_at_once(self._saved))
+        self._s = replace(kept, targets=dict(kept.targets), **_at_once(self._saved))
         self._preview_dark = self._effective_dark()
         self.previewChanged.emit()
         self._changed()
@@ -1624,7 +1648,7 @@ class Backend(QObject):
 
     @Property(str, notify=weatherChanged)
     def weatherState(self) -> str:
-        """For the lock screen's weather switch: "ready", "no-app" or "no-place". Until the
+        """For the lock screen's weather switch: "ready", "no-app", "no-place" or "no-location". Until the
         first look (on a worker thread: three gsettings calls) "ready": don't claim it won't work."""
         if getattr(self, "_weather_state", None) is None:
             self._check_weather()
@@ -1705,7 +1729,7 @@ class Backend(QObject):
         return {k: list(v) for k, v in settings_mod.WEATHER_RANGES.items()}
 
     def _read_weather_frost(self) -> None:
-        new = weather_mod.read_state(self._env.cache)
+        new = _fresh_reading(weather_mod.read_state(self._env.cache))
         if new != getattr(self, "_weather_frost", None):
             self._weather_frost = new
             self.weatherFrostChanged.emit()
@@ -1715,7 +1739,7 @@ class Backend(QObject):
         """What weather frost read last on the desktop: {status, level, temp, feels, ...}, or {}
         while it is off (or not applied yet)."""
         if getattr(self, "_weather_frost", None) is None:
-            self._weather_frost = weather_mod.read_state(self._env.cache)    # no signal from a read
+            self._weather_frost = _fresh_reading(weather_mod.read_state(self._env.cache))    # no signal from a read
         return self._weather_frost
 
     @Property(str, notify=weatherFrostChanged)
@@ -2371,7 +2395,15 @@ class Backend(QObject):
             # while Apply ran: they are saved at once.
             uor = _at_once(self._saved)
             self._applying = None
-            if isinstance(out, Exception):
+            # The engine refuses an Apply from an app left open across an update with one
+            # failed row called "apply" (no real part has that id): nothing on the desktop
+            # changed, so it is handled as an Apply that stopped, not as one with problems.
+            refused = None
+            if not isinstance(out, Exception):
+                rows_out = out[0]
+                if len(rows_out) == 1 and rows_out[0].target == "apply" and rows_out[0].status == "failed":
+                    refused = rows_out[0].message
+            if isinstance(out, Exception) or refused is not None:
                 self._lock_after_apply = False
                 # Stopped part way: the changes stay unapplied (dirty, Undo, the close guard),
                 # and settings.json goes back to the look applied last, since the watcher
@@ -2387,7 +2419,7 @@ class Backend(QObject):
                 except OSError:
                     pass
                 self._refresh_damage()
-                self.failed.emit(_("Apply stopped: {error}").format(error=out))
+                self.failed.emit(refused if refused is not None else _("Apply stopped: {error}").format(error=out))
                 return
             results, self._has_backup, (self._glass_live, restart) = out
             self._saved = replace(s, **uor)
@@ -3332,6 +3364,7 @@ class Backend(QObject):
             self.busyChanged.emit()
             return
         self._set_removing(True)
+        was_live = self._glass_live
         self._glass_live = False
 
         def job(report):
@@ -3343,7 +3376,11 @@ class Backend(QObject):
         def done(out):
             if isinstance(out, Exception):
                 self._set_removing(False)
+                # Nothing may have been restored: the glass runs as it did, until the check
+                # says otherwise (as in revert).
+                self._glass_live = was_live
                 self.failed.emit(_("Restore stopped, so Fedora Glass was not removed: {error}").format(error=out))
+                self.refreshTargets()
                 return
             problems, self._has_backup = out
             self._lost = []
@@ -3559,6 +3596,7 @@ class Backend(QObject):
         except OSError:
             self._saved_at = 0.0
         self._previous = settings_mod.load_previous(self._path)
+        self._shut_down = False
         self._apply_step = ""          # "back" or "forward" while that Apply is on its way
         # Wallpaper colours: picture path -> {"key", "tint", "accent"}, worked out off the UI thread.
         self._wall_colours: dict[str, dict] = {}

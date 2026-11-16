@@ -115,13 +115,13 @@ def test_flatpak_override_comes_back_byte_for_byte_with_its_mode(fake_env, origi
     assert stat.S_IMODE(p.stat().st_mode) == 0o600
 
 
-def test_flatpak_override_made_by_us_is_emptied_on_restore(fake_env):
+def test_flatpak_override_made_by_us_is_gone_on_restore(fake_env):
     p = engine._flatpak_file(fake_env)
     b = Backup(fake_env)
     engine._flatpak_apply(fake_env, "x", FlatpakOverride(filesystems=("a:ro",)), b)
     assert stat.S_IMODE(p.stat().st_mode) == 0o644
     engine._flatpak_undo(fake_env, b.data["flatpak"]["x"])
-    assert p.read_text() == ""
+    assert not p.exists()       # up to 1.7.4 an empty file was left behind
 
 
 def test_flatpak_user_added_lines_survive_restore(fake_env):

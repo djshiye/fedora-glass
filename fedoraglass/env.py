@@ -47,7 +47,14 @@ class Env:
     # Gio.Settings and the text of each key set in it. None outside a batch.
     _batch: dict | None = field(default=None, repr=False, compare=False)
 
+    # The AppImage file names found in the usual folders (see targets/apps.py); None = not listed
+    # yet. Kept only while an Apply or Restore holds the lock (Engine._locked sets _keep_appimages),
+    # so a detect outside one always looks at the folders as they are now.
+    _appimages: list | None = field(default=None, repr=False, compare=False)
+    _keep_appimages: bool = field(default=False, repr=False, compare=False)
+
     def forget_cache(self) -> None:
+        self._appimages = None    # AppImages added or removed since are seen again
         self._schemadirs.clear()
         self._keys.clear()
         self._sources.clear()     # schemas installed or removed since are seen again

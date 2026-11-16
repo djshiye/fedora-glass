@@ -146,7 +146,9 @@ const STUBS = {
     export function liquidNow(l) { return l * (1 - 0.75 * (globalThis.fake.flakes ?? 0)); }
     export function glassRenders() { return globalThis.fake.renders ?? 0; }
     export function redrawAllPanes() {}
-    export function shownPanes() { return globalThis.fake.shown ?? 0; }`,
+    export function shownPanes() { return globalThis.fake.shown ?? 0; }
+    export function hasRedrawArea(ctx) { return Boolean(ctx.get_redraw_clip()); }
+    export function paintCount() { return globalThis.fake.paints ?? 0; }`,
 };
 
 export async function resolve(specifier, context, next) {

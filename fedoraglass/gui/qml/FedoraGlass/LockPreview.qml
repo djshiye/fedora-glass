@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import QtQuick.Window
 import FedoraGlass.Core
 
 // A miniature of the lock screen as the Shell extension draws it (lock.js and
@@ -47,7 +48,8 @@ Item {
     readonly property bool showNotifications: !Backend.lockHideNotifications
 
     property date now: new Date()
-    Timer { interval: 30000; running: root.visible; repeat: true; onTriggered: root.now = new Date() }
+    // Not while the window is minimized: nobody sees the clock then.
+    Timer { interval: 30000; running: root.visible && Window.visibility !== Window.Minimized; repeat: true; onTriggered: root.now = new Date() }
     function greeting() {
         const h = now.getHours()
         return h >= 5 && h < 12 ? qsTr("Good morning") : h >= 12 && h < 17 ? qsTr("Good afternoon")

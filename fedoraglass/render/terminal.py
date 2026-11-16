@@ -345,6 +345,8 @@ def with_block(text: str, body: list[str], where: str = "top") -> str:
 
 _GENERAL = re.compile(r"^\s*\[general\]\s*(#.*)?$")
 _IMPORT = re.compile(r"^\s*(?:general\.)?import\s*=")
+_GENERAL_DOTTED = re.compile(r"^\s*general\s*\.")
+_GENERAL_INLINE = re.compile(r"^\s*general\s*=")
 
 
 def toml_string(s: str) -> str:
@@ -369,4 +371,13 @@ def alacritty_with_import(text: str, path: str) -> str | None:
             block = nl.join([f"# {BLOCK_BEGIN}{_BLOCK_NOTE}", imp, f"# {BLOCK_END}"]) + nl
             lines.insert(i + 1, block)
             return "".join(lines)
+    # General keys written without a [general] header (dotted, or one inline table) already make
+    # the table: a second [general] would be an error and Alacritty would drop the whole file.
+    for ln in lines:
+        if ln.lstrip().startswith("["):
+            break
+        if _GENERAL_INLINE.match(ln):
+            return None
+        if _GENERAL_DOTTED.match(ln):
+            return with_block(rest, [f"general.{imp}"], "top")
     return with_block(rest, ["[general]", imp], "end")

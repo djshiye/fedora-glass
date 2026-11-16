@@ -257,6 +257,8 @@ class Switch:
     def off(self) -> None:
         if self.way == "helper":
             subprocess.run(["python3", "-I", "-S", str(HELPER), "off"], capture_output=True, timeout=120, check=False)
+        else:
+            self.token = secrets.token_hex(16)    # as the helper: on after an off is a new look
         for p in (KEYFILE, LOCKS):
             p.unlink(missing_ok=True)
         shutil.rmtree(CONF, ignore_errors=True)
@@ -517,7 +519,10 @@ def check_glass(lane: Lane) -> Check:
     sh = lane.sh
     NOTE.unlink(missing_ok=True)
     SWITCH.on({"message": MESSAGE})
-    c.info(f"Switched on by {'the real root helper' if SWITCH.way == 'helper' else 'hand (the root helper does not run here: ' + SWITCH.helper_note + ')'}.")
+    # The test login screen is set up so that the real root helper runs (login-session.sh). When
+    # it refuses, the rest still tests the add-on by hand, but the helper is no longer tested.
+    c.add(SWITCH.way == "helper", "Switched on by the real root helper." if SWITCH.way == "helper" else
+          f"The root helper does not run here ({SWITCH.helper_note}): switched on by hand.")
     mark = lane.ctx.log_lines()
     restart(sh)
     st = state(sh)

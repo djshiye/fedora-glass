@@ -10,7 +10,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {SwitcherPopup} from 'resource:///org/gnome/shell/ui/switcherPopup.js';
 
-import {GlassPane, copying} from './glass.js';
+import {GlassPane, copying, hasRedrawArea, paintCount} from './glass.js';
 import {screenEdges, windowWatch, wallpaper, Signals} from './common.js';
 
 // ---- app windows -------------------------------------------------------------------
@@ -565,7 +565,7 @@ class WindowGlass {
             if (!at)
                 return null;
             pane = copying.pane;
-        } else if (!ctx.get_redraw_clip()) {
+        } else if (!hasRedrawArea(ctx)) {
             return null;
         }
         const [ox, oy] = [at.x + h.x, at.y + h.y];
@@ -1097,7 +1097,6 @@ export class Windows {
         // (see WindowGlass._paintBox): worked out once a frame.
         this._stack = null;
         this.paintStats = {clipped: 0, skipped: 0};    // read by the QA tools
-        this._afterPaint = global.stage.connect('after-paint', () => (this._stack = null));
         // A window moved, raised or closed changes what the windows above it show.
         this._onWindows = win => (win ? this._changed(win) : this.sync());
         windowWatch.current?.listeners.add(this._onWindows);
@@ -1221,9 +1220,13 @@ export class Windows {
      * that pane copies, which it draws over this one (see GlassPane.setSources).
      */
     coverAbove(actor, pane = null) {
+        // Worked out once a screen paint (asking the stage to tell us of every frame is one
+        // more thing left behind per frame for GNOME's clean-up, see screenList in glass.js).
+        if (this._stack?.at !== paintCount())
+            this._stack = null;
         if (!this._stack) {
             const list = global.get_window_actors().map(a => ({actor: a, parent: a.get_parent(), rects: null}));
-            this._stack = {list, index: new Map(list.map((e, i) => [e.actor, i])), above: new Map()};
+            this._stack = {at: paintCount(), list, index: new Map(list.map((e, i) => [e.actor, i])), above: new Map()};
         }
         const st = this._stack;
         const i = st.index.get(actor);
@@ -1253,9 +1256,6 @@ export class Windows {
     }
 
     destroy() {
-        if (this._afterPaint)
-            global.stage.disconnect(this._afterPaint);
-        this._afterPaint = 0;
         this._stack = null;
         windowWatch.current?.listeners.delete(this._onWindows);
         this._signals.clear();

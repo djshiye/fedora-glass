@@ -445,8 +445,9 @@ Window {
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
-                height: shown ? 48 : 0
-                visible: height > 0
+                // As tall as its sentence needs (two lines at most), never under 48.
+                height: shown ? Math.max(48, oldCopyText.contentHeight + 24) : 0
+                visible: shown || height > 0
                 clip: true
                 radius: Theme.rM
                 color: Theme.well
@@ -459,6 +460,7 @@ Window {
                     size: 18
                 }
                 Text {
+                    id: oldCopyText
                     objectName: "oldCopyNote"
                     x: 42
                     width: parent.width - x - cleanUp.width - 28
@@ -466,7 +468,11 @@ Window {
                     text: qsTr("An old hand-installed copy of Fedora Glass still runs at login with its older look.")
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    HoverHandler { id: oldCopyTextHover }
+                    LgToolTip { shown: oldCopyText.truncated && oldCopyTextHover.hovered; text: oldCopyText.text }
                 }
                 LgButton {
                     id: cleanUp
@@ -500,8 +506,9 @@ Window {
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
-                height: shown ? 48 : 0
-                visible: height > 0
+                // As tall as its sentence needs (two lines at most), never under 48.
+                height: shown ? Math.max(48, glassText.contentHeight + 24) : 0
+                visible: shown || height > 0
                 clip: true
                 radius: Theme.rM
                 color: Theme.well
@@ -514,6 +521,7 @@ Window {
                     size: 18
                 }
                 Text {
+                    id: glassText
                     objectName: "glassNote"
                     x: 42
                     width: parent.width - x - glassActions.width - 28
@@ -521,7 +529,11 @@ Window {
                     text: Backend.glassProblemNote
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    HoverHandler { id: glassTextHover }
+                    LgToolTip { shown: glassText.truncated && glassTextHover.hovered; text: glassText.text }
                 }
                 Row {
                     id: glassActions
@@ -565,8 +577,9 @@ Window {
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
-                height: shown ? 48 : 0
-                visible: height > 0
+                // As tall as its sentence needs (two lines at most), never under 48.
+                height: shown ? Math.max(48, safeText.contentHeight + 24) : 0
+                visible: shown || height > 0
                 clip: true
                 radius: Theme.rM
                 color: Theme.well
@@ -579,6 +592,7 @@ Window {
                     size: 18
                 }
                 Text {
+                    id: safeText
                     objectName: "safeNote"
                     x: 42
                     width: parent.width - x - resumeGlass.width - 28
@@ -586,7 +600,11 @@ Window {
                     text: Backend.safeModeNote
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    HoverHandler { id: safeTextHover }
+                    LgToolTip { shown: safeText.truncated && safeTextHover.hovered; text: safeText.text }
                 }
                 LgButton {
                     id: resumeGlass
@@ -615,8 +633,9 @@ Window {
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
-                height: shown ? 48 : 0
-                visible: height > 0
+                // As tall as its sentence needs (two lines at most), never under 48.
+                height: shown ? Math.max(48, pauseText.contentHeight + 24) : 0
+                visible: shown || height > 0
                 clip: true
                 radius: Theme.rM
                 color: Theme.well
@@ -629,6 +648,7 @@ Window {
                     size: 18
                 }
                 Text {
+                    id: pauseText
                     objectName: "pauseNote"
                     x: 42
                     width: parent.width - x - resumePaused.width - 28
@@ -636,7 +656,11 @@ Window {
                     text: qsTr("Glass is paused from Quick Settings until you resume it or log in again.")
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    HoverHandler { id: pauseTextHover }
+                    LgToolTip { shown: pauseText.truncated && pauseTextHover.hovered; text: pauseText.text }
                 }
                 LgButton {
                     id: resumePaused
@@ -664,8 +688,9 @@ Window {
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
-                height: shown ? 48 : 0
-                visible: height > 0
+                // As tall as its sentence needs (two lines at most), never under 48.
+                height: shown ? Math.max(48, lostText.contentHeight + 24) : 0
+                visible: shown || height > 0
                 clip: true
                 radius: Theme.rM
                 color: Theme.well
@@ -678,13 +703,18 @@ Window {
                     size: 18
                 }
                 Text {
+                    id: lostText
                     x: 42
                     width: parent.width - x - reapply.width - 28
                     anchors.verticalCenter: parent.verticalCenter
                     text: Backend.lostNote
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    HoverHandler { id: lostTextHover }
+                    LgToolTip { shown: lostText.truncated && lostTextHover.hovered; text: lostText.text }
                 }
                 LgButton {
                     id: reapply
@@ -713,8 +743,9 @@ Window {
                 anchors.bottomMargin: shown ? 12 : 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(parent.width - 48, 760)
-                height: shown ? 48 : 0
-                visible: height > 0
+                // As tall as its sentence needs (two lines at most), never under 48.
+                height: shown ? Math.max(48, damageText.contentHeight + 24) : 0
+                visible: shown || height > 0
                 clip: true
                 radius: Theme.rM
                 color: Theme.well
@@ -727,6 +758,7 @@ Window {
                     size: 18
                 }
                 Text {
+                    id: damageText
                     objectName: "damageNote"
                     x: 42
                     width: parent.width - x - 20
@@ -734,7 +766,11 @@ Window {
                     text: Backend.damageNote
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
+                    HoverHandler { id: damageTextHover }
+                    LgToolTip { shown: damageText.truncated && damageTextHover.hovered; text: damageText.text }
                 }
             }
 
@@ -759,9 +795,22 @@ Window {
                         : Backend.lostNote !== "" ? "lost"
                         : Backend.loginGlassStale ? "login" : Backend.restartNeeded ? "restart"
                         : Backend.hasBackup ? "done" : "none"
+                    // The room left of the right-hand buttons: a long sentence (German, French)
+                    // is cut with "…" instead of running under them.
+                    readonly property real room: footer.width - footerButtons.width - x - 20 - 16
+                    readonly property real buttonsW: (restartButton.visible ? restartButton.width : 0)
+                        + (partialButton.visible ? partialButton.width : 0)
+                        + (discardButton.visible ? discardButton.width : 0)
+                    readonly property int buttonsN: (restartButton.visible ? 1 : 0)
+                        + (partialButton.visible ? 1 : 0) + (discardButton.visible ? 1 : 0)
+                    // What is left for the sentence once the dot and the buttons have their room.
+                    readonly property real spare: room - 8 - buttonsW - (buttonsN + 1) * spacing
+                    // Too little for even a few words: the buttons keep the room, the dot goes too.
+                    readonly property bool fits: spare >= 48
                     Rectangle {
+                        id: statusDot
                         objectName: "statusDot"
-                        visible: !Backend.busy
+                        visible: !Backend.busy && footerStatus.fits
                         width: 8; height: 8; radius: 4
                         anchors.verticalCenter: parent.verticalCenter
                         color: footerStatus.phase === "dirty" ? Theme.accent
@@ -769,9 +818,12 @@ Window {
                              : footerStatus.phase === "none" ? Theme.textFaint : Theme.warn
                     }
                     Text {
+                        id: statusText
                         objectName: "statusText"
-                        visible: !Backend.busy
+                        visible: !Backend.busy && footerStatus.fits
                         anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(implicitWidth, Math.max(0, footerStatus.spare))
+                        elide: Text.ElideRight
                         text: ({ dirty: Backend.changeCount === 1 ? qsTr("1 change not applied yet")
                                         : Backend.changeCount > 1 ? qsTr("%1 changes not applied yet").arg(Backend.changeCount)
                                         : qsTr("Unapplied changes"),
@@ -781,8 +833,11 @@ Window {
                                  restart: qsTr("Restart to finish"), done: qsTr("Up to date"), none: qsTr("Not applied yet") })[footerStatus.phase]
                         color: Theme.textDim
                         font.pixelSize: 14
+                        HoverHandler { id: statusHover }
+                        LgToolTip { shown: statusText.truncated && statusHover.hovered; text: statusText.text }
                     }
                     LgButton {
+                        id: restartButton
                         objectName: "restartButton"
                         visible: footerStatus.phase === "restart" && !Backend.busy
                         anchors.verticalCenter: parent.verticalCenter
@@ -795,6 +850,7 @@ Window {
                         onClicked: Backend.restartPC()
                     }
                     LgButton {
+                        id: partialButton
                         objectName: "partialButton"
                         visible: footerStatus.phase === "partial" && !Backend.busy
                         anchors.verticalCenter: parent.verticalCenter
@@ -807,6 +863,7 @@ Window {
                         onClicked: { resultsSheet.results = Backend.partialResults; resultsSheet.open() }
                     }
                     LgButton {
+                        id: discardButton
                         objectName: "discardButton"
                         visible: (Backend.dirty || footerStatus.phase === "partial") && !Backend.busy
                         anchors.verticalCenter: parent.verticalCenter
@@ -849,6 +906,7 @@ Window {
                 }
 
                 Row {
+                    id: footerButtons
                     anchors.right: parent.right
                     anchors.rightMargin: 20
                     anchors.verticalCenter: parent.verticalCenter

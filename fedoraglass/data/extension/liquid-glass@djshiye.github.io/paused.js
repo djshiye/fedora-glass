@@ -13,7 +13,12 @@
 //
 // The glass's own pop-up sheet and this one are never loaded together (extension.js).
 
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
 import {PopupStyle} from './popupstyle.js';
+
+const DASH_TO_PANEL = 'dash-to-panel@jderose9.github.com';
+const ACTIVE = 1;   // GNOME's ExtensionState.ACTIVE
 
 /**
  * Lift one Dash to Panel panel's opacity (its DynamicTransparency) to at least `alpha`.
@@ -55,6 +60,18 @@ export class PausedStyle {
         this._lifted = new Map();   // DynamicTransparency -> undo
         this._dtp = null;
         this._dtpId = 0;
+        // Dash to Panel switched off and on again is a new object with new panels, which
+        // nothing else here would notice until the next Apply.
+        this._managerId = 0;
+        this._manager = Main.extensionManager ?? null;
+        try {
+            this._managerId = this._manager?.connect('extension-state-changed', (_m, ext) => {
+                if (ext?.uuid === DASH_TO_PANEL && ext.state === ACTIVE)
+                    this._liftPanels();
+            }) ?? 0;
+        } catch {
+            this._managerId = 0;
+        }
         this._sheet = new PopupStyle(cfg, {key: 'pausedCss', file: 'paused.css', settleMs: 0});
         this._liftPanels();
     }
@@ -106,6 +123,15 @@ export class PausedStyle {
         this._lifted.clear();
     }
 
+    _disconnectManager() {
+        if (this._manager && this._managerId) {
+            try {
+                this._manager.disconnect(this._managerId);
+            } catch {}
+        }
+        this._managerId = 0;
+    }
+
     _disconnectDtp() {
         if (this._dtp && this._dtpId) {
             try {
@@ -118,12 +144,14 @@ export class PausedStyle {
 
     // Locking: as PopupStyle.destroyLater. The panel is hidden by the lock screen already.
     destroyLater(done) {
+        this._disconnectManager();
         this._disconnectDtp();
         this._dropPanels();
         this._sheet.destroyLater(done);
     }
 
     destroy() {
+        this._disconnectManager();
         this._disconnectDtp();
         this._dropPanels();
         this._sheet.destroy();

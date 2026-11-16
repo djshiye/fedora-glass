@@ -545,6 +545,8 @@ def refresh(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
     """After an update of Fedora Glass: bring the glass that is on the login screen up to
     this version's rules, with the values the user last applied. Only ever redoes what is
     there; never turns the glass on. Returns what happened."""
+    if not os.path.lexists(state_dir):
+        return "off"                              # never turned on: taking the lock would make the folder
     with _Locked(state_dir):
         return _refresh(shell_dir, state_dir)
 

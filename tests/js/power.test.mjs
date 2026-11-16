@@ -324,3 +324,38 @@ test('auto keeps the level it settled on across a lock, and forgets it when Fedo
     assert.equal(s.level, 0);
     s.destroy();
 });
+
+// The three proxies answer one at a time, in any order; what the owner knew before the
+// lock must hold until each service has answered (1.7.4 drew full glass, then lighter).
+for (const order of [[0, 1, 2], [1, 0, 2], [2, 1, 0]]) {
+    test(`unlocking in Power Saver: no other state is told while the proxies answer (order ${order})`, async () => {
+        const {PowerWatch} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/power.js');
+        bus.run(UPOWER, {OnBattery: false});
+        bus.run(PROFILES, {ActiveProfile: 'power-saver'});
+        const told = [];
+        const w = new PowerWatch(s => told.push(s), {battery: false, saver: true});
+        const waiting = bus.waiting;
+        bus.waiting = [];
+        for (const i of order)
+            waiting[i]();
+        assert.deepEqual(told, [], 'a state other than the known one was told');
+        assert.deepEqual(w.state, {battery: false, saver: true});
+        // A real change after everything answered is told once.
+        bus.set(PROFILES, 'ActiveProfile', 'balanced');
+        assert.deepEqual(told, [{battery: false, saver: false}]);
+        w.destroy();
+    });
+}
+
+test('a service that failed counts as answered with off, as before', async () => {
+    const {PowerWatch} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/power.js');
+    const real = bus.new_for_bus.bind(bus);
+    // UPower's proxy fails to be made; the profile services answer with nothing running.
+    bus.new_for_bus = (b, f, i, name, p, iface, c, cb) =>
+        name === UPOWER ? bus.waiting.push(() => cb(null, {error: new Error('no bus')})) : real(b, f, i, name, p, iface, c, cb);
+    const told = [];
+    const w = new PowerWatch(s => told.push(s), {battery: true, saver: false});
+    bus.answer();
+    assert.deepEqual(told, [{battery: false, saver: false}]);
+    w.destroy();
+});

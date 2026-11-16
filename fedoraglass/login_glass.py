@@ -483,7 +483,11 @@ def check_values(raw: object) -> dict:
         out[key] = v[key].lower()
     for key, (lo, hi) in NUMBERS.items():
         x = v[key]
-        if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or not lo <= x <= hi:
+        try:
+            fine = not isinstance(x, bool) and isinstance(x, (int, float)) and math.isfinite(x) and lo <= x <= hi
+        except OverflowError:                     # a whole number too big for a float
+            fine = False
+        if not fine:
             raise BadInput(f"{key} must be a number from {lo:g} to {hi:g}")
         out[key] = round(float(x), 3)
     b = v["blur"]
@@ -740,8 +744,40 @@ def _display_manager_is_gdm(paths: Paths) -> bool:
     return os.path.basename(target) in ("gdm.service", "gdm3.service")
 
 
+def _link_target_exists(paths: Paths, link: str) -> bool:
+    """Does the link at `link` lead to something that is there? One look at the link itself,
+    then the target under the same root (so a test tree is judged by its own files)."""
+    try:
+        target = os.readlink(link)
+    except OSError:
+        return False
+    target = paths.p(target) if os.path.isabs(target) else os.path.join(os.path.dirname(link), target)
+    return os.path.exists(target)
+
+
 def guard_enabled(paths: Paths) -> bool:
-    return any(os.path.lexists(p) for p in paths.guard_wants)
+    # The package ships the "wants" link, so its presence alone proves nothing: a masked unit
+    # (a link to /dev/null in /etc or /run) never starts, and a link to nothing never does either.
+    for d in ("/etc/systemd/system", "/run/systemd/system"):
+        unit = paths.p(f"{d}/{GUARD_UNIT}")
+        try:
+            if os.readlink(unit) == "/dev/null":
+                return False
+        except OSError:
+            pass
+        try:
+            st = os.lstat(unit)
+            if stat.S_ISREG(st.st_mode) and st.st_size == 0:      # an empty unit file masks it too
+                return False
+        except OSError:
+            pass
+    for p in paths.guard_wants:
+        if os.path.islink(p):
+            if _link_target_exists(paths, p):
+                return True
+        elif os.path.lexists(p):
+            return True
+    return False
 
 
 # ---- reading dconf the way the login screen will --------------------------------------

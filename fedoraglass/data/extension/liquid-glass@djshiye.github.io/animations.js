@@ -440,6 +440,9 @@ withShader(class FedoraGlassGenie extends ShaderBase {
  * behind the panel, as the real window does, and nothing changes order at the end.
  */
 function genie(actor, iconRect, p0, p1, ms, intensity, onDone) {
+    // An earlier animation on this window ends first (a genie through its own onDone):
+    // else the new guard is refused (name taken) and the old one's onDone resets the actor.
+    stop(actor, false, true);
     const win = {x: actor.x, y: actor.y, width: actor.width, height: actor.height};
     const box = C.union(win, iconRect);
     const holder = new Clutter.Actor({name: 'fedora-glass-genie', reactive: false,
