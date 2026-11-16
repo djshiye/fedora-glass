@@ -32,7 +32,7 @@ def test_glass_renders_only_while_its_own_screen_paints():
     other screen painted. Mutter then drew the windows behind it only on that screen,
     and the glass showed wallpaper where they should be until it rendered again."""
     js = (EXT / "glass.js").read_text()
-    assert "global.stage.connect('before-paint', (_s, view) => (painting.view = view))" in js
+    assert "global.stage.connect('before-paint', (_s, view) => {\n                painting.view = view;" in js
     assert "global.stage.connect('after-paint', () => {\n                painting.view = null;" in js
     # Followed only while there is glass, and let go with the last pane.
     assert "followPainting(true);" in js

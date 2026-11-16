@@ -211,6 +211,8 @@ test('on the screen and in our own copies, glass skips what opaque glass above c
     runLaters();
     const g = glassOf(ws, below);
     const h = g._holder;
+    // What is worked out once per screen paint is worked out again after it.
+    const nextPaint = () => (fake.paints = (fake.paints ?? 0) + 1);
     const onScreen = {get_redraw_clip: () => ({}), get_framebuffer: () => null};
     // Its left part lies under the window above (corners aside): only the right part is drawn.
     const box = g._paintBox(h, onScreen);
@@ -229,7 +231,7 @@ test('on the screen and in our own copies, glass skips what opaque glass above c
     const copyOf = a => ({x: a.x, y: a.y, visible: true});
     const pane = {_clones: new Map([[below, copyOf(below)], [over, copyOf(over)]])};
     Object.assign(copying, {pane});
-    stage.emit('after-paint');
+    nextPaint();
     assert.deepEqual(g._paintBox(h, onScreen), box);
     // A rim strip's copy shows a thin strip of the window: the rest of its glass is not drawn.
     pane._clones.get(below)._clipBox = [0, 0, 40, 300];
@@ -238,22 +240,22 @@ test('on the screen and in our own copies, glass skips what opaque glass above c
     assert.deepEqual(g._paintBox(h, onScreen), [[380, 0, 400, 300]]);
     delete pane._clones.get(below)._clipBox;
     pane._clones.delete(over);
-    stage.emit('after-paint');
+    nextPaint();
     assert.equal(g._paintBox(h, onScreen), null);
     Object.assign(copying, {pane: null});
     below._inClone = false;
     assert.equal(g._paintBox(h, {get_redraw_clip: () => null}), null);
     // Under it entirely: nothing to draw.
-    stage.emit('after-paint');
+    nextPaint();
     Object.assign(over, {x: 0, y: 0, width: 800, height: 800});
     Object.assign(over.meta_window.rect, {x: 0, y: 0, width: 800, height: 800});
     glassOf(ws, over).sync();
     assert.equal(g._paintBox(h, onScreen), false);
     // ...unless the window above is see-through or animates.
-    stage.emit('after-paint');
+    nextPaint();
     over.opacity = 200;
     assert.notEqual(g._paintBox(h, onScreen), false);
-    stage.emit('after-paint');
+    nextPaint();
     over.opacity = 255;
     over.scale_x = 0.9;
     assert.notEqual(g._paintBox(h, onScreen), false);
