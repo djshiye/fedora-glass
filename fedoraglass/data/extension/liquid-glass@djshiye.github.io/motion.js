@@ -208,21 +208,8 @@ export class Motion {
             if (!r) {
                 // Hidden: let go at once, so it never reopens still pressed.
                 const st = this._state.get(f);
-                if (st) {
+                if (st)
                     [st.press, st.pressV, st.pressT] = [0, 0, 0];
-                    // A menu still opening goes on opening while its glass is hidden
-                    // (it fades in from clear, and the glass waits for it): stopping
-                    // here left the menu at its grow-start size for good.
-                    if (st.open !== 1 || st.openV !== 0) {
-                        if (animate)
-                            [st.open, st.openV] = spring(st.open, st.openV, 1, 900, 36 + 24 * getFrost().flakes, dt);
-                        if (!animate || Math.abs(1 - st.open) + Math.abs(st.openV) < 0.002)
-                            [st.open, st.openV] = [1, 0];
-                        else
-                            moving = true;
-                        f.setMotion({open: st.open});
-                    }
-                }
                 continue;
             }
             const L = this._look(f);
