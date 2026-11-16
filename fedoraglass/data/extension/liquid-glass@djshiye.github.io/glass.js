@@ -771,12 +771,16 @@ void main() {
     // glass. Before the ceiling, so white text on dark glass keeps its contrast; dark glass
     // mists less for that too. Below freezing the mist at the edges has frozen into the
     // ice there. Weather frost off, or warm enough out: skipped.
+    // The mist's colour and how thick it lies here are kept (mistC, mistK): the edge's
+    // reflection below goes through the same mist.
+    float mistK = 0.0;
+    vec3 mistC = vec3(0.0);
     if (frost > OFF && mode < 1.5) {
         vec3 st = col.rgb / max(col.a, 1e-3);
         float rimF = (1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inside)) * (1.0 - 0.7 * flakes);
-        vec3 ice = light_glass > 0.5 ? vec3(0.93, 0.965, 1.0) : vec3(0.58, 0.66, 0.76);
-        float k = frost * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
-        st = mix(vivid(st, 1.0 - 0.5 * frost), ice, k);
+        mistC = light_glass > 0.5 ? vec3(0.93, 0.965, 1.0) : vec3(0.58, 0.66, 0.76);
+        mistK = frost * (light_glass > 0.5 ? 0.30 + 0.36 * rimF : 0.17 + 0.36 * rimF);
+        st = mix(vivid(st, 1.0 - 0.5 * frost), mistC, mistK);
         st += vec3((iceHash(floor(px + at0)) - 0.5) * 0.07 * frost);
         col.rgb = clamp(st, 0.0, 1.0) * col.a;
     }
@@ -899,6 +903,12 @@ void main() {
         vec3 Rf = reflect(vec3(0.0, 0.0, -1.0), N);
         vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
         vec3 seen = vivid(env(px + dir * env_reach * length(Rf.xy) + parallax(toPtr, h)), 1.4);
+        // Misted glass (weather frost) mirrors the room through its mist, as pale as the
+        // glass around it. Up to 1.7.3 the reflection kept the room's own dark colours, so
+        // in light frost the rounded edge stayed dark all round a paler pane: a clear
+        // rectangle inside the glass. (Below freezing the ice made the edge matt: no line.)
+        if (mistK > 0.0)
+            seen = mix(vivid(seen, 1.0 - 0.5 * frost), mistC, mistK);
         float lobe = pow(max(dot(n, L), 0.0), 8.0) * crest;
         // The same light, reflected inside, comes out faintly at the opposite edge.
         lobe += pow(max(dot(-n, L), 0.0), 8.0) * crest * 0.3;

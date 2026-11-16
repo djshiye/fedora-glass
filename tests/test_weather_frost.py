@@ -406,3 +406,22 @@ def test_temperature_controls_are_dimmed_with_a_hint_until_weather_frost_is_on(q
     assert not hint.property("visible")
     assert scale.property("opacity") == 1 and body.property("opacity") == 1
     b.setProperty("weatherFrost", False)
+
+
+def test_the_edge_reflection_goes_through_the_mist():
+    """Light frost (cool and cold, above freezing) mists the glass over, but up to 1.7.3 the
+    reflection on the rounded edge kept the room's own dark colours: a dark band ran all round
+    a paler pane, a clear rectangle inside the glass (Dino, 2026-11-16). The reflection now
+    goes through the same mist, on the desktop and in the app's preview."""
+    src = (EXT / "glass.js").read_text()
+    frost = src.index("    if (frost > OFF && mode < 1.5) {")
+    reflect = src.index("        vec3 seen = vivid(env(px + dir * env_reach")
+    assert src.index("    float mistK = 0.0;") < frost < reflect
+    assert "st = mix(vivid(st, 1.0 - 0.5 * frost), mistC, mistK);" in src[frost:reflect]
+    assert "seen = mix(vivid(seen, 1.0 - 0.5 * frost), mistC, mistK);" in src[reflect:reflect + 800]
+    frag = (ROOT / "fedoraglass/gui/qml/FedoraGlass/shaders/glass.frag").read_text()
+    pf = frag.index("        if (frost > 0.001) {")
+    pr = frag.index("        seen = vivid(e.rgb / max(e.a, 1e-3), 1.4);")
+    assert frag.index("    float mistK = 0.0;") < pf < pr
+    assert "st = mix(vivid(st, 1.0 - 0.5 * frost), mistC, mistK);" in frag[pf:pr]
+    assert "seen = mix(vivid(seen, 1.0 - 0.5 * frost), mistC, mistK);" in frag[pr:pr + 400]

@@ -502,6 +502,8 @@ void main() {
         iceF = iceField(p / k, c / k, q, ROOM, flakes);
         px += iceBend(iceF) * iceOn * k;
     }
+    float mistK = 0.0;
+    vec3 mistC = vec3(0.0);
     if (mode < 1.5) {
         if (th > 0.01 && fringe > 0.001 && slope > 0.02) {
             float B = 0.08 * fringe;
@@ -529,12 +531,13 @@ void main() {
             col.rgb = min(col.rgb + vec3(0.07 * min(1.0, 0.45 + 1.1 * rim.a) * smoothstep(-0.4, 1.1, dot(p / c, LIGHT))) * col.a, vec3(col.a));
         // Weather frost: the same mist and ice as on the desktop (glass.js).
         float lightGlass = smoothstep(0.35, 0.7, dot(col.rgb / max(col.a, 1e-3), vec3(0.2126, 0.7152, 0.0722)));
+        // The edge's reflection below goes through the same mist (mistC, mistK).
         if (frost > 0.001) {
             vec3 st = col.rgb / max(col.a, 1e-3);
             float rimF = (1.0 - smoothstep(0.0, max(10.0, 0.25 * shortIce), inq)) * (1.0 - 0.7 * flakes);
-            vec3 ice = mix(vec3(0.58, 0.66, 0.76), vec3(0.93, 0.965, 1.0), lightGlass);
-            float m = frost * mix(0.17 + 0.36 * rimF, 0.30 + 0.36 * rimF, lightGlass);
-            st = mix(vivid(st, 1.0 - 0.5 * frost), ice, m);
+            mistC = mix(vec3(0.58, 0.66, 0.76), vec3(0.93, 0.965, 1.0), lightGlass);
+            mistK = frost * mix(0.17 + 0.36 * rimF, 0.30 + 0.36 * rimF, lightGlass);
+            st = mix(vivid(st, 1.0 - 0.5 * frost), mistC, mistK);
             st += vec3((iceHash(floor(q)) - 0.5) * 0.07 * frost);
             col.rgb = clamp(st, 0.0, 1.0) * col.a;
         }
@@ -576,6 +579,10 @@ void main() {
         vec2 dir = Rf.xy / max(length(Rf.xy), 1e-4);
         vec4 e = env(px0 + dir * REACH * length(Rf.xy));
         seen = vivid(e.rgb / max(e.a, 1e-3), 1.4);
+        // Misted glass mirrors the room through its mist, as pale as the glass around
+        // it, as in glass.js: else light frost left a dark band all round the edge.
+        if (mistK > 0.0)
+            seen = mix(vivid(seen, 1.0 - 0.5 * frost), mistC, mistK);
         float lobe = pow(max(dot(n, LIGHT), 0.0), 8.0) * crest;
         lobe += pow(max(dot(-n, LIGHT), 0.0), 8.0) * crest * 0.3;
         // Near the pointer the rim catches more of the same reflection, as in glass.js:
