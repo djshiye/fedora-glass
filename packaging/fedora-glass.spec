@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.1
+Version:        1.7.2
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,14 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Mon Nov 16 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.2-1
+- GNOME Shell no longer risks freezing when Apply or Restore restarts other extensions
+- Menus open and close more smoothly; glass does less work while you drag windows and while frost changes
+- The lock and password cards are the right size on slow machines, also behind a new prompt
+- Removing the package undoes the look for users who moved their settings folders
+- The app: the main slider lets go of a preset's fixed blur, error messages stay readable, Undo can put a discarded look back
+- Weather frost asks for the weather once per session, not on every unlock
+
 * Sun Nov 15 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.1-1
 - Weather frost: the dark smudges behind text and buttons on the frost are gone; the frost thins out around them instead
 - Weather frost: the panel's glass no longer shrinks to a thin strip when the frost level changes
