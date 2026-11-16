@@ -195,7 +195,8 @@ jobs:
         run: |
           cp packaging/fedora-glass.repo packaging/liquid-glass.repo packaging/RPM-GPG-KEY-fedora-glass site/
           echo "$EVR" > site/version.txt
-          printf '<!doctype html><meta charset="utf-8"><title>Fedora Glass repositories</title><p>Fedora Glass %s. How to install it on Fedora, Ubuntu and Arch: <a href="https://github.com/%s#install">github.com/%s</a></p>\n' "$TAG" "$GITHUB_REPOSITORY" "$GITHUB_REPOSITORY" > site/index.html
+          # The project page (pages/): never replaces the files above or the signed repositories.
+          sh packaging/build-pages.sh site "${TAG#v}"
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa  # v3.0.1
         with:

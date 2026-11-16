@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f1ecff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0716" media="(prefers-color-scheme: dark)">
+<title>Fedora Glass</title>
+<meta name="description" content="A glass look for the whole GNOME desktop, with an app to tune it from liquid to frosted. For Fedora, Ubuntu and Arch Linux.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<div class="sky" aria-hidden="true"></div>
+
+<a class="skip" href="#install">Skip to install</a>
+
+<header class="bar">
+  <nav class="glass bar-inner" aria-label="Main">
+    <a class="brand" href="#top"><img src="icon.svg" alt="" width="28" height="28"><span>Fedora Glass</span></a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a class="gh" href="https://github.com/djshiye/fedora-glass" aria-label="Fedora Glass on GitHub">
+        <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </nav>
+</header>
+
+<main id="top">
+
+<section class="hero wrap">
+  <img class="hero-icon" src="icon.svg" alt="" width="96" height="96">
+  <h1>Your whole desktop,<br><span class="shine">made of glass.</span></h1>
+  <p class="lede">A glass look for GNOME, with an app to tune it from liquid to frosted.
+    The panel, menus, apps, terminal and lock screen all get real, light-bending glass.</p>
+  <div class="cta">
+    <a class="btn primary" href="#install">Install</a>
+    <a class="btn" href="https://github.com/djshiye/fedora-glass">View on GitHub</a>
+  </div>
+  <ul class="chips" aria-label="Works on">
+    <li>Fedora 44 and 45</li>
+    <li>Ubuntu 26.04 LTS and 26.10</li>
+    <li>Arch Linux</li>
+    <li>GNOME 50 and 51</li>
+  </ul>
+  <p class="meta">Version @VERSION@ · Free and open source (MIT)</p>
+</section>
+
+<section class="wrap showcase" aria-label="Demo">
+  <figure class="glass frame">
+    <video class="demo" src="media/demo.mp4" poster="media/demo-poster.jpg" width="1280" height="720"
+      autoplay muted loop playsinline preload="metadata" controls
+      aria-label="A 37-second demo: the glass taskbar, menus, the Liquid to Frosted slider and the lock screen"></video>
+  </figure>
+</section>
+
+<section id="features" class="wrap section">
+  <h2>Glass everywhere, not just a blur</h2>
+  <p class="sub">Each panel, menu and window sits on a live, blurred copy of what's behind it, seen through a slab of glass with a rounded edge.</p>
+  <div class="cards">
+    <article class="glass card">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 21h8M12 17v4"/></svg></div>
+      <h3>The whole desktop</h3>
+      <p>Top bar or taskbar, menus, Quick Settings, calendar, notifications and the lock screen. GTK, libadwaita, Flatpak and Qt apps, and your terminal too.</p>
+    </article>
+    <article class="glass card">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16"/><circle cx="9" cy="12" r="3"/><path d="M4 6h3M11 6h9M4 18h9M17 18h3"/></svg></div>
+      <h3>Liquid to frosted</h3>
+      <p>One slider sets the look, from clear liquid glass to soft frost. The preview updates live, and your desktop changes only when you press Apply.</p>
+    </article>
+    <article class="glass card">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18L12 6l9 12"/><path d="M12 6v12M7.5 12h9"/></svg></div>
+      <h3>Real optics</h3>
+      <p>The edge bends light like real glass: refraction, a faint rainbow of dispersion, Fresnel reflection on the rim, and a little absorption at the edge.</p>
+    </article>
+    <article class="glass card">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="15" width="18" height="5" rx="2"/><rect x="4" y="4" width="9" height="8" rx="2"/><path d="M16 5h4M16 9h4"/></svg></div>
+      <h3>Fits your setup</h3>
+      <p>Works on GNOME as it comes. If you use Dash to Panel, Dash to Dock, Ubuntu Dock, ArcMenu or Spawn, it themes those to match.</p>
+    </article>
+    <article class="glass card">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M10 4.5l2 2 2-2M10 19.5l2-2 2 2"/></svg></div>
+      <h3>Weather frost</h3>
+      <p>If you like, the glass follows the weather: misty when it's cool, frosted when it's cold, glowing ice below freezing. Off until you turn it on.</p>
+    </article>
+    <article class="glass card">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <h3>Safe and reversible</h3>
+      <p>Runs as you, with no network access. Everything is backed up first, See changes lists it before Apply, and Restore original puts it all back.</p>
+    </article>
+  </div>
+</section>
+
+<section id="screenshots" class="wrap section">
+  <h2>See it on a real desktop</h2>
+  <div class="gallery">
+    <figure class="glass shot">
+      <a href="screenshots/desktop.jpg"><img src="screenshots/desktop.jpg" width="1920" height="1080" loading="lazy" alt="Files and the terminal on glass over a purple starfield, with the glass taskbar"></a>
+      <figcaption><b>Your desktop in glass.</b> Apps, terminal and taskbar.</figcaption>
+    </figure>
+    <figure class="glass shot">
+      <a href="screenshots/arcmenu.jpg"><img src="screenshots/arcmenu.jpg" width="1280" height="720" loading="lazy" alt="ArcMenu open as a glass panel over Files and the terminal"></a>
+      <figcaption><b>Menus made of glass.</b> ArcMenu and every pop-up.</figcaption>
+    </figure>
+    <figure class="glass shot">
+      <a href="screenshots/snap-preview.jpg"><img src="screenshots/snap-preview.jpg" width="1280" height="720" loading="lazy" alt="A window dragged to the left edge: the snap preview is a pane of glass that blurs Files behind it"></a>
+      <figcaption><b>Glass snap preview.</b> Drag a window to the edge.</figcaption>
+    </figure>
+    <figure class="glass shot">
+      <a href="screenshots/calendar.jpg"><img src="screenshots/calendar.jpg" width="1280" height="720" loading="lazy" alt="The calendar and notifications as glass over the terminal"></a>
+      <figcaption><b>Calendar and notifications.</b> The terminal shows through.</figcaption>
+    </figure>
+    <figure class="glass shot">
+      <a href="screenshots/quick-settings.jpg"><img src="screenshots/quick-settings.jpg" width="1280" height="720" loading="lazy" alt="Quick Settings as glass, with the Glass quick toggle"></a>
+      <figcaption><b>Quick Settings.</b> With a Glass toggle.</figcaption>
+    </figure>
+    <figure class="glass shot">
+      <a href="screenshots/lock-screen.jpg"><img src="screenshots/lock-screen.jpg" width="1280" height="720" loading="lazy" alt="The lock screen password card as glass over the starfield"></a>
+      <figcaption><b>Lock screen.</b> A glass card for your password.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="wrap section split">
+  <div class="split-text">
+    <h2>One app to tune it</h2>
+    <p>Pick a look, slide from liquid to frosted, choose a colour, and press Apply. The app looks at what you have installed and only shows the options that fit your desktop.</p>
+    <ul class="ticks">
+      <li>Live preview of your own wallpaper</li>
+      <li>A switch for every part on the Apps page</li>
+      <li>Updates keep your look, no Apply needed</li>
+      <li>Optional glass login screen</li>
+    </ul>
+  </div>
+  <figure class="glass shot app">
+    <a href="screenshots/app.png"><img src="screenshots/app.png" width="1616" height="1036" loading="lazy" alt="The Fedora Glass app: Home page with the live preview, looks, glass slider and colour"></a>
+  </figure>
+</section>
+
+<section id="install" class="wrap section">
+  <h2>Install</h2>
+  <p class="sub">Pick your Linux and paste the block into a terminal. Each one checks the signing key's fingerprint before trusting it, then installs from the signed repository. After that, your normal system update brings new versions.</p>
+
+  <div class="glass install">
+    <div class="tabs" role="radiogroup" aria-label="Your Linux">
+      <input type="radio" name="os" id="os-fedora" checked>
+      <label for="os-fedora">Fedora</label>
+      <input type="radio" name="os" id="os-ubuntu">
+      <label for="os-ubuntu">Ubuntu</label>
+      <input type="radio" name="os" id="os-arch">
+      <label for="os-arch">Arch Linux</label>
+
+      <div class="panel p-fedora">
+        <pre class="code" data-copy><code>k=$(mktemp) &amp;&amp; curl -fsSLo "$k" https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &amp;&amp;
+{ [ "$(gpg --show-keys --with-colons "$k" | awk -F: '$1 == "pub" { getline; print $10 }')" = D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 ] || { echo "Stopped: not the Fedora Glass key."; false; }; } &amp;&amp;
+sudo install -Dm644 "$k" /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass &amp;&amp; sudo rpm --import "$k" &amp;&amp;
+printf '[fedora-glass-setup]\nname=Fedora Glass\nbaseurl=https://djshiye.github.io/fedora-glass/rpms/\nincludepkgs=fedora-glass\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass\nmetadata_expire=1h\n' | sudo tee /etc/yum.repos.d/fedora-glass-setup.repo &gt;/dev/null &amp;&amp;
+sudo dnf install fedora-glass
+sudo rm -f /etc/yum.repos.d/fedora-glass-setup.repo
+</code></pre>
+        <p class="hint">Updates: <code>sudo dnf upgrade</code></p>
+      </div>
+      <div class="panel p-ubuntu">
+        <pre class="code" data-copy><code>k=$(mktemp) &amp;&amp; wget -qO "$k" https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &amp;&amp;
+{ [ "$(gpg --show-keys --with-colons "$k" | awk -F: '$1 == "pub" { getline; print $10 }')" = D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 ] || { echo "Stopped: not the Fedora Glass key."; false; }; } &amp;&amp;
+sudo install -Dm644 "$k" /usr/share/keyrings/fedora-glass.asc &amp;&amp;
+printf 'Types: deb\nURIs: https://djshiye.github.io/fedora-glass/apt/\nSuites: ./\nSigned-By: /usr/share/keyrings/fedora-glass.asc\n' | sudo tee /etc/apt/sources.list.d/fedora-glass-setup.sources &gt;/dev/null &amp;&amp;
+sudo apt update &amp;&amp; sudo apt install fedora-glass
+sudo rm -f /etc/apt/sources.list.d/fedora-glass-setup.sources
+</code></pre>
+        <p class="hint">Updates: <code>sudo apt update &amp;&amp; sudo apt upgrade</code></p>
+      </div>
+      <div class="panel p-arch">
+        <pre class="code" data-copy><code>k=$(mktemp) &amp;&amp; curl -fsSLo "$k" https://djshiye.github.io/fedora-glass/RPM-GPG-KEY-fedora-glass &amp;&amp;
+{ [ "$(gpg --show-keys --with-colons "$k" | awk -F: '$1 == "pub" { getline; print $10 }')" = D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 ] || { echo "Stopped: not the Fedora Glass key."; false; }; } &amp;&amp;
+sudo pacman-key --add "$k" &amp;&amp;
+sudo pacman-key --lsign-key D49A308168257FDBF9D5AE14BD1AC1C6F56A7252 &amp;&amp;
+{ grep -q '^\[fedora-glass\]' /etc/pacman.conf || printf '\n[fedora-glass]\nSigLevel = Required DatabaseRequired\nServer = https://djshiye.github.io/fedora-glass/arch\n' | sudo tee -a /etc/pacman.conf &gt;/dev/null; } &amp;&amp;
+sudo pacman -Syu fedora-glass
+</code></pre>
+        <p class="hint">Updates: <code>sudo pacman -Syu</code></p>
+      </div>
+    </div>
+  </div>
+
+  <ol class="steps">
+    <li class="glass"><span class="n">1</span><div><b>Open Fedora Glass</b> from the app grid.</div></li>
+    <li class="glass"><span class="n">2</span><div><b>Pick a look</b> with the Liquid ↔ Frosted slider and press <b>Apply</b>. Your apps change straight away.</div></li>
+    <li class="glass"><span class="n">3</span><div><b>Restart once.</b> The panel and menus get their glass after the restart. The app offers a Restart button.</div></li>
+  </ol>
+
+  <div class="glass note">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+    <p>Every package and repository index is signed with the maintainer's own key. The blocks above trust only the key with fingerprint
+      <code class="fpr">D49A 3081 6825 7FDB F9D5 AE14 BD1A C1C6 F56A 7252</code>, so a swapped key is refused.
+      <a href="https://github.com/djshiye/fedora-glass/blob/main/docs/SIGNING.md">How the signing works</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap foot">
+  <p><a href="https://github.com/djshiye/fedora-glass">Source code</a> · <a href="https://github.com/djshiye/fedora-glass/issues">Report a problem</a> · <a href="https://github.com/djshiye/fedora-glass#undo-or-remove">Undo or remove</a></p>
+  <p class="small">Fedora Glass @VERSION@ · MIT licence · No cookies, no trackers, nothing loaded from other sites.<br>
+    Not affiliated with the Fedora Project, Canonical or Arch Linux.</p>
+</footer>
+</body>
+</html>
