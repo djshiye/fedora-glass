@@ -131,6 +131,17 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.5" date="2026-11-16">
+      <description>
+        <p>Smoother desktop: GNOME cleans up its memory every 10 seconds, and the desktop stands still for a moment while it does. The glass used to leave a lot behind for that clean-up, which made the stop two to three times as long. It now leaves a fraction of that, so the stop is about half as long.</p>
+        <p>Also: frozen glass comes to rest when the pointer stops by it, Restore original is safer when files were deleted by hand, and the settings app has clearer weather and Apply messages.</p>
+      </description>
+    </release>
+    <release version="1.7.4" date="2026-11-16">
+      <description>
+        <p>Weather frost looks seamless in light frost: on cool and cold days a dark rectangle could show inside the glass, because its rounded edge stayed clear while the rest misted over. The edge now mists over too.</p>
+      </description>
+    </release>
     <release version="1.7.3" date="2026-11-16">
       <description>
         <p>Updating no longer stops the glass: after the update to 1.7.2 the glass could stop at the next login with "The glass effects hit an error and stopped" until you logged out once more. The glass now starts right after an update.</p>

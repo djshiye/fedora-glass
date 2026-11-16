@@ -35,6 +35,10 @@ export class PowerWatch {
         // `known`: what the owner already goes by (kept across a lock), so that an answer
         // that differs from it is told, and one that matches it is not.
         this._state = {battery: !!known?.battery, saver: !!known?.saver};
+        this._known = {battery: !!known?.battery, saver: !!known?.saver};
+        // The services whose proxy is made or has failed. The three answer one at a time,
+        // so until one has, its keys keep the known value rather than reading as off.
+        this._answered = new Set();
         for (const s of SERVICES) {
             try {
                 // Never start a service from the Shell (DO_NOT_AUTO_START): one that isn't
@@ -43,6 +47,7 @@ export class PowerWatch {
                     s.name, s.path, s.iface, this._cancel, (_src, res) => this._made(s, res));
             } catch (e) {
                 console.warn(`Fedora Glass: no ${s.prop} watch: ${e}`);
+                this._answered.add(s);
             }
         }
     }
@@ -58,12 +63,17 @@ export class PowerWatch {
             proxy = Gio.DBusProxy.new_for_bus_finish(res);
         } catch (e) {
             // Cancelled (the screen locked first) or no system bus: nothing to follow.
-            if (!this._cancel?.is_cancelled())
+            if (this._cancel && !this._cancel.is_cancelled()) {
                 console.warn(`Fedora Glass: no ${s.prop} watch: ${e}`);
+                // Answered, with nothing: it reads as off from now on.
+                this._answered.add(s);
+                this._read();
+            }
             return;
         }
         if (!this._cancel || this._cancel.is_cancelled())
             return;
+        this._answered.add(s);
         const ids = [proxy.connect('g-properties-changed', () => this._read()),
             // The service started or went away: its cached values come or go with it.
             proxy.connect('notify::g-name-owner', () => this._read())];
@@ -73,6 +83,12 @@ export class PowerWatch {
 
     _read() {
         const on = {battery: false, saver: false};
+        // A service that hasn't answered yet leaves its keys as they were known.
+        for (const s of SERVICES) {
+            const key = s.key === 'battery' ? 'battery' : 'saver';
+            if (!this._answered.has(s) && this._known[key])
+                on[key] = true;
+        }
         for (const {s, proxy} of this._proxies) {
             let v = null;
             try {

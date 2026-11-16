@@ -13,8 +13,9 @@ SettingsPage {
     property alias previewScreen: preview.screen
     // The preview's switches sit under it when they would cover too much of it.
     readonly property bool pillsBelow: previewBox.width < (screenSeg.visible ? 150 + 7 + 200 : 230) + 120
-    readonly property bool weatherMissing: Backend.weatherState === "no-app" || Backend.weatherState === "no-place"
+    readonly property bool weatherMissing: Backend.weatherState === "no-app" || Backend.weatherState === "no-place" || Backend.weatherState === "no-location"
     readonly property string weatherWhy: Backend.weatherState === "no-app" ? qsTr("Weather needs the GNOME Weather app, so nothing shows yet.")
+                                       : Backend.weatherState === "no-location" ? qsTr("Turn on Location Services in Settings, or pick a place in GNOME Weather.")
                                        : Backend.weatherState === "no-place" ? qsTr("Choose a place in GNOME Weather, so weather has something to show.")
                                        : ""
 

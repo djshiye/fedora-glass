@@ -112,7 +112,7 @@ def test_extension_starts_and_stops_the_widgets_with_the_lock():
     assert "this._leavingWidgets?.unlocking();" in sync
     disable = ext[ext.index("    disable() {"):]
     assert "this._widgets?.destroy();" in disable and "this._leavingWidgets?.destroy();" in disable
-    assert "this._widgets?.update(cfg);" in ext
+    assert "this._widgets?.update(cfg)" in ext
     assert "lockwidgets.js" in rg.FILES
 
 

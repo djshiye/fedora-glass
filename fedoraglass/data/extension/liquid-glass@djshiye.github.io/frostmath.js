@@ -126,6 +126,9 @@ export const ICE_FPS = Object.freeze([30, 15, 0]);
 // Glass at least this many px across its short side is a menu or a popup, open while it is
 // shown; a bar (the panel, a dock) is only in use with the pointer near it.
 export const ICE_BIG = 120;
+// A bar's ice stays alive this long (µs) after the pointer last moved on or near it, then
+// comes to rest: a pointer left lying by the taskbar is not use.
+export const ICE_LINGER_US = 4e6;
 // The clock wraps after an hour of use, so the shader never sees a number large enough to
 // lose its fine steps.
 export const ICE_WRAP = 3600;

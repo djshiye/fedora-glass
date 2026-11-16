@@ -20,10 +20,12 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import tempfile
-from collections.abc import Callable, Iterator
+import time
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -166,6 +168,19 @@ def _read_failed_parts(env: Env) -> set[str]:
     return {x for x in data["failed"] if isinstance(x, str)}
 
 
+def read_failed_version(env: Env) -> str | None:
+    """The version that noted failed parts (see failed_parts_path), or None."""
+    p = failed_parts_path(env)
+    try:
+        if p.is_symlink() or p.stat().st_size > 4096:
+            return None
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    v = data.get("version") if isinstance(data, dict) else None
+    return v if isinstance(v, str) else None
+
+
 def _kept_mode(path: Path, mode: int) -> int:
     """The mode for rewriting `path`: never more open than the file is now. An app's own
     settings file kept private (qBittorrent.conf holds its web password hash) stays so."""
@@ -252,6 +267,32 @@ def write_if_changed(path: Path, data: bytes, mode: int = 0o644) -> None:
 
 def _tilde(path: Path, home: Path) -> str:
     return "~/" + str(path.relative_to(home)) if path.is_relative_to(home) else str(path)
+
+
+def sweep_temps(paths: Iterable[str]) -> None:
+    """Delete the temp files atomic_write leaves when the process is killed between creating
+    one and the rename: `.{name}.XXXXXXXX.lg-tmp` next to each of `paths`. Only plain files
+    with exactly that shape for one of these names (never a link, never another name), or
+    they would keep the folders Apply made from going on Restore. Only ones a minute old or
+    more: the app writes a few of these files outside an Apply, and a write that is under way
+    right now must keep its temp file."""
+    old = time.time() - 60
+    by_dir: dict[str, set[str]] = {}
+    for p in paths:
+        by_dir.setdefault(os.path.dirname(p), set()).add(os.path.basename(p))
+    for folder, names in by_dir.items():
+        try:
+            with os.scandir(folder) as it:
+                found = [e.name for e in it if e.name.endswith(".lg-tmp") and e.name.startswith(".")]
+        except OSError:
+            continue
+        for n in found:
+            stem, _dot, tail = n[1:-len(".lg-tmp")].rpartition(".")
+            if stem in names and len(tail) == 8 and re.fullmatch(r"[A-Za-z0-9_]+", tail):
+                with contextlib.suppress(OSError):
+                    st = os.lstat(os.path.join(folder, n))
+                    if stat.S_ISREG(st.st_mode) and st.st_mtime <= old:
+                        os.unlink(os.path.join(folder, n))
 
 
 def _remove_empty(dirs: set[str]) -> None:
@@ -541,6 +582,7 @@ class Backup:
         folder it stands in for (new theme files get a link, removed ones lose theirs)."""
         if self.env.dry_run:
             return
+        sweep_temps(self.data["files"])
         for parent in {self.env.config} | {Path(k).parent for k in self.data["dirlinks"]}:
             if not parent.is_dir():
                 continue
@@ -654,6 +696,10 @@ class Backup:
                 return
             if not old.get("wrote") or self.is_ours(path, old) or self._has_header(path):
                 return
+            if not path.exists() and not path.is_symlink():
+                # Gone (the user deleted our file): nothing else wrote there, so there is no
+                # new look to keep. The stored original stays the one Restore puts back.
+                return
             # Something else replaced what we wrote (a theme update relinking gtk.css):
             # that is the user's look now, so Revert should bring that back, not the old one.
             # The old copy goes only once the new original is safely stored (below).
@@ -756,6 +802,8 @@ class Backup:
         problems: list[str] = []
         mine = lambda e: not target or e["target"] == target  # noqa: E731
         new_dirs: set[str] = set()
+        if not self.env.dry_run:
+            sweep_temps(k for k, e in self.data["files"].items() if mine(e))
         for key, e in list(self.data["files"].items()):
             if mine(e) and (problem := self._restore_file(key, e, new_dirs)):
                 problems.append(problem)
@@ -879,7 +927,10 @@ class Backup:
                     self._used_copies.append(e["copy"])
                 del self.data["files"][key]
                 return None
-            if p.is_symlink() or p.exists():
+            if p.is_symlink() or (p.exists() and original is None):
+                # A stored copy is written over the file in one step (atomic_write), so a kill
+                # in between never leaves the user's file missing; only a link, or a file
+                # that was not there before, has to go first.
                 p.unlink()
             if e["kind"] == "symlink":
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -1050,7 +1101,23 @@ def _set_fs(cp: configparser.RawConfigParser, items: list[str]) -> None:
 def _flatpak_apply(env: Env, target: str, a: FlatpakOverride, backup: Backup) -> None:
     path = _flatpak_file(env)
     cp = _flatpak_read(path)
-    rec = backup.data["flatpak"].setdefault(target, {"target": target, "filesystems": [], "env": {}})
+    if target not in backup.data["flatpak"]:
+        # Whether the file was ours to make (nothing there before, or only what another part of
+        # ours made), and the folders that makes: Restore then takes them away again instead
+        # of leaving an empty file.
+        before = next((r for r in backup.data["flatpak"].values() if r.get("absent")), None)
+        made: list[str] = []
+        if before is not None:
+            made = list(before.get("new_dirs", []))
+        elif not path.exists() and not path.is_symlink():
+            d = path.parent
+            while d != d.parent and not d.exists():
+                made.append(str(d))
+                d = d.parent
+        backup.data["flatpak"][target] = {"target": target, "filesystems": [], "env": {},
+                                          "absent": before is not None or not (path.exists() or path.is_symlink()),
+                                          "new_dirs": made}
+    rec = backup.data["flatpak"][target]
     fs = _fs_list(cp)
     for f in a.filesystems:
         if f not in fs:
@@ -1087,6 +1154,15 @@ def _flatpak_undo(env: Env, rec: dict) -> None:
         else:
             cp.set("Environment", k, old)
     _flatpak_write(path, cp, [("Context", "filesystems"), *(("Environment", k) for k in rec.get("env", {}))])
+    if rec.get("absent") is True:
+        # No file before Apply, and nothing left in it now: take it away rather than leave 0 bytes.
+        try:
+            empty = path.is_file() and not path.is_symlink() and not path.read_bytes().strip()
+        except OSError:
+            empty = False
+        if empty:
+            path.unlink()
+            _remove_empty({d for d in rec.get("new_dirs", []) if isinstance(d, str)})
 
 
 # Told as each part of an Apply starts: (index from 0, number of parts, the part's name).
@@ -1112,9 +1188,12 @@ class Engine:
         with f:
             fcntl.flock(f, fcntl.LOCK_EX)
             self.env.forget_cache()     # extensions may have come or gone since last time
+            self.env._keep_appimages = True
             try:
                 yield
             finally:
+                self.env._keep_appimages = False
+                self.env._appimages = None
                 fcntl.flock(f, fcntl.LOCK_UN)
 
     def glass_running(self, settings: Settings) -> bool:

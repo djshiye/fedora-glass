@@ -39,11 +39,21 @@ Item {
     // moves, on a clock that runs only while the app is in front (paused, it keeps its place).
     property real iceTime: 0
     readonly property bool appInFront: Window.active
-    NumberAnimation on iceTime {
-        running: true
-        paused: !(root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront)
-        from: 0; to: 3600; duration: 3600 * 1000
-        loops: Animation.Infinite
+    // Driven at 20 Hz, not every frame: each tick makes every copy of the desktop behind the
+    // glass (ShaderEffectSource) capture and blur again, which at 120 frames a second was the
+    // whole cost of reading the app while frozen. Real elapsed time keeps the drift speed.
+    Timer {
+        id: iceClock
+        property real last: 0
+        interval: 50
+        repeat: true
+        running: root.visible && root.glassOn && (root.ice.flakes || 0) > 0 && root.appInFront
+        onRunningChanged: last = Date.now()
+        onTriggered: {
+            const now = Date.now()
+            root.iceTime = (root.iceTime + (now - last) / 1000) % 3600
+            last = now
+        }
     }
     // The part of this virtual screen the pane shows when it is zoomed in (preview px).
     property rect view: Qt.rect(0, 0, width, height)

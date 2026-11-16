@@ -119,7 +119,7 @@ def test_an_unchanged_flatpak_override_is_not_written_again(fake_env):
     before = f.read_bytes(), f.stat().st_ino, f.stat().st_mtime_ns
     eng.apply(Settings())
     assert (f.read_bytes(), f.stat().st_ino, f.stat().st_mtime_ns) == before
-    assert eng.revert() == [] and not f.read_text().strip()
+    assert eng.revert() == [] and not f.exists()
 
 
 # ---- B2: linked app folders ------------------------------------------------------------------------

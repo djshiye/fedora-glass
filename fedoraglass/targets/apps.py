@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import configparser
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -19,16 +20,24 @@ from .base import Action, Command, Context, Detection, Target, WriteFile
 APPIMAGE_DIRS = ("AppImages", "Applications", ".local/bin", "Downloads")
 
 
+def _appimage_names(env: Env) -> list[str]:
+    """The lower-case names of the AppImage files in the usual folders. Listed once per Apply
+    (Env.forget_cache starts it again): a Downloads folder with thousands of files was read
+    three or four times by the detects of Obsidian, qBittorrent and the browsers."""
+    if not env._keep_appimages or env._appimages is None:
+        found: list[str] = []
+        for d in APPIMAGE_DIRS:
+            try:
+                with os.scandir(env.home / d) as it:
+                    found += [n for e in it if (n := e.name.lower()).endswith(".appimage")]
+            except OSError:
+                pass
+        env._appimages = found
+    return env._appimages
+
+
 def has_appimage(env: Env, word: str) -> bool:
-    for d in APPIMAGE_DIRS:
-        base = env.home / d
-        try:
-            if base.is_dir() and any(word in p.name.lower() and p.suffix.lower() == ".appimage"
-                                     for p in base.iterdir()):
-                return True
-        except OSError:
-            pass
-    return False
+    return any(word in n for n in _appimage_names(env))
 
 
 def has_desktop_file(env: Env, desktop_id: str) -> bool:

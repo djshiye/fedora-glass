@@ -845,6 +845,15 @@ def _keep_newer(out: dict, before: dict) -> dict:
         if isinstance(raw, (str, int)) and not isinstance(raw, bool) and raw != default and \
                 read_as == default and out.get(k) == default:
             out[k] = raw
+    old_glass = before.get("app_glass")
+    if isinstance(old_glass, dict):
+        # A newer version's strength for an app ("dim"): this version reads it as no choice at
+        # all, but writes it back unless the user has chosen for that app here.
+        glass = out.setdefault("app_glass", {})
+        for app, v in old_glass.items():
+            if isinstance(app, str) and isinstance(v, str) and v not in APP_GLASS_LOOKS and \
+                    app.strip() not in glass and len(glass) < APP_GLASS_MAX:
+                glass[app.strip()] = v
     for k, names, subkeys in (("parts", PARTS, PART_KEYS), ("motion", MOTION_EVENTS, ("preset", "intensity", "speed"))):
         old = before.get(k)
         if not isinstance(old, dict):
