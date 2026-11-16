@@ -2694,6 +2694,30 @@ img{display:block;max-width:100%;border-radius:8px;margin:8px 0 2px;border:1px s
     return passed
 
 
+# A check that broke half way can leave the screen locked (the lock check stops at the password
+# screen), and every check after it then ran on the lock screen: other extensions are switched off
+# there, so Spawn, ArcMenu and Dash to Panel "failed" too. Only the broken check fails, as it
+# should; the next one starts on the desktop again.
+AFTER_CRASH_JS = """(() => { const S = Main.screenShield, d = S?._dialog;
+ if (d?._lgqaFail) { d._fail = d._lgqaFail; delete d._lgqaFail; }
+ if (!S?.locked) return 0;
+ S.deactivate(true); return 1; })()"""
+
+
+def after_crash(sh) -> None:
+    try:
+        if sh.eval(AFTER_CRASH_JS).strip() == "1":
+            if sh.wait_for("return !Main.screenShield.locked && Main.sessionMode.currentMode === 'user';", 15):
+                print("The broken check left the screen locked: unlocked it for the next check.", flush=True)
+                settle(3)
+            else:
+                print("The broken check left the screen locked, and it did not unlock.", flush=True)
+        sh.close_all()
+        lgqa.kill_apps()
+    except Exception:  # the desktop itself is broken: the next check says so
+        traceback.print_exc()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     # The upgrade check needs the older tree (run.sh --from) and goes first, before other
@@ -2727,6 +2751,7 @@ def main() -> int:
             checks.append(ALL[key](ctx))
         except Exception as e:  # a broken step must fail the check, never pass it
             traceback.print_exc()
+            after_crash(sh)
             ch = Check(key, ALL[key].__name__.replace("check_", "").title(), "")
             ch.crashed = f"{type(e).__name__}: {str(e)[:300]}"
             checks.append(ch)
