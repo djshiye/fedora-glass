@@ -37,6 +37,7 @@ globalThis.fakeMods = {
     'quicktoggle.js': {GlassSwitch: part('switch')},
     'themetidy.js': {UserThemesTidy: part('tidy')},
     'gcsweep.js': {SettingsSweep: part('sweep')},
+    'windows.js': {Windows: function () { return {update() {}, destroy() {}}; }, allSolid: cfg => cfg},
     'tuning.js': {effectiveConfig: (cfg, l) => ({...cfg, effectiveLevel: l})},
     'Extension': {Extension: function () { return {}; }},
 };
