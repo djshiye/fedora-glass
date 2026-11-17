@@ -2651,9 +2651,33 @@ class Backend(QObject):
         """The three values the painted glass takes: accent, tint and frost from the current
         look (or from s, such as the look just applied). The glass login screen takes these
         colours too (glass_login_values)."""
-        s = (self._s if s is None else s).normalized()
-        dark = self._dark_t if s == self._s.normalized() else palette.build(s, dark=True, system_accent=self._system_accent)
+        s = self._normal(self._s if s is None else s)
+        dark = self._dark_t if s == self._normal(self._s) else self._dark_of(s)
         return [dark.accent.hex6, Color.hex(s.tint).hex6, f"{s.frost:.3f}"]
+
+    # The login card's bindings ask login_values for the editor's look and the applied one
+    # on every slider step: each look is normalized, and the applied one's colours built,
+    # once, not at each question. A look is a new object whenever it changes (never changed
+    # in place), so the same object gives the same answer.
+    def _normal(self, s: Settings) -> Settings:
+        memo = self.__dict__.setdefault("_normal_memo", [])
+        for i, (obj, n) in enumerate(memo):
+            if obj is s:
+                memo.insert(0, memo.pop(i))
+                return n
+        n = s.normalized()
+        memo[:] = [(s, n), *memo[:3]]
+        return n
+
+    def _dark_of(self, s: Settings) -> palette.Tokens:
+        memo = self.__dict__.setdefault("_dark_memo", [])
+        for i, (obj, accent, t) in enumerate(memo):
+            if obj is s and accent == self._system_accent:
+                memo.insert(0, memo.pop(i))
+                return t
+        t = palette.build(s, dark=True, system_accent=self._system_accent)
+        memo[:] = [(s, self._system_accent, t), *memo[:1]]
+        return t
 
     def glass_login_values(self, s: Settings | None = None) -> dict:
         """What `fedora-glass-login on` gets for a look (the editor's when s is None)."""
