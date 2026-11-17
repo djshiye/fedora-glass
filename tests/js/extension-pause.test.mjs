@@ -45,6 +45,7 @@ globalThis.fakeMods = {
     'surfaces.js': {GlassManager: part('glass')},
     'themetidy.js': {UserThemesTidy: part('tidy')},
     'gcsweep.js': {SettingsSweep: part('sweep')},
+    'windows.js': {Windows: function () { return {update() {}, destroy() {}}; }, allSolid: cfg => cfg},
     'tuning.js': {effectiveConfig: cfg => cfg},
     'quicktoggle.js': {GlassSwitch: (dir, onPause) => {
         const sw = {dir, onPause, state: null, gone: false,

@@ -91,7 +91,7 @@ globalThis.global = {
 };
 
 const EXT = '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io';
-const {Windows, windowKind} = await import(`${EXT}/windows.js`);
+const {Windows, windowKind, allSolid} = await import(`${EXT}/windows.js`);
 const {parse, cleanSkip} = await import(`${EXT}/config.js`);
 const {windowWatch} = await import(`${EXT}/common.js`);
 
@@ -305,4 +305,35 @@ test('a closing window keeps its backdrop for the close animation, and asks the 
     runLaters();
     ws.destroy();
     a.destroy();
+});
+
+// While the glass is paused or in safe mode (extension.js): every window that would get glass
+// gets the solid backdrop instead, so Frosted never shows the windows below sharp through it.
+test('glass off (allSolid): every glass window solid, built-in title-bar apps solid, Steam and players nothing', () => {
+    const gedit = windowAt(0, 100, 100, 800, 600, 'org.gnome.gedit');
+    const term = windowAt(1, 200, 200, 600, 400, 'org.gnome.Ptyxis');
+    const code = windowAt(2, 300, 300, 600, 400, 'Code');
+    const steam = windowAt(3, 400, 400, 600, 400, 'steam');
+    const mpv = windowAt(4, 500, 500, 600, 400, 'mpv');
+    actors = [gedit, term, code, steam, mpv];
+    const cfg = allSolid(config([]));
+    assert.equal(cfg.windows.allSolid, true);
+    assert.equal(cfg.windows.solidColor, '#1d1e23', 'the theme\'s window colour');
+    const ws = new Windows(cfg);
+    runLaters();
+    for (const a of [gedit, term, code])
+        assert.ok(solidOf(a), `${a.meta_window.get_wm_class()} solid`);
+    for (const a of [gedit, term, code])
+        assert.equal(ws.glassOf(a).pane, null, 'no glass made: nothing blurred or copied');
+    assert.equal(solidOf(steam), null);
+    assert.equal(solidOf(mpv), null);
+    ws.destroy();
+    assert.ok([gedit, term, code].every(a => !solidOf(a)), 'all gone with it');
+    // Glass behind windows turned off by the user: nothing either.
+    const off = allSolid({...config([]), windows: {...config([]).windows, enabled: false}});
+    const ws2 = new Windows(off);
+    runLaters();
+    assert.equal(solidOf(gedit), null);
+    ws2.destroy();
+    assert.deepEqual(allSolid({}).windows.enabled, false, 'no windows settings: no backdrops');
 });

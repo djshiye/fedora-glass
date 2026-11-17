@@ -33,6 +33,7 @@ import {Speed} from './speed.js';
 import {GlassManager} from './surfaces.js';
 import {UserThemesTidy} from './themetidy.js';
 import {effectiveConfig} from './tuning.js';
+import {Windows, allSolid} from './windows.js';
 
 export default class FedoraGlassExtension extends Extension {
     enable() {
@@ -87,6 +88,7 @@ export default class FedoraGlassExtension extends Extension {
             part('animations', () => this._animations?.update(cfg));
             part('popups', () => this._popupStyle?.update(cfg));
             part('paused style', () => this._pausedStyle?.update(cfg));
+            part('solid windows', () => this._solidWindows?.update(allSolid(cfg)));
             part('switch', () => {
                 if (this._locked === false)
                     this._syncSwitch(cfg);
@@ -319,6 +321,7 @@ export default class FedoraGlassExtension extends Extension {
             this._dropPausedStyle();
             return;
         }
+        this._syncSolidWindows();
         if (this._pausedStyle)
             return;
         // At once, not after a lock's later removal: that one is the glass's own sheet.
@@ -338,6 +341,33 @@ export default class FedoraGlassExtension extends Extension {
             logError(e, 'Fedora Glass: removing the solid surfaces');
         }
         this._pausedStyle = null;
+        this._dropSolidWindows();
+    }
+
+    // ---- app windows while the glass is paused or in safe mode --------------------------
+    /** The GTK, Qt and terminal themes paint app windows partly see-through for the glass
+     *  to frost what is behind them. With the glass paused or in safe mode nothing was behind
+     *  them, so even Frosted or Solid showed the windows below sharp through every window.
+     *  Until the glass is back, each such window gets a plain solid backdrop in the theme's
+     *  window colour (as for an app on the user's no-glass list; see windows.js allSolid). */
+    _syncSolidWindows() {
+        if (this._solidWindows)
+            return;
+        try {
+            this._solidWindows = new Windows(allSolid(this._config.value));
+        } catch (e) {
+            console.error(`Fedora Glass: no solid app windows while the glass is off: ${e}`);
+            this._dropSolidWindows();
+        }
+    }
+
+    _dropSolidWindows() {
+        try {
+            this._solidWindows?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the solid app window backdrops');
+        }
+        this._solidWindows = null;
     }
 
     // ---- the Quick Settings switch ----------------------------------------------------
