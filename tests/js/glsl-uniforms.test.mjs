@@ -260,6 +260,41 @@ test('the backdrop brightness is read once per corner, not per pixel', () => {
         assert.ok(fragNames.has(n), `vertex uniform ${n} is declared by the glass shader too`);
 });
 
+// Where the edge's bend is held back from (unfold) is the same for every pixel of a pane
+// at rest: found once per corner in the vertex stage, not by 18 refractions per pixel of
+// the edge. Both stages use the one lens profile, so they can never disagree.
+test('the edge\'s knee is found once per corner; only pixels under a press find their own', () => {
+    const src = read('glass.js');
+    const frag = shaderSource('glass.js', 'SHADER');
+    const v = adaptVertex();
+    const profile = shaderSource('glass.js', 'LENS_PROFILE');
+    for (const fn of ['float squircleSlope(float x)', 'float bendAt(float x, float squircle)', 'float lensDepth(vec2 h)',
+        'float lensBevel(vec2 h)', 'float unfoldKnee(float K, float squircle)'])
+        assert.ok(profile.includes(fn), fn);
+    assert.equal(frag.split('${LENS_PROFILE}').length, 2, 'the pixel stage has the profile, once');
+    assert.equal(v.decls.split('${LENS_PROFILE}').length, 2, 'and so has the vertex stage');
+    for (const stage of [frag, v.decls]) {
+        assert.match(stage, /varying float fg_knee;/);
+        assert.match(stage, /varying float fg_knee_bend;/);
+        assert.match(stage, /const float IOR = 1\.5;/);
+        assert.ok(stage.indexOf('const float IOR') < stage.indexOf('${LENS_PROFILE}'), 'IOR is declared before the profile reads it');
+    }
+    // The same rest thickness and edge width in both stages.
+    assert.match(v.code, /fg_knee = unfoldKnee\(0\.85 \* lensBevel\(fg_h\) \/ max\(lensDepth\(fg_h\), 1e-3\), lens_share\);/);
+    assert.match(v.code, /fg_knee_bend = bendAt\(fg_knee, lens_share\);/);
+    assert.match(v.code, /vec2 fg_h = max\(vec2\(shape_w, shape_h\) \* 0\.5 - vec2\(pad\), vec2\(1\.0\)\);/);
+    assert.match(frag, /vec2 h = max\(whole \* 0\.5 - vec2\(pad\), vec2\(1\.0\)\);/);
+    assert.match(frag, /float th = lensDepth\(h\) \* \(1\.0 \+ deep \* tch\);/);
+    assert.match(frag, /float bevel = lensBevel\(h\);\s*bevel \*= 1\.0 \+ 0\.6 \* deep \* tch;/);
+    // At rest the pixel takes the corner's; under a press (the glass is thicker there) its own.
+    const unfold = frag.slice(frag.indexOf('float unfold('), frag.indexOf('// A Gaussian-blurred edge'));
+    assert.match(unfold, /float lo = fg_knee, bent = fg_knee_bend;\s*if \(given > 1e-4\) \{\s*lo = unfoldKnee\(K, squircle\);\s*bent = bendAt\(lo, squircle\);/);
+    assert.doesNotMatch(unfold, /for \(/, 'no search per pixel outside unfoldKnee');
+    assert.match(frag, /unfold\(x, th, bevel, lens_share, deep \* tch\)/);
+    // The profile is spliced in by name: no second copy of it anywhere.
+    assert.equal(src.split('float unfoldKnee(').length, 2);
+});
+
 test('build adds the vertex snippet, then the replacing fragment snippet', () => {
     const v = adaptVertex();
     const shader = new Shader(shaderSource('glass.js', 'SHADER'), v);

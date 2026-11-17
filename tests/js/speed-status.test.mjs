@@ -178,3 +178,64 @@ test('the speed check starts each level clean and stirs the glass each frame, as
     delete globalThis.fake.gc;
     s.destroy();
 });
+
+// Up to 1.7.7 the stage called in here before and after every frame of every screen, also
+// with a game running and all the glass at rest. Now the glass tells of the frames it is
+// drawn in (glass.js tellOfPaints; the stub here tells of every frame of the fake stage),
+// and only a drag being timed or the speed check asks for all of them.
+test('every frame is asked for only while a window is dragged or the check runs', () => {
+    globalThis.fake.heldPaints = 0;
+    globalThis.fake.shown = 3;
+    const before = stage.count;
+    const s = new Speed({speed: 'auto'}, () => {});
+    assert.equal(globalThis.fake.heldPaints, 0, 'not at rest');
+    display.emit('grab-op-begin');
+    assert.equal(globalThis.fake.heldPaints, 1, 'a drag: every frame counts');
+    display.emit('grab-op-begin');
+    assert.equal(globalThis.fake.heldPaints, 1, 'asked for once');
+    display.emit('grab-op-end');
+    assert.equal(globalThis.fake.heldPaints, 0);
+    s._startCheck('0123456789abcdef');
+    assert.equal(globalThis.fake.heldPaints, 1, 'the check');
+    s._endCheck('failed', 'busy');
+    assert.equal(globalThis.fake.heldPaints, 0);
+    // Going away in the middle of a drag lets go as well.
+    display.emit('grab-op-begin');
+    assert.equal(globalThis.fake.heldPaints, 1);
+    s.destroy();
+    assert.equal(globalThis.fake.heldPaints, 0);
+    assert.equal(stage.count, before, 'and is told of no more frames');
+});
+
+test('the frame the glass wakes up in is timed from its first glass, and one without glass before it is left out', () => {
+    const s = new Speed({speed: 'auto'}, () => {});
+    const v = {get_refresh_rate: () => 60};
+    // A frame that ends without anyone having been told of its start, nor of any glass in it.
+    usNow += 1e6;
+    stage.emit('after-paint', v);
+    assert.equal(s._views.get(v).last, 0, 'tells nothing');
+    // The glass is drawn in a frame that began while nobody was told (see enterPaint).
+    usNow += 1e6;
+    s._paints.woke();
+    const woke = usNow;
+    usNow += 30000;                 // 30 ms to draw it: late on any screen
+    globalThis.fake.renders++;
+    const late = s._tuner.frame;
+    let judged = null;
+    s._tuner.frame = (t, isLate) => { judged = isLate; return late.call(s._tuner, t, isLate); };
+    stage.emit('after-paint', v);
+    assert.equal(s._views.get(v).last, usNow);
+    assert.equal(judged, true, 'judged by how long it drew since the glass woke');
+    assert.equal(usNow - woke, 30000);
+    // The next frame is told of from its start, as before; the wake is not used twice.
+    usNow += 7000;
+    stage.emit('before-paint', v);
+    usNow += 1000;
+    globalThis.fake.renders++;
+    stage.emit('after-paint', v);
+    assert.equal(judged, false);
+    usNow += 5e6;
+    stage.emit('after-paint', v);
+    assert.equal(s._views.get(v).last, usNow - 5e6, 'an end without a start, long after: left out');
+    s.destroy();
+});

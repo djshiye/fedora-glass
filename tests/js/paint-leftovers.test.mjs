@@ -233,3 +233,68 @@ test('whether a paint has a redraw area is asked once per screen paint', () => {
     pane.destroy();
     assert.ok(paintCount() > last);
 });
+
+test('with all the glass at rest, the stage tells the extension of no paint at all', () => {
+    views = [view(0), view(2560)];
+    stage.emit('notify::width');
+    const watching = () => [...stage._h.values()].filter(([n]) => n === 'before-paint' || n === 'after-paint').length;
+    const fb = [{}, {}];
+    views.forEach((v, i) => { v.get_framebuffer = () => fb[i]; });
+    stage.emit('notify::width');
+    const pane = shown();
+    assert.equal(watching(), 2, 'followed while the glass is drawn');
+    // A game on the other screen: paint after paint with no glass in any of them.
+    for (let i = 0; i < 200 && watching(); i++) {
+        stage.emit('before-paint', views[1]);
+        stage.emit('after-paint', views[1]);
+    }
+    assert.equal(watching(), 0, 'no call into the extension per frame');
+    const rested = paintCount();
+    // The glass is drawn again, in a paint that began without us: its screen is the one
+    // whose picture the paint draws into.
+    let redrawn = 0;
+    pane.queue_redraw = () => { redrawn++; };
+    const on = i => ({get_framebuffer: () => fb[i], get_redraw_clip: () => null});
+    pane._glass.vfunc_paint_node(root(), on(1), 0);
+    assert.equal(watching(), 2);
+    assert.ok(paintCount() > rested, 'nothing kept from the last paint seen is taken for this one');
+    assert.equal(hasRedrawArea({get_framebuffer: () => fb[1], get_redraw_clip: () => ({})}), true);
+    stage.emit('after-paint', views[1]);
+    assert.equal(redrawn, 0, 'the screen was told: nothing to draw again');
+    // While it is drawn now and then, the stage stays followed.
+    for (let i = 0; i < 200; i++) {
+        stage.emit('before-paint', views[0]);
+        if (i % 50 === 0)
+            pane._glass.vfunc_paint_node(root(), on(0), 0);
+        stage.emit('after-paint', views[0]);
+    }
+    assert.equal(watching(), 2);
+    for (let i = 0; i < 200 && watching(); i++)
+        stage.emit('after-paint', views[0]);
+    assert.equal(watching(), 0);
+    // Woken inside a picture of the paint (the glass Clutter keeps): the screen is the one
+    // the paint's redraw area lies on.
+    const inside = area => ({get_framebuffer: () => ({}), get_redraw_clip: () => area && {get_extents: () => area}});
+    pane._glass.vfunc_paint_node(root(), inside({x: 2600, y: 10, width: 300, height: 200}), 0);
+    assert.equal(hasRedrawArea({get_framebuffer: () => fb[1], get_redraw_clip: () => ({})}), true);
+    let asks = 0;
+    const second = {get_framebuffer: () => fb[1], get_redraw_clip: () => { asks++; return {}; }};
+    hasRedrawArea(second);
+    hasRedrawArea(second);
+    assert.equal(asks, 0, 'a screen paint: asked once, and it was');
+    stage.emit('after-paint', views[1]);
+    assert.equal(redrawn, 0);
+    for (let i = 0; i < 200 && watching(); i++)
+        stage.emit('after-paint', views[0]);
+    // A paint whose screen can't be told (no redraw area, or one over both screens): the
+    // glass may have been drawn for the wrong screen, and is drawn again once told.
+    pane._glass.vfunc_paint_node(root(), inside({x: 2000, y: 10, width: 1000, height: 200}), 0);
+    stage.emit('after-paint', views[0]);
+    assert.equal(redrawn, 1);
+    stage.emit('before-paint', views[0]);
+    pane._glass.vfunc_paint_node(root(), on(0), 0);
+    stage.emit('after-paint', views[0]);
+    assert.equal(redrawn, 1, 'once');
+    pane.destroy();
+    assert.equal(watching(), 0, 'and with the last glass gone the stage is let go of');
+});

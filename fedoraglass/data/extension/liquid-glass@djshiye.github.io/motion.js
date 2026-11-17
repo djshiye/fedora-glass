@@ -25,17 +25,24 @@ export class Motion {
         this._later = 0;
         this._last = 0;
         this._settings = St.Settings.get();
+        this._animate = Boolean(this._settings.enable_animations);
         // Reduce animation can change at any time: follow it at once, pointer still or not.
-        this._animId = this._settings.connect('notify::enable-animations', () => this._kick());
+        this._animId = this._settings.connect('notify::enable-animations', () => {
+            this._animate = Boolean(this._settings.enable_animations);
+            this._kick();
+        });
         // The cursor tracker reports every pointer move, also ones the stage's
-        // event chain never sees.
+        // event chain never sees: up to a thousand a second from a gaming mouse. So this
+        // only notes that the pointer moved; where to is asked once, in the step before
+        // the next frame (up to 1.7.7 every move asked GNOME for the pointer and went
+        // through all the glass).
+        this._pointerMoved = true;
         this._cursor = global.backend.get_cursor_tracker();
         this._cursorId = this._cursor.connect('position-invalidated', () => {
-            const [x, y] = global.get_pointer();
-            this._pointer = [x, y];
+            this._pointerMoved = true;
             // Nothing on screen the pointer can light (no glass shown, or pointer light
             // off) and nothing still settling: skip the step, and the frame it asks for.
-            if (this._later || this._last || this._lightable())
+            if (!this._later && (this._last || this._lightable()))
                 this._kick();
         });
         this._stage = global.stage.connect('captured-event', (_s, event) => {
@@ -44,8 +51,40 @@ export class Motion {
         });
     }
 
-    get _animate() {
-        return this._settings.enable_animations;
+    /** Where the pointer is, asked only when it moved since the last time. */
+    _where() {
+        if (this._pointerMoved || !this._pointer) {
+            this._pointerMoved = false;
+            const [x, y] = global.get_pointer();
+            this._pointer = [x, y];
+        }
+        return this._pointer;
+    }
+
+    /**
+     * Whether a step would change nothing: the pointer out of reach of all the glass,
+     * no light on, nothing pressed, opening or settling. (px, py): the pointer.
+     */
+    _atRest(px, py) {
+        if (this._item)
+            return false;
+        for (const f of followers) {
+            const st = this._state.get(f);
+            if (st && (st.k !== 0 || st.press !== 0 || st.pressV !== 0 || st.pressT !== 0))
+                return false;
+            const r = f.rect;
+            if (!r)
+                continue;
+            if (st && (st.open !== 1 || st.openV !== 0 || (st.pullX ?? 0) !== 0 || (st.pullY ?? 0) !== 0))
+                return false;
+            if (this._animate && (this._look(f).pointerLight ?? 0) > 0) {
+                const dx = Math.max(r[0] - px, 0, px - r[0] - r[2]);
+                const dy = Math.max(r[1] - py, 0, py - r[1] - r[3]);
+                if (dx < REACH && dy < REACH)
+                    return false;   // near enough to light it (or nearly: the step decides)
+            }
+        }
+        return true;
     }
 
     _look(f) {
@@ -198,6 +237,10 @@ export class Motion {
     }
 
     _step() {
+        const [px, py] = this._where();
+        // The pointer moves about far from any glass: nothing to work out for any pane.
+        if (!this._last && this._atRest(px, py))
+            return;
         const now = GLib.get_monotonic_time() / 1e6;
         const dt = Math.min(0.033, Math.max(0.001, this._last ? now - this._last : 0.016));
         this._last = now;
@@ -230,8 +273,8 @@ export class Motion {
             let [tx, ty] = [st.x, st.y];
             // A press follows the pointer even with the pointer light off (it used to
             // stay at the pane's top left corner then).
-            if ((w > 0 || st.pressT > 0 || st.press > 0.01) && this._pointer) {
-                [tx, ty] = this._pointer;
+            if (w > 0 || st.pressT > 0 || st.press > 0.01) {
+                [tx, ty] = [px, py];
                 const dx = Math.max(r[0] - tx, 0, tx - r[0] - r[2]);
                 const dy = Math.max(r[1] - ty, 0, ty - r[1] - r[3]);
                 tk = w > 0 ? Math.min(1, w * 1.6) * Math.max(0, 1 - Math.hypot(dx, dy) / REACH) : 0;

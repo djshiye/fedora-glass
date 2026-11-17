@@ -324,7 +324,7 @@ def test_glass_is_placed_again_when_frost_changes_the_room_it_needs():
     assert "this.pane.setOnPad(() => this.queue());" in (EXT / "windows.js").read_text()
     assert "this._card.setOnPad(() => this._queue());" in (EXT / "lock.js").read_text()
     # place() goes by the room too, so the same call places it anew.
-    place = src[src.index("    place(x, y, w, h, radii, sx, sy, inner = null) {"):]
+    place = src[src.index("    place(x, y, w, h, radii, sx, sy, inner = null, synced = false) {"):]
     assert "const key = [x, y, w, h, sx, sy, p, ...radii, ...part]" in place[:600]
 
 

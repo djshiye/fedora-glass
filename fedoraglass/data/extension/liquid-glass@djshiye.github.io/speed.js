@@ -26,7 +26,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {collect} from './gcsweep.js';
-import {setQuality, glassRenders, stirAllPanes, shownPanes} from './glass.js';
+import {setQuality, glassRenders, stirAllPanes, shownPanes, tellOfPaints, holdPaints} from './glass.js';
 import {GrabMove} from './grabmove.js';
 import {PowerWatch} from './power.js';
 import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
@@ -104,8 +104,14 @@ export class Speed {
         // A request left over from before (the app asked, then the PC restarted) does not run.
         this._seenId = this._readRequest();
 
-        this._before = global.stage.connect('before-paint', (_s, view) => this._beforePaint(view));
-        this._after = global.stage.connect('after-paint', (_s, view) => this._afterPaint(view));
+        // The frames, told of by the glass and only while it is drawn (up to 1.7.7 the
+        // stage called in here before and after every frame of every screen, also with a
+        // game running and all the glass at rest); a drag and the check ask for all of them.
+        this._woke = 0;
+        this._held = false;
+        this._paints = {before: view => this._beforePaint(view), after: view => this._afterPaint(view),
+            woke: () => { this._woke = now(); }};
+        tellOfPaints(this._paints);
         // Mutter makes new views when screens change (plugged in, unplugged, a new
         // refresh rate): forget the old ones, and read the new refresh rates.
         this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._views.clear());
@@ -200,24 +206,38 @@ export class Speed {
     }
 
     // ---- frames ------------------------------------------------------------------------
-    _key(view) {
-        return view ?? 'stage';
+    /** Every frame while a window is dragged or the check runs, else only those with glass. */
+    _syncHold() {
+        const want = Boolean(this._drag || this._check);
+        if (want !== this._held)
+            holdPaints(this._held = want);
     }
 
-    _beforePaint(view) {
-        const k = this._key(view);
+    _view(view) {
+        const k = view ?? 'stage';
         let v = this._views.get(k);
         if (!v) {
             v = {start: 0, last: 0, interval: 0};
             this._views.set(k, v);
         }
-        v.start = now();
+        return v;
+    }
+
+    _beforePaint(view) {
+        this._woke = 0;
+        this._view(view).start = now();
     }
 
     _afterPaint(view) {
         const t = now();
-        const v = this._views.get(this._key(view));
-        if (!v || !v.start)
+        const v = this._view(view);
+        // The frame the glass woke up in began before anyone was told: timed from the
+        // first glass drawn in it. Its gap reaches back to before the rest, which
+        // frameLate takes for a pause.
+        if (!v.start)
+            v.start = this._woke;
+        this._woke = 0;
+        if (!v.start)
             return;
         if (!v.interval) {
             let hz = 0;
@@ -287,6 +307,7 @@ export class Speed {
             windows = global.get_window_actors().filter(a => a.visible && a.meta_window && !a.meta_window.minimized).length;
         } catch {}
         this._drag = {start: now(), windows, views: new Map(), check: !!this._check};
+        this._syncHold();
     }
 
     // What counts is the time from one frame to the next, as the eye sees it, not the
@@ -313,6 +334,7 @@ export class Speed {
     _dragEnd() {
         const d = this._drag;
         this._drag = null;
+        this._syncHold();
         if (!d || d.check)
             return;
         let best = null;
@@ -371,6 +393,7 @@ export class Speed {
         this._stopRetry();
         this._check = {id, phase: -1, phaseStart: now(), gaps: new Map(), phases: [], back: this._level, timer: 0, limit: 0};
         this._result = {id, state: 'running', error: '', refresh: 0, phases: [], pick: ''};
+        this._syncHold();
         this._setLevel(0);
         this._writeStatus('check');
         this._check.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, WARMUP_MS, () => this._nextPhase());
@@ -445,6 +468,7 @@ export class Speed {
         if (c.limit)
             GLib.source_remove(c.limit);
         this._check = null;
+        this._syncHold();
         const phases = c.phases;
         this._result = {id: c.id, state, error, refresh: Math.round((c.refresh ?? 0) * 10) / 10, phases,
             pick: state === 'done' ? pickLevel(phases) : ''};
@@ -553,11 +577,8 @@ export class Speed {
         this._grabMove?.destroy();
         this._grabMove = null;
         this._stopRetry();
-        if (this._before)
-            global.stage.disconnect(this._before);
-        if (this._after)
-            global.stage.disconnect(this._after);
-        this._before = this._after = 0;
+        this._syncHold();
+        tellOfPaints(this._paints, false);
         if (this._monitorsId)
             Main.layoutManager.disconnect(this._monitorsId);
         this._monitorsId = 0;

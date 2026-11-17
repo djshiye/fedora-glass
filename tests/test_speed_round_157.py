@@ -78,7 +78,7 @@ def test_moving_window_keeps_no_copy_of_its_glass_until_it_settles():
 def test_growing_menu_keeps_its_glass_in_place():
     f = code(body("follower.js", "sync"))
     assert "this._scaledRoom(target" in f
-    assert "pane.place(glx, gly, gw, gh, radii, gx, gy, [sx, sy, w, h])" in f
+    assert "pane.place(glx, gly, gw, gh, radii, gx, gy, [sx, sy, w, h], true)" in f
     room = code(body("follower.js", "_scaledRoom"))
     assert "get_scale()" in room and "fits ?" in room
     # An inner shape change repaints the lens only; the pane is not moved.
