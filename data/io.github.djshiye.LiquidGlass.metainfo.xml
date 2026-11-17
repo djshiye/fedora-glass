@@ -131,6 +131,11 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.7" date="2026-11-17">
+      <description>
+        <p>A fairer speed check: it now draws the glass as if a video played behind all of it, at each level's own pace, instead of copying everything behind every pane on every frame. Fast PCs score green again, and lighter glass scores faster than full glass as it should. The check also no longer slows down level by level.</p>
+      </description>
+    </release>
     <release version="1.7.6" date="2026-11-17">
       <description>
         <p>Steadier with Dash to Panel: when Dash to Panel rebuilds its panels and the rebuild stops half way, the taskbar hover highlight no longer lands on panels that are gone. That left stray pieces behind and filled GNOME's log with warnings on every window open or close.</p>

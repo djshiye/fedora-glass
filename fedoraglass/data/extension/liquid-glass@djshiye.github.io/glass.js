@@ -1363,6 +1363,21 @@ export function pictureStats() {
  * there, and the lens reads that picture as it draws the glass on screen. A maximized
  * window's glass went from about 180 MB to a few MB.
  */
+// One scale matrix per scale, shared by every pane: a transform node copies the matrix it
+// is given, and a new one on each render left one more native object for GNOME's clean-up.
+const scaleMatrices = new Map();
+function scaleMatrix(s) {
+    let m = scaleMatrices.get(s);
+    if (!m) {
+        if (scaleMatrices.size > 16)
+            scaleMatrices.clear();
+        m = new Graphene.Matrix();
+        m.init_scale(s, s, 1);
+        scaleMatrices.set(s, m);
+    }
+    return m;
+}
+
 const GlassEffect = GObject.registerClass(
 class FedoraGlassEffect extends Clutter.Effect {
     _init() {
@@ -1568,12 +1583,16 @@ class FedoraGlassEffect extends Clutter.Effect {
             const blur = Clutter.BlurNode.new(bw, bh, this._radius * t.s);
             blur.set_static_name?.('Fedora Glass (blur)');
             layer.add_child(blur);
-            blur.add_rectangle(new Clutter.ActorBox({x1: 0, y1: 0, x2: bw, y2: bh}));
+            // Kept while the size stays: the node copies it (as _box in _draw).
+            if (this._blurW !== bw || this._blurH !== bh) {
+                this._blurBox = new Clutter.ActorBox({x1: 0, y1: 0, x2: bw, y2: bh});
+                this._blurW = bw;
+                this._blurH = bh;
+            }
+            blur.add_rectangle(this._blurBox);
             into = blur;
         }
-        const m = new Graphene.Matrix();
-        m.init_scale(t.s, t.s, 1);
-        const scale = Clutter.TransformNode.new(m);
+        const scale = Clutter.TransformNode.new(scaleMatrix(t.s));
         into.add_child(scale);
         scale.add_child(Clutter.ActorNode.new(a, 255));
     }
@@ -1661,9 +1680,7 @@ class FedoraGlassEffect extends Clutter.Effect {
             const layer = Clutter.LayerNode.new_to_framebuffer(out.fb, plainPipeline());
             layer.set_static_name?.('Fedora Glass (keep)');
             node.add_child(layer);
-            const m = new Graphene.Matrix();
-            m.init_scale(s, s, 1);
-            const scale = Clutter.TransformNode.new(m);
+            const scale = Clutter.TransformNode.new(scaleMatrix(s));
             layer.add_child(scale);
             this._lens(scale, t, box, w, h, 255);
             out.painted = true;
@@ -2038,11 +2055,20 @@ export function shownPanes() {
     return n;
 }
 
-/** For the speed check: render every pane on screen again, in full, next frame. */
-export function redrawAllPanes() {
+/**
+ * For the speed check: as if everything behind every pane on screen changed, as it
+ * does over a video or a window that keeps drawing. Each pane draws its glass again
+ * this frame and copies what is behind it again as often as the glass level allows
+ * (RERENDER_HZ), just as it would in use. Up to 1.7.6 the check made every pane copy
+ * and blur what is behind it on every frame of every screen, which nothing in real use
+ * does: on a fast graphics card that measured the Shell's own processor time for dozens
+ * of copies a frame (the same at every level, so lighter glass could not score better)
+ * and the stops to clean up after them, not how smoothly the glass draws.
+ */
+export function stirAllPanes() {
     for (const p of panes) {
         if (p.mapped)
-            p.queueFull();
+            p.queue_redraw();
     }
 }
 

@@ -8,6 +8,7 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {NotificationMessageGroup} from 'resource:///org/gnome/shell/ui/messageList.js';
 
+import {disposed} from './common.js';
 import {report} from './safety.js';
 
 /**
@@ -100,6 +101,8 @@ export class StackClip {
             [item, item.connect('notify::allocation', () => this._cut(item, front))],
             [front, front.connect('notify::allocation', () => this._cut(item, front))],
             [item, item.connect('destroy', () => this._unwatch(item))],
+            // The front card can go first (dismissed): let go of it while it still can be.
+            [front, front.connect('destroy', () => this._unwatch(item))],
         ];
         this._items.set(item, {group, front, ids});
         this._cut(item, front);
@@ -119,13 +122,18 @@ export class StackClip {
             return;
         this._items.delete(item);
         for (const [obj, id] of w.ids) {
+            // A card already gone has no handlers left, and asking it logs an error.
+            if (disposed(obj))
+                continue;
             try {
                 obj.disconnect(id);
             } catch {}   // already gone
         }
-        try {
-            item.remove_clip();
-        } catch {}
+        if (!disposed(item)) {
+            try {
+                item.remove_clip();
+            } catch {}
+        }
     }
 
     update(_cfg) {}

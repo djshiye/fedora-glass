@@ -158,3 +158,23 @@ test('a drag held up by the GPU reads as few frames, though each asks the CPU fo
     assert.equal(d.refresh, 60);
     s.destroy();
 });
+
+test('the speed check starts each level clean and stirs the glass each frame, as a busy window behind would (1.7.6 got slower level by level)', () => {
+    globalThis.fake.shown = 3;
+    const cleanUps = [];
+    globalThis.fake.gc = () => cleanUps.push(globalThis.fake.quality);
+    const s = new Speed({speed: 'full'}, () => {});
+    s._startCheck('0123456789abcdef');
+    for (const ms of [800, 6000, 5000, 5000]) {
+        globalThis.fake.stirs = 0;
+        for (let i = 0; i < 10; i++)
+            frame(2);
+        assert.equal(globalThis.fake.stirs, 10, 'all the glass drawn again on every frame');
+        clock.advance(ms);
+    }
+    assert.deepEqual(cleanUps, [0, 1, 2], 'one clean-up as each level starts, after it is set');
+    assert.equal(s._result.state, 'done');
+    assert.deepEqual(s._result.phases.map(p => p.level), ['full', 'lighter', 'lightest']);
+    delete globalThis.fake.gc;
+    s.destroy();
+});

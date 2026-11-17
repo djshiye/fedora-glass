@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.6
+Version:        1.7.7
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,10 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.7-1
+- Speed check: draws the glass as if everything behind it kept changing, at each level's own pace, and starts each level clean; fast PCs score green again and lighter levels score faster than full
+- Calendar notifications: no "already disposed" error when the front card of a stack goes first
+
 * Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.6-1
 - Dash to Panel: after a panel rebuild that stops half way, the glass no longer uses the panels Dash to Panel took down; no hover highlight left loose and no warnings in GNOME's log
 

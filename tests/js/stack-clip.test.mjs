@@ -46,3 +46,22 @@ test('turning the glass off puts GNOME\'s own method back', () => {
     s.destroy();
     assert.equal(NotificationMessageGroup.prototype._updateStackedMessagesFade, own);
 });
+
+test('a front card dismissed first is let go of at once, and a card already gone is not asked again (1.7.5 logged "already disposed")', () => {
+    class Card {
+        constructor() { this.h = new Map(); this.n = 1; this.gone = false; this.asked = 0; }
+        connect(sig, fn) { const id = this.n++; this.h.set(id, [sig, fn]); return id; }
+        disconnect(id) { this.asked++; this.h.delete(id); }
+        emit(sig) { for (const [s, fn] of [...this.h.values()]) if (s === sig) fn(this); }
+        get_allocation_box() { return {y1: 0, y2: 100, get_width: () => 300}; }
+        set_clip() {} remove_clip() { this.clipRemoved = true; }
+    }
+    const s = new StackClip({});
+    const item = new Card(), front = new Card();
+    s._watch(item, 'g', front);
+    front.emit('destroy');
+    assert.equal(s._items.size, 0, 'let go of with the front card');
+    assert.equal(front.h.size, 0, 'no handler left on the front card');
+    assert.equal(item.h.size, 0);
+    s.destroy();
+});
