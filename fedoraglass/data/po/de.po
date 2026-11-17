@@ -8,68 +8,68 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: fedoraglass/cursors.py:38
+#: fedoraglass/cursors.py:40
 msgid "Frosted glass, dark rim"
 msgstr "Milchglas, dunkler Rand"
 
-#: fedoraglass/cursors.py:38
+#: fedoraglass/cursors.py:40
 msgid "Glass Light"
 msgstr "Glas hell"
 
-#: fedoraglass/cursors.py:40
+#: fedoraglass/cursors.py:42
 msgid "Glass Dark"
 msgstr "Glas dunkel"
 
-#: fedoraglass/cursors.py:40
+#: fedoraglass/cursors.py:42
 msgid "Smoked glass, light rim"
 msgstr "Rauchglas, heller Rand"
 
-#: fedoraglass/cursors.py:42
+#: fedoraglass/cursors.py:44
 msgid "Rounded, white"
 msgstr "Abgerundet, weiß"
 
-#: fedoraglass/cursors.py:43
+#: fedoraglass/cursors.py:45
 msgid "Rounded, black"
 msgstr "Abgerundet, schwarz"
 
-#: fedoraglass/cursors.py:44
+#: fedoraglass/cursors.py:46
 msgid "Sharp corners, white"
 msgstr "Scharfe Ecken, weiß"
 
-#: fedoraglass/cursors.py:45
+#: fedoraglass/cursors.py:47
 msgid "Sharp corners, black"
 msgstr "Scharfe Ecken, schwarz"
 
-#: fedoraglass/cursors.py:47
+#: fedoraglass/cursors.py:49
 msgid "Crisp, white"
 msgstr "Klar, weiß"
 
-#: fedoraglass/cursors.py:49
+#: fedoraglass/cursors.py:51
 msgid "Crisp, black"
 msgstr "Klar, schwarz"
 
-#: fedoraglass/cursors.py:51
+#: fedoraglass/cursors.py:53
 msgid "Like macOS"
 msgstr "Wie macOS"
 
-#: fedoraglass/cursors.py:53
+#: fedoraglass/cursors.py:55
 msgid "Yes, a banana"
 msgstr "Ja, eine Banane"
 
-#: fedoraglass/cursors.py:55
+#: fedoraglass/cursors.py:57
 msgid "Bright orange"
 msgstr "Leuchtendes Orange"
 
-#: fedoraglass/cursors.py:57
+#: fedoraglass/cursors.py:59
 msgid "Soft purple"
 msgstr "Sanftes Violett"
 
-#: fedoraglass/cursors.py:59
+#: fedoraglass/cursors.py:61
 msgid "Soft blue"
 msgstr "Sanftes Blau"
 
-#: fedoraglass/cursors.py:61
 #: fedoraglass/cursors.py:63
+#: fedoraglass/cursors.py:65
 msgid "Bold and round"
 msgstr "Kräftig und rund"
 

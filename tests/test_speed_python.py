@@ -199,3 +199,67 @@ def test_po_strings_read_as_with_the_old_pattern():
         assert old.fullmatch(bad) is None and i18n._STRING.fullmatch(bad) is None
     assert i18n._unquote("plain") == "plain"
     assert i18n._unquote('a\\"b\\n\\\\\\q') == 'a"b\n\\q'
+
+
+# ---- pointer pictures -----------------------------------------------------------------------
+def _xcursor(sizes, frames: int = 1) -> bytes:
+    import struct
+    chunks = [(s, struct.pack("<9I", 36, 0xFFFD0002, s, 1, s, s, s // 4, s // 5, 50) + bytes([i, s, 7, 255]) * (s * s))
+              for s in sizes for i in range(frames)]
+    pos, toc, body = 16 + 12 * len(chunks), b"", b""
+    for s, c in chunks:
+        toc += struct.pack("<III", 0xFFFD0002, s, pos + len(body))
+        body += c
+    return b"Xcur" + struct.pack("<III", 16, 0x10000, len(chunks)) + toc + body
+
+
+def test_a_pointer_file_read_in_parts_gives_what_reading_it_whole_gives(tmp_path):
+    # The plain-file way (header, table and one frame) against the whole-file one, which
+    # still reads anything that is not a plain file: also on damaged files.
+    import random
+    from fedoraglass import cursors
+    p = tmp_path / "left_ptr"
+    files = [_xcursor((24, 32, 48)), _xcursor((24, 30, 32, 36, 48, 64), frames=6), _xcursor((32,))]
+    rng = random.Random(7)
+    for _ in range(300):
+        b = bytearray(rng.choice(files)[:rng.choice([0, 3, 15, 16, 30, 52, 200, 10 ** 6])])
+        for _ in range(rng.randint(0, 5)):
+            if b:
+                b[rng.randrange(len(b))] = rng.randrange(256)
+        files.append(bytes(b))
+    found = 0
+    for data in files:
+        p.write_bytes(data)
+        for want in (1, 24, 40, 64, 200):
+            whole = cursors._parse_xcursor(data, want)
+            assert cursors.read_xcursor(p, want) == whole
+            found += whole is not None
+    assert found > 10
+
+
+def test_the_pointer_box_is_found_as_pixel_by_pixel(app_qt):
+    from PySide6.QtGui import QColor, QImage
+    from fedoraglass.gui import cursor_picker as cp
+
+    def by_pixel(img):
+        a = img.convertToFormat(QImage.Format.Format_ARGB32)
+        xs, ys = [], []
+        for y in range(a.height()):
+            row = [a.pixelColor(x, y).alpha() for x in range(a.width())]
+            if any(v > 24 for v in row):
+                ys.append(y)
+                xs += [next(i for i, v in enumerate(row) if v > 24), max(i for i, v in enumerate(row) if v > 24)]
+        return (min(xs), ys[0], max(xs) + 1, ys[-1] + 1) if ys else None
+    img = QImage(37, 23, QImage.Format.Format_ARGB32)
+    img.fill(QColor(0, 0, 0, 0))
+    assert cp._bbox(img) is None
+    for x, y, alpha in ((5, 3, 200), (30, 19, 25), (12, 8, 24), (0, 22, 255), (36, 0, 26)):
+        img.setPixelColor(x, y, QColor(255, 255, 255, alpha))
+        assert cp._bbox(img) == by_pixel(img), (x, y)
+
+
+@pytest.fixture
+def app_qt():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    QtGui = pytest.importorskip("PySide6.QtGui")
+    return QtGui.QGuiApplication.instance() or QtGui.QGuiApplication([])

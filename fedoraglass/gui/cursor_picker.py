@@ -33,6 +33,9 @@ def _image(env: Env, theme: str, shape: str, size: int) -> tuple[QImage, int, in
     return None
 
 
+_SHOWS = bytes(1 if v > 24 else 0 for v in range(256))     # an alpha byte -> whether it shows
+
+
 def _bbox(img: QImage) -> tuple[int, int, int, int] | None:
     """The box around the pointer's visible pixels (x0, y0, x1, y1), or None if empty."""
     a = img.convertToFormat(QImage.Format.Format_ARGB32)
@@ -40,13 +43,13 @@ def _bbox(img: QImage) -> tuple[int, int, int, int] | None:
     bits = bytes(a.constBits())[:stride * h]
     xs, ys = [], []
     for y in range(h):
-        row = bits[y * stride:y * stride + w * 4]
-        alpha = row[3::4]
-        if any(v > 24 for v in alpha):
+        # Each pixel's alpha byte, as 1 where it shows and 0 where it doesn't: the first and
+        # last 1 are found in C, not pixel by pixel (the Pointer page draws 64 of these).
+        seen = bits[y * stride + 3:y * stride + w * 4:4].translate(_SHOWS)
+        first = seen.find(1)
+        if first >= 0:
             ys.append(y)
-            first = next(i for i, v in enumerate(alpha) if v > 24)
-            last = w - 1 - next(i for i, v in enumerate(reversed(alpha)) if v > 24)
-            xs += [first, last]
+            xs += [first, seen.rfind(1)]
     if not ys:
         return None
     return min(xs), ys[0], max(xs) + 1, ys[-1] + 1
