@@ -28,7 +28,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
-import {Signals} from './common.js';
+import {Signals, dtpPanels} from './common.js';
 import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
@@ -728,7 +728,7 @@ class WindowAnimations {
         const mon = Main.layoutManager.monitors[actor.meta_window.get_monitor()] ?? Main.layoutManager.primaryMonitor;
         const s = 48;
         let y = mon.y + mon.height - s;
-        const dtp = global.dashToPanel?.panels?.find(p => p.monitor === mon);
+        const dtp = dtpPanels().find(p => p.monitor === mon);
         if (dtp?.panelBox) {
             const [, py] = dtp.panelBox.get_transformed_position();
             if (Number.isFinite(py) && py < mon.y + mon.height / 2)
@@ -894,8 +894,7 @@ function reset(actor) {
 
 /** Where the taskbar and panel items are, under Dash to Panel or GNOME's own top bar. */
 function panels() {
-    const dtp = global.dashToPanel?.panels;
-    return Array.isArray(dtp) && dtp.length ? dtp : [];
+    return dtpPanels();   // never the ones Dash to Panel already destroyed
 }
 
 function appIcons() {

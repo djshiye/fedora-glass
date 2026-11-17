@@ -15,6 +15,7 @@
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {dtpPanels} from './common.js';
 import {PopupStyle} from './popupstyle.js';
 
 const DASH_TO_PANEL = 'dash-to-panel@jderose9.github.com';
@@ -100,7 +101,7 @@ export class PausedStyle {
                 }
             }
         }
-        for (const p of dtp?.panels ?? []) {
+        for (const p of dtpPanels()) {   // never the ones Dash to Panel already destroyed
             const dt = p?.dynamicTransparency;
             if (!dt || this._lifted.has(dt))
                 continue;

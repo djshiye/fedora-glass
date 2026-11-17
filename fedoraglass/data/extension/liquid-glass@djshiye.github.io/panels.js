@@ -6,7 +6,7 @@ import GLib from 'gi://GLib';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {Signals} from './common.js';
+import {Signals, dtpPanels} from './common.js';
 import {wrapAnimator} from './dtpquiet.js';
 import {Follower} from './follower.js';
 
@@ -140,7 +140,7 @@ export class Panels {
                     this._dtpId = 0;
                 }
             }
-            return dtp.panels.filter(p => p.panel && p.panelBox?.get_parent())
+            return dtpPanels().filter(p => p.panel && p.panelBox?.get_parent())
                 .map(p => [p.panel, p.panelBox]);
         }
         const box = Main.layoutManager.panelBox;
@@ -168,7 +168,7 @@ export class Panels {
     }
 
     _quietIcons() {
-        const live = new Set((global.dashToPanel?.panels ?? []).map(p => p.taskbar?.iconAnimator).filter(Boolean));
+        const live = new Set(dtpPanels().map(p => p.taskbar?.iconAnimator).filter(Boolean));
         for (const [anim, undo] of this._quieted) {
             if (!live.has(anim)) {
                 this._quieted.delete(anim);

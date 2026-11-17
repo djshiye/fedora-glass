@@ -1,11 +1,55 @@
 // Helpers and shared state for the modules that put glass behind Shell surfaces.
 
+import GObject from 'gi://GObject';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {windowLanded} from './glass.js';
 import {guarded} from './safety.js';
+
+// GJS's own description of a GObject, which says "(DISPOSED)" or "(FINALIZED)" once
+// the object is gone. GNOME Shell replaces toString on actors with one that reads the
+// actor, so it is called from GObject.Object directly: that never touches the object.
+const describe = GObject.Object?.prototype?.toString;
+
+/**
+ * Whether `obj` is a GObject that has already been disposed (destroyed). A disposed
+ * wrapper still passes `instanceof`, and every call on it only fills the log with
+ * "has been already disposed", so check this before touching an actor someone else owns.
+ */
+export function disposed(obj) {
+    if (!obj)
+        return true;
+    if (typeof describe !== 'function')
+        return false;
+    try {
+        return /\((?:DISPOSED|FINALIZED)\)/.test(describe.call(obj));
+    } catch {
+        return false;   // not a GObject: plain JS objects are never disposed
+    }
+}
+
+/**
+ * Dash to Panel's panels that are alive and on the stage. Its list can hold panels it
+ * has already taken down: it rebuilds its panels when its settings or the screens
+ * change, and if a rebuild stops half way the old list stays, with destroyed panels
+ * (and a taken-down main panel whose taskbar is destroyed). Never trust it as it is.
+ */
+export function dtpPanels() {
+    const list = global.dashToPanel?.panels;
+    if (!Array.isArray(list))
+        return [];
+    return list.filter(p => {
+        if (!p || disposed(p) || disposed(p.panelBox ?? p))
+            return false;
+        try {
+            return typeof p.get_stage !== 'function' || Boolean(p.get_stage());
+        } catch {
+            return false;
+        }
+    });
+}
 
 export const HOLD_MAX_MS = 100;   // a menu waits at most this long for its glass
 const CORNERS = [St.Corner.TOPLEFT, St.Corner.TOPRIGHT, St.Corner.BOTTOMRIGHT, St.Corner.BOTTOMLEFT];
@@ -150,6 +194,8 @@ export class Signals {
 
     clear() {
         for (const [obj, id] of this._ids) {
+            if (disposed(obj))
+                continue;   // its handlers went with it; touching it only fills the log
             try {
                 obj.disconnect(id);
             } catch {}

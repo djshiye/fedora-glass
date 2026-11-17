@@ -22,7 +22,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {Signals} from './common.js';
+import {Signals, disposed, dtpPanels} from './common.js';
 import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {springStep as spring} from './curves.js';
@@ -37,9 +37,11 @@ function animationsOn() {
     return St.Settings.get().enable_animations;
 }
 
+// Dash to Panel's live panels on the stage. Its list can still hold panels it has
+// destroyed (a disposed panel still passes instanceof), and a tile put on one of
+// those ends up outside the stage, where every layout pass warns about it.
 function panels() {
-    const dtp = global.dashToPanel?.panels;
-    return Array.isArray(dtp) ? dtp : [];
+    return dtpPanels().filter(p => p instanceof Clutter.Actor);
 }
 
 function iconsOf(panel) {
@@ -94,7 +96,9 @@ class Tile {
     // Its size is also set as its natural size: when the panel does lay out its
     // children (its BinLayout), the tile then gets the same box at 0,0.
     allocate() {
-        if (this.gone)
+        // Off the stage (its panel is being taken down) there is nothing to lay out,
+        // and Clutter warns about every allocation outside the stage.
+        if (this.gone || !this.actor.get_stage())
             return;
         const [w, h] = this.size;
         if (this.actor.width !== w || this.actor.height !== h)
@@ -132,13 +136,14 @@ class Tile {
         if (this.allocLater)
             global.compositor.get_laters().remove(this.allocLater);
         this.allocLater = 0;
-        if (this.goneId)
+        if (this.goneId && !disposed(this.panel))
             this.panel.disconnect(this.goneId);
         this.goneId = 0;
-        if (this.relayoutId && !this.gone)
+        const alive = !this.gone && !disposed(this.actor);
+        if (this.relayoutId && alive)
             this.actor.disconnect(this.relayoutId);
         this.relayoutId = 0;
-        if (!this.gone)
+        if (alive)
             this.actor.destroy();
         this.gone = true;
     }
@@ -213,9 +218,10 @@ export class HoverGlide {
 
     // Match the tiles to the panels, and the watched icons to the taskbars.
     _refresh() {
-        const live = panels().filter(p => p instanceof Clutter.Actor);
+        const live = panels();
         for (const [panel, tile] of [...this._tiles]) {
-            if (!live.includes(panel)) {
+            // Gone from the list, destroyed without us hearing it, or the tile lost its place.
+            if (!live.includes(panel) || tile.gone || disposed(tile.actor) || tile.actor.get_parent() !== panel) {
                 tile.destroy();
                 this._tiles.delete(panel);
             }
@@ -228,6 +234,10 @@ export class HoverGlide {
                     tile = new Tile(panel, this._look);
                 } catch (e) {
                     report('hover glide on a panel', e);
+                    continue;
+                }
+                if (tile.actor.get_parent() !== panel) {
+                    tile.destroy();      // the panel would not take it: never leave it loose
                     continue;
                 }
                 this._tiles.set(panel, tile);
