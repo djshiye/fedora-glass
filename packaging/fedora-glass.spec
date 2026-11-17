@@ -381,6 +381,8 @@ fi
 * Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.7-1
 - Speed check: draws the glass as if everything behind it kept changing, at each level's own pace, and starts each level clean; fast PCs score green again and lighter levels score faster than full
 - Calendar notifications: no "already disposed" error when the front card of a stack goes first
+- NVIDIA: the glass shader no longer uses texture2DLod where the driver's newer GLSL removed it; glass draws again
+- Glass paused or safe mode: app windows get a solid backdrop instead of showing the windows below sharp
 
 * Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.6-1
 - Dash to Panel: after a panel rebuild that stops half way, the glass no longer uses the panels Dash to Panel took down; no hover highlight left loose and no warnings in GNOME's log

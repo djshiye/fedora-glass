@@ -134,6 +134,8 @@
     <release version="1.7.7" date="2026-11-17">
       <description>
         <p>A fairer speed check: it now draws the glass as if a video played behind all of it, at each level's own pace, instead of copying everything behind every pane on every frame. Fast PCs score green again, and lighter glass scores faster than full glass as it should. The check also no longer slows down level by level.</p>
+        <p>NVIDIA graphics: the glass draws again. The driver refused one of its shaders, so no glass was drawn anywhere.</p>
+        <p>With the glass paused or in safe mode, app windows turn solid instead of showing the windows below sharp through them.</p>
       </description>
     </release>
     <release version="1.7.6" date="2026-11-17">
