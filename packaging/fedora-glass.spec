@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.5
+Version:        1.7.6
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,9 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.6-1
+- Dash to Panel: after a panel rebuild that stops half way, the glass no longer uses the panels Dash to Panel took down; no hover highlight left loose and no warnings in GNOME's log
+
 * Mon Nov 16 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.5-1
 - Smoother desktop: the short stop every 10 seconds, when GNOME cleans up its memory, is about half as long with the glass on; the glass leaves far less behind for it
 - Frozen glass comes to rest a few seconds after the pointer stops by it; a menu closed under the pointer puts its pointer light out
