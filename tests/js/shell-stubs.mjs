@@ -42,6 +42,10 @@ const STUBS = {
     };`,
     'gi/GObject': `export default {
         registerClass: (...a) => a[a.length - 1],
+        // GJS's own description: "(DISPOSED)" once the object is gone (a test marks it).
+        Object: class { toString() {
+            return this?.[Symbol.for('fake-disposed')] ? '[object (DISPOSED) instance wrapper]' : '[object instance wrapper]';
+        } },
         signal_handler_find: (obj, m) => globalThis.fake.gobject.find(obj, m),
         signal_handler_block: (obj, id) => globalThis.fake.gobject.block(obj, id),
         signal_handler_unblock: (obj, id) => globalThis.fake.gobject.unblock(obj, id),

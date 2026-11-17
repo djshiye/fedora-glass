@@ -50,8 +50,14 @@ class Actor {
     get_children() {
         return [...this._children];
     }
+    get_parent() {
+        return this._parent;
+    }
+    // On the stage when its parent is; a panel (no parent) is on it unless taken off.
     get_stage() {
-        return {};
+        if (this._parent)
+            return this._parent.get_stage();
+        return this.offStage ? null : {};
     }
     get_transformed_position() {
         return this.pos;
@@ -67,6 +73,8 @@ class Actor {
         this.height = h;
     }
     allocate(box) {
+        if (!this.get_stage())
+            fake.warnings.push(`Spurious clutter_actor_allocate called for actor ${this.name}`);
         this.width = box.x2 - box.x1;
         this.height = box.y2 - box.y1;
         this.allocated = true;
@@ -140,7 +148,7 @@ class Timeouts {
 let clock = 0;
 const stSettings = Object.assign(new Actor(), {enable_animations: true});
 const fake = {
-    Actor, Widget: Actor, timeouts: new Timeouts(), now: () => clock, stSettings,
+    Actor, Widget: Actor, warnings: [], timeouts: new Timeouts(), now: () => clock, stSettings,
     appSystem: new Actor(), windowTracker: new Actor(), extensionManager: new Actor(),
 };
 globalThis.fake = fake;
@@ -330,4 +338,109 @@ test('Dash to Panel turned off and on again: the new panels get the glide too', 
     g.destroy();
     assert.equal(dtp.handlerCount(), 0);
     assert.equal(fake.extensionManager.handlerCount(), 0);
+});
+
+// A GObject that GJS has already disposed: it still passes instanceof, and every
+// method call on it is what fills GNOME Shell's log with "has been already disposed".
+function dispose(actor) {
+    return new Proxy(actor, {
+        get(target, prop) {
+            if (prop === Symbol.for('fake-disposed'))
+                return true;
+            const v = Reflect.get(target, prop);
+            if (typeof v !== 'function')
+                return v;
+            return (...args) => {
+                fake.warnings.push(`${String(prop)} on a disposed panel`);
+                return v.apply(target, args);
+            };
+        },
+    });
+}
+
+// The 1.7.5 bug from a Dash to Panel user's log: after Dash to Panel rebuilt its panels,
+// its list still held the destroyed ones, and the glide put a new tile on each (touching
+// a disposed panel), which left "fedora-glass-hover-glide" actors outside the stage.
+test('Dash to Panel rebuilding its panels many times: no dead panel touched, no tile left loose', () => {
+    fake.warnings.length = 0;
+    const {panel: first} = scene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    let current = [first];
+    const made = [tileOf(first)];
+    for (let round = 0; round < 5; round++) {
+        // Dash to Panel takes its panels down; its list keeps them, now disposed.
+        for (const p of current)
+            p.destroy();
+        dtp.panels = current.map(dispose);
+        // Anything that refreshes the glide in between (a window opened, an extension
+        // changed state) must not touch them.
+        fake.windowTracker.emit('tracked-windows-changed');
+        fake.timeouts.fireAll();
+        laters.run();
+        assert.deepEqual(g.qaState(), [], `round ${round}: no tile for a dead panel`);
+        // Then the new panels (two screens on odd rounds), and its signal.
+        current = round % 2 ? [scene().panel, scene().panel] : [scene().panel];
+        dtp.panels = current;
+        dtp.emit('panels-created');
+        fake.timeouts.fireAll();
+        laters.run();
+        const tiles = current.map(tileOf);
+        assert.ok(tiles.every(Boolean), `round ${round}: every new panel has its tile`);
+        assert.equal(g.qaState().length, current.length, 'tile count = panel count');
+        made.push(...tiles);
+    }
+    assert.deepEqual(fake.warnings, [], 'nothing touched a disposed panel or allocated off the stage');
+    g.destroy();
+    assert.ok(made.every(t => t.destroyed), 'no tile is left behind');
+    assert.ok(current.every(p => p.handlerCount() === 0));
+});
+
+test('a panel destroyed without telling the glide, and a panel off the stage, get no tile', () => {
+    fake.warnings.length = 0;
+    const {panel} = scene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    const tile = tileOf(panel);
+    // Gone behind our back (no destroy signal reached us): the list holds it, disposed.
+    dtp.panels = [dispose(panel)];
+    fake.windowTracker.emit('tracked-windows-changed');
+    fake.timeouts.fireAll();
+    assert.deepEqual(g.qaState(), []);
+    assert.ok(tile.destroyed, 'its tile went');
+    // A live panel that is not on the stage yet waits for the next refresh.
+    const {panel: later} = scene();
+    later.offStage = true;
+    fake.windowTracker.emit('tracked-windows-changed');
+    fake.timeouts.fireAll();
+    assert.equal(tileOf(later), undefined);
+    later.offStage = false;
+    dtp.emit('panels-created');
+    fake.timeouts.fireAll();
+    laters.run();
+    assert.ok(tileOf(later));
+    // A theme change asking for a layout while the panel is off the stage allocates nothing.
+    later.offStage = true;
+    tileOf(later).emit('queue-relayout');
+    laters.run();
+    assert.deepEqual(fake.warnings, []);
+    g.destroy();
+});
+
+test('the shared Dash to Panel list leaves out disposed panels, and plain objects are never disposed', async () => {
+    const {dtpPanels, disposed} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/common.js');
+    const live = new Actor({panelBox: new Actor()});
+    const deadBox = new Actor({panelBox: dispose(new Actor())});
+    dtp.panels = [live, dispose(new Actor()), deadBox, null];
+    assert.deepEqual(dtpPanels(), [live]);
+    // A main panel Dash to Panel took down but did not destroy is off the stage: left out too.
+    const takenDown = new Actor({panelBox: new Actor(), offStage: true});
+    dtp.panels = [live, takenDown];
+    assert.deepEqual(dtpPanels(), [live]);
+    assert.equal(disposed({}), false);
+    assert.equal(disposed(null), true);
+    const was = global.dashToPanel;
+    global.dashToPanel = undefined;
+    assert.deepEqual(dtpPanels(), []);
+    global.dashToPanel = was;
 });
