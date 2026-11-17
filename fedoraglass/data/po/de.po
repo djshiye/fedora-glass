@@ -113,24 +113,24 @@ msgstr "Ihr Ordner {folder} wurde behalten, weil er Dateien enthält, die Sie hi
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "Ihr Verweis von {folder} auf {owner} konnte nicht wiederhergestellt werden: {reason}."
 
-#: fedoraglass/engine.py:1205
+#: fedoraglass/engine.py:1218
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass kann seinen Ordner {folder} nicht verwenden ({error}). Es wurde nichts geändert. Prüfen Sie, ob der Ordner Ihnen gehört."
 
-#: fedoraglass/engine.py:1274
-#: fedoraglass/engine.py:1296
+#: fedoraglass/engine.py:1287
+#: fedoraglass/engine.py:1309
 msgid "Backup"
 msgstr "Sicherung"
 
-#: fedoraglass/engine.py:1318
+#: fedoraglass/engine.py:1331
 msgid "Couldn't start: {error}"
 msgstr "Start nicht möglich: {error}"
 
-#: fedoraglass/engine.py:1383
+#: fedoraglass/engine.py:1396
 msgid "Colours for other apps"
 msgstr "Farben für andere Apps"
 
-#: fedoraglass/engine.py:1513
+#: fedoraglass/engine.py:1526
 msgid "missing setting {schema} {key}"
 msgstr "Einstellung fehlt: {schema} {key}"
 

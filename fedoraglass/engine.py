@@ -1191,7 +1191,20 @@ Progress = Callable[[int, int, str], None]
 class Engine:
     def __init__(self, env: Env | None = None, targets: list[Target] | None = None):
         self.env = env or Env()
-        self.targets = targets if targets is not None else all_targets()
+        self._targets = targets
+
+    @property
+    def targets(self) -> list[Target]:
+        # The parts' modules are loaded when the parts are first needed, not with the
+        # Engine: the step before login (fedora-glass before-login, at every login) almost
+        # always finds the glass up to date and needs none of them.
+        if self._targets is None:
+            self._targets = all_targets()
+        return self._targets
+
+    @targets.setter
+    def targets(self, targets: list[Target]) -> None:
+        self._targets = targets
 
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:

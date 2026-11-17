@@ -1,9 +1,13 @@
 """The speed-ups of the Python side after 1.7.7 give exactly the answers of the code they
 replaced: the backup's save that skips unchanged manifests, the linked-folder check, and
-the terminal palette handed to every terminal of one Apply."""
+the terminal palette handed to every terminal of one Apply, the parts loaded when first
+needed."""
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -143,3 +147,30 @@ def test_other_colours_give_another_palette():
     a = rt.derive(palette.build(Settings(accent="#e62d42"), dark=True))
     b = rt.derive(palette.build(Settings(accent="#3584e4"), dark=True))
     assert a != b and a.accent != b.accent
+
+
+# ---- the parts, loaded when first needed ----------------------------------------------------
+def test_an_engine_has_every_part_once_asked(fake_env):
+    from fedoraglass.engine import Engine
+    from fedoraglass.targets import all_targets
+    e = Engine(fake_env)
+    assert [t.id for t in e.targets] == [t.id for t in all_targets()]
+    assert e.targets is e.targets
+    e.targets = []
+    assert e.targets == []
+    assert Engine(fake_env, []).targets == []
+
+
+def test_before_login_with_nothing_to_do_loads_no_part(tmp_path):
+    # It runs at every login before GNOME Shell starts: the parts' modules (renderers for
+    # every app) are only loaded when there is something to apply.
+    root = Path(__file__).resolve().parents[1]
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {**os.environ, "HOME": str(home), "XDG_CONFIG_HOME": str(home / ".config"),
+           "XDG_STATE_HOME": str(home / ".local/state"), "XDG_DATA_HOME": str(home / ".local/share")}
+    code = ("import sys; from fedoraglass import __main__ as m; m._is_root = lambda: False; "
+            "m.main(['before-login']); print(sorted(n for n in sys.modules if n.startswith('fedoraglass.targets.')))")
+    r = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "['fedoraglass.targets.base', 'fedoraglass.targets.shell']"

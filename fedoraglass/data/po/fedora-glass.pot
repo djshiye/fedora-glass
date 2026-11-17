@@ -113,24 +113,24 @@ msgstr ""
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr ""
 
-#: fedoraglass/engine.py:1205
+#: fedoraglass/engine.py:1218
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr ""
 
-#: fedoraglass/engine.py:1274
-#: fedoraglass/engine.py:1296
+#: fedoraglass/engine.py:1287
+#: fedoraglass/engine.py:1309
 msgid "Backup"
 msgstr ""
 
-#: fedoraglass/engine.py:1318
+#: fedoraglass/engine.py:1331
 msgid "Couldn't start: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:1383
+#: fedoraglass/engine.py:1396
 msgid "Colours for other apps"
 msgstr ""
 
-#: fedoraglass/engine.py:1513
+#: fedoraglass/engine.py:1526
 msgid "missing setting {schema} {key}"
 msgstr ""
 

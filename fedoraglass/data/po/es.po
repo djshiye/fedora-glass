@@ -113,24 +113,24 @@ msgstr "Se conservó tu carpeta {folder} porque tiene archivos que añadiste. No
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "No se pudo restaurar tu enlace de {folder} a {owner}: {reason}."
 
-#: fedoraglass/engine.py:1205
+#: fedoraglass/engine.py:1218
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass no puede usar su carpeta {folder} ({error}). No se ha cambiado nada. Compruebe que la carpeta le pertenece."
 
-#: fedoraglass/engine.py:1274
-#: fedoraglass/engine.py:1296
+#: fedoraglass/engine.py:1287
+#: fedoraglass/engine.py:1309
 msgid "Backup"
 msgstr "Copia de seguridad"
 
-#: fedoraglass/engine.py:1318
+#: fedoraglass/engine.py:1331
 msgid "Couldn't start: {error}"
 msgstr "No se pudo iniciar: {error}"
 
-#: fedoraglass/engine.py:1383
+#: fedoraglass/engine.py:1396
 msgid "Colours for other apps"
 msgstr "Colores para otras aplicaciones"
 
-#: fedoraglass/engine.py:1513
+#: fedoraglass/engine.py:1526
 msgid "missing setting {schema} {key}"
 msgstr "falta el ajuste {schema} {key}"
 
