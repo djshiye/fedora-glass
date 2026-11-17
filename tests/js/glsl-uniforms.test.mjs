@@ -278,3 +278,24 @@ test('the lens pipeline every pane copies has the vertex snippet too', () => {
     const src = code('glass.js');
     assert.match(src, /lensTemplate\.add_snippet\(GLASS\.cogl\(\)\);\s*lensTemplate\.add_snippet\(GLASS\.coglVertex\(\)\);/);
 });
+
+// NVIDIA's driver gets a newer GLSL from Cogl than Mesa does, and rejects the texture
+// functions removed after GLSL 1.40 ("texture2DLod is removed after version 140"): the
+// whole glass program then failed to link and no glass was drawn anywhere (2026-11-17).
+// texture2DLod may only stand in the old-GLSL branch of a __VERSION__ check.
+test('no texture2DLod outside a GLSL version check (NVIDIA rejects it)', () => {
+    for (const file of readdirSync(EXT).filter(f => f.endsWith('.js'))) {
+        const lines = read(file).split('\n');
+        let oldBranch = false;
+        lines.forEach((line, i) => {
+            if (/^#if __VERSION__ >= 130/.test(line))
+                oldBranch = false;
+            else if (/^#else/.test(line))
+                oldBranch = true;
+            else if (/^#endif/.test(line))
+                oldBranch = false;
+            if (/\btexture2DLod\s*\(/.test(line) && !line.trim().startsWith('//'))
+                assert.ok(oldBranch, `${file}:${i + 1} uses texture2DLod outside "#if __VERSION__ >= 130 ... #else"`);
+        });
+    }
+});

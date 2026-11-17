@@ -5,9 +5,10 @@
 // steps down a level, and a few minutes later tries one level up again (tuning.js).
 //
 // The Fedora Glass app asks for a speed check by writing
-// ~/.config/liquid-glass/speed-check.json ({"id": "<16 hex>"}). The check redraws
-// all the glass on screen every frame for a few seconds at each level and scores
-// the frame rate. What the glass draws now, and the check's result, go to
+// ~/.config/liquid-glass/speed-check.json ({"id": "<16 hex>"}). The check draws
+// all the glass on screen every frame for a few seconds at each level, as if
+// everything behind it kept changing (a video behind every pane), and scores the
+// frame rate. What the glass draws now, and the check's result, go to
 // ~/.cache/liquid-glass/speed.json (only this user can read it), for the app.
 // So does how smoothly the last window drag drew (see _dragEnd), the real thing on
 // this PC rather than the check's redraw-everything test.
@@ -24,7 +25,8 @@ import GLib from 'gi://GLib';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {setQuality, glassRenders, redrawAllPanes, shownPanes} from './glass.js';
+import {collect} from './gcsweep.js';
+import {setQuality, glassRenders, stirAllPanes, shownPanes} from './glass.js';
 import {GrabMove} from './grabmove.js';
 import {PowerWatch} from './power.js';
 import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
@@ -378,7 +380,7 @@ export class Speed {
             this._endCheck('failed', 'busy');
             return GLib.SOURCE_REMOVE;
         });
-        redrawAllPanes();
+        stirAllPanes();
     }
 
     _checkFrame(v, gap, t) {
@@ -389,8 +391,9 @@ export class Speed {
                 c.gaps.set(v, g = []);
             g.push(gap);
         }
-        // Ask for the next frame at once: all the glass, drawn again in full.
-        redrawAllPanes();
+        // Ask for the next frame at once: all the glass drawn again, as if everything
+        // behind it changed (see stirAllPanes).
+        stirAllPanes();
     }
 
     _scoreCurrent() {
@@ -422,9 +425,13 @@ export class Speed {
             return GLib.SOURCE_REMOVE;
         }
         c.gaps = new Map();
-        c.phaseStart = now();
         this._setLevel(c.phase);
-        redrawAllPanes();
+        // Each level starts clean: what the level before left for GNOME's clean-up is
+        // cleaned up now, in the frames left out below, not in the middle of the next
+        // level (up to 1.7.6 the later levels paid for the earlier ones and came out slower).
+        collect();
+        c.phaseStart = now();
+        stirAllPanes();
         c.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, PHASE_MS[c.phase], () => this._nextPhase());
         return GLib.SOURCE_REMOVE;
     }

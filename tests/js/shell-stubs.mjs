@@ -149,7 +149,7 @@ const STUBS = {
     export function getFrost() { return {frost: 0, flakes: globalThis.fake.flakes ?? 0, blur: 0}; }
     export function liquidNow(l) { return l * (1 - 0.75 * (globalThis.fake.flakes ?? 0)); }
     export function glassRenders() { return globalThis.fake.renders ?? 0; }
-    export function redrawAllPanes() {}
+    export function stirAllPanes() { globalThis.fake.stirs = (globalThis.fake.stirs ?? 0) + 1; }
     export function shownPanes() { return globalThis.fake.shown ?? 0; }
     export function hasRedrawArea(ctx) { return Boolean(ctx.get_redraw_clip()); }
     export function paintCount() { return globalThis.fake.paints ?? 0; }`,

@@ -162,6 +162,17 @@ export function lookFor(ids, s) {
     return s.look;
 }
 
+/**
+ * The settings for app windows while the glass is paused or in safe mode (extension.js):
+ * every window that would get glass, or glass behind its title bar, gets a solid backdrop
+ * in the theme's window colour instead (see WindowGlass._showSolid). Games, video players
+ * and Fedora Glass itself stay as they are. With the glass behind windows turned off, nothing.
+ */
+export function allSolid(cfg) {
+    const w = cfg?.windows;
+    return {...cfg, windows: {...(w ?? {}), enabled: w?.enabled === true, allSolid: true}};
+}
+
 /** The card a frameless app draws inside its window ({margin, radius}), or null. */
 export function clientCard(ids) {
     return CLIENT_CARDS.find(c => ids.some(id => c.app.test(id))) ?? null;
@@ -725,7 +736,8 @@ class WindowGlass {
         this._titleOnly = kind === 'title';
         if (kind === 'none')
             return 'out';
-        if (kind === 'solid')
+        // An app on the user's list, or every app while the glass is off (allSolid).
+        if (kind === 'solid' || s.allSolid)
             return 'solid';
         if (w.minimized)
             return 'minimized';

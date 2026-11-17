@@ -12,6 +12,8 @@ let live = new Set();
 let log = [];
 let later = [];
 let overlaps = [];
+let solids = [];
+const liveSolids = () => solids.filter(w => w.live);
 const part = name => function (cfg) {
     log.push(name);
     live.add(name);
@@ -54,6 +56,14 @@ globalThis.fakeMods = {
     'surfaces.js': {GlassManager: part('glass')},
     'themetidy.js': {UserThemesTidy: part('tidy')},
     'gcsweep.js': {SettingsSweep: part('sweep')},
+    // The solid app window backdrops (windows.js): kept out of `log`, which the tests
+    // below compare whole; their own list is `solids`.
+    'windows.js': {Windows: function (cfg) {
+        const w = {cfg, updates: [], live: true, update(c) { this.updates.push(c); },
+            destroy() { this.live = false; }};
+        solids.push(w);
+        return w;
+    }, allSolid: cfg => ({...cfg, windows: {...cfg.windows, allSolid: true}})},
     'tuning.js': {effectiveConfig: cfg => cfg},
     'quicktoggle.js': {GlassSwitch: (dir, onPause) => {
         const sw = {onPause, gone: false, setState() {}, destroy() { this.gone = true; }};
@@ -74,6 +84,7 @@ beforeEach(() => {
     switches = [];
     globalThis.fake.sessionMode.isLocked = false;
     overlaps = [];
+    solids = [];
 });
 afterEach(() => assert.deepEqual(overlaps, [], 'the glass sheet and the solid one were loaded together'));
 
@@ -203,4 +214,44 @@ test('resumed while locked: no solid sheet on the lock screen, the glass after t
     lock(ext, false);
     assert.ok(live.has('glass') && live.has('popups') && !live.has('paused'));
     ext.disable();
+});
+
+// App windows while the glass is off: the GTK, Qt and terminal themes paint them partly
+// see-through for the glass to frost what is behind them. With no glass, Frosted showed the
+// windows below sharp through every window (2026-11-17). They get solid backdrops then.
+test('paused or in safe mode, app windows get solid backdrops; the glass back takes them away', () => {
+    const ext = start();
+    assert.equal(liveSolids().length, 0, 'none while the glass is on');
+    tile().onPause(true);
+    assert.equal(liveSolids().length, 1);
+    assert.equal(liveSolids()[0].cfg.windows?.allSolid, true, 'every window solid');
+    const next = {...config.value, windows: {solidColor: '#101010'}};
+    config.value = next;
+    config.onChange(next);
+    assert.equal(liveSolids()[0].updates.at(-1).windows.solidColor, '#101010', 'a settings change reaches them');
+    assert.equal(liveSolids()[0].updates.at(-1).windows.allSolid, true);
+    tile().onPause(false);
+    assert.equal(liveSolids().length, 0, 'gone with the glass back');
+    safety.tripped = true;
+    safety.onChange(true);
+    assert.equal(liveSolids().length, 1, 'safe mode too');
+    safety.tripped = false;
+    safety.onChange(false);
+    assert.equal(liveSolids().length, 0);
+    ext.disable();
+});
+
+test('solid backdrops: one set only, none on the lock screen, none after disable', () => {
+    const ext = start();
+    tile().onPause(true);
+    tile().onPause(true);
+    safety.tripped = true;
+    safety.onChange(true);
+    assert.equal(liveSolids().length, 1, 'never two sets');
+    lock(ext, true);
+    assert.equal(liveSolids().length, 0, 'the lock screen hides the windows: let go');
+    lock(ext, false);
+    assert.equal(liveSolids().length, 1, 'back after the unlock, still off');
+    ext.disable();
+    assert.equal(liveSolids().length, 0);
 });
