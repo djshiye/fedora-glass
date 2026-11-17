@@ -33,11 +33,18 @@ LANGUAGES = {
 }
 
 _ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\", "r": "\r"}
-_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
+# A quoted po string. Written as runs of plain characters between escapes, which matches
+# exactly what (?:[^"\\]|\\.)* does, but without trying both ways at every character: a
+# language's file is read at the start of every run in that language.
+_STRING = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+_ESCAPE = re.compile(r"\\(.)")
+_KEYWORD = re.compile(r"(msgctxt|msgid|msgstr)\s+(.*)$")
 
 
 def _unquote(s: str) -> str:
-    return re.sub(r"\\(.)", lambda m: _ESCAPES.get(m.group(1), m.group(1)), s)
+    if "\\" not in s:
+        return s
+    return _ESCAPE.sub(lambda m: _ESCAPES.get(m.group(1), m.group(1)), s)
 
 
 def parse_po(text: str) -> list[dict]:
@@ -67,7 +74,7 @@ def parse_po(text: str) -> list[dict]:
                 cur["fuzzy"] = True
             cur.setdefault("comments", []).append(raw)
             continue
-        m = re.match(r"(msgctxt|msgid|msgstr)\s+(.*)$", line)
+        m = _KEYWORD.match(line)
         if m:
             key = {"msgctxt": "ctx", "msgid": "id", "msgstr": "str"}[m.group(1)]
             if key in ("ctx", "id") and "id" in cur and "str" in cur:

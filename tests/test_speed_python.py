@@ -174,3 +174,28 @@ def test_before_login_with_nothing_to_do_loads_no_part(tmp_path):
     r = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == "['fedoraglass.targets.base', 'fedoraglass.targets.shell']"
+
+
+# ---- reading the po files -------------------------------------------------------------------
+def test_po_strings_read_as_with_the_old_pattern():
+    import re
+    from fedoraglass import i18n
+    old = re.compile(r'"((?:[^"\\]|\\.)*)"')
+    texts = [p.read_text(encoding="utf-8") for p in sorted(i18n.PO_DIR.glob("*.po*"))]
+    texts.append('msgid "a\\\\"\nmsgstr "b\\"c\\n\\q"\n\nmsgid "x"\nmsgstr "\\\\\\\\ \\t"\n')
+    seen = 0
+    for text in texts:
+        for line in text.splitlines():
+            rest = line.strip()
+            if rest.startswith(("msgid ", "msgstr ", "msgctxt ")):
+                rest = rest.split(None, 1)[1]
+            elif not rest.startswith('"'):
+                continue
+            a, b = old.fullmatch(rest), i18n._STRING.fullmatch(rest)
+            assert (a and a.group(1)) == (b and b.group(1)), line
+            seen += 1
+    assert seen > 5000
+    for bad in ('"a"b"', '"a\\"', '"a', '"\\"'):
+        assert old.fullmatch(bad) is None and i18n._STRING.fullmatch(bad) is None
+    assert i18n._unquote("plain") == "plain"
+    assert i18n._unquote('a\\"b\\n\\\\\\q') == 'a"b\n\\q'
