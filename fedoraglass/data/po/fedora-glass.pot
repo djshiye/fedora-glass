@@ -101,32 +101,36 @@ msgstr ""
 msgid "remove the {package} package"
 msgstr ""
 
-#: fedoraglass/engine.py:1001
+#: fedoraglass/engine.py:1008
+msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
+msgstr ""
+
+#: fedoraglass/engine.py:1020
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr ""
 
-#: fedoraglass/engine.py:1003
+#: fedoraglass/engine.py:1022
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr ""
 
-#: fedoraglass/engine.py:1186
+#: fedoraglass/engine.py:1205
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr ""
 
-#: fedoraglass/engine.py:1255
-#: fedoraglass/engine.py:1277
+#: fedoraglass/engine.py:1274
+#: fedoraglass/engine.py:1296
 msgid "Backup"
 msgstr ""
 
-#: fedoraglass/engine.py:1299
+#: fedoraglass/engine.py:1318
 msgid "Couldn't start: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:1364
+#: fedoraglass/engine.py:1383
 msgid "Colours for other apps"
 msgstr ""
 
-#: fedoraglass/engine.py:1494
+#: fedoraglass/engine.py:1513
 msgid "missing setting {schema} {key}"
 msgstr ""
 
@@ -134,7 +138,7 @@ msgstr ""
 msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
 msgstr ""
 
-#: fedoraglass/engine.py:419
+#: fedoraglass/engine.py:424
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr ""
 
@@ -146,28 +150,24 @@ msgstr ""
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr ""
 
-#: fedoraglass/engine.py:709
+#: fedoraglass/engine.py:728
 msgid "{path} is a folder"
 msgstr ""
 
-#: fedoraglass/engine.py:865
+#: fedoraglass/engine.py:884
 msgid "Flatpak overrides: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:891
+#: fedoraglass/engine.py:910
 msgid "is now a folder, left as it is"
 msgstr ""
 
-#: fedoraglass/engine.py:902
+#: fedoraglass/engine.py:921
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr ""
 
-#: fedoraglass/engine.py:961
+#: fedoraglass/engine.py:980
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
-msgstr ""
-
-#: fedoraglass/engine.py:989
-msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr ""
 
 #: fedoraglass/gui/backend.py:1081

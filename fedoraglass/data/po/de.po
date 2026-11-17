@@ -101,32 +101,36 @@ msgstr "Abgesicherter Modus"
 msgid "remove the {package} package"
 msgstr "Paket {package} entfernen"
 
-#: fedoraglass/engine.py:1001
+#: fedoraglass/engine.py:1008
+msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
+msgstr "Ihr Ordner {folder} wurde behalten, weil er Dateien enthält, die Sie hinzugefügt haben ({files}). Er verweist noch auf {owner}. Um Ihren Verweis auf {owner} zurückzubekommen, verschieben Sie diese Dateien heraus und klicken Sie erneut auf „Original wiederherstellen“."
+
+#: fedoraglass/engine.py:1020
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr "Ihr Ordner {folder} wurde behalten, weil er Dateien enthält, die Sie hinzugefügt haben. Ihr Verweis auf {owner} wurde nicht wiederhergestellt."
 
-#: fedoraglass/engine.py:1003
+#: fedoraglass/engine.py:1022
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "Ihr Verweis von {folder} auf {owner} konnte nicht wiederhergestellt werden: {reason}."
 
-#: fedoraglass/engine.py:1186
+#: fedoraglass/engine.py:1205
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass kann seinen Ordner {folder} nicht verwenden ({error}). Es wurde nichts geändert. Prüfen Sie, ob der Ordner Ihnen gehört."
 
-#: fedoraglass/engine.py:1255
-#: fedoraglass/engine.py:1277
+#: fedoraglass/engine.py:1274
+#: fedoraglass/engine.py:1296
 msgid "Backup"
 msgstr "Sicherung"
 
-#: fedoraglass/engine.py:1299
+#: fedoraglass/engine.py:1318
 msgid "Couldn't start: {error}"
 msgstr "Start nicht möglich: {error}"
 
-#: fedoraglass/engine.py:1364
+#: fedoraglass/engine.py:1383
 msgid "Colours for other apps"
 msgstr "Farben für andere Apps"
 
-#: fedoraglass/engine.py:1494
+#: fedoraglass/engine.py:1513
 msgid "missing setting {schema} {key}"
 msgstr "Einstellung fehlt: {schema} {key}"
 
@@ -134,7 +138,7 @@ msgstr "Einstellung fehlt: {schema} {key}"
 msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
 msgstr "Fedora Glass wurde aktualisiert, während es geöffnet war. Schließen Sie es, öffnen Sie es erneut und klicken Sie dann auf Anwenden."
 
-#: fedoraglass/engine.py:419
+#: fedoraglass/engine.py:424
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr "Fedora Glass kann seine Sicherung Ihres ursprünglichen Stils nicht lesen ({path}: {error}). Es wurde nichts geändert, die Sicherung bleibt also, wie sie ist. Wenn Sie Ihren ursprünglichen Stil nicht zurückbrauchen, verschieben Sie die Datei an einen anderen Ort und versuchen Sie es erneut."
 
@@ -146,29 +150,25 @@ msgstr "Wird nach einem Neustart des PCs abgeschlossen. GNOME startet die Fedora
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr "Unverändert gelassen: {folder} ist ein Verweis auf einen Ordner außerhalb Ihres persönlichen Ordners oder auf einen, der Ihnen nicht gehört."
 
-#: fedoraglass/engine.py:709
+#: fedoraglass/engine.py:728
 msgid "{path} is a folder"
 msgstr "{path} ist ein Ordner"
 
-#: fedoraglass/engine.py:865
+#: fedoraglass/engine.py:884
 msgid "Flatpak overrides: {error}"
 msgstr "Flatpak-Überschreibungen: {error}"
 
-#: fedoraglass/engine.py:891
+#: fedoraglass/engine.py:910
 msgid "is now a folder, left as it is"
 msgstr "ist jetzt ein Ordner, unverändert gelassen"
 
-#: fedoraglass/engine.py:902
+#: fedoraglass/engine.py:921
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr "{path}: Die gespeicherte Kopie des Originals ging verloren, deshalb wurde diese Datei unverändert gelassen (sie hat womöglich noch den Fedora-Glass-Stil)"
 
-#: fedoraglass/engine.py:961
+#: fedoraglass/engine.py:980
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr "{path}: Seit dem Anwenden geändert und nicht lesbar, deshalb unverändert gelassen"
-
-#: fedoraglass/engine.py:989
-msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
-msgstr "Ihr Ordner {folder} wurde behalten, weil er Dateien enthält, die Sie hinzugefügt haben ({files}). Er verweist noch auf {owner}. Um Ihren Verweis auf {owner} zurückzubekommen, verschieben Sie diese Dateien heraus und klicken Sie erneut auf „Original wiederherstellen“."
 
 #: fedoraglass/gui/backend.py:1081
 msgid "No animations: everything happens at once"
