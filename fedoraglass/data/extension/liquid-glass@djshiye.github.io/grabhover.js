@@ -6,7 +6,10 @@
 // full-screen game the panel only shows while such a menu is open, so the icons'
 // hover lift and the taskbar glide never played there. This follows the pointer over
 // the given items while the stage is grabbed and says which one it is on; the panel
-// effects treat that item as hovered. Nothing runs while nothing is grabbed.
+// effects treat that item as hovered. Nothing runs while nothing is grabbed, nor while the
+// grab is a window being dragged or resized: no icon lifts under a window on its way, and
+// up to 1.7.7 every pointer move of a drag measured every icon of the panel (and left
+// seven native objects per icon for GNOME's clean-up).
 //
 // Public API:
 //   new GrabHover(items, changed)   items(): the actors to follow (re-read on every move);
@@ -32,6 +35,8 @@ export class GrabHover {
         this._signals = new Signals();
         this._filterId = 0;
         this._releaseId = 0;
+        this._unfilterId = 0;
+        this._asked = false;       // whether this grab was asked if it is a window's drag
         this.item = null;
     }
 
@@ -56,8 +61,10 @@ export class GrabHover {
     _sync() {
         if (global.stage.is_grabbed) {
             this._dropRelease();
-            if (!this._filterId)
+            if (!this._filterId && !this._windowDrag()) {
+                this._asked = false;
                 this._filterId = Clutter.Event.add_filter(global.stage, event => this._filter(event));
+            }
             return;
         }
         this._unfilter();
@@ -76,6 +83,18 @@ export class GrabHover {
         if (this._filterId)
             Clutter.Event.remove_filter(this._filterId);
         this._filterId = 0;
+        if (this._unfilterId)
+            GLib.source_remove(this._unfilterId);
+        this._unfilterId = 0;
+    }
+
+    /** Whether the grab is a window being moved or resized (Mutter says so only once the drag is on). */
+    _windowDrag() {
+        try {
+            return Boolean(global.display?.is_grabbed?.());
+        } catch {
+            return false;
+        }
     }
 
     _dropRelease() {
@@ -88,6 +107,22 @@ export class GrabHover {
         try {
             const type = event.type();
             if (type === Clutter.EventType.MOTION) {
+                if (this._unfilterId)
+                    return Clutter.EVENT_PROPAGATE;
+                if (!this._asked) {
+                    // A window's drag: not followed. Let go of the events outside this call
+                    // (Clutter is walking its list of filters right now).
+                    this._asked = true;
+                    if (this._windowDrag()) {
+                        this._set(null);
+                        this._unfilterId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                            this._unfilterId = 0;
+                            this._unfilter();
+                            return GLib.SOURCE_REMOVE;
+                        });
+                        return Clutter.EVENT_PROPAGATE;
+                    }
+                }
                 const [x, y] = event.get_coords();
                 this._set(this._itemAt(x, y));
             } else if (type === Clutter.EventType.LEAVE && event.get_related?.() === null) {
@@ -104,9 +139,13 @@ export class GrabHover {
         for (const item of this._items()) {
             if (!item?.is_mapped?.())
                 continue;
-            const r = item.get_transformed_extents();
-            if (x >= r.origin.x && y >= r.origin.y &&
-                x < r.origin.x + r.size.width && y < r.origin.y + r.size.height)
+            // Not get_transformed_extents(): its box, origin and size are three native
+            // objects per item per pointer move. The items are never turned, so this is the same box.
+            const [ix, iy] = item.get_transformed_position();
+            if (x < ix || y < iy)
+                continue;
+            const [w, h] = item.get_transformed_size();
+            if (x < ix + w && y < iy + h)
                 return item;
         }
         return null;

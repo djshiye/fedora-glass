@@ -30,7 +30,8 @@ let pointer = [500, 500, 0];
 globalThis.fake = {Actor: class {}, now: () => now, stSettings: Object.assign(new Sig(), {enable_animations: true}),
     timeouts: {add: () => 1, remove() {}}};
 const cursor = new Sig();
-globalThis.global = {stage: new Sig(), backend: {get_cursor_tracker: () => cursor}, get_pointer: () => pointer,
+let asked = 0;
+globalThis.global = {stage: new Sig(), backend: {get_cursor_tracker: () => cursor}, get_pointer: () => { asked++; return pointer; },
     compositor: {get_laters: () => ({add: (_t, fn) => laters.push(fn), remove() {}})}};
 
 const EXT = '../../fedoraglass/data/extension/liquid-glass@djshiye.github.io';
@@ -70,5 +71,68 @@ test('a menu closed under the pointer: its light goes out and the pointer stops 
     run();
     assert.ok(m._state.get(menu).k < 0.01, 'reopened away from the pointer it stays dark');
     followers.delete(menu);
+    m.destroy();
+});
+
+// A gaming mouse reports a thousand moves a second. Up to 1.7.7 each of them asked GNOME
+// where the pointer was and went through all the glass, and the step before each frame
+// worked out every pane's springs even with the pointer far from any glass.
+test('the pointer moving far from the glass: one look per frame, and nothing worked out or sent', () => {
+    const sent = [];
+    const panel = {rect: [0, 1400, 2560, 40], settings: {look: {pointerLight: 0.5, motion: 1}}, setMotion: m => sent.push(m)};
+    followers.add(panel);
+    pointer = [1200, 300, 0];       // more than the light's reach above the panel
+    const m = new Motion();
+    cursor.emit('position-invalidated');
+    run();
+    sent.length = 0;
+    asked = 0;
+    for (let i = 0; i < 16; i++)
+        cursor.emit('position-invalidated');
+    assert.equal(asked, 0, 'a move only notes that the pointer moved');
+    assert.equal(laters.length, 1, 'one step for the frame');
+    run();
+    assert.equal(asked, 1, 'which asks for the pointer once');
+    assert.deepEqual(sent, [], 'and tells the glass nothing');
+    assert.equal(laters.length, 0, 'nor asks for another frame');
+    assert.equal(m._state.get(panel)?.k ?? 0, 0);
+
+    // Coming near, the light comes on as before, from where the pointer is.
+    pointer = [1200, 1300, 0];
+    cursor.emit('position-invalidated');
+    run();
+    const st = m._state.get(panel);
+    assert.ok(st.k > 0.1, 'lit near the panel');
+    assert.equal(st.x, 1200);
+    assert.ok(sent.length > 0);
+    // And going away again it fades out fully before the steps stop.
+    pointer = [1200, 300, 0];
+    sent.length = 0;
+    cursor.emit('position-invalidated');
+    run();
+    assert.equal(m._state.get(panel).k, 0);
+    assert.equal(sent.at(-1).k, 0, 'the glass is told the light is out');
+    assert.equal(laters.length, 0);
+
+    // A press far from the pointer light's reach still gives: it is not "at rest".
+    m._state.get(panel).pressT = 1;
+    m._kick();
+    run();
+    assert.ok(sent.some(x => x.press > 0.5), 'pressed');
+    m._released();
+    run();
+    assert.equal(m._state.get(panel).press, 0);
+
+    // Reduce animation switched on while all is at rest: nothing to do, as before.
+    sent.length = 0;
+    fake.stSettings.enable_animations = false;
+    fake.stSettings.emit('notify::enable-animations');
+    run();
+    assert.equal(m._lightable(), false);
+    assert.deepEqual(sent, []);
+    fake.stSettings.enable_animations = true;
+    fake.stSettings.emit('notify::enable-animations');
+    run();
+    followers.delete(panel);
     m.destroy();
 });

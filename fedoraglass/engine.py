@@ -360,6 +360,11 @@ class Backup:
         # What manifest.json holds now, when it is good: a save with nothing new writes
         # nothing, and a good manifest becomes the last-good copy before it is replaced.
         self._on_disk: bytes | None = None
+        # The same, as compact JSON (json.dumps without indent), once save() has seen that
+        # it is: an Apply saves after every part and most saves have nothing new, and the
+        # compact text is quick to make (JSON's C encoder), the indented one is not. Equal
+        # compact text means equal indented text (same values, same order).
+        self._on_disk_compact: str | None = None
         try:
             raw = self.manifest_path.read_bytes()
             self.data = self._parse(raw)
@@ -423,6 +428,17 @@ class Backup:
     def save(self) -> None:
         if self.env.dry_run:
             return
+        compact = json.dumps(self.data)
+        if compact != self._on_disk_compact:
+            self._write_manifest(compact)
+        still = {e.get("copy") for e in self.data["files"].values()}
+        for copy in self._used_copies:
+            if copy not in still:
+                with contextlib.suppress(OSError):
+                    os.unlink(copy)
+        self._used_copies = []
+
+    def _write_manifest(self, compact: str) -> None:
         text = json.dumps(self.data, indent=1).encode()
         if text != self._on_disk:
             self.root.mkdir(parents=True, exist_ok=True)
@@ -436,12 +452,7 @@ class Backup:
                 with contextlib.suppress(OSError):
                     self.last_good_path.unlink()
             self._on_disk = text
-        still = {e.get("copy") for e in self.data["files"].values()}
-        for copy in self._used_copies:
-            if copy not in still:
-                with contextlib.suppress(OSError):
-                    os.unlink(copy)
-        self._used_copies = []
+        self._on_disk_compact = compact
 
     # ---- recording ----------------------------------------------------------
     def linked_folder(self, path: Path) -> Path | None:
@@ -449,12 +460,20 @@ class Backup:
         config, data and state folders (those roots may be links on purpose: dotfiles,
         Silverblue's /home). A theme installer often links ~/.config/gtk-4.0 into its own
         theme folder, and writing through that link would overwrite the theme."""
-        roots = sorted((r for r in (self.env.config, self.env.data, self.env.state)
-                        if path.is_relative_to(r)), key=lambda r: len(r.parts), reverse=True)
-        if not roots:
+        # The deepest root `path` is in (the first one on a tie). An Apply asks this about
+        # every file it writes, twice, so the roots are compared by their parts: the same
+        # answer as Path.is_relative_to, without building every parent of `path` for each.
+        parts, root = path.parts, None
+        for r in (self.env.config, self.env.data, self.env.state):
+            rp = r.parts
+            inside = parts[:len(rp)] == rp if rp else path.is_relative_to(r)
+            if inside and (root is None or len(rp) > len(root.parts)):
+                root = r
+        if root is None:
             return None
-        d = roots[0]
-        for part in path.parent.relative_to(roots[0]).parts:
+        n = len(root.parts)
+        d = root
+        for part in parts[n:-1] if 0 < n < len(parts) else path.parent.relative_to(root).parts:
             d = d / part
             if d.is_symlink():
                 return d
@@ -1172,7 +1191,20 @@ Progress = Callable[[int, int, str], None]
 class Engine:
     def __init__(self, env: Env | None = None, targets: list[Target] | None = None):
         self.env = env or Env()
-        self.targets = targets if targets is not None else all_targets()
+        self._targets = targets
+
+    @property
+    def targets(self) -> list[Target]:
+        # The parts' modules are loaded when the parts are first needed, not with the
+        # Engine: the step before login (fedora-glass before-login, at every login) almost
+        # always finds the glass up to date and needs none of them.
+        if self._targets is None:
+            self._targets = all_targets()
+        return self._targets
+
+    @targets.setter
+    def targets(self, targets: list[Target]) -> None:
+        self._targets = targets
 
     @contextlib.contextmanager
     def _locked(self) -> Iterator[None]:

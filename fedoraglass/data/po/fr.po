@@ -8,68 +8,68 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: fedoraglass/cursors.py:38
+#: fedoraglass/cursors.py:40
 msgid "Frosted glass, dark rim"
 msgstr "Verre givré, liseré sombre"
 
-#: fedoraglass/cursors.py:38
+#: fedoraglass/cursors.py:40
 msgid "Glass Light"
 msgstr "Verre clair"
 
-#: fedoraglass/cursors.py:40
+#: fedoraglass/cursors.py:42
 msgid "Glass Dark"
 msgstr "Verre sombre"
 
-#: fedoraglass/cursors.py:40
+#: fedoraglass/cursors.py:42
 msgid "Smoked glass, light rim"
 msgstr "Verre fumé, liseré clair"
 
-#: fedoraglass/cursors.py:42
+#: fedoraglass/cursors.py:44
 msgid "Rounded, white"
 msgstr "Arrondi, blanc"
 
-#: fedoraglass/cursors.py:43
+#: fedoraglass/cursors.py:45
 msgid "Rounded, black"
 msgstr "Arrondi, noir"
 
-#: fedoraglass/cursors.py:44
+#: fedoraglass/cursors.py:46
 msgid "Sharp corners, white"
 msgstr "Angles vifs, blanc"
 
-#: fedoraglass/cursors.py:45
+#: fedoraglass/cursors.py:47
 msgid "Sharp corners, black"
 msgstr "Angles vifs, noir"
 
-#: fedoraglass/cursors.py:47
+#: fedoraglass/cursors.py:49
 msgid "Crisp, white"
 msgstr "Net, blanc"
 
-#: fedoraglass/cursors.py:49
+#: fedoraglass/cursors.py:51
 msgid "Crisp, black"
 msgstr "Net, noir"
 
-#: fedoraglass/cursors.py:51
+#: fedoraglass/cursors.py:53
 msgid "Like macOS"
 msgstr "Comme macOS"
 
-#: fedoraglass/cursors.py:53
+#: fedoraglass/cursors.py:55
 msgid "Yes, a banana"
 msgstr "Oui, une banane"
 
-#: fedoraglass/cursors.py:55
+#: fedoraglass/cursors.py:57
 msgid "Bright orange"
 msgstr "Orange vif"
 
-#: fedoraglass/cursors.py:57
+#: fedoraglass/cursors.py:59
 msgid "Soft purple"
 msgstr "Violet doux"
 
-#: fedoraglass/cursors.py:59
+#: fedoraglass/cursors.py:61
 msgid "Soft blue"
 msgstr "Bleu doux"
 
-#: fedoraglass/cursors.py:61
 #: fedoraglass/cursors.py:63
+#: fedoraglass/cursors.py:65
 msgid "Bold and round"
 msgstr "Épais et rond"
 
@@ -101,32 +101,36 @@ msgstr "Mode sans échec"
 msgid "remove the {package} package"
 msgstr "supprimer le paquet {package}"
 
-#: fedoraglass/engine.py:1001
+#: fedoraglass/engine.py:1008
+msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
+msgstr "Votre dossier {folder} a été conservé car il contient des fichiers que vous avez ajoutés ({files}). Il utilise encore {owner}. Pour retrouver votre lien vers {owner}, déplacez ces fichiers ailleurs et appuyez de nouveau sur Rétablir l’original."
+
+#: fedoraglass/engine.py:1020
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr "Votre dossier {folder} a été conservé car il contient des fichiers que vous avez ajoutés. Votre lien vers {owner} n’a pas été rétabli."
 
-#: fedoraglass/engine.py:1003
+#: fedoraglass/engine.py:1022
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "Impossible de rétablir votre lien {folder} vers {owner} : {reason}."
 
-#: fedoraglass/engine.py:1186
+#: fedoraglass/engine.py:1218
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass ne peut pas utiliser son dossier {folder} ({error}). Rien n'a été modifié. Vérifiez que le dossier vous appartient."
 
-#: fedoraglass/engine.py:1255
-#: fedoraglass/engine.py:1277
+#: fedoraglass/engine.py:1287
+#: fedoraglass/engine.py:1309
 msgid "Backup"
 msgstr "Sauvegarde"
 
-#: fedoraglass/engine.py:1299
+#: fedoraglass/engine.py:1331
 msgid "Couldn't start: {error}"
 msgstr "Démarrage impossible : {error}"
 
-#: fedoraglass/engine.py:1364
+#: fedoraglass/engine.py:1396
 msgid "Colours for other apps"
 msgstr "Couleurs pour les autres applications"
 
-#: fedoraglass/engine.py:1494
+#: fedoraglass/engine.py:1526
 msgid "missing setting {schema} {key}"
 msgstr "réglage manquant {schema} {key}"
 
@@ -134,7 +138,7 @@ msgstr "réglage manquant {schema} {key}"
 msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
 msgstr "Fedora Glass a été mis à jour pendant qu’il était ouvert. Fermez-le, rouvrez-le, puis appuyez sur Appliquer."
 
-#: fedoraglass/engine.py:419
+#: fedoraglass/engine.py:424
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr "Fedora Glass ne peut pas lire la sauvegarde de votre style d’origine ({path} : {error}). Rien n’a été modifié, cette sauvegarde reste telle quelle. Si vous n’avez pas besoin de retrouver votre style d’origine, déplacez ce fichier ailleurs et réessayez."
 
@@ -146,29 +150,25 @@ msgstr "Se termine après le redémarrage de votre ordinateur. GNOME ne lance l�
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr "Laissé tel quel : {folder} est un lien vers un dossier extérieur à votre dossier personnel, ou vers un dossier qui n’est pas à vous."
 
-#: fedoraglass/engine.py:709
+#: fedoraglass/engine.py:728
 msgid "{path} is a folder"
 msgstr "{path} est un dossier"
 
-#: fedoraglass/engine.py:865
+#: fedoraglass/engine.py:884
 msgid "Flatpak overrides: {error}"
 msgstr "Surcharges Flatpak : {error}"
 
-#: fedoraglass/engine.py:891
+#: fedoraglass/engine.py:910
 msgid "is now a folder, left as it is"
 msgstr "est maintenant un dossier, laissé tel quel"
 
-#: fedoraglass/engine.py:902
+#: fedoraglass/engine.py:921
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr "{path} : la copie enregistrée de votre original a été perdue, ce fichier a donc été laissé tel quel (il peut encore avoir le style Fedora Glass)"
 
-#: fedoraglass/engine.py:961
+#: fedoraglass/engine.py:980
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr "{path} : modifié depuis l’application et illisible, il a donc été laissé tel quel"
-
-#: fedoraglass/engine.py:989
-msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
-msgstr "Votre dossier {folder} a été conservé car il contient des fichiers que vous avez ajoutés ({files}). Il utilise encore {owner}. Pour retrouver votre lien vers {owner}, déplacez ces fichiers ailleurs et appuyez de nouveau sur Rétablir l’original."
 
 #: fedoraglass/gui/backend.py:1081
 msgid "No animations: everything happens at once"
@@ -287,7 +287,7 @@ msgid "Could not work out the changes: {error}"
 msgstr "Impossible de déterminer les modifications : {error}"
 
 #: fedoraglass/gui/backend.py:2372
-#: fedoraglass/gui/backend.py:3298
+#: fedoraglass/gui/backend.py:3322
 msgid "Could not save settings: {error}"
 msgstr "Impossible d’enregistrer les réglages : {error}"
 
@@ -300,7 +300,7 @@ msgid "Apply stopped: {error}"
 msgstr "Application interrompue : {error}"
 
 #: fedoraglass/gui/backend.py:2475
-#: fedoraglass/gui/backend.py:3372
+#: fedoraglass/gui/backend.py:3396
 msgid "Restoring"
 msgstr "Rétablissement"
 
@@ -312,175 +312,175 @@ msgstr "Rétablissement interrompu : {error}"
 msgid "Could not restart Files. Close all Files windows, or restart your PC instead."
 msgstr "Impossible de relancer Fichiers. Fermez toutes les fenêtres de Fichiers, ou redémarrez plutôt votre ordinateur."
 
-#: fedoraglass/gui/backend.py:2679
+#: fedoraglass/gui/backend.py:2703
 msgid "Glass is on the login screen. You'll see it the next time you restart your PC."
 msgstr "Le verre est sur l’écran de connexion. Vous le verrez au prochain redémarrage de votre ordinateur."
 
-#: fedoraglass/gui/backend.py:2683
-#: fedoraglass/gui/backend.py:3129
-#: fedoraglass/gui/backend.py:3200
+#: fedoraglass/gui/backend.py:2707
+#: fedoraglass/gui/backend.py:3153
+#: fedoraglass/gui/backend.py:3224
 msgid "The normal login screen is back."
 msgstr "L’écran de connexion habituel est de retour."
 
-#: fedoraglass/gui/backend.py:2743
+#: fedoraglass/gui/backend.py:2767
 msgid "Not changed: the password wasn't given."
 msgstr "Rien n’a changé : le mot de passe n’a pas été saisi."
 
-#: fedoraglass/gui/backend.py:2749
-#: fedoraglass/gui/backend.py:2775
+#: fedoraglass/gui/backend.py:2773
+#: fedoraglass/gui/backend.py:2799
 msgid "the helper didn't finish"
 msgstr "l’assistant ne s’est pas terminé"
 
-#: fedoraglass/gui/backend.py:2762
+#: fedoraglass/gui/backend.py:2786
 msgid "The glass login screen could not be turned off completely. Try Turn off again, or restart your PC and try again."
 msgstr "L’écran de connexion en verre n’a pas pu être complètement désactivé. Réessayez « Désactiver », ou redémarrez le PC puis réessayez."
 
-#: fedoraglass/gui/backend.py:2765
+#: fedoraglass/gui/backend.py:2789
 msgid "the login screen did not take these settings"
 msgstr "l’écran de connexion n’a pas accepté ces réglages"
 
-#: fedoraglass/gui/backend.py:2771
+#: fedoraglass/gui/backend.py:2795
 msgid "the new look could not be set up, so the login screen keeps the look it had"
 msgstr "le nouveau style n’a pas pu être mis en place, l’écran de connexion garde donc son style précédent"
 
-#: fedoraglass/gui/backend.py:2773
+#: fedoraglass/gui/backend.py:2797
 msgid "it could not be set up, so the normal login screen stays"
 msgstr "impossible de le mettre en place, l’écran de connexion normal reste donc"
 
-#: fedoraglass/gui/backend.py:2776
-#: fedoraglass/gui/backend.py:2750
+#: fedoraglass/gui/backend.py:2800
+#: fedoraglass/gui/backend.py:2774
 msgid "Nothing was changed: {reason}"
 msgstr "Rien n’a été modifié : {reason}"
 
-#: fedoraglass/gui/backend.py:2885
+#: fedoraglass/gui/backend.py:2909
 msgid "The glass login screen that matches your lock screen is not available here: {reason}."
 msgstr "L’écran de connexion en verre assorti à votre écran de verrouillage n’est pas disponible ici : {reason}."
 
-#: fedoraglass/gui/backend.py:2932
+#: fedoraglass/gui/backend.py:2956
 msgid "Getting your wallpaper ready…"
 msgstr "Préparation de votre fond d’écran…"
 
-#: fedoraglass/gui/backend.py:2933
+#: fedoraglass/gui/backend.py:2957
 msgid "Checking the login screen…"
 msgstr "Vérification de l’écran de connexion…"
 
-#: fedoraglass/gui/backend.py:2935
+#: fedoraglass/gui/backend.py:2959
 msgid "Not fully off yet: Turn off finishes it"
 msgstr "Pas encore tout à fait désactivé : « Désactiver » termine l’opération"
 
-#: fedoraglass/gui/backend.py:2937
+#: fedoraglass/gui/backend.py:2961
 msgid "On trial: log in once and it stays on"
 msgstr "À l’essai : connectez-vous une fois et il reste activé"
 
-#: fedoraglass/gui/backend.py:2941
+#: fedoraglass/gui/backend.py:2965
 msgid "Behind: Apply brings it up to date"
 msgstr "En retard : Appliquer le met à jour"
 
-#: fedoraglass/gui/backend.py:2943
+#: fedoraglass/gui/backend.py:2967
 msgid "Turned itself off: {reason}"
 msgstr "S’est désactivé tout seul : {reason}"
 
-#: fedoraglass/gui/backend.py:2945
+#: fedoraglass/gui/backend.py:2969
 msgid "Not available: {reason}"
 msgstr "Non disponible : {reason}"
 
-#: fedoraglass/gui/backend.py:3087
+#: fedoraglass/gui/backend.py:3111
 msgid "Your wallpaper could not be read, so the login screen was not changed. Glow or the system picture work without it."
 msgstr "Votre fond d’écran n’a pas pu être lu, l’écran de connexion n’a donc pas été modifié. La lueur ou l’image du système fonctionnent sans lui."
 
-#: fedoraglass/gui/backend.py:3110
+#: fedoraglass/gui/backend.py:3134
 msgid "The glass login screen is on trial. Log in once after your next restart and it stays on."
 msgstr "L’écran de connexion en verre est à l’essai. Connectez-vous une fois après le prochain redémarrage et il reste activé."
 
-#: fedoraglass/gui/backend.py:3121
+#: fedoraglass/gui/backend.py:3145
 msgid "The login screen has your new look."
 msgstr "L’écran de connexion a votre nouveau style."
 
-#: fedoraglass/gui/backend.py:3153
+#: fedoraglass/gui/backend.py:3177
 msgid "The login screen has your new look. You'll see it the next time you restart your PC."
 msgstr "L’écran de connexion a votre nouveau style. Vous le verrez au prochain redémarrage de votre ordinateur."
 
-#: fedoraglass/gui/backend.py:3173
+#: fedoraglass/gui/backend.py:3197
 msgid "The login screen has your new look. You'll see it the next time it shows."
 msgstr "L’écran de connexion a votre nouveau style. Vous le verrez la prochaine fois qu’il s’affichera."
 
-#: fedoraglass/gui/backend.py:3265
+#: fedoraglass/gui/backend.py:3289
 msgid "This PC can't open the login screen beside your session. Restart or log out to see it."
 msgstr "Ce PC ne peut pas ouvrir l’écran de connexion à côté de votre session. Redémarrez ou déconnectez-vous pour le voir."
 
-#: fedoraglass/gui/backend.py:3382
+#: fedoraglass/gui/backend.py:3406
 msgid "Restore stopped, so Fedora Glass was not removed: {error}"
 msgstr "Rétablissement interrompu, Fedora Glass n’a donc pas été supprimé : {error}"
 
-#: fedoraglass/gui/backend.py:3415
+#: fedoraglass/gui/backend.py:3439
 msgid "Your original look is back, but Fedora Glass was not removed: the password wasn't given."
 msgstr "Votre style d’origine est de retour, mais Fedora Glass n’a pas été supprimé : le mot de passe n’a pas été saisi."
 
-#: fedoraglass/gui/backend.py:3417
+#: fedoraglass/gui/backend.py:3441
 msgid "{tool} did not finish"
 msgstr "{tool} ne s’est pas terminé"
 
-#: fedoraglass/gui/backend.py:3418
+#: fedoraglass/gui/backend.py:3442
 msgid "Your original look is back, but removing Fedora Glass failed: {reason}"
 msgstr "Votre style d’origine est de retour, mais la suppression de Fedora Glass a échoué : {reason}"
 
-#: fedoraglass/gui/backend.py:3580
+#: fedoraglass/gui/backend.py:3604
 msgid "Steam and its games, video players (VLC, mpv, Videos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice and Prism Launcher, and a few more. They draw their own solid windows, so glass behind them would only cost speed."
 msgstr "Steam et ses jeux, les lecteurs vidéo (VLC, mpv, Vidéos, Celluloid, Clapper), RetroArch, Firefox, Brave, Discord, Slack, Zoom, Visual Studio Code, Obsidian, LibreOffice et Prism Launcher, et quelques autres. Ils dessinent leurs propres fenêtres opaques : du verre derrière elles ne ferait que ralentir l’ordinateur."
 
-#: fedoraglass/gui/backend.py:3685
-#: fedoraglass/gui/backend.py:3683
+#: fedoraglass/gui/backend.py:3709
+#: fedoraglass/gui/backend.py:3707
 msgid "My look"
 msgstr "Mon style"
 
-#: fedoraglass/gui/backend.py:3685
-#: fedoraglass/gui/backend.py:3683
+#: fedoraglass/gui/backend.py:3709
+#: fedoraglass/gui/backend.py:3707
 msgid "My look {n}"
 msgstr "Mon style {n}"
 
-#: fedoraglass/gui/backend.py:3696
-#: fedoraglass/gui/backend.py:3762
+#: fedoraglass/gui/backend.py:3720
+#: fedoraglass/gui/backend.py:3786
 msgid "The look couldn't be saved: {reason}"
 msgstr "Impossible d’enregistrer le style : {reason}"
 
-#: fedoraglass/gui/backend.py:3711
+#: fedoraglass/gui/backend.py:3735
 msgid "The look couldn't be renamed: {reason}"
 msgstr "Impossible de renommer le style : {reason}"
 
-#: fedoraglass/gui/backend.py:3725
+#: fedoraglass/gui/backend.py:3749
 msgid "The look couldn't be deleted: {reason}"
 msgstr "Impossible de supprimer le style : {reason}"
 
-#: fedoraglass/gui/backend.py:3731
+#: fedoraglass/gui/backend.py:3755
 msgid "Deleted “{name}”"
 msgstr "« {name} » supprimé"
 
-#: fedoraglass/gui/backend.py:3747
+#: fedoraglass/gui/backend.py:3771
 msgid "Updated “{name}”"
 msgstr "« {name} » mis à jour"
 
-#: fedoraglass/gui/backend.py:3753
-#: fedoraglass/gui/backend.py:3700
+#: fedoraglass/gui/backend.py:3777
+#: fedoraglass/gui/backend.py:3724
 msgid "Saved “{name}”"
 msgstr "« {name} » enregistré"
 
-#: fedoraglass/gui/backend.py:3824
+#: fedoraglass/gui/backend.py:3848
 msgid "Pick a file on this PC to save the look in."
 msgstr "Choisissez un fichier sur cet ordinateur pour y enregistrer le style."
 
-#: fedoraglass/gui/backend.py:3839
+#: fedoraglass/gui/backend.py:3863
 msgid "Saved as {path}"
 msgstr "Enregistré sous {path}"
 
-#: fedoraglass/gui/backend.py:3848
+#: fedoraglass/gui/backend.py:3872
 msgid "Pick a look file on this PC."
 msgstr "Choisissez un fichier de style sur cet ordinateur."
 
-#: fedoraglass/gui/backend.py:3857
+#: fedoraglass/gui/backend.py:3881
 msgid "The look couldn't be added: {reason}"
 msgstr "Impossible d’ajouter le style : {reason}"
 
-#: fedoraglass/gui/backend.py:3861
+#: fedoraglass/gui/backend.py:3885
 msgid "Added “{name}”. Pick it to try it."
 msgstr "« {name} » ajouté. Choisissez-le pour l’essayer."
 
@@ -488,31 +488,31 @@ msgstr "« {name} » ajouté. Choisissez-le pour l’essayer."
 msgid "My apps"
 msgstr "Mes applications"
 
-#: fedoraglass/gui/backend.py:3923
+#: fedoraglass/gui/backend.py:3947
 msgid "today at {time}"
 msgstr "aujourd’hui à {time}"
 
-#: fedoraglass/gui/backend.py:3926
+#: fedoraglass/gui/backend.py:3950
 msgid "yesterday at {time}"
 msgstr "hier à {time}"
 
-#: fedoraglass/gui/backend.py:3928
+#: fedoraglass/gui/backend.py:3952
 msgid "on {day} at {time}"
 msgstr "le {day} à {time}"
 
-#: fedoraglass/gui/backend.py:4033
+#: fedoraglass/gui/backend.py:4057
 msgid "your wallpaper's colour"
 msgstr "la couleur de votre fond d’écran"
 
-#: fedoraglass/gui/backend.py:4087
+#: fedoraglass/gui/backend.py:4111
 msgid "There's no wallpaper picture to take a colour from, so the colour stays as it is."
 msgstr "Il n’y a aucune image de fond d’écran dont tirer une couleur, la couleur reste donc telle quelle."
 
-#: fedoraglass/gui/backend.py:4090
+#: fedoraglass/gui/backend.py:4114
 msgid "Fedora Glass can't read this wallpaper's picture, so the colour stays as it is."
 msgstr "Fedora Glass ne peut pas lire l’image de ce fond d’écran, la couleur reste donc telle quelle."
 
-#: fedoraglass/gui/backend.py:4092
+#: fedoraglass/gui/backend.py:4116
 msgid "Your wallpaper has hardly any colour in it, so the colour stays as it is."
 msgstr "Votre fond d’écran contient très peu de couleur, la couleur reste donc telle quelle."
 
@@ -2052,7 +2052,7 @@ msgstr "Désactivé"
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:223
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:245
-#: fedoraglass/gui/backend.py:2939
+#: fedoraglass/gui/backend.py:2963
 msgid "On"
 msgstr "Activé"
 
@@ -2733,7 +2733,7 @@ msgid "A GNOME update put the normal login screen back. Turn the glass on again 
 msgstr "Une mise à jour de GNOME a remis l’écran de connexion habituel. Réactivez le verre pour le retrouver."
 
 #: fedoraglass/gui/qml/FedoraGlass/LoginScreenCard.qml:49
-#: fedoraglass/gui/backend.py:2933
+#: fedoraglass/gui/backend.py:2957
 msgid "Waiting for your password…"
 msgstr "En attente de votre mot de passe…"
 

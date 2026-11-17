@@ -33,9 +33,12 @@ class Actor {
     is_mapped() {
         return this.mapped;
     }
-    get_transformed_extents() {
-        const [x, y, width, height] = this.rect;
-        return {origin: {x, y}, size: {width, height}};
+    get_transformed_position() {
+        fake.measured++;
+        return this.rect.slice(0, 2);
+    }
+    get_transformed_size() {
+        return this.rect.slice(2);
     }
 }
 
@@ -85,7 +88,7 @@ class Timeouts {
     }
 }
 
-const fake = {Actor, filters: new Filters(), timeouts: new Timeouts()};
+const fake = {Actor, filters: new Filters(), timeouts: new Timeouts(), measured: 0};
 globalThis.fake = fake;
 const stage = new Actor({is_grabbed: false});
 globalThis.global = {stage};
@@ -174,12 +177,45 @@ test('when the menu closes, the grab hover lets go after GNOME gave the real hov
 });
 
 test('an error while following turns it off instead of breaking pointer events', () => {
-    const items = [new Actor({get_transformed_extents() { throw new Error('gone'); }})];
+    const items = [new Actor({get_transformed_position() { throw new Error('gone'); }})];
     const gh = new GrabHover(() => items, () => {});
     gh.start();
     grab(true);
     fake.filters.send(motion(1, 1));
     assert.equal(fake.filters.size, 0);
     assert.equal(stage.handlerCount(), 0);
+    stage.is_grabbed = false;
+});
+
+test('a window being dragged is no menu: nothing is followed, and no icon is measured', () => {
+    const {gh, items, changes} = scene();
+    // Mutter grabs the stage first and says "a window is dragged" only after that.
+    global.display = {is_grabbed: () => false};
+    grab(true);
+    assert.equal(fake.filters.size, 1);
+    global.display = {is_grabbed: () => true};
+    fake.measured = 0;
+    fake.filters.send(motion(1010, 1410));      // over the first icon
+    fake.filters.send(motion(1050, 1410));
+    assert.equal(fake.measured, 0);
+    assert.equal(gh.item, null);
+    assert.equal(hovered(items[0], gh), false);
+    assert.deepEqual(changes, []);
+    fake.timeouts.fireAll();
+    assert.equal(fake.filters.size, 0, 'and the pointer moves of the drag no longer call in here');
+    // A drag already on when the grab is seen: no filter at all.
+    grab(false);
+    grab(true);
+    assert.equal(fake.filters.size, 0);
+    // The next grab is a menu again.
+    grab(false);
+    global.display = {is_grabbed: () => false};
+    grab(true);
+    fake.filters.send(motion(1010, 1410));
+    assert.equal(gh.item, items[0]);
+    grab(false);
+    gh.stop();
+    assert.equal(fake.filters.size, 0);
+    delete global.display;
     stage.is_grabbed = false;
 });

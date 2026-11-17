@@ -9,6 +9,8 @@ own pointer back.
 
 from __future__ import annotations
 
+import os
+import stat
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,9 +144,54 @@ def read_xcursor(path: Path, want: int) -> CursorImage | None:
     Reads untrusted files (any theme the user has), so every offset is checked."""
     try:
         with open(path, "rb") as f:
+            st = os.fstat(f.fileno())
+            if stat.S_ISREG(st.st_mode):
+                return _read_parts(f, st.st_size, want)
             b = f.read(_MAX_BYTES + 1)
     except OSError:
         return None
+    return _parse_xcursor(b, want)
+
+
+def _read_parts(f, size: int, want: int) -> CursorImage | None:
+    """read_xcursor for a plain file: only its header, its table and the one frame are read,
+    with the same checks against the file's size. A busy pointer holds 54 frames at six
+    sizes (about 2 MB), and the Pointer page shows one for every style."""
+    if size > _MAX_BYTES or size < 16:
+        return None
+    head = f.read(16)
+    if len(head) < 16 or head[:4] != b"Xcur":
+        return None
+    hsize, _, ntoc = struct.unpack_from("<III", head, 4)
+    if ntoc > 4096 or hsize + 12 * ntoc > size:
+        return None
+    f.seek(hsize)
+    toc = f.read(12 * ntoc)
+    if len(toc) < 12 * ntoc:
+        return None         # shorter than it said a moment ago
+    imgs = []
+    for i in range(ntoc):
+        typ, sub, pos = struct.unpack_from("<III", toc, 12 * i)
+        if typ == _IMAGE and pos + 36 <= size:
+            imgs.append((sub, pos))
+    if not imgs:
+        return None
+    best = min({s for s, _ in imgs}, key=lambda s: (abs(s - want), -s))
+    pos = next(p for s, p in imgs if s == best)
+    f.seek(pos)
+    chunk = f.read(36)
+    if len(chunk) < 36:
+        return None
+    _, typ, _, _, w, h, xh, yh, _ = struct.unpack_from("<9I", chunk, 0)
+    if typ != _IMAGE or not (0 < w <= 0x7FFF and 0 < h <= 0x7FFF) or pos + 36 + w * h * 4 > size:
+        return None
+    argb = f.read(w * h * 4)
+    if len(argb) < w * h * 4:
+        return None
+    return CursorImage(best, w, h, min(xh, w - 1), min(yh, h - 1), argb)
+
+
+def _parse_xcursor(b: bytes, want: int) -> CursorImage | None:
     if len(b) > _MAX_BYTES or len(b) < 16 or b[:4] != b"Xcur":
         return None
     hsize, _, ntoc = struct.unpack_from("<III", b, 4)

@@ -261,3 +261,41 @@ test('on the screen and in our own copies, glass skips what opaque glass above c
     assert.notEqual(g._paintBox(h, onScreen), false);
     ws.destroy();
 });
+
+// Every piece of a window's glass (the pane and four rim strips), in every pane that
+// copies the window, asked the window where it is and whether it is drawn plain: nine
+// calls into GNOME each time, up to a thousand times a second in a drag (1.7.7).
+test('a window is asked where it is once a paint, for all the pieces of its glass', () => {
+    const below = windowAt(0, 100, 100, 400, 300);
+    const over = windowAt(1, 50, 50, 300, 400);
+    actors = [below, over];
+    display.focus_window = over.meta_window;
+    ws = new Windows(CFG);
+    runLaters();
+    const g = glassOf(ws, below);
+    const nextPaint = () => (fake.paints = (fake.paints ?? 0) + 1);
+    const onScreen = {get_redraw_clip: () => ({}), get_framebuffer: () => null};
+    let asked = 0;
+    Object.defineProperty(below, 'scale_x', {get() { asked++; return 1; }, configurable: true});
+    const pieces = [g._holder, ...g._rimHolders];
+    for (const h of pieces)
+        assert.deepEqual(h._box, [h.x, h.y, h.width, h.height], 'each piece knows its own box');
+    nextPaint();
+    const first = pieces.map(h => g._paintBox(h, onScreen));
+    assert.equal(asked, 1);
+    assert.deepEqual(pieces.map(h => g._paintBox(h, onScreen)), first);
+    assert.equal(asked, 1);
+    // The next paint asks again, and sees the window where it is now.
+    nextPaint();
+    below.x += 500;                 // out from under the window above
+    assert.equal(g._paintBox(g._holder, onScreen), null, 'all of it shows now');
+    assert.equal(asked, 2);
+    // Turned or scaled (another extension's animation): drawn whole, as before.
+    nextPaint();
+    below.x -= 500;
+    Object.defineProperty(below, 'scale_x', {get() { asked++; return 0.9; }, configurable: true});
+    assert.equal(g._paintBox(g._holder, onScreen), null);
+    delete below.scale_x;
+    below.scale_x = 1;
+    ws.destroy();
+});

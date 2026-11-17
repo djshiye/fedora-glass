@@ -42,6 +42,59 @@ import {ICE_BIG, ICE_FPS, ICE_GLSL, ICE_LINGER_US, frostBlur, frozenLiquid, iceE
 import {Shader} from './glsl.js';
 import {GlassHold} from './holdstate.js';
 
+// The lens's profile, shared by the pixel stage (SHADER) and the vertex stage (ADAPT_VERTEX).
+const LENS_PROFILE = `// The rounded edge's profile: a squircle, (1 - x^4)^(1/4) with x 1 at the edge and
+// 0 where the flat top begins. Flat for most of the way, then curving faster
+// and faster towards the edge, with no visible line where the curve starts
+// (a quarter circle bends from its first px). Returns -dz/dr, outward.
+const float LENS_REACH = 0.16;
+float squircleSlope(float x) {
+    float x3 = x * x * x;
+    float k = max(1.0 - x3 * x, 0.0);
+    return x3 / max(pow(k, 0.75), 0.03);
+}
+
+// How far a ray through the rounded edge moves sideways, per px of glass, x of
+// the way down the bevel (0 on the flat top, 1 at the edge), along the edge's normal.
+float bendAt(float x, float squircle) {
+    float s = squircle > 0.5 ? squircleSlope(x) * 1.6 : x / max(sqrt(max(1.0 - x * x, 0.0)), 0.06);
+    vec3 R = refract(vec3(0.0, 0.0, -1.0), normalize(vec3(s, 0.0, 1.0)), 1.0 / IOR);
+    return -R.x / max(-R.z, 0.2);
+}
+
+// The glass at rest (nothing pressed), for a shape of half size h without its pad:
+// how thick the slab is, and how wide its rounded edge. On the panel and menus both
+// grow with the glass, as Apple's does (Glisse reaches 0.45 of the short side), so a
+// big menu bends its backdrop in a band you can see, not only in its outer px; the
+// edge is a share of the short side there, a quarter of it on a menu and more on a
+// thin bar, which is nearly all lens. refr_h (the app's lens width) sets the least.
+float lensDepth(vec2 h) {
+    float shortSide = 2.0 * min(h.x, h.y);
+    return lens_share > 0.5 ? max(refr_amt, min(LENS_REACH * shortSide, 72.0)) : refr_amt;
+}
+float lensBevel(vec2 h) {
+    float shortSide = 2.0 * min(h.x, h.y);
+    float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
+    return lens_share > 0.5
+        ? min(clamp(share * shortSide, refr_h, 2.6 * refr_h), 0.45 * shortSide)
+        : min(refr_h, 0.35 * min(h.x, h.y));
+}
+
+// Where the bend would begin to grow faster than K px per px (see unfold). The bend
+// is convex in x, so that point is found by halving.
+float unfoldKnee(float K, float squircle) {
+    float lo = 0.0, hi = 1.0;
+    for (int i = 0; i < 9; i++) {
+        float m = 0.5 * (lo + hi);
+        if (bendAt(m + 0.004, squircle) - bendAt(m - 0.004, squircle) > K * 0.008)
+            hi = m;
+        else
+            lo = m;
+    }
+    return lo;
+}
+`;
+
 const SHADER = `
 uniform float width;
 uniform float height;
@@ -132,6 +185,8 @@ uniform float mode;              // 0 = glass, 1 = glass under a surface, 2 = th
 // from refr_h).
 const float OFF = 0.001;
 varying float fg_bl;            // the backdrop's overall brightness (ADAPT_VERTEX)
+varying float fg_knee;          // where the edge's bend is held back from, at rest (see unfold)
+varying float fg_knee_bend;     // and the bend there
 const float IOR = 1.5;           // crown glass at 550 nm
 const float F0 = 0.04;           // ((IOR - 1) / (IOR + 1))^2, head-on reflectance
 
@@ -255,6 +310,11 @@ vec3 caustic(vec3 c, vec2 n, vec2 L, float x, vec2 h) {
     // light gathered at the rim, not a band with an inner edge. x: 1 at the
     // edge, 0 where the flat top begins.
     float gather = x * smoothstep(1.0, 0.88, x);
+    // No light gathers here (the caustic lies in the outer px of the edge, on the side
+    // away from the light): the colour stays as it is, and the six powers below, which
+    // would only hand it back, are not worked out.
+    if (facing * gather <= 0.0)
+        return c;
     float wide = smoothstep(30.0, 80.0, min(h.x, h.y));   // 0 on a thin bar, 1 on a menu
     float dL = 15.0 * facing * gather * mix(0.85, 1.0, wide);
     vec3 lin = pow(max(c, vec3(0.0)), vec3(2.2));
@@ -279,25 +339,7 @@ vec3 caustic(vec3 c, vec2 n, vec2 L, float x, vec2 h) {
     return pow(up, vec3(1.0 / 2.2));
 }
 
-// The rounded edge's profile: a squircle, (1 - x^4)^(1/4) with x 1 at the edge and
-// 0 where the flat top begins. Flat for most of the way, then curving faster
-// and faster towards the edge, with no visible line where the curve starts
-// (a quarter circle bends from its first px). Returns -dz/dr, outward.
-const float LENS_REACH = 0.16;
-float squircleSlope(float x) {
-    float x3 = x * x * x;
-    float k = max(1.0 - x3 * x, 0.0);
-    return x3 / max(pow(k, 0.75), 0.03);
-}
-
-// How far a ray through the rounded edge moves sideways, per px of glass, x of
-// the way down the bevel (0 on the flat top, 1 at the edge), along the edge's normal.
-float bendAt(float x, float squircle) {
-    float s = squircle > 0.5 ? squircleSlope(x) * 1.6 : x / max(sqrt(max(1.0 - x * x, 0.0)), 0.06);
-    vec3 R = refract(vec3(0.0, 0.0, -1.0), normalize(vec3(s, 0.0, 1.0)), 1.0 / IOR);
-    return -R.x / max(-R.z, 0.2);
-}
-
+${LENS_PROFILE}
 // The share of the bend to keep at x so the backdrop never folds over.
 // Across the bevel each pixel shows the backdrop a bend further in. Near the
 // edge the bend grows faster than the pixels step outwards, so going out the
@@ -305,21 +347,24 @@ float bendAt(float x, float squircle) {
 // hairpin loop and the panel's top edge hooked every line (1.5.17). Here the
 // bend follows the lens until it would grow faster than 0.85 px per px, and
 // from there grows at that rate: the edge still squeezes the backdrop in, in
-// order. The bend is convex in x, so that point is found by halving.
-float unfold(float x, float th, float bevel, float squircle) {
+// order.
+// Where that is (the knee) is the same for every pixel of a pane at rest, so the
+// vertex stage finds it once per corner of the pane (ADAPT_VERTEX: fg_knee, and the
+// bend there). Up to 1.7.7 every pixel of the edge found it again, 18 refractions
+// each, and a thin bar such as the panel is nearly all edge. Only the pixels under a
+// press (given: how far this one gives, 0 at rest) still find their own: the glass is
+// thicker there.
+float unfold(float x, float th, float bevel, float squircle, float given) {
     float K = 0.85 * bevel / max(th, 1e-3);
-    float lo = 0.0, hi = 1.0;
-    for (int i = 0; i < 9; i++) {
-        float m = 0.5 * (lo + hi);
-        if (bendAt(m + 0.004, squircle) - bendAt(m - 0.004, squircle) > K * 0.008)
-            hi = m;
-        else
-            lo = m;
+    float lo = fg_knee, bent = fg_knee_bend;
+    if (given > 1e-4) {
+        lo = unfoldKnee(K, squircle);
+        bent = bendAt(lo, squircle);
     }
     if (x <= lo)
         return 1.0;
     float g = bendAt(x, squircle);
-    return min(1.0, (bendAt(lo, squircle) + K * (x - lo)) / max(g, 1e-5));
+    return min(1.0, (bent + K * (x - lo)) / max(g, 1e-5));
 }
 
 // A Gaussian-blurred edge: 1 well inside, 0.5 on the edge, 0 well outside, for
@@ -480,11 +525,8 @@ void main() {
     // How far the edge bends what is behind it. On the panel and menus it grows with
     // the glass, as Apple's does (Glisse reaches 0.45 of the short side), so a big
     // menu bends its backdrop in a band you can see, not only in its outer px.
-    float th = (lens_share > 0.5 ? max(refr_amt, min(LENS_REACH * shortSide, 72.0)) : refr_amt) * (1.0 + deep * tch);
-    float share = mix(0.36, 0.25, smoothstep(48.0, 160.0, shortSide));
-    float bevel = lens_share > 0.5
-        ? min(clamp(share * shortSide, refr_h, 2.6 * refr_h), 0.45 * shortSide)
-        : min(refr_h, 0.35 * min(h.x, h.y));
+    float th = lensDepth(h) * (1.0 + deep * tch);
+    float bevel = lensBevel(h);
     bevel *= 1.0 + 0.6 * deep * tch;
     // The edge's direction rounds off over at least the whole bevel, so a wide
     // bevel shows no mitred seam running in from its corners.
@@ -670,7 +712,7 @@ void main() {
 
     // The ray refracted at IOR: the main tap and Beer-Lambert below share it.
     vec3 Rt = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / IOR);
-    float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bevel, lens_share) : 1.0;
+    float keep = slope > 0.0 && th > 0.01 ? unfold(x, th, bevel, lens_share, deep * tch) : 1.0;
     vec2 thru = Rt.xy * th / max(-Rt.z, 0.2) * keep;
     vec4 col;
     if (th > 0.01) {
@@ -982,6 +1024,7 @@ void main() {
 // points of the blurred backdrop, a quarter of the way in from each corner. They are
 // the same for every pixel, so the vertex stage reads them once per corner of the
 // pane and hands the result to every pixel (it was four texture reads per pixel).
+// So is where the edge's bend is held back from (fg_knee, see unfold), since 1.7.8.
 // The read is textureLod from GLSL 1.30 on: Cogl asks NVIDIA's driver for a newer GLSL
 // than Mesa's, and that driver rejects texture2DLod there ("removed after version 140"),
 // so the whole glass program failed to link and no glass was drawn at all (2026-11-17).
@@ -998,7 +1041,14 @@ uniform float shape_w;
 uniform float shape_h;
 uniform float adapt;
 uniform float lift;
+uniform float refr_h;
+uniform float refr_amt;
+uniform float lens_share;
 varying float fg_bl;
+varying float fg_knee;
+varying float fg_knee_bend;
+const float IOR = 1.5;           // as in the pixel stage
+${LENS_PROFILE}
 vec3 fgAt(vec2 px) {
     vec2 size = vec2(width, height);
     vec2 uv = (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h);
@@ -1018,6 +1068,11 @@ vec3 fgAt(vec2 px) {
                    + fgAt(size * 0.5 + vec2(-q.x, q.y)) + fgAt(size * 0.5 + q)) * 0.25,
                     vec3(0.213, 0.715, 0.072));
     }
+    // Where the edge's bend is held back from, for the glass at rest (see unfold): the
+    // same for every pixel, and 18 refractions to find.
+    vec2 fg_h = max(vec2(shape_w, shape_h) * 0.5 - vec2(pad), vec2(1.0));
+    fg_knee = unfoldKnee(0.85 * lensBevel(fg_h) / max(lensDepth(fg_h), 1e-3), lens_share);
+    fg_knee_bend = bendAt(fg_knee, lens_share);
 `,
 };
 
@@ -1115,7 +1170,7 @@ function offHome(a) {
 // each time, and the glass asked for every pane it drew: GNOME frees those only in its
 // clean-up of the whole Shell (every 10 s while the desktop is in use), which took 2 to 3
 // times as long with the glass on (1.7.4).
-const screens = {list: null};
+const screens = {list: null, made: 0, same: 0};
 function screenList() {
     if (screens.list)
         return screens.list;
@@ -1123,9 +1178,15 @@ function screenList() {
     for (const view of global.stage.peek_stage_views()) {
         const r = new Mtk.Rectangle();
         view.get_layout(r);
-        list.push({view, x: r.x, y: r.y, width: r.width, height: r.height, scale: view.get_scale()});
+        // into: what the screen is painted into (see enterPaint); not every fake screen of the tests has one.
+        list.push({view, x: r.x, y: r.y, width: r.width, height: r.height, scale: view.get_scale(),
+            into: view.get_framebuffer?.() ?? null});
     }
     screens.list = list;
+    screens.made++;
+    // The one scale of all the screens, or 0 when they differ (see screenScale).
+    screens.same = list.length && list.every(q => q.scale === list[0].scale && q.scale > 0 && Number.isFinite(q.scale))
+        ? list[0].scale : 0;
     return list;
 }
 function forgetScreens() {
@@ -1151,28 +1212,174 @@ function keptByClutter(w, h) {
     }
 }
 
-// The screen being painted right now (null between screen paints), followed while
-// any glass exists.
-const painting = {view: null, clip: null, clipInto: null, ids: [], monitors: null, monitorsId: 0, frame: 0};
+// The screen being painted right now (null between screen paints), and a count of the screen
+// paints (frame), followed only while the glass is being drawn.
+//
+// Up to 1.7.7 the glass asked the stage to be told before and after every paint of every
+// screen for as long as any glass existed. GNOME then called into the extension twice for
+// each frame of each screen, whether any glass was drawn in it or not, and each call left
+// a small native object for GNOME's clean-up (see screenList): with a game or a video
+// playing at 120 frames a second and all the glass at rest, that was 240 calls and 240
+// leftovers a second for nothing. Now the stage is asked only while the glass is being
+// drawn: the first piece of glass drawn after a rest starts it (enterPaint) and finds the
+// screen of the paint already under way itself, and after QUIET_PAINTS paints without any
+// glass it stops.
+const QUIET_PAINTS = 90;
+const painting = {view: null, clip: null, clipInto: null, ids: [], monitors: null, monitorsId: 0, frame: 0,
+    watch: [], quiet: 0, unsure: false, later: 0, held: 0, told: [],
+    wakes: 0, unsures: 0, byArea: 0};     // read by the QA tools (paintWatch)
+
+function beforePaint(_stage, view) {
+    painting.view = view;
+    painting.clip = null;
+    // Also what was worked out between two paints (a picture of a window taken there) is
+    // not for this one: the windows may have moved since.
+    painting.frame++;
+    // A screen the list doesn't know: Mutter made new ones (their scale decides
+    // who keeps the finished glass, see FedoraGlassPane._syncKeep).
+    if (screens.list && !screens.list.some(q => q.view === view)) {
+        forgetScreens();
+        panes.forEach(p => p._syncKeep());
+    }
+    for (let i = 0; i < painting.told.length; i++)
+        painting.told[i].before(view);
+}
+
+function afterPaint(_stage, view) {
+    for (let i = 0; i < painting.told.length; i++)
+        painting.told[i].after(view);
+    painting.view = null;
+    painting.clip = null;
+    painting.frame++;   // what was worked out for this paint is worked out again for the next
+    if (painting.unsure) {
+        // The paint that woke us was of a screen we could not tell: what the glass drew
+        // then may be for the wrong screen (see homeScreen). Drawn again, now told.
+        painting.unsure = false;
+        panes.forEach(p => p.mapped && p.queue_redraw());
+    }
+    if (++painting.quiet > QUIET_PAINTS && !painting.held)
+        stopWatchingPaints();
+}
+
+function watchPaints() {
+    if (!painting.watch.length)
+        painting.watch = [global.stage.connect('before-paint', beforePaint), global.stage.connect('after-paint', afterPaint)];
+}
+
+function stopWatchingPaints() {
+    painting.watch.forEach(id => global.stage.disconnect(id));
+    painting.watch = [];
+}
+
+/**
+ * Tell `who` of the screen paints the glass is told of itself: who.before(view) and
+ * who.after(view) around each, and who.woke() when glass is drawn in a paint that began
+ * while nobody was told (that paint gets an after() without a before()). No paints are
+ * told of while the glass rests, unless holdPaints() asks for them. on false: no longer.
+ */
+export function tellOfPaints(who, on = true) {
+    const i = painting.told.indexOf(who);
+    if (on && i < 0)
+        painting.told.push(who);
+    else if (!on && i >= 0)
+        painting.told.splice(i, 1);
+}
+
+/** Every paint is told of from now, glass or not (a window drag being timed); false ends that. */
+export function holdPaints(on) {
+    painting.held = Math.max(0, painting.held + (on ? 1 : -1));
+    if (painting.held) {
+        watchPaints();
+    } else {
+        painting.quiet = 0;
+        if (!painting.ids.length)
+            stopWatchingPaints();   // no glass at all: nothing would stop it
+    }
+}
+
+// The screen whose paint is under way, for the paint the glass woke up in (nobody told us
+// of its start). ctx: the paint's context. null when it can't be told, or is no screen's.
+function screenOf(ctx) {
+    const into = ctx?.get_framebuffer?.() ?? null;
+    if (into) {
+        for (const q of screenList()) {
+            if (q.into === into)
+                return q.view;
+        }
+        // Not one of the screens' pictures as the list has them: Mutter may have given a
+        // screen a new one, or made new screens. Ask the screens themselves.
+        let found = null;
+        for (const view of global.stage.peek_stage_views()) {
+            if (view.get_framebuffer?.() === into)
+                found = view;
+        }
+        if (found) {
+            const known = screens.list?.some(q => q.view === found) ?? false;
+            forgetScreens();
+            // New screens: their scale decides who keeps the finished glass (see
+            // FedoraGlassPane._syncKeep). Not now: a paint is no time to change a pane's effects.
+            if (!known && !painting.later) {
+                painting.later = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+                    painting.later = 0;
+                    panes.forEach(p => p._syncKeep());
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+            return found;
+        }
+    }
+    // Drawn into a picture inside the screen's paint (the glass Clutter keeps, see Keeper):
+    // a screen's paint redraws an area of that screen only.
+    const e = ctx?.get_redraw_clip?.()?.get_extents?.() ?? null;
+    if (!e || e.width < 1 || e.height < 1)
+        return null;
+    let only = null;
+    for (const q of screenList()) {
+        if (e.x < q.x + q.width && q.x < e.x + e.width && e.y < q.y + q.height && q.y < e.y + e.height) {
+            if (only)
+                return null;
+            only = q;
+        }
+    }
+    if (only)
+        painting.byArea++;
+    return only?.view ?? null;
+}
+
+/**
+ * Some glass is being drawn (ctx: the paint's context). After a rest, this is what has the
+ * stage tell of its paints again; the paint under way has begun already, so its screen is
+ * found here. Called first by everything of the glass that GNOME calls while it paints.
+ */
+export function enterPaint(ctx) {
+    painting.quiet = 0;
+    if (painting.watch.length)
+        return;
+    watchPaints();
+    for (let i = 0; i < painting.told.length; i++)
+        painting.told[i].woke();
+    // What was worked out for the last paint the glass saw is not for this one.
+    painting.frame++;
+    painting.clip = null;
+    try {
+        painting.view = screenOf(ctx);
+    } catch {
+        painting.view = null;    // never stop the glass from drawing
+    }
+    painting.unsure = painting.view === null;
+    painting.wakes++;
+    if (painting.unsure)
+        painting.unsures++;
+}
+
+/** For the QA tools: whether the stage tells of its paints now, and how the wake-ups went. */
+export function paintWatch() {
+    return {watching: painting.watch.length > 0, held: painting.held, wakes: painting.wakes,
+        unsure: painting.unsures, byArea: painting.byArea};
+}
+
 function followPainting(on) {
     if (on && !painting.ids.length) {
-        painting.ids = [
-            global.stage.connect('before-paint', (_s, view) => {
-                painting.view = view;
-                painting.clip = null;
-                // A screen the list doesn't know: Mutter made new ones (their scale decides
-                // who keeps the finished glass, see FedoraGlassPane._syncKeep).
-                if (screens.list && !screens.list.some(q => q.view === view)) {
-                    forgetScreens();
-                    panes.forEach(p => p._syncKeep());
-                }
-            }),
-            global.stage.connect('after-paint', () => {
-                painting.view = null;
-                painting.clip = null;
-                painting.frame++;   // see FedoraGlassPane.place
-            }),
-        ];
         // A new screen size or layout: see GlassPane._stageChanged.
         const stageChanged = () => {
             forgetScreens();
@@ -1198,8 +1405,15 @@ function followPainting(on) {
             painting.monitors.disconnect(painting.monitorsId);
         painting.monitors = null;
         painting.monitorsId = 0;
+        if (!painting.held)
+            stopWatchingPaints();
+        if (painting.later)
+            global.compositor.get_laters().remove(painting.later);
+        painting.later = 0;
         painting.view = null;
         painting.clip = null;
+        painting.unsure = false;
+        painting.quiet = 0;
         painting.frame++;   // what was worked out for the last paint seen is not for the next one seen
         forgetScreens();    // nobody tells us of new screens now
     }
@@ -1213,6 +1427,7 @@ function followPainting(on) {
  * screen paints (one window shared in a call) draws into something else, and is asked.
  */
 export function hasRedrawArea(ctx) {
+    enterPaint(ctx);
     if (painting.view === null)
         return Boolean(ctx.get_redraw_clip());
     const into = ctx.get_framebuffer();
@@ -1288,9 +1503,15 @@ function plainPipeline() {
 function screenScale(a) {
     let s = 0;
     try {
+        const list = screenList();
+        // One scale on every screen (nearly every PC): that is it, wherever the pane is.
+        // Asked for every paint of a window's kept glass; finding the pane's place on
+        // the stage first was two calls into GNOME each time.
+        if (screens.same > 0)
+            return screens.same;
         const [x, y] = a.get_transformed_position();
         const [w, h] = a.get_transformed_size();
-        for (const r of screenList()) {
+        for (const r of list) {
             if (x < r.x + r.width && x + w > r.x && y < r.y + r.height && y + h > r.y)
                 s = Math.max(s, r.scale);
         }
@@ -1482,8 +1703,8 @@ class FedoraGlassEffect extends Clutter.Effect {
     }
 
     /** px of picture per px of pane, and the picture's size, for this pane now. */
-    _wants(a) {
-        const w = Math.max(1, Math.ceil(a.width)), h = Math.max(1, Math.ceil(a.height));
+    _wants(a, aw = a.width, ah = a.height) {
+        const w = Math.max(1, Math.ceil(aw)), h = Math.max(1, Math.ceil(ah));
         let s;
         if (this._radius > 0) {
             // GNOME's own rule (shell-blur-effect.c): the blur runs in the pane's
@@ -1617,7 +1838,7 @@ class FedoraGlassEffect extends Clutter.Effect {
             t.painted = true;
             this._lensDirty = true;
         }
-        const [w, h] = [a.width, a.height];
+        const w = this._aw, h = this._ah;      // as vfunc_paint_node has just read them
         // The lens reads the picture in the pane's own px: tex_* is how much of the
         // pane the whole picture would cover, and the pane starts at its top left.
         const key = `${t.w}x${t.h}@${t.s}`;
@@ -1706,13 +1927,16 @@ class FedoraGlassEffect extends Clutter.Effect {
             node.add_child(Clutter.ActorNode.new(a, -1));
             return;
         }
+        enterPaint(paintContext);
         // No picture yet (new, resized, or let go of while hidden): render now.
         // Worked out once per paint (it looks up the pane's place and the screens).
-        const want = this._wants(a);
+        // The pane's size: asked once per paint (it was asked three times).
+        const aw = this._aw = a.width, ah = this._ah = a.height;
+        const want = this._wants(a, aw, ah);
         if (!this._target || this._targetFor !== want)
             flags |= Clutter.EffectPaintFlags.ACTOR_DIRTY;
         const dirty = Clutter.EffectPaintFlags.ACTOR_DIRTY;
-        const size = a ? `${a.width}x${a.height}` : '';
+        const size = `${aw}x${ah}`;
         // While a window animates (see holdPanes), a pane that has a picture of
         // the right size shows it again instead of re-rendering: what changed
         // behind it is caught up in one render when the animation lands. The lens
@@ -2384,6 +2608,7 @@ class FedoraGlassPane extends Clutter.Actor {
     }
 
     vfunc_paint(ctx) {
+        enterPaint(ctx);
         const was = copying.pane;
         copying.pane = this;
         try {
@@ -2504,7 +2729,6 @@ class FedoraGlassPane extends Clutter.Actor {
             below = clone;
         }
         this._syncClones();
-        this._syncedFrame = painting.frame;    // for a place() in the same frame (see there)
     }
 
     /** Keep the finished glass (see FedoraGlassEffect.keep). */
@@ -2621,8 +2845,9 @@ class FedoraGlassPane extends Clutter.Actor {
      * picture of what is behind, and only the shape drawn over that picture changes,
      * so each frame of the animation is a lens repaint instead of a new copy and
      * blur of the backdrop at a new size.
+     * synced: the caller has called setSources() just before this, in the same go.
      */
-    place(x, y, w, h, radii, sx, sy, inner = null) {
+    place(x, y, w, h, radii, sx, sy, inner = null, synced = false) {
         const p = this._pad;
         const part = this._part ?? [];
         const key = [x, y, w, h, sx, sy, p, ...radii, ...part].map(v => Math.round(v * 4)).join();
@@ -2637,9 +2862,9 @@ class FedoraGlassPane extends Clutter.Actor {
             }
             // Windows behind may still have moved. setSources has just looked, though,
             // when the owner calls both (a window's glass on every frame of a drag):
-            // looking twice made each sync cost double. Only in the same frame: a setSources()
-            // some frames ago says nothing about where the windows are now.
-            if (this._syncedFrame !== painting.frame)
+            // looking twice made each sync cost double. The owner says so (synced): a
+            // setSources() some time ago says nothing about where the windows are now.
+            if (!synced)
                 this._syncClones();
             wakeIce();
             return;
@@ -2706,12 +2931,14 @@ class FedoraGlassPane extends Clutter.Actor {
                 if (clone.visible)
                     this._glass._stale = true;
                 clone.hide();
+                clone._at = null;
                 continue;
             }
             if (!src.get_stage() || frozen.has(src)) {
                 if (clone.visible)
                     this.queueFull();
                 clone.hide();
+                clone._at = null;
                 continue;
             }
             // A window actor catches up with its window only at the next frame; the window knows now.
@@ -2719,11 +2946,19 @@ class FedoraGlassPane extends Clutter.Actor {
             const [bx, by] = r ? [r.x, r.y] : src.get_transformed_position();
             if (!Number.isFinite(bx) || !Number.isFinite(by)) {
                 clone.hide();   // not laid out yet
+                clone._at = null;
                 unplaced = true;
                 continue;
             }
-            const [cx, cy] = [Math.round(bx - this._stage[0]), Math.round(by - this._stage[1])];
-            const [cw, ch] = [r ? r.width : src.width, r ? r.height : src.height];
+            const cx = Math.round(bx - this._stage[0]), cy = Math.round(by - this._stage[1]);
+            const cw = r ? r.width : src.width, ch = r ? r.height : src.height;
+            // Where it was put and shown the last time, in a pane of the same size: nothing
+            // to do. Asking the copy where it is and putting it there again is ten calls
+            // into GNOME, for every window behind every pane on every frame of a drag.
+            const at = clone._at;
+            if (at && at[0] === cx && at[1] === cy && at[2] === cw && at[3] === ch &&
+                at[4] === this._size[0] && at[5] === this._size[1])
+                continue;
             // Moved behind the pane: redraw all of it (the wallpaper paints only inside
             // the frame's redraw area, so a part-redrawn pane would read black around it).
             const moved = clone.x !== cx || clone.y !== cy || clone.width !== cw || clone.height !== ch || !clone.visible;
@@ -2731,6 +2966,7 @@ class FedoraGlassPane extends Clutter.Actor {
             clone.set_size(cw, ch);
             this._clipClone(clone, cx, cy, cw, ch);
             clone.show();
+            clone._at = [cx, cy, cw, ch, this._size[0], this._size[1]];   // also read while it draws (see Holder in windows.js)
             if (moved)
                 this.queueFull();
         }

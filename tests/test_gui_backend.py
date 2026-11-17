@@ -442,6 +442,33 @@ def test_login_glass_gets_only_the_current_colours(make_backend):
     assert tint == b.settings().normalized().tint.lower()
 
 
+def test_login_values_follow_every_change_of_the_looks_and_the_accent(make_backend):
+    # They are kept per look object (asked many times per slider step): a new editor look,
+    # a new applied look and a new system accent each give the answer worked out afresh.
+    from dataclasses import replace
+
+    from fedoraglass import palette
+    b = make_backend()
+    b.setProperty("accent", "system")
+    first = b.login_values()
+    assert first == b.login_values() == b.login_values(b._s)
+    b.setProperty("frost", 0.81)
+    assert b.login_values()[2] == "0.810" and b.login_values(b._saved) == first
+    b.setProperty("tint", "#336699")
+    assert b.login_values()[1] == "#336699"
+    b._saved = replace(b._saved, frost=0.25, accent="#e62d42")
+    assert b.login_values(b._saved)[2] == "0.250" and b.login_values(b._saved)[0] == "#e62d42"
+    b._saved = replace(b._saved, accent="system")
+    before = b.login_values(b._saved)
+    b._system_accent = "red"
+    after = b.login_values(b._saved)
+    assert after != before and after[0] == palette.build(b._saved, dark=True, system_accent="red").accent.hex6
+    # The editor's look takes the colours the preview shows (worked out at its last change).
+    assert b.login_values()[0] == b._dark_t.accent.hex6
+    b.setProperty("frost", 0.5)
+    assert b.login_values() == [palette.build(b._s, dark=True, system_accent="red").accent.hex6, "#336699", "0.500"]
+
+
 @pytest.mark.parametrize("fresh", [False, True])
 def test_apply_brings_the_login_screen_glass_up_to_date(make_backend, app, monkeypatch, fresh):
     """Glass on the login screen kept its old look after Apply and after app updates (1.5.9)."""

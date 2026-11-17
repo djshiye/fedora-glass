@@ -75,15 +75,56 @@ test('place() right after setSources() does not look at the windows a second tim
     pane.setSources([win]);
     const looked = win.meta_window.rects;
     assert.ok(looked > 0);
-    pane.place(100, 100, 200, 100, [8, 8, 8, 8], 100, 100);
+    // The owner says it has just called setSources() (a window's glass and the panel's do).
+    pane.place(100, 100, 200, 100, [8, 8, 8, 8], 100, 100, null, true);
     assert.equal(win.meta_window.rects, looked, 'setSources just looked');
-    // A frame later, a place() alone looks again, as windows behind may have moved.
-    global.stage.emit('after-paint');
+    // A place() alone looks again, as windows behind may have moved.
     win.rect = {x: 160, y: 150, width: 100, height: 100};
     pane.place(100, 100, 200, 100, [8, 8, 8, 8], 100, 100);
     assert.ok(win.meta_window.rects > looked);
     const clone = pane._clones.get(win);
     assert.equal(clone.x, 160 - pane._stage[0], 'and the copy follows it');
+});
+
+// Looking at the windows behind (every pane, on every frame of a drag) put each copy where
+// it already was: ten calls into GNOME per window behind, for nothing (1.7.7).
+test('a copy that is where its window is is left alone; one that moved, or was hidden, is put again', () => {
+    const pane = placed('full');
+    const win = new Win({x: 150, y: 150, width: 100, height: 100});
+    pane.setSources([win]);
+    const clone = pane._clones.get(win);
+    let puts = 0;
+    for (const fn of ['set_position', 'set_size', 'show']) {
+        const real = clone[fn].bind(clone);
+        clone[fn] = (...a) => { puts++; return real(...a); };
+    }
+    pane._syncClones();
+    pane._syncClones();
+    assert.equal(puts, 0, 'nothing moved');
+    assert.deepEqual(clone._at.slice(0, 4), [clone.x, clone.y, 100, 100]);
+    win.rect = {x: 170, y: 150, width: 100, height: 100};
+    pane._syncClones();
+    assert.equal(puts, 3, 'moved: put, sized and shown');
+    assert.equal(clone.x, 170 - pane._stage[0]);
+    assert.equal(clone._at[0], clone.x, 'and what is read while it draws follows');
+    // A window off the stage has its copy hidden; back on, it is put and shown again
+    // even though it is where it was.
+    const on = win.get_stage;
+    win.get_stage = () => null;
+    pane._syncClones();
+    assert.equal(clone.visible, false);
+    assert.equal(clone._at, null);
+    win.get_stage = on;
+    puts = 0;
+    pane._syncClones();
+    assert.equal(clone.visible, true);
+    assert.equal(puts, 3);
+    // The pane itself changed size: the part of the copy inside it is worked out again.
+    puts = 0;
+    pane.place(100, 100, 260, 100, [8, 8, 8, 8], 100, 100);
+    assert.ok(puts > 0);
+    assert.deepEqual(clone._at.slice(4), pane._size);
+    pane.destroy();
 });
 
 test('a frost step that changes nothing for a pane sets nothing and repaints nothing', () => {

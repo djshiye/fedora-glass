@@ -151,8 +151,23 @@ const STUBS = {
     export function glassRenders() { return globalThis.fake.renders ?? 0; }
     export function stirAllPanes() { globalThis.fake.stirs = (globalThis.fake.stirs ?? 0) + 1; }
     export function shownPanes() { return globalThis.fake.shown ?? 0; }
+    export function enterPaint() {}
     export function hasRedrawArea(ctx) { return Boolean(ctx.get_redraw_clip()); }
-    export function paintCount() { return globalThis.fake.paints ?? 0; }`,
+    export function paintCount() { return globalThis.fake.paints ?? 0; }
+    // The real one tells of paints only while glass is drawn or someone holds them
+    // (paint-leftovers.test.mjs); here every paint of the fake stage is told of.
+    const told = new Map();
+    export function tellOfPaints(who, on = true) {
+        const ids = told.get(who);
+        if (on && !ids) {
+            told.set(who, [global.stage.connect('before-paint', (_s, view) => who.before(view)),
+                global.stage.connect('after-paint', (_s, view) => who.after(view))]);
+        } else if (!on && ids) {
+            ids.forEach(id => global.stage.disconnect(id));
+            told.delete(who);
+        }
+    }
+    export function holdPaints(on) { globalThis.fake.heldPaints = (globalThis.fake.heldPaints ?? 0) + (on ? 1 : -1); }`,
 };
 
 export async function resolve(specifier, context, next) {

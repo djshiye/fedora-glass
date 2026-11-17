@@ -66,7 +66,9 @@ def test_extension_reads_and_bounds_liquid():
 
 def test_press_follows_the_pointer_with_the_pointer_light_off():
     src = (EXT / "motion.js").read_text()
-    assert "(w > 0 || st.pressT > 0 || st.press > 0.01) && this._pointer" in src
+    # The step reads the pointer itself (1.7.8), so it always has one.
+    assert "if (w > 0 || st.pressT > 0 || st.press > 0.01) {\n                [tx, ty] = [px, py];" in src
+    assert "const [px, py] = this._where();" in src
 
 
 def test_motion_page_has_the_slider_and_the_preview_shows_the_press():

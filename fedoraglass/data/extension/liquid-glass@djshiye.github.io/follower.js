@@ -340,10 +340,10 @@ export class Follower {
         pane.setEdges(edges);
         top.setEdges(edges);
         if (still)
-            pane.place(lx, ly, w, h, radii, sx, sy);
+            pane.place(lx, ly, w, h, radii, sx, sy, null, true);
         else
-            pane.place(glx, gly, gw, gh, radii, gx, gy, [sx, sy, w, h]);
-        top.place(lx, ly, w, h, radii, sx, sy);
+            pane.place(glx, gly, gw, gh, radii, gx, gy, [sx, sy, w, h], true);
+        top.place(lx, ly, w, h, radii, sx, sy, null, true);
         this.rect = [sx, sy, w, h];
         pane.show();
         top.show();

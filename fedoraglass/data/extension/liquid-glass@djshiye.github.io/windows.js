@@ -10,7 +10,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {SwitcherPopup} from 'resource:///org/gnome/shell/ui/switcherPopup.js';
 
-import {GlassPane, copying, hasRedrawArea, paintCount} from './glass.js';
+import {GlassPane, copying, enterPaint, hasRedrawArea, paintCount} from './glass.js';
 import {screenEdges, windowWatch, wallpaper, Signals} from './common.js';
 
 // ---- app windows -------------------------------------------------------------------
@@ -548,11 +548,15 @@ class WindowGlass {
                 return [];
             return bands(solid, Math.ceil(solid.r));
         }
-        if (!s || !this.shown || a.opacity < 255 || this.pane.opacity < 255 || !plain(a) ||
-            a.get_effects().some(e => e !== a.get_effect(NO_CULL)))
+        if (!s || !this.shown || a.opacity < 255 || this.pane.opacity < 255 || !plain(a))
+            return [];
+        // Any effect but our own (see NO_CULL): asked for once, not once per effect.
+        const fx = a.get_effects();
+        if (fx.length > 1 || (fx.length === 1 && fx[0] !== a.get_effect(NO_CULL)))
             return [];
         const p = this.pane.pad;
-        return bands({x: this._holder.x + p, y: this._holder.y + p, width: s.width, height: s.height},
+        const hb = this._holder._box;
+        return bands({x: (hb ? hb[0] : this._holder.x) + p, y: (hb ? hb[1] : this._holder.y) + p, width: s.width, height: s.height},
             Math.ceil(s.r ?? 0));
     }
 
@@ -565,36 +569,69 @@ class WindowGlass {
      * picture of the window (it has no redraw area), none do.
      */
     _paintBox(h, ctx) {
-        if (!plain(this.actor))
+        enterPaint(ctx);
+        const a = this.actor, paint = paintCount();
+        // The window's own place and whether it is drawn plain: asked once a paint, not
+        // for each of the five pieces of its glass in each pane that copies it (nine
+        // calls into GNOME each time, up to a thousand times a second in a drag).
+        if (this._paintAt !== paint) {
+            this._paintAt = paint;
+            this._plain = plain(a);
+            this._ax = a.x;
+            this._ay = a.y;
+        }
+        if (!this._plain)
             return null;
-        let pane = null, at = this.actor;
+        let pane = null, ax = this._ax, ay = this._ay, cb = null;
         if (h.is_in_clone_paint()) {
             // In a pane, each window is drawn where its copy lies (see GlassPane._syncClones).
             // A window the pane doesn't copy itself is in someone else's copy (the overview's,
             // which the pane copies while the overview is open).
-            at = copying.pane?._clones?.get(this.actor);
+            const at = copying.pane?._clones?.get(a);
             if (!at)
                 return null;
             pane = copying.pane;
+            const put = at._at;
+            ax = put ? put[0] : at.x;
+            ay = put ? put[1] : at.y;
+            // A copy draws only what lies inside its pane (see GlassPane._clipClone), but Clutter
+            // still draws all of the window for it: the rim's strips each drew every piece of
+            // every window's glass behind them, nearly all of it outside the strip.
+            cb = at._clipBox ?? null;
         } else if (!hasRedrawArea(ctx)) {
             return null;
         }
-        const [ox, oy] = [at.x + h.x, at.y + h.y];
-        let r = {x: ox, y: oy, width: h.width, height: h.height};
-        // A copy draws only what lies inside its pane (see GlassPane._clipClone), but Clutter
-        // still draws all of the window for it: the rim's strips each drew every piece of
-        // every window's glass behind them, nearly all of it outside the strip.
-        const cb = pane ? at._clipBox : null;
+        const box = h._box;
+        const hw = box ? box[2] : h.width, hh = box ? box[3] : h.height;
+        const ox = ax + (box ? box[0] : h.x), oy = ay + (box ? box[1] : h.y);
+        let x1 = ox, y1 = oy, x2 = ox + hw, y2 = oy + hh;
         if (cb) {
-            const [x1, y1] = [Math.max(r.x, at.x + cb[0]), Math.max(r.y, at.y + cb[1])];
-            const [x2, y2] = [Math.min(r.x + r.width, at.x + cb[0] + cb[2]), Math.min(r.y + r.height, at.y + cb[1] + cb[3])];
+            x1 = Math.max(x1, ax + cb[0]);
+            y1 = Math.max(y1, ay + cb[1]);
+            x2 = Math.min(x2, ax + cb[0] + cb[2]);
+            y2 = Math.min(y2, ay + cb[1] + cb[3]);
             if (x2 <= x1 || y2 <= y1) {
                 this.owner.paintStats.skipped++;
                 return false;
             }
-            r = {x: x1, y: y1, width: x2 - x1, height: y2 - y1};
         }
-        const cover = this.owner.coverAbove(this.actor, pane) ?? [];
+        const whole = x1 <= ox && y1 <= oy && x2 >= ox + hw && y2 >= oy + hh;
+        // Mostly no glass above reaches this piece: all of it, or all of it in the pane.
+        const cover = this.owner.coverAbove(a, pane);
+        let hit = false;
+        if (cover) {
+            for (let i = 0; i < cover.length && !hit; i++) {
+                const c = cover[i];
+                hit = c.width > 0 && c.height > 0 && c.x < x2 && x1 < c.x + c.width && c.y < y2 && y1 < c.y + c.height;
+            }
+        }
+        if (!hit) {
+            if (whole)
+                return null;
+            this.owner.paintStats.clipped++;
+            return [[x1 - ox, y1 - oy, x2 - ox, y2 - oy]];
+        }
+        const r = {x: x1, y: y1, width: x2 - x1, height: y2 - y1};
         const left = uncovered(r, cover);
         if (!left)
             return null;
@@ -604,7 +641,7 @@ class WindowGlass {
         }
         const parts = fewParts(joined(left), r);
         if (parts.length === 1 && parts[0].x <= ox && parts[0].y <= oy &&
-            parts[0].x + parts[0].width >= ox + h.width && parts[0].y + parts[0].height >= oy + h.height)
+            parts[0].x + parts[0].width >= ox + hw && parts[0].y + parts[0].height >= oy + hh)
             return null;
         this.owner.paintStats.clipped++;
         return parts.map(q => [q.x - ox, q.y - oy, q.x + q.width - ox, q.y + q.height - oy]);
@@ -986,13 +1023,14 @@ class WindowGlass {
         const [hx, hy] = [frame.x - buf.x - p, frame.y - buf.y - p];
         this._holder.set_position(hx, hy);
         this._holder.set_size(W + 2 * p, H + 2 * p);
+        this._holder._box = [hx, hy, W + 2 * p, H + 2 * p];    // read each time it is drawn (see _paintBox)
         this._keepBelowWhole(sources.some(s => s.meta_window));
         // Restacked only when the window itself moved or changed size: this runs for
         // every window on every frame of any window's drag, and each restack makes the
         // pane lay out and render again, though nothing behind it changed.
         pane.setSources(sources, moved);
         pane.setEdges(edges);
-        pane.place(p, p, W, H, radii, frame.x, frame.y);
+        pane.place(p, p, W, H, radii, frame.x, frame.y, null, true);
         pane.show();
         // The rim's strips, in the px of the whole rim (W + 2 rp by H + 2 rp): top and
         // bottom tall enough to hold the rounded corners, the sides a few px into the
@@ -1010,12 +1048,14 @@ class WindowGlass {
                 return;
             }
             // Its holder sits on the strip; the pane at the holder's top left.
-            this._rimHolders[i].set_position(Math.round(frame.x - buf.x - rp) + ax, Math.round(frame.y - buf.y - rp) + ay);
+            const [rx, ry] = [Math.round(frame.x - buf.x - rp) + ax, Math.round(frame.y - buf.y - rp) + ay];
+            this._rimHolders[i].set_position(rx, ry);
             this._rimHolders[i].set_size(aw, ah);
+            this._rimHolders[i]._box = [rx, ry, aw, ah];
             g.setPart(parts[i]);
             g.setSources(sources, moved);
             g.setEdges(edges);
-            g.place(rp - ax, rp - ay, W, H, radii, frame.x, frame.y);
+            g.place(rp - ax, rp - ay, W, H, radii, frame.x, frame.y, null, true);
             g.show();
         });
         this._syncHolder();
@@ -1256,10 +1296,16 @@ export class Windows {
             const e = st.list[j];
             // On the screen a window is drawn where its actor is; in a pane, where its copy is.
             const at = pane ? pane._clones?.get(e.actor) : e.actor;
-            if (!at?.visible || (!pane && e.parent !== parent))
+            if (!at || (!pane && e.parent !== parent))
+                continue;
+            // A copy the pane has put and shown says where (see GlassPane._syncClones).
+            const put = pane ? at._at : null;
+            if (!put && !at.visible)
                 continue;
             e.rects ??= this._glass.get(e.actor)?.paintCover() ?? [];
-            const [x, y] = [at.x, at.y];
+            if (!e.rects.length)
+                continue;
+            const x = put ? put[0] : at.x, y = put ? put[1] : at.y;
             for (const q of e.rects)
                 out.push({x: q.x + x, y: q.y + y, width: q.width, height: q.height});
         }
