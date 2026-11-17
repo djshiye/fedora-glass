@@ -9,6 +9,7 @@ background so text stays legible whatever the frost slider does.
 from __future__ import annotations
 
 import colorsys
+import functools
 import re
 from dataclasses import dataclass
 
@@ -86,10 +87,15 @@ def _hue_of(c: Color) -> float:
 
 
 def derive(t: Tokens) -> TermPalette:
-    dark = t.dark
-    bg = t.parts["terminal"]["view"].with_alpha(1.0)
-    fg = t.fg.with_alpha(1.0)
-    accent = t.accent.with_alpha(1.0)
+    return _derive(t.dark, t.parts["terminal"]["view"].with_alpha(1.0), t.fg.with_alpha(1.0),
+                   t.accent.with_alpha(1.0), t.accent_text.with_alpha(1.0))
+
+
+# One Apply derives the same palette for each of a dozen terminals and editors, and the
+# search for each colour is most of their render time. The palette depends on these five
+# values alone, and is frozen, so the same one is handed to all of them.
+@functools.lru_cache(maxsize=8)
+def _derive(dark: bool, bg: Color, fg: Color, accent: Color, accent_text: Color) -> TermPalette:
     acc_h = _hue_of(accent)
 
     def hue_shift(h: float) -> float:
@@ -120,9 +126,9 @@ def derive(t: Tokens) -> TermPalette:
         ansi[15] = fg.mix(bg, 0.0)
     sel = bg.mix(accent, 0.36 if dark else 0.28)
     return TermPalette(
-        bg=bg, fg=fg, cursor=t.accent_text.with_alpha(1.0), cursor_fg=bg,
+        bg=bg, fg=fg, cursor=accent_text, cursor_fg=bg,
         selection_bg=sel, selection_fg=fg, ansi=tuple(ansi),
-        dim=ansi[8], accent=ensure_contrast(t.accent_text.with_alpha(1.0), bg, 4.5),
+        dim=ansi[8], accent=ensure_contrast(accent_text, bg, 4.5),
     )
 
 

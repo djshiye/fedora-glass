@@ -1,5 +1,6 @@
 """The speed-ups of the Python side after 1.7.7 give exactly the answers of the code they
-replaced: the backup's save that skips unchanged manifests and the linked-folder check."""
+replaced: the backup's save that skips unchanged manifests, the linked-folder check, and
+the terminal palette handed to every terminal of one Apply."""
 from __future__ import annotations
 
 import json
@@ -7,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from fedoraglass import engine as eng_mod
+from fedoraglass import engine as eng_mod, palette
 from fedoraglass.engine import Backup
+from fedoraglass.render import terminal as rt
+from fedoraglass.settings import Settings
 
 
 # ---- Backup.save ----------------------------------------------------------------------------
@@ -123,3 +126,20 @@ def test_linked_folder_of_a_root_itself_fails_as_before(fake_env):
         _linked_folder_before(b, fake_env.config)
     with pytest.raises(ValueError):
         b.linked_folder(fake_env.config)
+
+
+# ---- the terminal palette -------------------------------------------------------------------
+@pytest.mark.parametrize("dark", [True, False])
+def test_the_palette_handed_out_again_is_the_one_derived(dark):
+    for s in (Settings(frost=0.2), Settings(frost=0.9, accent="#e62d42"), Settings(tint="#ff8800")):
+        t = palette.build(s, dark=dark)
+        args = (t.dark, t.parts["terminal"]["view"].with_alpha(1.0), t.fg.with_alpha(1.0),
+                t.accent.with_alpha(1.0), t.accent_text.with_alpha(1.0))
+        assert rt.derive(t) == rt._derive.__wrapped__(*args)
+        assert rt.derive(t) is rt.derive(palette.build(s, dark=dark))
+
+
+def test_other_colours_give_another_palette():
+    a = rt.derive(palette.build(Settings(accent="#e62d42"), dark=True))
+    b = rt.derive(palette.build(Settings(accent="#3584e4"), dark=True))
+    assert a != b and a.accent != b.accent
