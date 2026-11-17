@@ -982,6 +982,9 @@ void main() {
 // points of the blurred backdrop, a quarter of the way in from each corner. They are
 // the same for every pixel, so the vertex stage reads them once per corner of the
 // pane and hands the result to every pixel (it was four texture reads per pixel).
+// The read is textureLod from GLSL 1.30 on: Cogl asks NVIDIA's driver for a newer GLSL
+// than Mesa's, and that driver rejects texture2DLod there ("removed after version 140"),
+// so the whole glass program failed to link and no glass was drawn at all (2026-11-17).
 const ADAPT_VERTEX = {
     decls: `
 uniform float width;
@@ -998,7 +1001,12 @@ uniform float lift;
 varying float fg_bl;
 vec3 fgAt(vec2 px) {
     vec2 size = vec2(width, height);
-    return texture2DLod(cogl_sampler0, (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h), 0.0).rgb;
+    vec2 uv = (clamp(px, vec2(0.5), size - vec2(0.5)) + vec2(org_x, org_y)) / vec2(tex_w, tex_h);
+#if __VERSION__ >= 130
+    return textureLod(cogl_sampler0, uv, 0.0).rgb;
+#else
+    return texture2DLod(cogl_sampler0, uv, 0.0).rgb;
+#endif
 }
 `,
     code: `
