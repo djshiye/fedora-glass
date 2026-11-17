@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.7
+Version:        1.7.8
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,13 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.8-1
+- Glass: no code of its own runs per frame while all the glass rests (a game or a full-screen video); the speed watcher asks for every frame only during a window drag or the speed check
+- Window drags: half the work per piece of window glass, copies already in place left alone, the panel's icons no longer measured on every pointer move; far less left for GNOME's clean-up
+- Pointer light: nothing worked out while the pointer is far from any glass
+- Lens shader: where the edge's bend is held back from is found once per corner, not on every edge pixel; the caustic is skipped where no light gathers; same picture
+- Apply with nothing changed takes half the time; the step before login, translations, the Mouse pointer page and the app's sliders are quicker
+
 * Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.7-1
 - Speed check: draws the glass as if everything behind it kept changing, at each level's own pace, and starts each level clean; fast PCs score green again and lighter levels score faster than full
 - Calendar notifications: no "already disposed" error when the front card of a stack goes first
