@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.8
+Version:        1.7.9
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,18 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Fri Nov 20 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.9-1
+- Pause from Quick Settings now holds over the first lock of a session; Reduce Motion (GNOME 51) gives GNOME's plain fades
+- Stock GNOME with the overview off: Esc or Super+A in the app grid no longer opens the overview
+- Menus and the panel shown again during a window animation draw the right glass at once
+- Speed card: a check with almost no frames no longer calls every level slow; drags on 120-160 Hz screens judged fairly
+- Accent text and pale tints are kept readable (4.5:1); the built-in look is unchanged
+- Light menus, Quick Settings and calendar: no grey frame at the edge over a dark wallpaper
+- VS Code follows a fixed Dark or Light again, and Restore leaves none of its settings behind
+- Settings app: terminal colours can always be switched back, no false "changes not applied", clearer names and layout, focus ring on sliders
+- An old source install is cleaned up at login so the package's app and watcher run; removing the package undoes the look for systemd-homed accounts too
+- 34 logic fixes: safer lock and backup files, watcher no longer saves over Apply, wallpapers with an apostrophe, no 2 minute login wait with the glass switched off, sturdier disable and restore
+
 * Tue Nov 17 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.8-1
 - Glass: no code of its own runs per frame while all the glass rests (a game or a full-screen video); the speed watcher asks for every frame only during a window drag or the speed check
 - Window drags: half the work per piece of window glass, copies already in place left alone, the panel's icons no longer measured on every pointer move; far less left for GNOME's clean-up

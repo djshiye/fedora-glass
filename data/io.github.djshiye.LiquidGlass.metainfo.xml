@@ -131,6 +131,13 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.9" date="2026-11-20">
+      <description>
+        <p>A big clean-up release. A pause from Quick Settings now holds over the first lock of a session, Reduce Motion is respected, and menus shown during a window animation draw the right glass straight away. Light menus lose the grey frame at their edge, and links and tinted glass stay readable with any accent colour.</p>
+        <p>The speed card is fairer on fast screens, VS Code follows your Dark or Light choice again, and the settings app is clearer and easier to use with the keyboard.</p>
+        <p>An old copy installed from source is cleaned up at login, so updates always reach you. Over fifty smaller fixes make Apply, Restore, the lock screen and the login screen sturdier.</p>
+      </description>
+    </release>
     <release version="1.7.8" date="2026-11-17">
       <description>
         <p>Lighter on your PC. While a game or a full-screen video plays and the glass rests, Fedora Glass now runs nothing at all on each frame. Dragging windows does about half the work and leaves far less for GNOME to clean up, which keeps its short pauses short.</p>
