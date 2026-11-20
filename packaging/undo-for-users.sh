@@ -18,7 +18,8 @@
 # as them (a link out of their home gets them nothing they could not read anyway) and
 # only looked at, never run (every look at a path under a home is made as that person,
 # with a time limit: root may not see into a network home, and a hung one must not hold
-# up the removal): plain NAME=VALUE lines, where only $HOME and ${HOME} are
+# up the removal): plain NAME=VALUE lines (the value may be in one pair of quotes, as
+# systemd allows), where only $HOME and ${HOME} are
 # expanded and anything else with a $, a backtick or a control character, or a value
 # that is not an absolute path, is ignored.
 #
@@ -47,6 +48,16 @@ env_value() {
         while IFS= read -r line; do
             case $line in "$3="*) ;; *) continue ;; esac
             rest=${line#"$3="}
+            # systemd takes a value in one pair of quotes ("$HOME/x" or '$HOME/x') the same
+            # as without them. One with a backslash or another quote inside is ignored.
+            case $rest in
+                \"*\")
+                    rest=${rest#\"}; rest=${rest%\"}
+                    case $rest in *\"*|*\\*) continue ;; esac ;;
+                \'*\')
+                    rest=${rest#\'}; rest=${rest%\'}
+                    case $rest in *\'*|*\\*) continue ;; esac ;;
+            esac
             out=
             while :; do
                 case $rest in
