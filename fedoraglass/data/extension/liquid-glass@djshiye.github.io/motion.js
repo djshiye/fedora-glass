@@ -18,6 +18,21 @@ const PRESSABLE = ['panel-button', 'overview-tile', 'show-apps', 'popup-menu-ite
     'quick-toggle', 'quick-menu-toggle', 'icon-button', 'button'];
 const REACH = 220;          // px around a pane where the pointer lights its rim
 
+// GNOME 51's "Reduce Motion" (Accessibility) is a setting of its own, next to the older
+// "animations off". GNOME's own window animations become plain fades with it; up to 1.7.8
+// Fedora Glass still played its genie, bounce and springs. GNOME 50 has no such setting.
+function reducedMotion(settings) {
+    return St.ReducedMotion !== undefined && settings.reduced_motion === St.ReducedMotion.REDUCE;
+}
+
+// Follows both settings; returns the handler ids to disconnect.
+function watchMotion(settings, fn) {
+    const ids = [settings.connect('notify::enable-animations', fn)];
+    if (St.ReducedMotion !== undefined)
+        ids.push(settings.connect('notify::reduced-motion', fn));
+    return ids;
+}
+
 export class Motion {
     constructor() {
         this._state = new Map();    // follower -> springs
@@ -25,10 +40,11 @@ export class Motion {
         this._later = 0;
         this._last = 0;
         this._settings = St.Settings.get();
-        this._animate = Boolean(this._settings.enable_animations);
+        const on = () => Boolean(this._settings.enable_animations) && !reducedMotion(this._settings);
+        this._animate = on();
         // Reduce animation can change at any time: follow it at once, pointer still or not.
-        this._animId = this._settings.connect('notify::enable-animations', () => {
-            this._animate = Boolean(this._settings.enable_animations);
+        this._animIds = watchMotion(this._settings, () => {
+            this._animate = on();
             this._kick();
         });
         // The cursor tracker reports every pointer move, also ones the stage's
@@ -346,7 +362,8 @@ export class Motion {
         this._relId = 0;
         global.stage.disconnect(this._stage);
         this._cursor.disconnect(this._cursorId);
-        this._settings.disconnect(this._animId);
+        for (const id of this._animIds)
+            this._settings.disconnect(id);
         this._settleItem();
         for (const f of followers)
             f.setMotion({k: 0, press: 0, open: 1});

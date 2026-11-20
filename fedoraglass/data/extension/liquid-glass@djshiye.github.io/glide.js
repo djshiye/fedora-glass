@@ -33,8 +33,24 @@ const LEAVE_GRACE_MS = 90;     // crossing the gap between two icons is not leav
 const STIFFNESS = 700;         // with DAMPING: a glide that settles in about 250 ms, ~1% overshoot
 const DAMPING = 46;
 
+// GNOME 51's "Reduce Motion" (Accessibility) is a setting of its own, next to the older
+// "animations off". GNOME's own window animations become plain fades with it; up to 1.7.8
+// Fedora Glass still played its genie, bounce and springs. GNOME 50 has no such setting.
+function reducedMotion(settings) {
+    return St.ReducedMotion !== undefined && settings.reduced_motion === St.ReducedMotion.REDUCE;
+}
+
+// Follows both settings; returns the handler ids to disconnect.
+function watchMotion(settings, fn) {
+    const ids = [settings.connect('notify::enable-animations', fn)];
+    if (St.ReducedMotion !== undefined)
+        ids.push(settings.connect('notify::reduced-motion', fn));
+    return ids;
+}
+
 function animationsOn() {
-    return St.Settings.get().enable_animations;
+    const settings = St.Settings.get();
+    return settings.enable_animations && !reducedMotion(settings);
 }
 
 // Dash to Panel's live panels on the stage. Its list can still hold panels it has
@@ -161,7 +177,7 @@ export class HoverGlide {
         this._last = 0;
         this._refreshId = 0;
         this._settings = St.Settings.get();
-        this._animId = this._settings.connect('notify::enable-animations', () => this.settle());
+        this._animIds = watchMotion(this._settings, () => this.settle());
         // A menu open (or the panel shown over a full-screen game): hover by pointer position.
         this._grabHover = new GrabHover(() => this._watched.keys(), icon => this._hover(icon));
     }
@@ -435,9 +451,9 @@ export class HoverGlide {
 
     destroy() {
         this._teardown();
-        if (this._animId)
-            this._settings.disconnect(this._animId);
-        this._animId = 0;
+        for (const id of this._animIds ?? [])
+            this._settings.disconnect(id);
+        this._animIds = [];
     }
 
     // For QA: the tiles' state.

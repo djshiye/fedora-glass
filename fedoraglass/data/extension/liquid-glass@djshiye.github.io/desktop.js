@@ -203,6 +203,20 @@ export class DesktopBehaviour {
             this._activitiesWas = this._activities.visible;
             this._activities.hide();
         }
+        // Leaving the app grid (Esc, Super+A again, the dash's own Show Apps button) does not go
+        // through show(): GNOME slides from the grid to the overview with the windows. With the
+        // overview off, leaving the grid closes it (up to 1.7.8 the overview came up).
+        try {
+            this._appsButton = ov.dash?.showAppsButton ?? null;
+            this._appsId = this._appsButton?.connect('notify::checked', btn => {
+                if (!btn.checked && ov.visible && ov._shown !== false && !Main.layoutManager._startingUp)
+                    ov.hide();
+            }) ?? 0;
+        } catch (e) {
+            console.error(`Fedora Glass: the app grid can still open the overview: ${e}`);
+            this._appsButton = null;
+            this._appsId = 0;
+        }
         if (ov.visible)
             this._closeOverview();
     }
@@ -236,6 +250,12 @@ export class DesktopBehaviour {
                 delete ov[name];
         }
         this._patched = null;
+        try {
+            if (this._appsId)
+                this._appsButton?.disconnect(this._appsId);
+        } catch {}
+        this._appsId = 0;
+        this._appsButton = null;
         if (ov._swipeTracker && this._swipeWas !== undefined)
             ov._swipeTracker.enabled = this._swipeWas;
         this._swipeWas = undefined;
