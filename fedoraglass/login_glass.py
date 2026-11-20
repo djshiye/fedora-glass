@@ -56,6 +56,7 @@ MAX_NOTE = 4096
 MAX_SMALL = 64 << 10                          # profiles, metadata, state, keyfiles
 MAX_DB = 64 << 20                             # a compiled dconf db, kept for undo
 MAX_ADDON = 64 << 20
+TEMP_PREFIX = ".fedora-glass-"                # write_atomic's and _compile_into's temporary files
 GUARD_LOCK_WAIT = 10.0                        # seconds the boot guard waits for a change still running
 
 WHY = ("", "no-gdm", "not-gdm", "no-addon", "no-dconf", "gnome-version", "policy")
@@ -246,7 +247,7 @@ def write_atomic(path: str, data: bytes, mode: int = 0o644) -> None:
     folder = os.path.dirname(path)
     if not _is_real_dir(folder):
         raise Failed(f"{folder} is not a folder")
-    fd, tmp = tempfile.mkstemp(prefix=".fedora-glass-", dir=folder)
+    fd, tmp = tempfile.mkstemp(prefix=TEMP_PREFIX, dir=folder)
     try:
         view = memoryview(data)
         while view:
@@ -292,7 +293,13 @@ def _mkdir(path: str) -> bool:
         if not _is_real_dir(path):
             raise Failed(f"{path} is not a plain folder") from None
         return False
-    os.chmod(path, 0o755)                         # whatever the umask was
+    try:
+        os.chmod(path, 0o755)                     # whatever the umask was
+    except BaseException:
+        # Stopped (a signal) between the two: nobody would know this folder was made, so
+        # no roll back would take it away again. It goes now, while it is still empty.
+        os.rmdir(path)
+        raise
     return True
 
 
@@ -365,8 +372,10 @@ class Txn:
 
     def rmdir(self, path: str) -> None:
         if _is_real_dir(path) and not os.listdir(path):
-            os.rmdir(path)
+            # Its undo first, as for every other change: stopped right after the rmdir, the
+            # roll back still makes it again (and does nothing when it is still there).
             self.undo.append(lambda: _mkdir(path))
+            os.rmdir(path)
 
     def rollback(self) -> list[str]:
         problems = []
@@ -401,6 +410,7 @@ class Scratch:
     def __enter__(self) -> str:
         if os.geteuid() == 0 and not self.look_only:
             _make_state_dirs(self.paths)
+            _sweep_work(self.paths)
             self.dir = tempfile.mkdtemp(prefix=".work-", dir=self.paths.state_dir)
         else:
             self.dir = tempfile.mkdtemp(prefix="fedora-glass-login-", dir="/tmp")
@@ -408,7 +418,26 @@ class Scratch:
         return self.dir
 
     def __exit__(self, *exc) -> None:
-        shutil.rmtree(self.dir, ignore_errors=True)
+        try:
+            shutil.rmtree(self.dir, ignore_errors=True)
+        except Interrupted:
+            # A signal while only tidying up: what was done (or rolled back) stands, and
+            # must be said as it is. The next run under the lock sweeps the folder.
+            pass
+
+
+def _sweep_work(paths: Paths) -> None:
+    """Work folders that a power cut (or a kill) left in root's state folder. Only ever
+    called with the lock held, so none of them is in use: every user of a work folder there
+    holds the lock. Left there, they would keep the folder after the package is removed."""
+    try:
+        names = os.listdir(paths.state_dir)
+    except OSError:
+        return
+    for name in names:
+        full = os.path.join(paths.state_dir, name)
+        if name.startswith(".work-") and _is_real_dir(full):
+            shutil.rmtree(full, ignore_errors=True)
 
 
 def _make_state_dirs(paths: Paths) -> None:
@@ -1066,7 +1095,7 @@ def _has_other_files(d: str) -> bool:
 def _compile_into(paths: Paths, txn: Txn | None, name: str) -> None:
     """Compile /etc/dconf/db/NAME.d into a temporary file next to the db, then rename it in.
     Never `dconf update`: that would compile every db, including ones that are not ours."""
-    fd, tmp = tempfile.mkstemp(prefix=".fedora-glass-", dir=paths.db_dir)
+    fd, tmp = tempfile.mkstemp(prefix=TEMP_PREFIX, dir=paths.db_dir)
     os.close(fd)
     try:
         _compile(paths, tmp, os.path.join(paths.db_dir, name + ".d"))
@@ -1573,6 +1602,32 @@ def _remove_switch(paths: Paths, made: list[str], again: set[str] | frozenset[st
         raise Failed("; ".join(problems))
 
 
+def _sweep_temps(paths: Paths) -> None:
+    """Our temporary files that a power cut (or a kill) left behind before their rename, in
+    every folder this writes into. Only plain files with our own prefix, never through a
+    link. Left there, one in our own db's folder counts as "a file of someone else" and
+    keeps that db, so an off could never finish; one in an admin's folder is litter in
+    /etc/dconf that outlives the package."""
+    folders = [paths.db_dir, paths.profile_dir, paths.state_dir]
+    for name in _d_dirs(paths):
+        d = os.path.join(paths.db_dir, name + ".d")
+        folders += [d, os.path.join(d, "locks")]
+    for folder in folders:
+        if not _is_real_dir(folder):
+            continue
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            continue
+        for name in names:
+            full = os.path.join(folder, name)
+            try:
+                if name.startswith(TEMP_PREFIX) and stat.S_ISREG(os.lstat(full).st_mode):
+                    os.unlink(full)
+            except OSError:
+                pass
+
+
 def _fix_profile(paths: Paths, info: dict | None, made: list[str]) -> None:
     new = _profile_without_us(paths, info)
     if new is None:
@@ -1637,6 +1692,7 @@ def _off_locked(paths: Paths, reason: str | None, keep_stopped: bool = False) ->
     if st.get("db"):
         again.add(st["db"])
     _step(problems, "the leaving flag", _mark_leaving, paths, again)
+    _step(problems, "temporary files", _sweep_temps, paths)
     trial: list[str] = []
     if os.path.lexists(paths.leaving):
         # No trial is left to watch for once the flag is there, even when this off cannot
@@ -1696,6 +1752,7 @@ def finish_by_hand(paths: Paths) -> list[str]:
 def turn_off(paths: Paths, reason: str | None = None) -> list[str]:
     with Lock(paths):
         problems = _off_locked(paths, reason)
+        _sweep_work(paths)
     _disarm_check(paths, wait=True)
     return problems
 
