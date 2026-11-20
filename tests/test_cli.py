@@ -51,17 +51,3 @@ def test_apply_only_does_not_save_the_settings(fake_env, monkeypatch):
     assert cli.main(["apply", "--frost", "0.9"]) == 0
     assert settings_mod.load().frost == 0.9
 
-
-def test_apply_says_when_the_settings_cannot_be_saved(fake_env, monkeypatch, capsys):
-    """The look is applied before the settings are saved: a full disk or a read-only settings
-    folder ended in a traceback up to 1.7.8, with nothing said about what was applied."""
-    _use(monkeypatch, fake_env)
-
-    def no_room(_s):
-        raise OSError(28, "No space left on device")
-    monkeypatch.setattr(settings_mod, "save", no_room)
-    rc = cli.main(["apply"])
-    out = capsys.readouterr()
-    assert rc == 1
-    assert "the look was applied, but your settings could not be saved: No space left on device" in out.err
-    assert "applied" in out.out or "skipped" in out.out or "info" in out.out

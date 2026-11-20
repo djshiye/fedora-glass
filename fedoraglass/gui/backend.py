@@ -456,6 +456,9 @@ class Backend(QObject):
         self._restart_needed = False
         # "Apply and lock" on the Lock and login page: lock once this Apply finishes well.
         self._lock_after_apply = False
+        # ...and that Apply's login screen step asks for the password: lock once it ends.
+        self._lock_after_login = False
+        self.loginGlassChanged.connect(self._lock_after_login_step)
         self._lost: list[str] = []         # targets whose applied files something else replaced
         # Whether the glass extension is running. The desktop only changes on Apply:
         # moving a slider changes the preview in this window, never the desktop.
@@ -1523,8 +1526,10 @@ class Backend(QObject):
         self.previewChanged.emit()
         self._changed()
         self.targetStatesChanged.emit()   # the app switches and the glass edges follow the saved state
-        if dropped.scheme != self._s.scheme:
-            self._match_wallpaper()     # as _set does: light and dark can have their own pictures
+        # As _set does: light and dark can have their own pictures. But a picture that changed
+        # since Apply gets its colours at the next Apply, as at start: Undo leaves nothing unapplied.
+        if dropped.scheme != self._s.scheme and not self.wallpaperChangedSince:
+            self._match_wallpaper()
         if dropped != self._s:
             self._discarded = dropped
             self.restorableChanged.emit()
@@ -1987,6 +1992,16 @@ class Backend(QObject):
             return
         self._lock_after_apply = False
         if not any(r.status == "failed" for r in results) and not self._restart_needed:
+            if self._login_shown_busy():
+                # The login screen step Apply started asks for the password: lock once it's
+                # answered, not over the prompt.
+                self._lock_after_login = True
+                return
+            self.lockScreenNow()
+
+    def _lock_after_login_step(self) -> None:
+        if self._lock_after_login and not self._login_shown_busy():
+            self._lock_after_login = False
             self.lockScreenNow()
 
     @Property(str, notify=targetsChanged)
@@ -3735,6 +3750,13 @@ class Backend(QObject):
 
     @Slot(str, str, result=str)
     def renameLook(self, look_id: str, name: str) -> str:
+        # Another look has this name already: two tiles (and two day and night choices)
+        # would read the same. Its own name in other letters is fine.
+        other = self.lookNamed(name)
+        if other and other != look_id:
+            taken = next((x["name"] for x in self._look_list() if x["id"] == other), name)
+            self.lookProblem.emit(_("You already have a look called “{name}”. Pick another name.").format(name=taken))
+            return ""
         try:
             new_id = self._library.rename(look_id, name)
         except looks_mod.LookError as e:
@@ -3882,7 +3904,9 @@ class Backend(QObject):
             return ""
         try:
             name, values = looks_mod.read_file(src)
-            look_id = self._library.add(name, values)
+            # A look by that name already (the same file added twice, say): numbered, so
+            # two tiles never read the same.
+            look_id = self._library.add(self._library.unique_name(name), values)
         except looks_mod.LookError as e:
             self.lookProblem.emit(str(e))
             return ""

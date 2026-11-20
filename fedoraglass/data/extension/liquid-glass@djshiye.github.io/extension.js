@@ -456,9 +456,18 @@ export default class FedoraGlassExtension extends Extension {
         this._stopGlass();
         this._dropPausedStyle();
         this._safety?.glassStopped();
-        this._rescue?.destroy();
+        // Each one on its own, as the glass above: one that fails must not keep the rest on.
+        try {
+            this._rescue?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the ArcMenu restart helper');
+        }
         this._rescue = null;
-        this._desktop?.destroy();
+        try {
+            this._desktop?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: putting the overview back');
+        }
         this._desktop = null;
         try {
             this._speed?.destroy();
@@ -474,21 +483,53 @@ export default class FedoraGlassExtension extends Extension {
         if (this._modeId)
             Main.sessionMode.disconnect(this._modeId);
         this._modeId = 0;
-        this._tidy?.destroy();
+        // Each part goes even if one before it fails to: up to 1.7.8 one that threw here
+        // left the glass, its file watchers and safe mode running after the switch-off.
+        try {
+            this._tidy?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the User Themes tidy-up');
+        }
         this._tidy = null;
-        this._lock?.destroy();
+        try {
+            this._lock?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the lock screen glass');
+        }
         this._lock = null;
-        this._leaving?.destroy();
+        try {
+            this._leaving?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the lock screen glass');
+        }
         this._leaving = null;
-        this._widgets?.destroy();
+        try {
+            this._widgets?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the lock screen widgets');
+        }
         this._widgets = null;
-        this._leavingWidgets?.destroy();
+        try {
+            this._leavingWidgets?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: removing the lock screen widgets');
+        }
         this._leavingWidgets = null;
         this._stopSession();
+        // (The speed watch is forgotten at the next start that is no quick return: see enable.)
+        WeatherFrost.forget?.();
         this._dropLeavingPopups();
-        this._config?.destroy();
+        try {
+            this._config?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: no longer watching the settings');
+        }
         this._config = null;
-        this._safety?.destroy();
+        try {
+            this._safety?.destroy();
+        } catch (e) {
+            logError(e, 'Fedora Glass: turning safe mode off');
+        }
         this._safety = null;
         try {
             this._pauseState?.destroy();

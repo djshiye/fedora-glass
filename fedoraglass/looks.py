@@ -292,7 +292,11 @@ class Library:
             try:
                 if p.is_symlink() or not p.is_file():
                     continue
-                name, values = parse(p.read_bytes()[:LOOK_MAX + 1])
+                # Only as much as a look can hold: a file far bigger (copied in by hand, or
+                # damaged) is no look, and read whole it could take all the memory there is.
+                with open(p, "rb") as f:
+                    raw = f.read(LOOK_MAX + 1)
+                name, values = parse(raw)
             except (OSError, LookError):
                 continue
             out.append({"id": p.stem, "name": name, "settings": values})

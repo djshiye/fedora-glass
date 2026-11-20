@@ -410,6 +410,11 @@ export class Speed {
 
     _checkFrame(v, gap, t) {
         const c = this._check;
+        // The glass went away mid-check (paused from Quick Settings, safe mode, turned off
+        // in the app): from here the frames have no glass in them. Noted here, and the
+        // check ends at the next step (see _nextPhase), not in the middle of a paint.
+        if (shownPanes() === 0)
+            c.lost = true;
         if (c.phase >= 0 && gap > 0 && t - c.phaseStart > SKIP_US) {
             let g = c.gaps.get(v);
             if (!g)
@@ -443,9 +448,15 @@ export class Speed {
         if (!c)
             return GLib.SOURCE_REMOVE;
         c.timer = 0;
-        // A level that drew next to nothing measured nothing: the glass went away during the
-        // check (paused from Quick Settings, safe mode) or the screen went off. Up to 1.7.8 that
-        // finished as a good check that called every level slow, and it replaced the last real one.
+        // No glass to measure (any more): the check failed, as one started without glass
+        // does. Up to 1.7.8 it scored the levels it drew no glass at as slow and kept that
+        // as the last finished check: the app said every level dropped frames, and auto
+        // lost the floor the last real check had given it.
+        if (c.lost || shownPanes() === 0) {
+            this._endCheck('failed', 'noglass');
+            return GLib.SOURCE_REMOVE;
+        }
+        // Glass, but next to no frames in a level (the screen went off): no measurement either.
         if (c.phase >= 0 && this._scoreCurrent() < MIN_FRAMES) {
             this._endCheck('failed', 'noframes');
             return GLib.SOURCE_REMOVE;

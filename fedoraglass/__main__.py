@@ -70,22 +70,21 @@ def cmd_apply(args: argparse.Namespace) -> int:
         if not only:
             print("fedora-glass: --only needs at least one part", file=sys.stderr)
         return 2
-    results = eng.apply(s, only=only)
-    save_failed = False
     if only is None:
         # Only an Apply of everything makes these the settings of the look: saved after
         # `--only gtk4 --frost 0.9`, the other parts would take 0.9 at the next dark/light
         # switch without anyone applying it to them.
+        # Saved first, as the app does: a settings folder that can't be written stops here,
+        # before the desktop changes. Saved after, the desktop had the new look while
+        # settings.json kept the old one, which the watcher puts back at the next switch.
         try:
             settings_mod.save(s)
         except OSError as e:
-            # The look is applied already: say so and still print what was done (up to 1.7.8
-            # a full disk or a read-only settings folder ended in a traceback here).
-            print(f"fedora-glass: the look was applied, but your settings could not be saved: {e.strerror or e}",
-                  file=sys.stderr)
-            save_failed = True
+            print(f"fedora-glass: could not save the settings ({e}). Nothing was changed.", file=sys.stderr)
+            return 1
+    results = eng.apply(s, only=only)
     width = max((len(r.name) for r in results), default=0)
-    failed = save_failed
+    failed = False
     for r in results:
         mark = {"applied": "✓", "info": "i", "reverted": "↺", "skipped": "–", "failed": "✗"}[r.status]
         line = f"{mark} {r.name.ljust(width)}  {r.status}"
@@ -249,8 +248,14 @@ def _glass_waits_for_login(eng) -> str:
     env = getattr(eng, "env", None)
     if env is None:
         return ""
+    from .render import glass as rg
     from .targets.shell import glass_state
     st = glass_state(env)
+    if st.kind == "not-started" and env.extension_path(rg.UUID) is not None and not env.extension_on(rg.UUID):
+        # Apply puts the glass on GNOME's list of switched-on extensions with its files, so
+        # one that is there but not on it was switched off in the Extensions app: GNOME won't
+        # start it at this login or any other until the user switches it on again.
+        return "the glass extension is switched off in GNOME's Extensions"
     return {"old": f"GNOME runs the glass of Fedora Glass {st.version} until the next login",
             "off": "extensions are switched off in GNOME",
             "out-of-date": "GNOME says the glass extension doesn't support this GNOME version",
@@ -462,11 +467,16 @@ class Watcher:
         self.read_pixels = None
 
     def start(self) -> None:
-        """At login: bring the look up to this version, and finish the waiting Shell parts."""
+        """At login: take the look for the style GNOME shows now, bring the look up to this
+        version, and finish the waiting Shell parts. The style first: with day and night looks
+        a switch missed while logged out applies the other look whole (and stamps this
+        version), so the upgrade step has nothing left to do, instead of first putting the
+        look of the style GNOME no longer shows on every part. And it is not held up by the
+        wait for the glass extension."""
+        _guarded("taking the look for this style", self.catch_up)
         _guarded("updating the look after an upgrade", update_after_upgrade, self.eng)
         self.pending_left = _guarded("finishing the Shell parts", finish_pending, self.eng) is not True
         self.pending_until = self.clock() + PENDING_RETRY_S
-        _guarded("taking the look for this style", self.catch_up)
 
     def catch_up(self) -> None:
         """GNOME's dark/light style may have changed while nobody listened (a login, the
@@ -494,9 +504,16 @@ class Watcher:
             self.pending_left = _guarded("finishing the Shell parts", finish_pending, self.eng,
                                          wait_s=0.0) is not True
 
-    def changed(self, got: set) -> None:
+    def changed(self, got: set, _tries: int = 2) -> None:
         """GNOME switched dark/light (SCHEME), High Contrast (CONTRAST), its accent (ACCENT)
         or the wallpaper (WALLPAPER, once settled)."""
+        from .engine import runs_installed_version
+        if not runs_installed_version():
+            # An update is on disk and this process still runs the older version (poll
+            # starts the new one within a minute). Its Apply is refused, so nothing is saved
+            # or noted either: noting the style here would tell the new watcher's catch-up
+            # that this style's look is on, when the desktop still shows the other one.
+            return
         self.retry_pending()
         if (s := _auto_settings()) is None:
             return
@@ -528,6 +545,14 @@ class Watcher:
                 accent = True       # a new tint or accent is in every part
             new = taken
         if new is not None:
+            if _auto_settings() != s:
+                # settings.json changed while the picture was read or the look was picked:
+                # the user pressed Apply in the app meanwhile. Saved now, the look worked out
+                # from the settings before it would undo that Apply (and be applied over it),
+                # so start again from the settings as they are now.
+                if _tries:
+                    self.changed(got, _tries - 1)
+                return
             what = "saving the look for this style" if looked is not None else "saving the wallpaper's colours"
             if _guarded(what, self._save, new) is None:
                 return      # not saved: applying a look settings.json doesn't hold would be lost
