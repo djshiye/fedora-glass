@@ -13,8 +13,6 @@ FocusScope {
 
     implicitHeight: 72
     implicitWidth: 480
-    activeFocusOnTab: true
-    onActiveFocusChanged: if (activeFocus) slider.forceActiveFocus()
 
     Icon {
         id: dropIcon
@@ -35,6 +33,10 @@ FocusScope {
 
     C.Slider {
         id: slider
+        // The scope's focus goes to the slider, and Tab reaches the slider itself, so it
+        // shows its focus ring like every other control (it used to get the keyboard
+        // by a hand-over that left the ring off).
+        focus: true
         anchors.left: dropIcon.right
         anchors.right: frostIcon.left
         anchors.leftMargin: 16

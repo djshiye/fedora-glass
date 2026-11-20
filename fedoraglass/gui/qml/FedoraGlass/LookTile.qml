@@ -115,8 +115,8 @@ C.AbstractButton {
             }
         }
         Text {
-            x: tile.hasMenu ? 8 : 0
-            width: tile.width - (tile.hasMenu ? 16 : 0)
+            x: tile.hasMenu ? 8 : 6
+            width: tile.width - 2 * x
             horizontalAlignment: Text.AlignHCenter
             text: tile.shownName
             elide: Text.ElideRight

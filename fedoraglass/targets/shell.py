@@ -78,7 +78,7 @@ class GnomeShell(Target):
     plain: str = N_("Turns on the User Themes extension and selects the Fedora Glass theme for menus and pop-ups.")
     waits_for_glass: bool = True
     group: str = "Desktop"
-    summary: str = N_("Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme.")
+    summary: str = N_("Glass menus, quick settings, calendar, notifications, dialogs, volume pop-ups and the overview.")
     notes: list[str] = field(default_factory=lambda: [
         N_("Needs the User Themes extension (enabled automatically when installed)."),
         N_("Surfaces are translucent; the glass behind them comes from Fedora Glass effects.")])
@@ -120,8 +120,8 @@ class GlassEffects(Target):
     plain: str = (N_("Installs the Fedora Glass extension for GNOME and turns it on. "
                   "It draws the live glass behind your panel, menus and overview."))
     group: str = "Desktop"
-    summary: str = (N_("Real glass behind the panel or dock, menus, quick settings, app windows and the overview: "
-                    "live blur, a refracting rim, rim light and a rainbow edge."))
+    summary: str = (N_("Real glass behind the panel or dock, menus, app windows and the overview. "
+                    "It blurs and bends what is behind it."))
     notes: list[str] = field(default_factory=lambda: [
         N_("Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed.")])
 
@@ -418,7 +418,7 @@ class DashToPanel(Target):
     plain: str = N_("Sets Dash to Panel's colours, border and hover effect so your panel looks like glass.")
     waits_for_glass: bool = True
     group: str = "Panel"
-    summary: str = N_("Glass panel: translucent background, glass border, floating or docked, themed hover and dots.")
+    summary: str = N_("Turns the panel into glass, floating or docked, with matching hover highlights and running-app dots.")
 
     SCHEMA = "org.gnome.shell.extensions.dash-to-panel"
 
@@ -450,7 +450,7 @@ class ArcMenu(Target):
     plain: str = N_("Sets ArcMenu's colours and corners so the menu and its button look like glass.")
     waits_for_glass: bool = True
     group: str = "Panel"
-    summary: str = N_("Glass menu and menu button; colours, radius, search pill and hover washes.")
+    summary: str = N_("Turns the start menu and its button into glass, with matching colours, corners, search box and hover highlights.")
 
     SCHEMA = "org.gnome.shell.extensions.arcmenu"
 
@@ -470,7 +470,7 @@ class Spawn(Target):
     plain: str = N_("Sets Spawn's colours and corners so the menu and its button look like glass.")
     waits_for_glass: bool = True
     group: str = "Panel"
-    summary: str = N_("Glass menu and menu button; colours, radius, search pill and hover washes.")
+    summary: str = N_("Turns the start menu and its button into glass, with matching colours, corners, search box and hover highlights.")
 
     SCHEMA = "org.gnome.shell.extensions.spawn"
 

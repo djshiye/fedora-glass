@@ -206,8 +206,8 @@ Sheet {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: sheet.total === 0 ? qsTr("none: no part that is switched on is installed here")
-                            : sheet.plan.length === 1 ? qsTr("%1 in 1 place, each backed up first").arg(sheet.total)
-                            : qsTr("%1 in %2 places, each backed up first").arg(sheet.total).arg(sheet.plan.length)
+                            : sheet.plan.length === 1 ? qsTr("%1 changes in 1 place, each backed up first").arg(sheet.total)
+                            : qsTr("%1 changes in %2 places, each backed up first").arg(sheet.total).arg(sheet.plan.length)
                         // Longer languages: cut with "…" at the sheet's edge instead of running past it.
                         width: Math.max(0, Math.min(implicitWidth, detailsHead.width - x - 8))
                         elide: Text.ElideRight
@@ -223,7 +223,9 @@ Sheet {
                     required property var modelData
                     readonly property int n: modelData.actions.length
                     property bool open: n > 0 && n <= 4
-                    width: col.width
+                    // Set in a step, so each part reads as belonging to the heading above it.
+                    x: 14
+                    width: col.width - 14
                     spacing: 6
                     C.AbstractButton {
                         id: grpHead

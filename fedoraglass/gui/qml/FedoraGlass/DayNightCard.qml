@@ -10,7 +10,7 @@ import FedoraGlass.Core
 Card {
     id: card
     objectName: "dayNight"
-    padding: 16
+    padding: 20
     height: implicitHeight
 
     readonly property var looks: Backend.savedLooks

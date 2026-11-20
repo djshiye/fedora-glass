@@ -53,7 +53,7 @@ SettingsPage {
                 spacing: 8
                 LgButton {
                     objectName: "shortcutsButton"
-                    kind: "flat"
+                    kind: "secondary"
                     implicitHeight: 34
                     leftPadding: 12; rightPadding: 14
                     text: qsTr("Keyboard shortcuts")

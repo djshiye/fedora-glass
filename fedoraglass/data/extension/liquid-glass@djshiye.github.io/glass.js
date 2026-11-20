@@ -976,6 +976,13 @@ void main() {
         // itself, so a bright backdrop gives no brighter a line than a dark one.
         vec3 base = col.rgb / max(col.a, 1e-3);
         seen = min(seen * (1.15 + 0.8 * lobe + 1.6 * spec), base + vec3(0.05 + 0.03 * lobe) + seen * 0.6 * spec);
+        // The same restraint the other way on light glass: a dark room mirrored in a
+        // pale pane may shade its edge only a little. In full it greyed the whole bevel
+        // of a light menu over a dark wallpaper, down to where the bevel starts: a grey
+        // picture frame inside the glass, and darker than the floor that keeps dark text
+        // readable. Dark glass is left as it is: its mirror is what gives it its edge.
+        if (light_glass > 0.5)
+            seen = max(seen, base - vec3(0.03));
         col.rgb = min(col.rgb * (1.0 - a) + seen * col.a * a, vec3(col.a));
         // The caustic gathers in the outer px of the edge, however wide the bevel is.
         float xc = bevel > OFF ? clamp(1.0 - inside / min(bevel, 18.0), 0.0, 1.0) : 0.0;

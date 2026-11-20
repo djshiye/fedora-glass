@@ -21,9 +21,9 @@ def gtk3_partial() -> str:
 class Gtk4(Target):
     def __init__(self) -> None:
         super().__init__(
-            id="gtk4", name=N_("GTK 4 and libadwaita apps"), group="Desktop",
-            summary=N_("Glass windows, header bars, sidebars, menus and controls in every "
-                    "GTK 4 app. Follows the system light/dark switch live."),
+            id="gtk4", name=N_("GNOME apps (GTK 4)"), group="Desktop",
+            summary=N_("Glass windows, header bars, sidebars, menus and controls in Files, Settings and "
+                    "other GTK 4 apps. They follow GNOME's light and dark style."),
             plain=N_("Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, "
                   "read when they open."),
             # The file switches by itself (prefers-color-scheme), or holds the one style the
@@ -119,9 +119,9 @@ class Gtk3(Target):
 
     def __init__(self) -> None:
         super().__init__(
-            id="gtk3", name=N_("GTK 3 apps"), group="Desktop",
+            id="gtk3", name=N_("Older apps (GTK 3)"), group="Desktop",
             summary=N_("Glass for older GTK 3 apps, on top of your GTK 3 theme. "
-                    "GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme."),
+                    "They get the light or dark style in use when you press Apply."),
             plain=N_("Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, "
                   "unless adw-gtk3 is installed: then its light or dark version is picked."),
         )
