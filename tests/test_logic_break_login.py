@@ -230,11 +230,15 @@ def test_off_takes_away_every_temporary_file_a_power_cut_left(tmp_path):
     assert state_left(paths) == [".lock"]
 
 
-def test_work_folders_a_power_cut_left_are_taken_away(tmp_path):
+def test_work_folders_a_power_cut_left_are_taken_away(tmp_path, monkeypatch):
     """A power cut while `on` or the guard was reading dconf left its work folder in root's
     state folder. The next run under the lock and every off take it away, or the package
     removal could not remove that folder."""
     paths = make_system(tmp_path / "root", "fedora")
+    if os.geteuid() != 0:
+        # The helper only ever changes things as root, and only then works in root's state
+        # folder: said to be root here, as the other tests of root's folders do.
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
     assert on(paths)[0] == 0
     (Path(paths.state_dir) / ".work-cutshort/run").mkdir(parents=True)
     assert on(paths, picture="glow")[0] == 0

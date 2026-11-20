@@ -287,18 +287,24 @@ def _rmdir_if_empty(path: str) -> None:
 def _mkdir(path: str) -> bool:
     """Make one folder (0755) unless it is there; True when this made it. A link or a file
     in its place is an error: nothing of ours is ever written through a link."""
+    there = os.path.lexists(path)
     try:
-        os.mkdir(path, 0o755)
-    except FileExistsError:
-        if not _is_real_dir(path):
-            raise Failed(f"{path} is not a plain folder") from None
-        return False
-    try:
+        try:
+            os.mkdir(path, 0o755)
+        except FileExistsError:
+            if not _is_real_dir(path):
+                raise Failed(f"{path} is not a plain folder") from None
+            return False
         os.chmod(path, 0o755)                     # whatever the umask was
     except BaseException:
-        # Stopped (a signal) between the two: nobody would know this folder was made, so
-        # no roll back would take it away again. It goes now, while it is still empty.
-        os.rmdir(path)
+        # Stopped (a signal) right after the folder was made, or before its mode was set:
+        # nobody would know this folder was made, so no roll back would take it away
+        # again. It goes now, while it is still empty (only one this call made).
+        if not there and _is_real_dir(path):
+            try:
+                os.rmdir(path)
+            except OSError:
+                pass
         raise
     return True
 
