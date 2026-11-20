@@ -76,8 +76,11 @@ export class Safety {
         this._resetId = typeof last.resetId === 'string' ? last.resetId : '';
         this._where = this.tripped && typeof last.where === 'string' ? last.where.slice(0, 80) : '';
         // The last session started the glass and stopped before it ran for STABLE_S.
-        let restarts = Number.isFinite(last.restarts) ? last.restarts : 0;
-        restarts = last.running && !last.stable ? restarts + 1 : 0;
+        // Only what _write puts there counts: a count that is no whole number from 0 (a
+        // damaged file) is none. A negative one used to put the crash-loop check off by
+        // that many crashes; a string "false" counted as running.
+        let restarts = Number.isInteger(last.restarts) && last.restarts > 0 ? Math.min(last.restarts, RESTART_LIMIT) : 0;
+        restarts = last.running === true && last.stable !== true ? restarts + 1 : 0;
         this._restarts = restarts;
         if (!this.tripped && restarts >= RESTART_LIMIT) {
             this.tripped = true;

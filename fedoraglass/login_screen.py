@@ -57,6 +57,7 @@ COMPILE = "/usr/bin/glib-compile-resources"
 RESTORECON = "/usr/sbin/restorecon"
 MARK_START = "/* Fedora Glass login screen: start */"
 MARK_END = "/* Fedora Glass login screen: end */"
+TEMP_PREFIX = ".liquid-glass-"           # _write_into's copy, before its rename
 MAX_SIZE = 64 << 20                      # the real file is under 1 MB
 
 HEX = re.compile(r"#[0-9a-fA-F]{6}")
@@ -360,11 +361,22 @@ def build(original: str, out: str, accent: str, tint: str, frost: float) -> str:
     return block
 
 
+def _sweep(folder: str) -> None:
+    """Our copies that a power cut stopped before their rename (see _write_into): each a
+    hidden file the size of the theme in GNOME's own folder, which no package would ever
+    take away. Only plain files with our own prefix."""
+    for name in os.listdir(folder):
+        old = os.path.join(folder, name)
+        if name.startswith(TEMP_PREFIX) and os.path.isfile(old) and not os.path.islink(old):
+            os.unlink(old)
+
+
 def _write_into(src: str, dest: str) -> None:
     """Copy src over dest atomically. The new file is made inside dest's folder, so it
     gets that folder's owner and SELinux label like the file it replaces."""
     folder = os.path.dirname(dest)
-    fd, tmp = tempfile.mkstemp(prefix=".liquid-glass-", dir=folder)
+    _sweep(folder)
+    fd, tmp = tempfile.mkstemp(prefix=TEMP_PREFIX, dir=folder)
     try:
         with os.fdopen(fd, "wb") as f, open(src, "rb") as s:
             shutil.copyfileobj(s, f)
@@ -571,14 +583,37 @@ def undo(shell_dir: str = SHELL_DIR, state_dir: str = STATE_DIR) -> str:
 
 
 def _undo(shell_dir: str, state_dir: str) -> str:
+    # The copies an apply makes before it renames them (the original's, the state file's):
+    # one left by a power cut was never vouched for by the state file, so nothing needs it,
+    # and left there it keeps the folder (with a theme-sized file) after the app is removed.
+    for name in (BACKUP + ".new", STATE + ".new"):
+        try:
+            os.unlink(os.path.join(state_dir, name))
+        except FileNotFoundError:
+            pass
     s = _current(shell_dir, state_dir)
     backup = os.path.join(state_dir, BACKUP)
     if not s.get("written"):
         if s:
-            # An apply stopped before GNOME's file changed: only its records are left.
+            # An apply stopped before GNOME's file changed: only its records are left (and
+            # maybe its copy, cut short before the rename).
             _forget(state_dir)
+            try:
+                _sweep(os.path.dirname(target(shell_dir)))
+            except (OSError, LoginScreenError):
+                pass
+        elif os.path.isfile(backup):
+            # No record at all, but a saved original: an apply stopped right after saving
+            # it. Only a copy of the very file in place now goes (nothing is lost then); any
+            # other may be the only original left of a glass whose record was lost.
+            try:
+                if sha256(backup) == sha256(target(shell_dir)):
+                    os.unlink(backup)
+            except (OSError, LoginScreenError):
+                pass
         return "it was already off"
     dest = target(shell_dir)
+    _sweep(os.path.dirname(dest))
     done = "a GNOME update had already put the normal login screen back"
     if sha256(dest) == s["written"]:
         if not (os.path.isfile(backup) and sha256(backup) == s.get("original")):

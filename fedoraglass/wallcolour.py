@@ -177,7 +177,16 @@ PICTURE_KEYS = {"light": "picture-uri", "dark": "picture-uri-dark"}
 def picture_path(value: str | None) -> str:
     """A picture-uri value as GSettings prints it ('file:///…'), as a local path; "" for none,
     another kind of URI, or a file that isn't there."""
-    v = (value or "").strip().strip("'")
+    v = (value or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
+        # GSettings prints a string with a ' in it in double quotes ("file:///…/Dino's
+        # beach.jpg": a ' is left as it is in a file URI), and escapes with a backslash.
+        import ast
+        try:
+            parsed = ast.literal_eval(v)
+        except (ValueError, SyntaxError):
+            parsed = None
+        v = parsed if isinstance(parsed, str) else v.strip("'\"")
     if not v.startswith("file://"):
         return ""
     from urllib.parse import unquote, urlparse

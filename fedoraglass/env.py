@@ -457,13 +457,10 @@ class Env:
 
     def wallpaper(self) -> Path | None:
         key = "picture-uri-dark" if self.prefers_dark() else "picture-uri"
-        v = self.gsettings_get("org.gnome.desktop.background", key) or ""
-        v = v.strip("'")
-        if v.startswith("file://"):
-            from urllib.parse import unquote, urlparse
-            p = Path(unquote(urlparse(v).path))
-            return p if p.is_file() else None
-        return None
+        # Read as the watcher reads it (a picture with a ' in its name comes in double quotes).
+        from .wallcolour import picture_path
+        p = picture_path(self.gsettings_get("org.gnome.desktop.background", key))
+        return Path(p) if p else None
 
     def flatpak_installed(self, app_id: str) -> bool:
         """The Flatpak app is really installed, for the user or system-wide: it has its

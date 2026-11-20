@@ -29,7 +29,7 @@ def merge_json_text(existing: str | None, updates: dict) -> str | None:
     else:
         try:
             data = json.loads(existing)
-        except ValueError:
+        except (ValueError, RecursionError):    # nested thousands deep: not plain JSON to us
             return None
         if not isinstance(data, dict):
             return None
