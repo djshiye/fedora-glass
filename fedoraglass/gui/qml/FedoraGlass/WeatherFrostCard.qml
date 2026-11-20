@@ -31,9 +31,15 @@ Card {
             return qsTr("Pick your place in GNOME Weather, and the glass follows its weather.")
         if (now.status === "no-weather")
             return qsTr("GNOME's weather isn't available on this desktop yet.")
+        if (now.status === "waiting")
+            return qsTr("Waiting for GNOME's weather…")
+        // Applied already, but the glass isn't running yet: another Apply would change nothing.
+        if (now.status !== "ok" && !Backend.glassLive && Backend.targetStates.glass !== false
+                && !Backend.changeList.some(r => r.key === "weather_frost"))
+            return Backend.glassProblemNote !== "" ? Backend.glassProblemNote
+                                                   : qsTr("Apply, then restart your PC once to start the glass.")
         if (now.status !== "ok")
-            return now.status === "waiting" ? qsTr("Waiting for GNOME's weather…")
-                                            : qsTr("Apply, and the glass starts following the weather.")
+            return qsTr("Apply, and the glass starts following the weather.")
         return reading()
     }
     function reading() {
