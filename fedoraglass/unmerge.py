@@ -94,7 +94,7 @@ def unmerge(current: str, original: str | None, spec) -> str | None:
         try:
             cur = json.loads(current) if current.strip() else {}
             orig = json.loads(original) if original and original.strip() else {}
-        except ValueError:
+        except (ValueError, RecursionError):    # nested thousands deep: not readable either
             return None
         if not isinstance(cur, dict) or not isinstance(orig, dict):
             return None

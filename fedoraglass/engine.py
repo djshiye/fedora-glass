@@ -83,9 +83,21 @@ def pending_path() -> Path:
     return config_dir() / "pending-shell.json"
 
 
+def read_upto(path: Path, limit: int) -> bytes:
+    """A file of ours, read whole, or ValueError when it holds more than `limit` bytes: a
+    file far bigger than any we write is damaged, and reading it all could take every byte
+    of memory (MemoryError, the app gone) before the JSON could even say so."""
+    with open(path, "rb") as f:
+        raw = f.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError(f"over {limit} bytes")
+    return raw
+
+
 def read_pending() -> set[str]:
     try:
-        data = json.loads(pending_path().read_text(encoding="utf-8"))
+        # A few part ids: anything near this size is not one of ours.
+        data = json.loads(read_upto(pending_path(), 64 * 1024).decode("utf-8"))
     except (OSError, ValueError, RecursionError):   # nested thousands deep: damaged
         return set()
     return {x for x in data if isinstance(x, str)} if isinstance(data, list) else set()
@@ -343,6 +355,10 @@ class BackupUnreadable(Exception):
     stop instead of starting a new, empty backup over it."""
 
 
+# Far more than any backup holds (a few hundred bytes for each file and setting).
+MANIFEST_MAX = 64 * 1024 * 1024
+
+
 class Backup:
     SECTIONS = ("files", "gsettings", "commands", "lists", "flatpak", "dirlinks")
 
@@ -366,7 +382,7 @@ class Backup:
         # compact text means equal indented text (same values, same order).
         self._on_disk_compact: str | None = None
         try:
-            raw = self.manifest_path.read_bytes()
+            raw = read_upto(self.manifest_path, MANIFEST_MAX)
             self.data = self._parse(raw)
             self._on_disk = raw
             return
@@ -378,7 +394,7 @@ class Backup:
         except (OSError, ValueError) as err:
             problem = err
         try:
-            self.data = self._parse(self.last_good_path.read_bytes())
+            self.data = self._parse(read_upto(self.last_good_path, MANIFEST_MAX))
         except (OSError, ValueError):
             raise BackupUnreadable(self._unreadable(problem)) from problem
 
@@ -404,20 +420,34 @@ class Backup:
         disk error can leave a manifest that is valid JSON and still unusable)."""
         if not isinstance(e, dict) or not isinstance(e.get("target"), str):
             return False
+        # Lists of strings, where a list is optional: Restore takes folders away by these
+        # names and puts these items back, and a number or a word in their place would stop
+        # it part way with a Python error instead of saying the backup is damaged.
+        def strs(name: str, absolute: bool = False) -> bool:
+            v = e.get(name, [])
+            return isinstance(v, list) and all(isinstance(i, str) and (not absolute or os.path.isabs(i)) for i in v)
         if section == "files":
+            mode = e.get("mode", 0o644)
             return e.get("kind") in ("file", "missing", "symlink") \
                 and (e["kind"] != "file" or isinstance(e.get("copy"), str)) \
-                and (e["kind"] != "symlink" or isinstance(e.get("link"), str))
+                and (e["kind"] != "symlink" or isinstance(e.get("link"), str)) \
+                and type(mode) is int and 0 <= mode <= 0o7777 and strs("new_dirs", absolute=True) \
+                and isinstance(e.get("wrote", ""), str)
         if section in ("gsettings", "lists") and key.count("|") != 2:
             return False
         if section == "gsettings":
-            return "value" in e
+            return isinstance(e.get("value"), str) and isinstance(e.get("ours", ""), str)
         if section == "lists":
-            return isinstance(e.get("added"), list) and isinstance(e.get("removed"), list)
+            return isinstance(e.get("added"), list) and isinstance(e.get("removed"), list) \
+                and strs("added") and strs("removed")
         if section == "commands":
             return isinstance(e.get("undo"), list) and bool(e["undo"]) and all(isinstance(a, str) for a in e["undo"])
         if section == "dirlinks":
-            return isinstance(e.get("link"), str)
+            return isinstance(e.get("link"), str) and strs("made")
+        if section == "flatpak":
+            env = e.get("env", {})
+            return strs("filesystems") and strs("new_dirs", absolute=True) and isinstance(env, dict) \
+                and all(v is None or isinstance(v, str) for v in env.values())
         return True
 
     def _unreadable(self, err: Exception) -> str:
@@ -827,6 +857,14 @@ class Backup:
             if mine(e) and (problem := self._restore_file(key, e, new_dirs)):
                 problems.append(problem)
         _remove_empty(new_dirs)
+        # A folder this part's write made that another part's files still share (two apps'
+        # files in ~/.local/share/liquid-glass) stays, and goes with those files when they
+        # go: without this, Restore original would leave it behind, empty, for good.
+        for d in sorted(x for x in new_dirs if os.path.isdir(x)):
+            for key, e in self.data["files"].items():
+                if e.get("kind") == "missing" and Path(key).is_relative_to(d) \
+                        and d not in e.setdefault("new_dirs", []):
+                    e["new_dirs"].append(d)
         for key, e in list(self.data["dirlinks"].items()):
             if mine(e) and (problem := self._restore_folder(key, e)):
                 problems.append(problem)
@@ -1184,6 +1222,22 @@ def _flatpak_undo(env: Env, rec: dict) -> None:
             _remove_empty({d for d in rec.get("new_dirs", []) if isinstance(d, str)})
 
 
+def _open_lock(path: Path):
+    """The lock file, opened without following a link and without emptying it. A link in
+    its place (a dotfiles tool, a sync app) is never the lock: opened for writing, it would
+    empty whatever file it leads to, or make one somewhere else. It goes, and a file of our
+    own takes its place."""
+    def nofollow(p, flags):
+        return os.open(p, flags | os.O_NOFOLLOW, 0o600)
+    try:
+        return open(path, "a", opener=nofollow)
+    except OSError as e:
+        if e.errno != errno.ELOOP:
+            raise
+    path.unlink()
+    return open(path, "a", opener=nofollow)
+
+
 # Told as each part of an Apply starts: (index from 0, number of parts, the part's name).
 Progress = Callable[[int, int, str], None]
 
@@ -1212,7 +1266,7 @@ class Engine:
         d = self.env.state / "liquid-glass"
         try:
             d.mkdir(parents=True, exist_ok=True)
-            f = open(d / "lock", "w")
+            f = _open_lock(d / "lock")
         except OSError as e:
             # A folder or lock that isn't ours to write (left by a run as root, say).
             raise LockUnavailable(_("Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. "

@@ -277,7 +277,7 @@ class Settings:
         s.bleed = _clamp(float(s.bleed), Settings.bleed)
         s.pointer_light = _clamp(float(s.pointer_light), Settings.pointer_light)
         s.liquid_strength = _clamp(float(s.liquid_strength), Settings.liquid_strength)
-        for k in ("liquid_motion", "menu_grow", "hover_glide"):
+        for k in ("liquid_motion", "menu_grow", "hover_glide", "motion_dtp_hover_off"):
             setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         s.radius = _int(s.radius, 0, 32, Settings.radius)
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
@@ -731,7 +731,7 @@ def _stand_in(path: Path) -> Settings:
     on its own meanwhile: "Remove only" (see save_undo_on_remove)."""
     try:
         raw = json.loads(_on_remove_path(path).read_bytes().decode("utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):   # nested thousands deep: damaged too
         raw = None
     on = raw.get("undo_on_remove") if isinstance(raw, dict) else None
     return Settings(undo_on_remove=on) if isinstance(on, bool) else Settings()
@@ -965,6 +965,9 @@ def load_previous(path: Path | None = None) -> Previous | None:
     if not isinstance(raw, dict):
         return None
     when = data.get("applied_at")
-    when = float(when) if isinstance(when, (int, float)) and not isinstance(when, bool) and \
-        math.isfinite(float(when)) and when > 0 else 0.0
+    try:
+        when = float(when) if isinstance(when, (int, float)) and not isinstance(when, bool) and \
+            math.isfinite(float(when)) and when > 0 else 0.0
+    except OverflowError:       # a whole number too big for a float: not a time
+        when = 0.0
     return Previous(_from_dict(raw), when, data.get("forward") is True)
