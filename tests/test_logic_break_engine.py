@@ -227,3 +227,18 @@ def test_restore_leaves_an_app_file_nested_too_deep_to_read(fake_env):
     # And the next Apply leaves it alone too, instead of failing the part.
     assert eng.apply(Settings())[0].status in ("applied", "info")
     assert p.read_text() == deep
+
+
+# ---- the Restore mark replaced by a folder ------------------------------------------------
+def test_a_folder_where_the_restore_mark_goes_never_stops_apply(fake_env):
+    p = fake_env.config / "x/file.conf"
+
+    class One(Target):
+        def plan(self, ctx):
+            return [WriteFile(p, "ours\n")]
+    eng = Engine(fake_env, targets=[One(id="one", name="One")])
+    mark = engine_mod.restored_path(fake_env)
+    mark.mkdir(parents=True)
+    assert eng.apply(Settings())[0].status == "applied"     # was IsADirectoryError
+    assert p.read_text() == "ours\n"
+    assert not mark.exists(), "the look would have read as restored for good"

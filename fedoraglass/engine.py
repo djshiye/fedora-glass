@@ -119,6 +119,20 @@ def restored_path(env: Env) -> Path:
     return env.state / "liquid-glass/restored"
 
 
+def _clear_restored(env: Env) -> None:
+    """Take the Restore mark away at an Apply. Something else in its place (an empty folder
+    by that name) goes too where it can, and never stops the Apply: left there it would
+    read as "restored" for good, and the look would no longer follow dark/light or updates."""
+    p = restored_path(env)
+    try:
+        p.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        with contextlib.suppress(OSError):
+            p.rmdir()
+
+
 def applied_version_path(env: Env) -> Path:
     """The app version of the last Apply, for `fedora-glass watch` after an upgrade (the
     glass extension's own version says the same, but only while the glass part is on)."""
@@ -1368,8 +1382,7 @@ class Engine:
                 if not only:
                     return []
             if not if_applied and not self.env.dry_run:
-                with contextlib.suppress(FileNotFoundError):
-                    restored_path(self.env).unlink()
+                _clear_restored(self.env)
                 note_applied_style(self.env)
             return self._apply(settings, only, full=full, progress=progress)
 
