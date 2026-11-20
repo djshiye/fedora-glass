@@ -13,7 +13,7 @@ import functools
 import re
 from dataclasses import dataclass
 
-from ..color import Color
+from ..color import Color, ensure_contrast, from_hsl as _from_hsl, hsl as _hsl
 from ..palette import Tokens
 
 ANSI_NAMES = ("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")
@@ -40,30 +40,6 @@ class TermPalette:
             out[n] = self.ansi[i]
             out["bright_" + n] = self.ansi[i + 8]
         return out
-
-
-def _hsl(c: Color) -> tuple[float, float, float]:
-    h, l, s = colorsys.rgb_to_hls(c.r, c.g, c.b)
-    return h, s, l
-
-
-def _from_hsl(h: float, s: float, l: float) -> Color:
-    r, g, b = colorsys.hls_to_rgb(h % 1.0, min(1, max(0, l)), min(1, max(0, s)))
-    return Color(r, g, b)
-
-
-def ensure_contrast(c: Color, bg: Color, ratio: float) -> Color:
-    """Move lightness away from the background until the ratio is met."""
-    if c.contrast(bg) >= ratio:
-        return c
-    h, s, l = _hsl(c)
-    step = 0.02 if bg.luminance() < 0.4 else -0.02
-    for _ in range(50):
-        l += step
-        c = _from_hsl(h, s, l)
-        if c.contrast(bg) >= ratio or not 0.0 < l < 1.0:
-            break
-    return c
 
 
 def _chip_grey(bg: Color, fg: Color, white: Color) -> Color:

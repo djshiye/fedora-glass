@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 from dataclasses import dataclass
 
 
@@ -82,3 +83,27 @@ class Color:
 
 WHITE = Color(1, 1, 1)
 BLACK = Color(0, 0, 0)
+
+
+def hsl(c: Color) -> tuple[float, float, float]:
+    h, l, s = colorsys.rgb_to_hls(c.r, c.g, c.b)
+    return h, s, l
+
+
+def from_hsl(h: float, s: float, l: float) -> Color:
+    r, g, b = colorsys.hls_to_rgb(h % 1.0, min(1, max(0, l)), min(1, max(0, s)))
+    return Color(r, g, b)
+
+
+def ensure_contrast(c: Color, bg: Color, ratio: float) -> Color:
+    """Move lightness away from the background until the ratio is met."""
+    if c.contrast(bg) >= ratio:
+        return c
+    h, s, l = hsl(c)
+    step = 0.02 if bg.luminance() < 0.4 else -0.02
+    for _ in range(50):
+        l += step
+        c = from_hsl(h, s, l)
+        if c.contrast(bg) >= ratio or not 0.0 < l < 1.0:
+            break
+    return c
