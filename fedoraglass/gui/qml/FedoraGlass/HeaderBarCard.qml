@@ -103,7 +103,9 @@ Card {
                     objectName: "terminalColors"
                     readonly property string pal: Backend.terminalPalette
                     readonly property bool own: pal !== "" && pal !== Backend.fedoraGlassPalette
-                    visible: own
+                    // Shown too once Terminal is on the Fedora Glass colours by this switch: up to
+                    // 1.7.8 the box went away after Apply, with the only way to switch them off again.
+                    visible: pal !== ""
                     width: parent.width
                     height: termCol.implicitHeight + 24
                     radius: Theme.rS
@@ -125,8 +127,12 @@ Card {
                                 color: Theme.textDim
                                 font.pixelSize: Theme.fsSmall
                                 lineHeight: 1.15
-                                text: termCol.chosen
+                                text: termCol.chosen && !termCol.parent.own
+                                      ? qsTr("Terminal uses the Fedora Glass colours, so its top bar is glass.")
+                                      : termCol.chosen
                                       ? qsTr("Terminal switches to Fedora Glass colours when you Apply, and its top bar turns to glass.")
+                                      : !termCol.parent.own
+                                      ? qsTr("Terminal gets the colours it had before back when you Apply. Its top bar turns solid again.")
                                       : qsTr("Terminal uses its own colours (%1), so its top bar stays solid.").arg(termCol.palName)
                             }
                         }
@@ -137,8 +143,11 @@ Card {
                             implicitHeight: 32
                             leftPadding: 14; rightPadding: 14
                             tipBelow: true
-                            text: termCol.chosen ? qsTr("Keep my colours") : qsTr("Use Fedora Glass terminal colours")
-                            tip: termCol.chosen
+                            text: termCol.chosen && !termCol.parent.own ? qsTr("Go back to my own colours")
+                                  : termCol.chosen ? qsTr("Keep my colours") : qsTr("Use Fedora Glass terminal colours")
+                            tip: termCol.chosen && !termCol.parent.own
+                                 ? qsTr("Terminal gets the colours it had before back when you Apply. Its top bar turns solid again.")
+                                 : termCol.chosen
                                  ? qsTr("Leaves Terminal on %1. Its top bar stays solid.").arg(termCol.palName)
                                  : qsTr("Changes Terminal's text and background colours to the Fedora Glass palette, which also turns its top bar to glass. Restore original brings your own colours back.")
                             onClicked: Backend.terminalColors = !termCol.chosen

@@ -209,11 +209,13 @@ class VSCode(AppTarget):
                 acts.append(Command((*run, "--install-extension", str(vsix), "--force"),
                                     "install the Fedora Glass colour themes",
                                     undo=(*run, "--uninstall-extension", ra.VSCODE_ID)))
-            updates: dict = {"workbench.colorTheme": ra.VSCODE_LABELS[t.dark]}
-            if ctx.settings.scheme == "auto":
-                updates.update({"window.autoDetectColorScheme": True,
-                                "workbench.preferredDarkColorTheme": ra.VSCODE_LABELS[True],
-                                "workbench.preferredLightColorTheme": ra.VSCODE_LABELS[False]})
+            # All four keys at every Apply. A fixed Dark or Light after "Follow the system" left
+            # auto-detect on up to 1.7.8, so VS Code went on following GNOME and ignored the
+            # choice; and Restore, told of one key only, left the other three behind.
+            updates: dict = {"workbench.colorTheme": ra.VSCODE_LABELS[t.dark],
+                             "window.autoDetectColorScheme": ctx.settings.scheme == "auto",
+                             "workbench.preferredDarkColorTheme": ra.VSCODE_LABELS[True],
+                             "workbench.preferredLightColorTheme": ra.VSCODE_LABELS[False]}
             edit = _json_edit(settings, updates)
             if edit is not None:
                 acts.append(edit)

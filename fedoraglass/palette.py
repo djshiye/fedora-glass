@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from .color import BLACK, WHITE, Color, lerp
+from .color import BLACK, WHITE, Color, ensure_contrast, lerp
 from .radius import scale
 from .settings import GNOME_ACCENTS, PARTS, Settings
 
@@ -102,12 +102,28 @@ def _jsonable(v: object) -> object:
     return v
 
 
+DARK_FG = Color.hex("#f4f5f9")       # text on dark glass
+MIN_TEXT_CONTRAST = 4.5              # WCAG AA for body text
+
+
 def _surfaces(s: Settings, dark: bool, tint: Color, strength: float, f: float) -> dict[str, Color]:
     """Surface colours for one tint, tint strength and frost. Every part of the
     desktop goes through here, so they only differ by the numbers they are given."""
     if dark:
-        base = Color.hex("#17181d").mix(tint, strength * 0.55)
-        surface = base.mix(WHITE, lerp(0.02, 0.11, f))     # milky lift towards white when frosted
+        lift = lerp(0.02, 0.11, f)                         # milky lift towards white when frosted
+        dark_base, k = Color.hex("#17181d"), strength * 0.55
+        surface = dark_base.mix(tint, k).mix(WHITE, lift)
+        # The text on dark glass is white: a pale tint at full strength made the glass light
+        # grey under it (white tint: 2.3:1). The tint is taken only as far as text stays readable.
+        if surface.contrast(DARK_FG) < MIN_TEXT_CONTRAST:
+            lo, hi = 0.0, k
+            for _ in range(12):
+                mid = (lo + hi) / 2
+                if dark_base.mix(tint, mid).mix(WHITE, lift).contrast(DARK_FG) >= MIN_TEXT_CONTRAST:
+                    lo = mid
+                else:
+                    hi = mid
+            surface = dark_base.mix(tint, lo).mix(WHITE, lift)
         a_chrome, a_window = lerp(0.24, 0.66, f), lerp(0.50, 0.78, f)
         a_view, a_pop = lerp(0.86, 0.92, f), lerp(0.78, 0.90, f)   # text areas stay solid enough to read
     else:
@@ -195,7 +211,7 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
     accent = resolve_accent(s, system_accent)
 
     if dark:
-        fg = Color.hex("#f4f5f9")
+        fg = DARK_FG
         rim = WHITE.with_alpha(s.highlight * lerp(0.42, 0.16, f))
         edge = WHITE.with_alpha(lerp(0.17, 0.09, f))
         card = WHITE.with_alpha(lerp(0.07, 0.06, f))
@@ -217,6 +233,9 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
 
     parts = {p: _part_look(s, dark, p) for p in PARTS}
     panel, menus, wins = parts["panel"], parts["quicksettings"], parts["windows"]
+    # Accent-coloured text (links, focus rings) has to read on the window: a pale accent on
+    # light glass (yellow: 1.5:1) or a deep one on dark glass (navy: 2.1:1) did not.
+    accent_text = ensure_contrast(accent_text, wins["window"].with_alpha(1.0), MIN_TEXT_CONTRAST)
     lens = _lens(s, f, s.refraction, s.bleed, s.highlight)
 
     blur = s.blur if s.blur is not None else frost_blur(f)

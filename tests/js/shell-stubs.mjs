@@ -110,6 +110,7 @@ const STUBS = {
     'resource/signalTracker.js': 'export const debugGetSignalTrackers = () => globalThis.fake.signalTrackers;',
     'gi/St': `export default {Corner: {TOPLEFT: 0, TOPRIGHT: 1, BOTTOMRIGHT: 2, BOTTOMLEFT: 3},
         Settings: {get: () => globalThis.fake.stSettings},
+        get ReducedMotion() { return globalThis.fake.ReducedMotion; },     // GNOME 51 only: a test sets it
         ThemeContext: {get_for_stage: () => globalThis.fake.themeContext},
         Widget: globalThis.fake?.Widget ?? class {}};`,
     'resource/main.js': `export const layoutManager = globalThis.fake.layoutManager ??

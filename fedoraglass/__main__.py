@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import queue
 import subprocess
 import sys
@@ -375,8 +376,33 @@ def update_glass_before_login(eng) -> bool:
 
 def cmd_before_login(args: argparse.Namespace) -> int:
     """`fedora-glass before-login`: see update_glass_before_login. Never fails the login."""
+    _guarded("taking an old source install out of the way", drop_source_install)
     _guarded("updating the glass before login", lambda: update_glass_before_login(_engine()))
     return 0
+
+
+def drop_source_install() -> list[str]:
+    """After a switch from a source install (install.sh) to the package, the old copy's menu
+    entry, command and watcher in the home folder win over the package's: the old app kept
+    running, and updates never reached it. The app's banner offering the clean-up could not
+    show either, as only the package's app has it. This step always runs as the package, at
+    every login, so it takes those files away: only install.sh's own launcher, menu entry and
+    unit (see leftovers.py), nothing else, and not the old copy's folder. Returns what went."""
+    from . import leftovers
+    from .env import Env
+    if not leftovers.from_package():
+        return []
+    env = Env()
+    found = leftovers.find(env)
+    if not found:
+        return []
+    for problem in leftovers.clean_up(env, restart=False):
+        print(f"fedora-glass: could not remove {problem}", file=sys.stderr)
+    gone = [str(p) for p in found if not os.path.lexists(p)]
+    if gone:
+        print("fedora-glass: an old source install was in the way of the package; removed "
+              + ", ".join(gone), file=sys.stderr)
+    return gone
 
 
 def disk_version() -> str | None:

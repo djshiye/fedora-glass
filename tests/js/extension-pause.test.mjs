@@ -55,7 +55,9 @@ globalThis.fakeMods = {
     }},
     'Extension': {Extension: function () { return {}; }},
 };
-globalThis.fake = {sessionMode: {isLocked: false, connect: () => 1, disconnect() {}}};
+// Each start() is a new login, a minute after the last one went (see the rebase in extension.js).
+let clock = 0;
+globalThis.fake = {now: () => clock, sessionMode: {isLocked: false, connect: () => 1, disconnect() {}}};
 globalThis.logError = () => {};
 
 const {default: FedoraGlassExtension} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/extension.js');
@@ -67,7 +69,8 @@ beforeEach(() => {
     globalThis.fake.sessionMode.isLocked = false;
 });
 
-function start() {
+function start(rebase = false) {
+    clock += rebase ? 0.2e6 : 60e6;
     const ext = Object.create(FedoraGlassExtension.prototype);
     ext.path = '/ext';
     ext.enable();
@@ -128,6 +131,41 @@ test('the pause lasts through a lock; the next login starts with the glass on', 
     assert.ok(live.has('glass'));
     assert.deepEqual(shown()[0].state, {paused: false, safe: false});
     next.disable();
+});
+
+// GNOME switches the extension off and on again at the first lock of a session, when an
+// extension started before it (Dash to Panel, ArcMenu, User Themes) leaves for the lock
+// screen. Up to 1.7.8 that took the pause away: glass on the lock screen and after unlocking.
+test('GNOME restarting the extension at a lock keeps the pause', () => {
+    const ext = start();
+    shown()[0].onPause(true);
+    globalThis.fake.sessionMode.isLocked = true;
+    ext.disable();
+    live = new Set();
+    const again = start(true);
+    assert.ok(!live.has('lock'), 'no lock screen glass: the glass is still paused');
+    globalThis.fake.sessionMode.isLocked = false;
+    again._sync();
+    assert.ok(!live.has('glass'), 'still paused after unlocking');
+    assert.deepEqual(shown()[0].state, {paused: true, safe: false});
+    shown()[0].onPause(false);
+    assert.ok(live.has('glass'), 'and the tile brings it back');
+    again.disable();
+    live = new Set();
+    const next = start();
+    assert.ok(live.has('glass'), 'switched off and on later: a fresh start');
+    next.disable();
+});
+
+test('GNOME restarting the extension on the desktop keeps the pause too', () => {
+    const ext = start();
+    shown()[0].onPause(true);
+    ext.disable();
+    live = new Set();
+    const again = start(true);
+    assert.ok(!live.has('glass'));
+    assert.deepEqual(shown()[0].state, {paused: true, safe: false});
+    again.disable();
 });
 
 test('the setting off: no tile, and a pause ends with it', () => {

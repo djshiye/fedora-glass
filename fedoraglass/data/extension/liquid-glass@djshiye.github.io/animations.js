@@ -48,9 +48,25 @@ const RETARGET_MS = 120;     // a restore this soon after a minimize was cut sho
 const FIELD = {'scale-x': 'scale_x', 'scale-y': 'scale_y', 'translation-x': 'translation_x',
     'translation-y': 'translation_y', 'opacity': 'opacity'};
 
+// GNOME 51's "Reduce Motion" (Accessibility) is a setting of its own, next to the older
+// "animations off". GNOME's own window animations become plain fades with it; up to 1.7.8
+// Fedora Glass still played its genie, bounce and springs. GNOME 50 has no such setting.
+function reducedMotion(settings) {
+    return St.ReducedMotion !== undefined && settings.reduced_motion === St.ReducedMotion.REDUCE;
+}
+
+// Follows both settings; returns the handler ids to disconnect.
+function watchMotion(settings, fn) {
+    const ids = [settings.connect('notify::enable-animations', fn)];
+    if (St.ReducedMotion !== undefined)
+        ids.push(settings.connect('notify::reduced-motion', fn));
+    return ids;
+}
+
 function animationsOn() {
     // Read when each animation starts, so Reduce animation applies at once.
-    return St.Settings.get().enable_animations;
+    const settings = St.Settings.get();
+    return settings.enable_animations && !reducedMotion(settings);
 }
 
 
@@ -672,6 +688,10 @@ class WindowAnimations {
                     choice = 'off';   // never leave the event unhandled
             }
             if (choice === 'gnome' || choice === 'off') {
+                // An animation of ours still running on this window (closed or minimized while
+                // it was opening) lands first: GNOME knows nothing of it and would start its own
+                // on top, or destroy the window under it.
+                stop(actor, true);
                 this._stock(kind, shellwm, actor, choice === 'gnome');
                 return;
             }
@@ -1227,7 +1247,7 @@ class PanelAnimations {
 export class Animations {
     constructor(cfg) {
         this.motion = cfg.animations;
-        this._animId = 0;
+        this._animIds = [];
         // A start that fails halfway gives GNOME its window handlers back at once.
         try {
             this.windows = new WindowAnimations(this);
@@ -1235,7 +1255,7 @@ export class Animations {
             this.glide = new HoverGlide();
             this._settings = St.Settings.get();
             // Reduce animation: everything lands where it is going, at once.
-            this._animId = this._settings.connect('notify::enable-animations', () => {
+            this._animIds = watchMotion(this._settings, () => {
                 if (!animationsOn())
                     this.finishAll();
             });
@@ -1271,9 +1291,9 @@ export class Animations {
             this.windows?.destroy();
         } finally {
             try {
-                if (this._animId)
-                    this._settings.disconnect(this._animId);
-                this._animId = 0;
+                for (const id of this._animIds ?? [])
+                    this._settings.disconnect(id);
+                this._animIds = [];
                 this.panel?.destroy();
                 this.glide?.destroy();
             } finally {

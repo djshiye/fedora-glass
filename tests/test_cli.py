@@ -50,3 +50,4 @@ def test_apply_only_does_not_save_the_settings(fake_env, monkeypatch):
     assert json.loads(settings_mod.settings_path().read_text())["frost"] == 0.2
     assert cli.main(["apply", "--frost", "0.9"]) == 0
     assert settings_mod.load().frost == 0.9
+

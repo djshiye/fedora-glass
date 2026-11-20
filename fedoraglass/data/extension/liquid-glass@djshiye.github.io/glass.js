@@ -1695,6 +1695,12 @@ class FedoraGlassEffect extends Clutter.Effect {
         this._out = null;
         this._target = null;
         this._targetFor = '';
+        // No picture is kept any more. Up to 1.7.8 this still said the last size, so a menu
+        // shown again while a window opened or closed counted as "kept": the copies of the
+        // windows behind it were hidden and the new picture was drawn without them (glass of
+        // the wallpaper alone, which jumped to the right picture when the animation ended).
+        this._picture = '';
+        this._placedAt = '';
         this._pipeline.set_layer_null_texture(0);
         this._forgetKept();
     }

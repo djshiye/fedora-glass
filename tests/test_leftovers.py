@@ -177,3 +177,42 @@ def test_the_banner_shows_with_an_old_copy(qml):
         b._leftovers = []
         b.targetsChanged.emit()
         win.deleteLater()
+
+
+def test_the_package_takes_an_old_source_install_out_of_the_way_at_login(fake_env, tmp_path, packaged, monkeypatch, capsys):
+    """After install.sh and then the package, the app grid, the command and the watcher all ran
+    the old copy, and the banner offering the clean-up could never show (only the package's app
+    has it). `fedora-glass before-login` always runs as the package: it cleans up (Dino's choice,
+    2026-11-20). Before the session is up, so the watcher is not restarted: systemd starts the
+    package's own."""
+    from fedoraglass import __main__ as cli
+    from fedoraglass import env as env_mod
+
+    _source_install(fake_env, tmp_path)
+    keep = _theirs(fake_env)
+    found = leftovers.find(fake_env)
+    assert found
+    monkeypatch.setattr(env_mod, "Env", lambda: fake_env)
+    monkeypatch.setattr(cli, "update_glass_before_login", lambda eng: None)
+    monkeypatch.setattr(cli, "_engine", lambda: None)
+    assert cli.main(["before-login"]) == 0
+    assert not any(os.path.lexists(p) for p in found)
+    assert all(p.exists() for p in keep), "touched a file that is not the old copy's"
+    assert (fake_env.data / "liquid-glass/fedoraglass").is_dir()
+    assert ["systemctl", "--user", "daemon-reload"] in fake_env.commands
+    assert ["systemctl", "--user", "restart", leftovers.UNIT] not in fake_env.commands
+    assert "an old source install was in the way of the package" in capsys.readouterr().err
+    # The next login: nothing left, nothing said.
+    fake_env.commands.clear()
+    assert cli.main(["before-login"]) == 0
+    assert fake_env.commands == [] and capsys.readouterr().err == ""
+
+
+def test_a_source_install_or_checkout_never_cleans_up_at_login(fake_env, tmp_path, monkeypatch):
+    from fedoraglass import __main__ as cli
+    from fedoraglass import env as env_mod
+
+    _source_install(fake_env, tmp_path)
+    monkeypatch.setattr(env_mod, "Env", lambda: fake_env)
+    assert cli.drop_source_install() == []
+    assert (fake_env.config / "systemd/user" / leftovers.UNIT).exists()

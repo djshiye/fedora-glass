@@ -261,6 +261,13 @@ def _target_rows(now: Settings, was: Settings, names: dict[str, str]) -> list[di
     return rows
 
 
+# The login screen's own values. While it matches the lock screen they are not used, so a
+# difference in them is no change (switching the match off copies the lock screen's values
+# into them, and switching it back on left "2 changes not applied yet" up to 1.7.8).
+LOGIN_OWN = ("login_blur", "login_dim", "login_tint", "login_card", "login_clock", "login_battery",
+             "login_message")
+
+
 def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
                 target_names: dict[str, str] | None = None, system_accent: str = "") -> list[dict]:
     """Every difference between the editor (`now`) and the look applied last (`was`), as
@@ -271,6 +278,8 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
         k = f.name
         if k in HIDDEN or k in ("motion", "parts", "targets"):
             continue
+        if k in LOGIN_OWN and now.login_match_lock and was.login_match_lock:
+            continue        # the login screen takes the lock screen's: its own values do nothing
         a, b = getattr(now, k), getattr(was, k)
         if k == "start_on_desktop":
             a, b = now.start_on_desktop_for(has_dash_to_panel), was.start_on_desktop_for(has_dash_to_panel)

@@ -133,6 +133,20 @@ test('the pointer moving far from the glass: one look per frame, and nothing wor
     fake.stSettings.enable_animations = true;
     fake.stSettings.emit('notify::enable-animations');
     run();
+    // GNOME 51's Reduce Motion counts the same (up to 1.7.8 it was not looked at).
+    fake.ReducedMotion = {NO_PREFERENCE: 0, REDUCE: 1};
+    const m51 = new Motion();
+    assert.equal(m51._animate, true);
+    fake.stSettings.reduced_motion = 1;
+    fake.stSettings.emit('notify::reduced-motion');
+    assert.equal(m51._animate, false, 'Reduce Motion: the glass stops moving with the pointer');
+    fake.stSettings.reduced_motion = 0;
+    fake.stSettings.emit('notify::reduced-motion');
+    assert.equal(m51._animate, true);
+    const before = fake.stSettings.h.size;
+    m51.destroy();
+    assert.equal(fake.stSettings.h.size, before - 2, 'both settings are let go of');
+    delete fake.ReducedMotion;
     followers.delete(panel);
     m.destroy();
 });

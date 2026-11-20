@@ -304,3 +304,41 @@ def test_qbittorrent_colours_match_its_style_sheet(fake_env, dark):
     assert cfg["colors"] == cfg["colors.dark"] == want
     assert files["stylesheet.qss"].content == ra.qt_qss(ctx.tokens)
     assert ta.QBittorrent().scheme_dependent, "rewritten when GNOME switches dark and light"
+
+
+def test_vscode_fixed_style_after_follow_the_system(fake_env):
+    """Up to 1.7.8 a fixed Dark or Light left VS Code's auto-detect on from an earlier "Follow the
+    system", so VS Code ignored the choice; and Restore was told of one key only."""
+    (fake_env.config / "Code/User").mkdir(parents=True)
+    sp = fake_env.config / "Code/User/settings.json"
+    sp.write_text('{"window.autoDetectColorScheme": true}')
+    edit = by_name(ta.VSCode().plan(ctx_for(fake_env, dark=False)))["settings.json"]
+    st = json.loads(edit.content)
+    assert st["window.autoDetectColorScheme"] is False and st["workbench.colorTheme"] == "Fedora Glass Light"
+    assert set(edit.edits[1]) == {"workbench.colorTheme", "window.autoDetectColorScheme",
+                                  "workbench.preferredDarkColorTheme", "workbench.preferredLightColorTheme"}
+    auto = json.loads(by_name(ta.VSCode().plan(ctx_for(fake_env, scheme="auto")))["settings.json"].content)
+    assert auto["window.autoDetectColorScheme"] is True
+
+
+@pytest.mark.parametrize("accent", ["#ffff00", "#f6d32d", "#20dfdf", "#000080", "#2020df", "#ffffff", "#000000"])
+@pytest.mark.parametrize("dark", [True, False])
+def test_accent_text_reads_on_the_window(accent, dark):
+    """A pale accent on light glass (yellow: 1.5:1) or a deep one on dark glass (navy: 2.1:1)
+    made links and accent labels unreadable up to 1.7.8."""
+    t = palette.build(Settings(accent=accent), dark=dark)
+    assert t.accent_text.contrast(t.window.with_alpha(1.0)) >= 4.4
+
+
+@pytest.mark.parametrize("tint", ["#ffffff", "#e0c080", "#8fa8c8"])
+@pytest.mark.parametrize("frost", [0.0, 0.5, 1.0])
+def test_dark_glass_stays_dark_enough_for_its_white_text(tint, frost):
+    """A pale tint at full strength turned dark glass light grey under white text (2.3:1)."""
+    t = palette.build(Settings(tint=tint, tint_strength=1.0, frost=frost), dark=True)
+    for surface in (t.window, t.popover, t.dialog, t.window_chrome):
+        assert t.fg.contrast(surface.with_alpha(1.0)) >= 4.4
+
+
+def test_built_in_look_is_untouched_by_the_contrast_floors():
+    d, l = palette.build(Settings(), dark=True), palette.build(Settings(), dark=False)
+    assert (d.accent_text.hex6, l.accent_text.hex6, d.window.hex6) == ("#6ea6ec", "#2b6cbb", "#292a30")
