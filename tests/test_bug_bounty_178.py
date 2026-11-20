@@ -70,3 +70,28 @@ def test_terminal_colours_can_be_switched_off_again_after_apply(qml):
         b.setProperty("terminalColors", was[1])
         b.targetsChanged.emit()
         win.close()
+
+
+def test_lock_preview_clock_rests_while_the_app_is_minimized(qml, capfd):
+    """Its timer asked the window from inside the Timer, where QML gives a warning and nothing:
+    the clock kept ticking every 30 s in a minimized app."""
+    pytest.importorskip("PySide6")
+    from PySide6.QtCore import Qt
+
+    import test_gui_polish as g
+
+    win = g._window(qml)
+    try:
+        win.show()
+        g._goto(win, "lock", 400)
+        timer = g._find(win, "lockPreview")
+        assert timer is not None and timer.property("ticking") is True
+        win.setWindowStates(Qt.WindowState.WindowMinimized)
+        g._spin(200)
+        assert timer.property("ticking") is False
+        win.setWindowStates(Qt.WindowState.WindowNoState)
+        g._spin(200)
+        assert timer.property("ticking") is True
+    finally:
+        win.close()
+    assert "LockPreview.qml" not in capfd.readouterr().err

@@ -48,8 +48,13 @@ Item {
     readonly property bool showNotifications: !Backend.lockHideNotifications
 
     property date now: new Date()
-    // Not while the window is minimized: nobody sees the clock then.
-    Timer { interval: 30000; running: root.visible && Window.visibility !== Window.Minimized; repeat: true; onTriggered: root.now = new Date() }
+    // Not while the window is minimized: nobody sees the clock then. Asked here, on the item:
+    // inside the Timer (no item) `Window` gave a warning and nothing, so up to 1.7.8 the clock
+    // kept ticking in a minimized app.
+    readonly property alias ticking: tick.running
+    readonly property bool inView: visible && Window.window !== null && Window.window.visible
+                                     && Window.window.visibility !== Window.Minimized
+    Timer { id: tick; interval: 30000; running: root.inView; repeat: true; onTriggered: root.now = new Date() }
     function greeting() {
         const h = now.getHours()
         return h >= 5 && h < 12 ? qsTr("Good morning") : h >= 12 && h < 17 ? qsTr("Good afternoon")

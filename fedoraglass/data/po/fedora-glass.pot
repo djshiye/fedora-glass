@@ -2437,7 +2437,7 @@ msgid "The lock screen as it waits, with the clock and your widgets"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:475
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:488
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:493
 msgid "Password"
 msgstr ""
 
@@ -2503,47 +2503,47 @@ msgstr ""
 msgid "Turns the lock screen into one sheet of frosted glass over your wallpaper. When you unlock, the sheet slides up and your desktop appears underneath. Off gives you GNOME's own lock screen; your widgets stay."
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:159
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:164
 msgid "14°  ·  Partly cloudy"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:159
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:164
 msgid "14°  ·  Partly cloudy  ·  Your town"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:187
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:192
 msgid "Click or press a key to unlock"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:212
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:217
 msgid "Messages"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:213
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:218
 msgid "2 new notifications"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:267
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:474
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:272
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:479
 msgid "You"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:55
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:60
 #: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:64
 msgid "Good afternoon"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:55
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:60
 #: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:62
 msgid "Good morning"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:56
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:61
 #: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:66
 msgid "Good evening"
 msgstr ""
 
-#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:56
+#: fedoraglass/gui/qml/FedoraGlass/LockPreview.qml:61
 #: fedoraglass/data/extension/liquid-glass@djshiye.github.io/lockwidgets.js:67
 msgid "Good night"
 msgstr ""
