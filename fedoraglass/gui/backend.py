@@ -253,7 +253,7 @@ def _at_once(s: Settings) -> dict:
 _BOOKKEEPING = ("tint_own", "accent_own", "wallpaper_match")
 
 
-def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
+def _effective(s: Settings, has_dash_to_panel: bool = True, *, as_used: bool = True) -> dict:
     """What a Settings really does, so a switch flipped off and on again, or a motion picked and
     then set back to its default, doesn't count as an unapplied change. "Start on the desktop"
     not chosen yet (None) is what Apply decides for this desktop."""
@@ -263,9 +263,11 @@ def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     d["start_on_desktop"] = s.start_on_desktop_for(has_dash_to_panel)
     for k in (*_SAVED_AT_ONCE, *_BOOKKEEPING):
         d.pop(k, None)
-    if s.login_match_lock:
+    # as_used=False: against the defaults (the Reset pills), where a value that is set counts
+    # also while it is not used.
+    if as_used and s.login_match_lock:
         for k in changes_mod.LOGIN_OWN:      # not used while the login screen matches the lock screen
-            d.pop(k, None)
+            d[k] = getattr(Settings, k)
     return d
 
 
@@ -1444,7 +1446,7 @@ class Backend(QObject):
 
     def _work_can_reset_all(self) -> bool:
         dtp = self.hasDashToPanel
-        return _effective(self._all_reset(), dtp) != _effective(self._s, dtp)
+        return _effective(self._all_reset(), dtp, as_used=False) != _effective(self._s, dtp, as_used=False)
 
     @Slot()
     def resetDefaults(self) -> None:
@@ -1484,7 +1486,7 @@ class Backend(QObject):
 
     def _work_changed_from_default(self) -> list[str]:
         dtp = self.hasDashToPanel
-        d, now = _effective(Settings(), dtp), _effective(self._s, dtp)
+        d, now = _effective(Settings(), dtp, as_used=False), _effective(self._s, dtp, as_used=False)
         return [f.name for f in fields(Settings) if f.name in now and f.name != "targets" and now[f.name] != d[f.name]]
 
     @Slot("QStringList")
