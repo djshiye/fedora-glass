@@ -1182,6 +1182,14 @@ export class Windows {
             this._signals.on(swipe, 'begin', () => preview('swipe', true));
             this._signals.on(swipe, 'end', () => preview('swipe', false));
         }
+        // Started with the overview or the screenshot tool already open (the Glass tile in
+        // Quick Settings, which the overview shows too): their 'showing' has been and gone.
+        // Up to 1.7.8 the windows on other workspaces, and covered ones, then showed there
+        // without glass until the overview was closed and opened again.
+        if (Main.overview?.visible)
+            preview('overview', true);
+        if (Main.screenshotUI?.visible)
+            preview('screenshot', true);
     }
 
     _add(actor) {

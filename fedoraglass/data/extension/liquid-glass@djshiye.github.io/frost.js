@@ -74,12 +74,26 @@ export function readWeather(client) {
     return {status: 'ok', temp, feels: feels ?? temp, dew: temp !== null && dew !== null ? Math.min(dew, temp) : null};
 }
 
+// The last good reading when the frost last went away with the glass (the screen locking,
+// a pause): a reading is kept through a refresh that is still loading or failed (offline),
+// for a while (see stale), and a lock in between must not lose it. Up to 1.7.8 an unlock
+// while GNOME's weather was refreshing (it asks on the lock screen as the PC wakes up) took
+// the frost away, and kept it away for as long as the PC was offline.
+let kept = null;
+
 export class WeatherFrost {
+    /** Fedora Glass switched off (not a lock): the next start reads the weather afresh. */
+    static forget() {
+        kept = null;
+    }
+
     constructor(cfg) {
         this._cfg = cleanFrost(cfg?.weather);
         this._now = {frost: 0, flakes: 0};
         this._target = {frost: 0, flakes: 0};
-        this._reading = null;       // the last good one: {temp, feels, dew, at}
+        // The last good one: {temp, feels, dew, at}.
+        this._reading = this._cfg.enabled ? kept : null;
+        kept = null;
         this._status = 'off';
         this._written = null;
         this._client = null;
@@ -264,6 +278,7 @@ export class WeatherFrost {
             GLib.source_remove(this._tick);
         this._tick = 0;
         this._set({frost: 0, flakes: 0});
+        kept = was ? this._reading : null;
         // The lock screen ends the session's parts: the file stays for the app while it is
         // on, and goes only when it is turned off.
         if (!was)
