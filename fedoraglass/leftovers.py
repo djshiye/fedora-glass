@@ -117,9 +117,11 @@ def find(env: Env) -> list[Path]:
     return out
 
 
-def clean_up(env: Env) -> list[str]:
+def clean_up(env: Env, *, restart: bool = True) -> list[str]:
     """Take the leftovers away, then let systemd start the package's own watcher.
-    Returns problems, in plain words (empty when all went)."""
+    Returns problems, in plain words (empty when all went). restart=False before the session
+    is up (`fedora-glass before-login`): the watcher has not started yet, and systemd then
+    starts the package's own by itself; waiting for it there would hold up the login."""
     problems: list[str] = []
     gone_unit = False
     for p in find(env):
@@ -132,6 +134,7 @@ def clean_up(env: Env) -> list[str]:
             problems.append(f"{p}: {e.strerror or e}")
     if gone_unit and not env.dry_run:
         env.run(["systemctl", "--user", "daemon-reload"], timeout=30)
-        # The old copy's watcher is still running: start the package's in its place.
-        env.run(["systemctl", "--user", "restart", UNIT], timeout=30)
+        if restart:
+            # The old copy's watcher is still running: start the package's in its place.
+            env.run(["systemctl", "--user", "restart", UNIT], timeout=30)
     return problems
