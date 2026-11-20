@@ -125,11 +125,25 @@ Window {
     readonly property string running: Backend.removing ? "remove"
         : Backend.busyKind === "apply" || Backend.busyKind === "revert" ? Backend.busyKind
         : Backend.loginGlass === "busy" ? "login" : ""
+    // A login screen step ran while waiting to close: its error is shown, not closed away.
+    property bool closeSawLogin: false
     onRunningChanged: {
-        if (running === "" && closeWhenIdle) {
-            closeWhenIdle = false
-            Qt.callLater(win.close)
+        if (running === "login")
+            closeSawLogin = true
+        if (running === "" && closeWhenIdle)
+            Qt.callLater(win.closeIfIdle)
+    }
+    // Decided a moment after the work ends: Restore says what it couldn't restore and may
+    // start the login screen's step right then, and an error or a problem keeps the window.
+    function closeIfIdle() {
+        if (!closeWhenIdle || running !== "")
+            return
+        closeWhenIdle = false
+        if (closeSawLogin && Backend.loginGlassFailed) {
+            toast.showError(Backend.loginGlassNote)
+            return
         }
+        win.close()
     }
     onClosing: (close) => {
         if (win.running !== "" && !win.closeAnyway) {
@@ -971,7 +985,11 @@ Window {
         }
         function onRevertFinished(problems) {
             if (problems.length === 0) toast.show(qsTr("Your original look is back"), "okCircle", Theme.good)
-            else { problemsSheet.problems = problems; problemsSheet.open() }
+            else {
+                win.closeWhenIdle = false       // "Close when done": these are shown, not closed away
+                problemsSheet.problems = problems
+                problemsSheet.open()
+            }
         }
         function onLoginGlassChanged() {
             if (!win.closeAfterLogin || Backend.loginGlass === "busy")
@@ -1082,7 +1100,10 @@ Window {
                     waitSheet.close()
                     // After Apply, the same rules as "Apply and close": a problem is shown, not hidden.
                     if (waitSheet.what === "apply") win.closeAfterApply = true
-                    else win.closeWhenIdle = true
+                    else {
+                        win.closeSawLogin = waitSheet.what === "login"
+                        win.closeWhenIdle = true
+                    }
                 }
             }
         ]
@@ -1091,6 +1112,7 @@ Window {
 
     Sheet {
         id: problemsSheet
+        objectName: "problemsSheet"
         property var problems: []
         title: qsTr("Some things could not be restored")
         subtitle: qsTr("Everything else is back. These need a look:")

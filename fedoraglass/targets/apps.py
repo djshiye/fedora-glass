@@ -129,7 +129,7 @@ class Discord(AppTarget):
             text = ra.read_text(sp)
             try:
                 data = json.loads(text) if text else None
-            except ValueError:
+            except (ValueError, RecursionError):    # nested thousands deep: not readable
                 data = None
             if not isinstance(data, dict):
                 continue
@@ -272,7 +272,7 @@ class Obsidian(AppTarget):
             text = ra.read_text(d / "obsidian.json")
             try:
                 vaults = json.loads(text or "")["vaults"]
-            except (ValueError, KeyError, TypeError):
+            except (ValueError, KeyError, TypeError, RecursionError):
                 continue
             if isinstance(vaults, dict):
                 for v in vaults.values():
