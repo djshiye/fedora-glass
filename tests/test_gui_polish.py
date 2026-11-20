@@ -172,6 +172,37 @@ def test_tab_scrolls_the_focused_control_into_view(qml):
         win.deleteLater()
 
 
+def test_tab_shows_the_focus_ring_on_the_main_glass_slider(qml):
+    """Tab and Shift+Tab onto the Liquid-to-Frosted slider show its focus ring, on Home and Glass.
+
+    The slider used to take the keyboard through a hand-over from its frame, which left
+    the ring off: someone using the keyboard could not see they were on the main control."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    b = _backend(qml)
+    win = _window(qml)
+    try:
+        win.show()
+        win.requestActivate()
+        _spin(400)
+        for page in ("home", "glass"):
+            for back in (False, True):
+                _goto(win, page, 300)
+                hits = []
+                for _ in range(45):
+                    QTest.keyClick(win, Qt.Key_Tab, Qt.ShiftModifier if back else Qt.NoModifier)
+                    _spin(20)
+                    it = win.activeFocusItem()
+                    if it is not None and it.property("stepSize") == 0.01 and it.property("to") == 1 \
+                            and it.height() == 52:
+                        hits.append(it.property("visualFocus"))
+                assert hits, f"Tab never reached the glass slider on {page}"
+                assert all(hits), f"the glass slider had the keyboard without a focus ring on {page}"
+    finally:
+        b.discardChanges()
+        win.deleteLater()
+
+
 def test_results_sheet_asks_for_a_restart_only_when_needed(qml):
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlComponent

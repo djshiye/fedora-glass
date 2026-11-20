@@ -159,7 +159,7 @@ def by_id(i):
 def test_targets_are_listed_in_desktop_group():
     assert [t.id for t in tg.TARGETS] == ["gtk4", "gtk3", "flatpak"]
     assert {t.group for t in tg.TARGETS} == {"Desktop"}
-    assert by_id("gtk4").name == "GTK 4 and libadwaita apps"
+    assert by_id("gtk4").name == "GNOME apps (GTK 4)"
 
 
 def test_gtk4_target_writes_both_files(fake_env):

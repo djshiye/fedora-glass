@@ -143,7 +143,9 @@ C.Popup {
         }
         Item {
             width: parent.width
-            height: head.height + 48
+            // A sheet with nothing between its words and its buttons (a plain question)
+            // keeps them closer, so the buttons read as the answer to it.
+            height: head.height + (bodyHolder.height > 1 ? 48 : 34)
             Row {
                 id: head
                 x: 24; y: 24

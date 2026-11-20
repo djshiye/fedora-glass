@@ -964,7 +964,7 @@ msgid "%1 or %2"
 msgstr "%1 o %2"
 
 #: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:79
-#: fedoraglass/gui/qml/FedoraGlass/Fold.qml:40
+#: fedoraglass/gui/qml/FedoraGlass/Fold.qml:43
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:281
 msgid "%1: %2"
 msgstr "%1: %2"
@@ -1443,26 +1443,26 @@ msgid "none: no part that is switched on is installed here"
 msgstr "ninguno: no hay instalada ninguna parte activada"
 
 #: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:209
-msgid "%1 in 1 place, each backed up first"
-msgstr "%1 en 1 lugar, cada uno con copia de seguridad previa"
+msgid "%1 changes in 1 place, each backed up first"
+msgstr "%1 cambios en 1 lugar, cada uno con copia de seguridad previa"
 
 #: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:210
-msgid "%1 in %2 places, each backed up first"
-msgstr "%1 en %2 lugares, cada uno con copia de seguridad previa"
+msgid "%1 changes in %2 places, each backed up first"
+msgstr "%1 cambios en %2 lugares, cada uno con copia de seguridad previa"
 
 #: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:25
 msgid "Login screen: bring it up to date"
 msgstr "Pantalla de inicio de sesión: ponerla al día"
 
-#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:256
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:258
 msgid "%1 changes"
 msgstr "%1 cambios"
 
-#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:256
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:258
 msgid "1 change"
 msgstr "1 cambio"
 
-#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:256
+#: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:258
 msgid "nothing to change"
 msgstr "nada que cambiar"
 
@@ -1722,17 +1722,17 @@ msgstr "Estilo para el modo oscuro"
 msgid "The main control. Left is clear, bright liquid glass that bends what is behind it. Right is thick, milky frost that blurs it and keeps text easy to read."
 msgstr "El control principal. A la izquierda es cristal líquido, claro y brillante, que desvía lo que hay detrás. A la derecha es una escarcha gruesa y lechosa que lo desenfoca y mantiene el texto fácil de leer."
 
-#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:176
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:178
 #: fedoraglass/gui/qml/FedoraGlass/Theme.qml:75
 msgid "Liquid"
 msgstr "Líquido"
 
-#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:183
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:185
 #: fedoraglass/gui/qml/FedoraGlass/Theme.qml:76
 msgid "Frosted"
 msgstr "Esmerilado"
 
-#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:53
+#: fedoraglass/gui/qml/FedoraGlass/FrostSlider.qml:55
 msgid "Glass: liquid to frosted"
 msgstr "Cristal: de líquido a esmerilado"
 
@@ -2112,7 +2112,6 @@ msgid "Open %1 settings"
 msgstr "Abrir ajustes de %1"
 
 #: fedoraglass/gui/qml/FedoraGlass/HomePage.qml:57
-#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:329
 msgid "Look"
 msgstr "Estilo"
 
@@ -2346,6 +2345,10 @@ msgstr "Por ejemplo: Si lo encuentras, llama al 555 0100"
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:301
 msgid "Lock screen message"
 msgstr "Mensaje de la pantalla de bloqueo"
+
+#: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:329
+msgid "Widget look"
+msgstr "Aspecto de los widgets"
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:331
 msgid "Each widget sits on its own small pane of glass"
@@ -5463,12 +5466,12 @@ msgid "The pointer style you picked is not installed, so your own pointer stays.
 msgstr "El estilo de puntero que elegiste no está instalado, así que se mantiene tu propio puntero. Reinstala Fedora Glass para recuperarlo."
 
 #: fedoraglass/targets/gtk.py:122
-msgid "GTK 3 apps"
-msgstr "Aplicaciones GTK 3"
+msgid "Older apps (GTK 3)"
+msgstr "Aplicaciones más antiguas (GTK 3)"
 
 #: fedoraglass/targets/gtk.py:123
-msgid "Glass for older GTK 3 apps, on top of your GTK 3 theme. GTK 3 cannot switch light/dark by itself, so Apply picks the active scheme."
-msgstr "Cristal para aplicaciones GTK 3 antiguas, sobre tu tema GTK 3. GTK 3 no puede cambiar entre claro/oscuro por sí solo, así que Aplicar elige el esquema activo."
+msgid "Glass for older GTK 3 apps, on top of your GTK 3 theme. They get the light or dark style in use when you press Apply."
+msgstr "Cristal para las aplicaciones GTK 3 más antiguas, sobre su tema GTK 3. Reciben el estilo claro u oscuro en uso cuando pulsa Aplicar."
 
 #: fedoraglass/targets/gtk.py:125
 msgid "Adds a Fedora Glass style file for older GTK 3 apps. Your GTK 3 theme stays, unless adw-gtk3 is installed: then its light or dark version is picked."
@@ -5507,12 +5510,12 @@ msgid "Some GTK 3 details need the adw-gtk3 theme (github.com/lassekongo83/adw-g
 msgstr "Algunos detalles de GTK 3 necesitan el tema adw-gtk3 (github.com/lassekongo83/adw-gtk3)"
 
 #: fedoraglass/targets/gtk.py:24
-msgid "GTK 4 and libadwaita apps"
-msgstr "Aplicaciones GTK 4 y libadwaita"
+msgid "GNOME apps (GTK 4)"
+msgstr "Aplicaciones de GNOME (GTK 4)"
 
 #: fedoraglass/targets/gtk.py:25
-msgid "Glass windows, header bars, sidebars, menus and controls in every GTK 4 app. Follows the system light/dark switch live."
-msgstr "Ventanas, barras de título, barras laterales, menús y controles de cristal en toda aplicación GTK 4. Sigue en vivo el interruptor claro/oscuro del sistema."
+msgid "Glass windows, header bars, sidebars, menus and controls in Files, Settings and other GTK 4 apps. They follow GNOME's light and dark style."
+msgstr "Cristal en ventanas, barras de cabecera, barras laterales, menús y controles de Archivos, Configuración y otras aplicaciones GTK 4. Siguen el estilo claro u oscuro de GNOME."
 
 #: fedoraglass/targets/gtk.py:27
 msgid "Adds a Fedora Glass style file that GTK 4 apps, such as Files and Settings, read when they open."
@@ -5604,8 +5607,8 @@ msgid "Installs the Fedora Glass extension for GNOME and turns it on. It draws t
 msgstr "Instala la extensión de Fedora Glass para GNOME y la activa. Dibuja el cristal en vivo detrás de tu panel, menús y vista de actividades."
 
 #: fedoraglass/targets/shell.py:123
-msgid "Real glass behind the panel or dock, menus, quick settings, app windows and the overview: live blur, a refracting rim, rim light and a rainbow edge."
-msgstr "Cristal real detrás del panel o dock, los menús, los ajustes rápidos, las ventanas de aplicaciones y la vista de actividades: desenfoque en vivo, un borde refractante, luz de borde y un borde arcoíris."
+msgid "Real glass behind the panel or dock, menus, app windows and the overview. It blurs and bends what is behind it."
+msgstr "Cristal real detrás del panel o el dock, los menús, las ventanas y la vista de actividades. Desenfoca y curva lo que hay detrás."
 
 #: fedoraglass/targets/shell.py:126
 msgid "Uses Fedora Glass's own GNOME Shell extension; Blur my Shell isn't needed."
@@ -5648,8 +5651,8 @@ msgid "Sets Dash to Panel's colours, border and hover effect so your panel looks
 msgstr "Define los colores, el borde y el efecto al pasar el cursor de Dash to Panel para que tu panel parezca de cristal."
 
 #: fedoraglass/targets/shell.py:421
-msgid "Glass panel: translucent background, glass border, floating or docked, themed hover and dots."
-msgstr "Panel de cristal: fondo translúcido, borde de cristal, flotante o acoplado, efecto al pasar el cursor y puntos con tema."
+msgid "Turns the panel into glass, floating or docked, with matching hover highlights and running-app dots."
+msgstr "Convierte el panel en cristal, flotante o acoplado, con resaltado al pasar el puntero y puntos de aplicaciones abiertas a juego."
 
 #: fedoraglass/targets/shell.py:450
 msgid "Sets ArcMenu's colours and corners so the menu and its button look like glass."
@@ -5657,8 +5660,8 @@ msgstr "Define los colores y esquinas de ArcMenu para que el menú y su botón p
 
 #: fedoraglass/targets/shell.py:453
 #: fedoraglass/targets/shell.py:473
-msgid "Glass menu and menu button; colours, radius, search pill and hover washes."
-msgstr "Menú y botón de menú de cristal; colores, radio, píldora de búsqueda y resaltados al pasar el cursor."
+msgid "Turns the start menu and its button into glass, with matching colours, corners, search box and hover highlights."
+msgstr "Convierte el menú de inicio y su botón en cristal, con colores, esquinas, cuadro de búsqueda y resaltado a juego."
 
 #: fedoraglass/targets/shell.py:470
 msgid "Sets Spawn's colours and corners so the menu and its button look like glass."
@@ -5677,8 +5680,8 @@ msgid "Turns on the User Themes extension and selects the Fedora Glass theme for
 msgstr "Activa la extensión User Themes y selecciona el tema Fedora Glass para menús y ventanas emergentes."
 
 #: fedoraglass/targets/shell.py:81
-msgid "Glass menus, quick settings, calendar, notifications, dialogs, OSD and overview, as a Shell theme."
-msgstr "Menús, ajustes rápidos, calendario, notificaciones, diálogos, OSD y vista de actividades de cristal, como tema de Shell."
+msgid "Glass menus, quick settings, calendar, notifications, dialogs, volume pop-ups and the overview."
+msgstr "Cristal en menús, ajustes rápidos, calendario, notificaciones, diálogos, ventanas emergentes de volumen y la vista de actividades."
 
 #: fedoraglass/targets/shell.py:83
 msgid "Needs the User Themes extension (enabled automatically when installed)."

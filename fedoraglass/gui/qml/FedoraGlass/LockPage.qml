@@ -326,7 +326,7 @@ SettingsPage {
             }
             Choice {
                 objectName: "lockWidgetStyle"
-                label: qsTr("Look")
+                label: qsTr("Widget look")
                 value: Backend.lockWidgetStyle
                 model: [{ value: "chips", label: qsTr("Glass"), tip: qsTr("Each widget sits on its own small pane of glass") },
                         { value: "plain", label: qsTr("Text only"), tip: qsTr("Just the icons and text, straight on the lock screen") }]

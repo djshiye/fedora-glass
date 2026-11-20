@@ -33,7 +33,10 @@ Item {
         y: root.divider ? 6 : 0
         x: root.card ? 6 : -6
         width: parent.width - (root.card ? 12 : -12)
-        height: root.card ? 54 : 46
+        // The summary's full width against the room beside the title.
+        readonly property bool stacked: root.summary.length > 0
+            && summaryText.implicitWidth > width - (14 + 16 + 10 + titleText.implicitWidth + 16 + 14)
+        height: (root.card ? 54 : 46) + (stacked ? 14 : 0)
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         onClicked: root.expanded = !root.expanded
@@ -65,19 +68,21 @@ Item {
                 id: titleText
                 anchors.left: chev.right
                 anchors.leftMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
+                y: header.stacked ? (parent.height - height - summaryText.height - 1) / 2
+                                  : (parent.height - height) / 2
                 text: root.title
                 color: Theme.text
                 font.pixelSize: Theme.fsBody
                 font.weight: Font.DemiBold
             }
+            // What is inside. Beside the title while it fits there in full; a longer one
+            // (a narrow window, another language) goes under the title, never cut mid-word.
             Text {
-                anchors.left: titleText.right
-                anchors.leftMargin: 16
-                anchors.right: parent.right
-                anchors.rightMargin: 14
-                anchors.verticalCenter: parent.verticalCenter
-                horizontalAlignment: Text.AlignRight
+                id: summaryText
+                x: header.stacked ? titleText.x : titleText.x + titleText.width + 16
+                y: header.stacked ? titleText.y + titleText.height + 1 : (parent.height - height) / 2
+                width: parent.width - x - 14
+                horizontalAlignment: header.stacked ? Text.AlignLeft : Text.AlignRight
                 text: root.summary
                 elide: Text.ElideRight
                 color: Theme.textFaint
