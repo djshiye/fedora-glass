@@ -263,6 +263,9 @@ def _effective(s: Settings, has_dash_to_panel: bool = True) -> dict:
     d["start_on_desktop"] = s.start_on_desktop_for(has_dash_to_panel)
     for k in (*_SAVED_AT_ONCE, *_BOOKKEEPING):
         d.pop(k, None)
+    if s.login_match_lock:
+        for k in changes_mod.LOGIN_OWN:      # not used while the login screen matches the lock screen
+            d.pop(k, None)
     return d
 
 

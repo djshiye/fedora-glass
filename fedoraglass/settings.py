@@ -283,7 +283,7 @@ class Settings:
         s.panel_margin = _int(s.panel_margin, 0, 32, Settings.panel_margin)
         for k in ("blur_app_windows", "reduce_transparency", "glass_panel", "glass_menus",
                   "glass_overview", "glass_see_windows", "terminal_colors", "terminal_follows_style", "qt_gnome_titlebars",
-                  "overview_off"):
+                  "overview_off", "motion_dtp_hover_off"):
             setattr(s, k, _bool(getattr(s, k), getattr(Settings, k)))
         if s.start_on_desktop is not None:
             s.start_on_desktop = _bool(s.start_on_desktop, True)
