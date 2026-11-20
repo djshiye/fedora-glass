@@ -170,6 +170,9 @@ test('the speed check starts each level clean and stirs the glass each frame, as
         for (let i = 0; i < 10; i++)
             frame(2);
         assert.equal(globalThis.fake.stirs, 10, 'all the glass drawn again on every frame');
+        usNow += 600e3;                 // past the frames left out as each level starts
+        for (let i = 0; i < 20; i++)
+            frame(2);
         clock.advance(ms);
     }
     assert.deepEqual(cleanUps, [0, 1, 2], 'one clean-up as each level starts, after it is set');

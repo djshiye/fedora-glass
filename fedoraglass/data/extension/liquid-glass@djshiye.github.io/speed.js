@@ -39,6 +39,8 @@ const ID = /^[0-9a-f]{16}$/;
 const WARMUP_MS = 800;
 const PHASE_MS = [6000, 5000, 5000];
 const SKIP_US = 500e3;
+// Fewer frames than this in a level (5 to 6 s each) is no measurement.
+const MIN_FRAMES = 10;
 const CHECK_LIMIT_MS = 30000;
 // A drag shorter than this many frames (a click on a title bar) is not worth keeping.
 const DRAG_MIN_FRAMES = 10;
@@ -433,6 +435,7 @@ export class Speed {
         const hz = 1e6 / interval;
         c.refresh = Math.max(c.refresh ?? 0, hz);
         c.phases.push(scorePhase(c.phase, best?.[1] ?? [], hz));
+        return Math.max(bestN, 0);
     }
 
     _nextPhase() {
@@ -440,8 +443,13 @@ export class Speed {
         if (!c)
             return GLib.SOURCE_REMOVE;
         c.timer = 0;
-        if (c.phase >= 0)
-            this._scoreCurrent();
+        // A level that drew next to nothing measured nothing: the glass went away during the
+        // check (paused from Quick Settings, safe mode) or the screen went off. Up to 1.7.8 that
+        // finished as a good check that called every level slow, and it replaced the last real one.
+        if (c.phase >= 0 && this._scoreCurrent() < MIN_FRAMES) {
+            this._endCheck('failed', 'noframes');
+            return GLib.SOURCE_REMOVE;
+        }
         c.phase++;
         if (c.phase >= PHASE_MS.length) {
             this._endCheck('done', '');

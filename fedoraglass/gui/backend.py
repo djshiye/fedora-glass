@@ -1299,7 +1299,11 @@ class Backend(QObject):
         if not (0 < median < 10_000 and 0 < p95 < 10_000 and 1 < hz < 1000):
             return ""
         fps = min(hz, 1000 / median)
-        smooth, uneven = p95 <= 1.5 * 1000 / hz, fps >= 0.6 * hz
+        # Judged as the speed check judges (tuning.js): 60 frames a second is smooth on a faster
+        # screen too. Against the full refresh rate a good drag at 90 frames a second on a
+        # 144 Hz screen read "a little uneven", next to a check that called the same PC smooth.
+        ref = min(hz, 60.0)
+        smooth, uneven = p95 <= 1.5 * 1000 / ref, fps >= 0.6 * ref
         n = round(fps)
         if windows > 1:
             if smooth:

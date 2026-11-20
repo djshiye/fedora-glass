@@ -125,6 +125,13 @@ def test_last_drag_in_words(make_backend, home):
     status(home, drag={"at": 1, "frames": 56, "median_ms": 54, "p95_ms": 86.8, "refresh": 60, "windows": 1})
     b._on_speed_file()
     assert b.property("speedDrag") == "Last window drag: about 19 frames a second, slow."
+    # A fast screen is judged like the speed check: 60 frames a second or more is smooth.
+    status(home, drag={"at": 1, "frames": 500, "median_ms": 11.1, "p95_ms": 13.9, "refresh": 144, "windows": 1})
+    b._on_speed_file()
+    assert b.property("speedDrag") == "Last window drag: about 90 frames a second, smooth."
+    status(home, drag={"at": 1, "frames": 500, "median_ms": 25, "p95_ms": 40, "refresh": 144, "windows": 1})
+    b._on_speed_file()
+    assert b.property("speedDrag") == "Last window drag: about 40 frames a second, a little uneven."
     for bad in ({"median_ms": "x", "p95_ms": 1}, {"median_ms": 0, "p95_ms": 5}, {"p95_ms": 5}, [1, 2],
                 {"median_ms": 10, "p95_ms": 20, "refresh": float("nan")}):
         status(home, drag=bad)
