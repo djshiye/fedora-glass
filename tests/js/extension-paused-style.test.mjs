@@ -72,7 +72,9 @@ globalThis.fakeMods = {
     }},
     'Extension': {Extension: function () { return {}; }},
 };
-globalThis.fake = {sessionMode: {isLocked: false, connect: () => 1, disconnect() {}}};
+// Each start() is a new login, a minute after the last one went (see the rebase in extension.js).
+let clock = 0;
+globalThis.fake = {now: () => clock, sessionMode: {isLocked: false, connect: () => 1, disconnect() {}}};
 globalThis.logError = () => {};
 
 const {default: FedoraGlassExtension} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/extension.js');
@@ -88,7 +90,8 @@ beforeEach(() => {
 });
 afterEach(() => assert.deepEqual(overlaps, [], 'the glass sheet and the solid one were loaded together'));
 
-function start() {
+function start(rebase = false) {
+    clock += rebase ? 0.2e6 : 60e6;
     const ext = Object.create(FedoraGlassExtension.prototype);
     ext.path = '/ext';
     ext.enable();

@@ -13,6 +13,8 @@
 // The pause is said in ~/.cache/liquid-glass/paused.json for the Fedora Glass app, which
 // can ask for the glass back (pausestate.js).
 
+import GLib from 'gi://GLib';
+
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -35,6 +37,16 @@ import {UserThemesTidy} from './themetidy.js';
 import {effectiveConfig} from './tuning.js';
 import {Windows, allSolid} from './windows.js';
 
+// GNOME switches this extension off and straight on again whenever an extension that was
+// started before it is switched off ("rebase"): at the first lock of a session, when Dash
+// to Panel, ArcMenu and User Themes leave for the lock screen, and when one of them is
+// restarted. That is no new start: a pause from Quick Settings and the level the speed watch
+// had settled on carry over it. Up to 1.7.8 the first lock took the pause away: the lock
+// screen drew glass and all the glass was back after unlocking. Module scope: it outlives
+// the extension object, and a new Shell (the next login) starts without it.
+const BACK_SOON_US = 10e6;
+let left = null;        // {at, paused} of the last disable()
+
 export default class FedoraGlassExtension extends Extension {
     enable() {
         // First, so it also sees the extensions GNOME restarts after this one starts.
@@ -45,11 +57,17 @@ export default class FedoraGlassExtension extends Extension {
             this._sweep = null;
         }
         this._locked = null;
+        const back = left && GLib.get_monotonic_time() - left.at < BACK_SOON_US ? left : null;
+        left = null;
+        if (!back)
+            Speed.forget?.();       // switched off and on by hand: the speed watch begins afresh
         // Paused from Quick Settings: held here, so it lasts through locking the screen and
         // is gone at the next login. Only said for the app (pausestate.js), never read back.
-        this._paused = false;
+        this._paused = back?.paused === true;
         try {
             this._pauseState = new PauseState(() => this._setPaused(false));
+            if (this._paused)
+                this._pauseState.set(true);
         } catch (e) {
             console.error(`Fedora Glass: the app can't see a pause: ${e}`);
             this._pauseState = null;
@@ -467,7 +485,6 @@ export default class FedoraGlassExtension extends Extension {
         this._leavingWidgets?.destroy();
         this._leavingWidgets = null;
         this._stopSession();
-        Speed.forget?.();
         this._dropLeavingPopups();
         this._config?.destroy();
         this._config = null;
@@ -479,6 +496,7 @@ export default class FedoraGlassExtension extends Extension {
             logError(e, 'Fedora Glass: saying the glass is no longer paused');
         }
         this._pauseState = null;
+        left = {at: GLib.get_monotonic_time(), paused: this._paused};
         this._paused = false;
         this._locked = null;
         // Last, so everything let go above is collected too (see gcsweep.js).
