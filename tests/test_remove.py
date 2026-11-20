@@ -266,3 +266,25 @@ def test_spec_runs_it_only_on_removal():
     assert preun.index("%systemd_user_preun liquid-glass-watch.service") < preun.index("undo-for-users")
     # undo-for-users needs setsid (both packages).
     assert spec.count("Requires:       /usr/bin/setsid\n") == 2
+
+
+def test_undo_for_users_reads_quoted_values_in_environment_d(tmp_path):
+    """environment.d allows quotes around a value. Up to 1.7.8 a quoted XDG_STATE_HOME read as
+    nothing, the backup was looked for in the default place only, and that person's look
+    stayed behind after the package was removed."""
+    home, calls = _undo_with_env_d(tmp_path, {
+        "10.conf": "XDG_STATE_HOME=\"$HOME/st\"\nXDG_CONFIG_HOME='@HOME@/cfg'\n"}, "st")
+    assert len(calls) == 1
+    assert f"XDG_STATE_HOME={home}/st " in calls[0] and f"XDG_CONFIG_HOME={home}/cfg " in calls[0]
+    # A quote on one side only is not a quoted value: not trusted, the default place is used.
+    other = tmp_path / "b"
+    other.mkdir()
+    _, calls = _undo_with_env_d(other, {"10.conf": "XDG_STATE_HOME=\"@HOME@/st\n"}, ".local/state")
+    assert len(calls) == 1 and "XDG_STATE_HOME" not in calls[0]
+
+
+def test_undo_for_users_covers_systemd_homed_people():
+    """systemd-homed gives its people the ids 60001 to 60513; up to 1.7.8 everyone from 60000 up
+    was passed over as a system user."""
+    script = (ROOT / "packaging/undo-for-users.sh").read_text()
+    assert '[ "$uid" -ge 60001 ] && [ "$uid" -le 60513 ]' in script

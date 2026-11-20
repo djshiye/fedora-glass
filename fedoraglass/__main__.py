@@ -70,13 +70,21 @@ def cmd_apply(args: argparse.Namespace) -> int:
             print("fedora-glass: --only needs at least one part", file=sys.stderr)
         return 2
     results = eng.apply(s, only=only)
+    save_failed = False
     if only is None:
         # Only an Apply of everything makes these the settings of the look: saved after
         # `--only gtk4 --frost 0.9`, the other parts would take 0.9 at the next dark/light
         # switch without anyone applying it to them.
-        settings_mod.save(s)
+        try:
+            settings_mod.save(s)
+        except OSError as e:
+            # The look is applied already: say so and still print what was done (up to 1.7.8
+            # a full disk or a read-only settings folder ended in a traceback here).
+            print(f"fedora-glass: the look was applied, but your settings could not be saved: {e.strerror or e}",
+                  file=sys.stderr)
+            save_failed = True
     width = max((len(r.name) for r in results), default=0)
-    failed = False
+    failed = save_failed
     for r in results:
         mark = {"applied": "✓", "info": "i", "reverted": "↺", "skipped": "–", "failed": "✗"}[r.status]
         line = f"{mark} {r.name.ljust(width)}  {r.status}"

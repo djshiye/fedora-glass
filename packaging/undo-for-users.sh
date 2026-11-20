@@ -47,6 +47,12 @@ env_value() {
         while IFS= read -r line; do
             case $line in "$3="*) ;; *) continue ;; esac
             rest=${line#"$3="}
+            # One pair of quotes around the value, as environment.d allows: XDG_STATE_HOME="$HOME/.state".
+            # Up to 1.7.8 a quoted value read as nothing, and that person's look was never undone.
+            case $rest in
+                '"'*'"') rest=${rest#'"'}; rest=${rest%'"'} ;;
+                "'"*"'") rest=${rest#"'"}; rest=${rest%"'"} ;;
+            esac
             out=
             while :; do
                 case $rest in
@@ -78,7 +84,8 @@ case "$uid_min" in ''|*[!0-9]*) uid_min=1000 ;; esac
 
 getent passwd | while IFS=: read -r name _pw uid _gid _gecos home _shell; do
     case "$uid" in ''|*[!0-9]*) continue ;; esac
-    [ "$uid" -ge "$uid_min" ] && [ "$uid" -lt 60000 ] || continue      # people, not system users or nobody
+    # People, not system users or nobody (65534). systemd-homed gives its people 60001 to 60513.
+    { [ "$uid" -ge "$uid_min" ] && [ "$uid" -lt 60000 ]; } || { [ "$uid" -ge 60001 ] && [ "$uid" -le 60513 ]; } || continue
     case "$home" in /*) ;; *) continue ;; esac
     # The *.conf is spread by their shell, not root's; no such files just gives nothing.
     conf=$(as_person sh -c 'cat -- "$1"/.config/environment.d/*.conf' sh "$home")
