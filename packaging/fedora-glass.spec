@@ -1,5 +1,5 @@
 Name:           fedora-glass
-Version:        1.7.9
+Version:        1.7.10
 Release:        1%{?dist}
 # This package's version-release, fixed here: the liquid-glass package below has its own.
 %global fg_evr  %{version}-%{release}
@@ -378,6 +378,13 @@ fi
 %{_sysconfdir}/pki/rpm-gpg/RPM-GPG-KEY-fedora-glass
 
 %changelog
+* Mon Nov 23 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.10-1
+- Pop-ups inside apps are solid: menus, dropdown lists, popovers, dialogs, sheets, tooltips and toasts no longer show the window's text through them (GTK 4, GTK 3 and Qt)
+- Qt menus and combo box lists were only 61 % solid: Kvantum thinned them a second time (reduce_menu_opacity is 0 now)
+- Token file: new colours `floating` and `tooltip` for apps that paint their own pop-ups (docs/TOKENS.md)
+- The Shell's own menus, and overlay controls on pictures and video, keep their glass
+- New release check: a pop-up over a half white, half black window must look the same over both halves
+
 * Fri Nov 20 2026 Dino Klisura <115914552+djshiye@users.noreply.github.com> - 1.7.9-1
 - Pause from Quick Settings now holds over the first lock of a session; Reduce Motion (GNOME 51) gives GNOME's plain fades
 - Stock GNOME with the overview off: Esc or Super+A in the app grid no longer opens the overview
