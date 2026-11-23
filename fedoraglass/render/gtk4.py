@@ -13,7 +13,7 @@ from pathlib import Path
 from string import Template
 
 from ..color import Color
-from ..palette import Tokens
+from ..palette import Tokens, floating
 from ..radius import scale, check
 
 _TEMPLATE = Path(__file__).resolve().parent.parent / "data/gtk/gtk4.css.tpl"
@@ -22,19 +22,19 @@ HEADER = "/* Fedora Glass for GTK 4 and libadwaita. Generated, edits are overwri
 
 
 def popover_color(t: Tokens) -> Color:
-    """Menus sit over text and controls, so they never get thinner than this."""
-    return t.popover.with_alpha(max(t.popover.a, 0.90))
+    """Menus, dropdown lists and popovers sit over text and controls with no blur between,
+    so they are the palette's floating surface: solid (see palette.floating)."""
+    return t.floating
 
 
 def text_popover_color(t: Tokens) -> Color:
-    """Menus that open over bright, sharp text with no blur between (the terminal's)
-    need a little more body than other menus, or the text behind reads as a ghost
-    under dim menu items."""
-    return t.popover.with_alpha(max(t.popover.a, 0.95))
+    """The same fill, as a layer of its own for apps whose style sheet takes the menus'
+    fill colour away (the terminal's, see the template)."""
+    return t.floating
 
 
 def dialog_color(t: Tokens) -> Color:
-    return t.dialog.with_alpha(max(t.dialog.a, 0.95))
+    return floating(t.dialog)
 
 
 def bar_color(t: Tokens) -> Color:
@@ -100,7 +100,10 @@ def glass_colors(t: Tokens) -> dict[str, Color]:
         "lg-sheen-top": Color(1, 1, 1, 0.16 if t.dark else 0.55),
         "lg-sheen-bottom": Color(1, 1, 1, 0.0),
         "lg-popover-solid": text_popover_color(t),
-        "lg-tooltip": t.osd.with_alpha(max(t.osd.a, 0.88)),
+        # Tooltips and toasts carry text over the window's own text: the floating surface.
+        # Overlay controls (.osd) sit on pictures and video and stay a little clearer.
+        "lg-tooltip": t.tooltip,
+        "lg-osd": t.osd.with_alpha(max(t.osd.a, 0.88)),
         "lg-tooltip-fg": Color.hex("#f4f5f9") if t.dark else t.fg,
         "lg-deep-shadow": Color(0, 0, 0, 0.34 if t.dark else 0.22),
         # Header bar buttons: a glass tile under the hovered button only, a little

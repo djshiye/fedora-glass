@@ -154,7 +154,10 @@ class Shell:
         self.win_js(wid, "w.activate(global.get_current_time()); return 1;")
 
     def close_all(self) -> None:
-        self.eval("global.get_window_actors().forEach(a => { try { a.meta_window.delete(global.get_current_time()); } catch (e) {} }); 1")
+        # Only real windows: asking a pop-up (an app's open menu or popover, window types from
+        # DROPDOWN_MENU = 9 up) to close takes the whole Shell down. It goes with its window.
+        self.eval("global.get_window_actors().forEach(a => { try { if (a.meta_window.get_window_type() < 9) "
+                  "a.meta_window.delete(global.get_current_time()); } catch (e) {} }); 1")
         end = time.monotonic() + 10
         while self.windows() and time.monotonic() < end:
             time.sleep(0.3)

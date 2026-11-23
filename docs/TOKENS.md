@@ -36,7 +36,9 @@ Colours are `#RRGGBBAA`. Numbers are plain JSON numbers. New keys may appear in 
 | `chrome` | header bars, sidebars, panels: the most transparent layer |
 | `view` | lists, text areas: the most solid layer, for reading |
 | `card` | cards and grouped lists, drawn over `window` or `view` |
-| `popover`, `dialog`, `osd` | menus, dialogs, on-screen overlays |
+| `popover`, `dialog`, `osd` | the Shell's menus, dialogs and on-screen overlays: thin glass, because the Shell blurs what is behind them |
+| `floating` | anything you draw over your own content: menus, dropdown lists, popovers, sheets, dialogs. Nothing is blurred behind those, so this fill is solid (no see-through) at every setting. New after 1.7.9 |
+| `tooltip` | tooltips, as solid as `floating`. New after 1.7.9 |
 | `hover`, `active` | washes for hovered and pressed controls |
 | `highlight` | the specular rim light along the top edge of glass |
 | `edge` | the 1 px glass border |
@@ -57,6 +59,23 @@ Colours are `#RRGGBBAA`. Numbers are plain JSON numbers. New keys may appear in 
 | `terminal_opacity` | terminal background opacity |
 | `panel_floating`, `panel_margin` | panel style |
 | `blur_app_windows` | whether app windows get blur behind them |
+
+## Things that float over your own content
+
+A menu, dropdown list, popover, sheet or tooltip inside your window has nothing blurred behind
+it: whatever it covers shows through sharp. Fill it with `floating` (tooltips: `tooltip`), then
+the usual 1 px `edge`, the `highlight` line and a `shadow`.
+
+Do not fill it with `card`, `hover` or `active`: those are washes of a few percent, made to sit
+on a surface that is already there, and the window's text reads straight through them. `popover`
+is too thin as well: it is the Shell's menu glass, which the Shell blurs from behind.
+
+`floating` and `tooltip` are new after 1.7.9. If they are missing, take `popover` and make it
+solid (alpha `ff`). Even a few percent of see-through leaves a heading behind a sheet readable.
+
+If you blur what is behind the pop-up yourself (a captured copy of your window's content,
+blurred 30 px or more), a thinner tint over the blur works too: Fedora Glass's own settings app
+uses about 80 %.
 
 ## Drawing glass with the tokens
 

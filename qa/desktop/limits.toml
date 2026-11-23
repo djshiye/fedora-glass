@@ -85,3 +85,10 @@ max_sharpness_share = 0.25
 # (Files), over a big checkerboard: how much of the board may show through it (spread of
 # brightness), as a share of the other's.
 max_solid_share = 0.8
+
+[apppopups]
+# A pop-up inside an app (GTK 4 and GTK 3) over a window that is half white, half black: how
+# much of the difference between the halves may still show under the pop-up. Nothing is blurred
+# behind such a pop-up, so it is solid: 0. Up to 1.7.9 GTK menus let 10 % through, enough to
+# read the window's text between a menu's rows.
+max_see_through = 0.01

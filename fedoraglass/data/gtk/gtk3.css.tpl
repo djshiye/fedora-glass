@@ -298,6 +298,7 @@ tooltip, tooltip.background {
 }
 tooltip * { color: @lg_tooltip_fg; }
 .app-notification, .osd { background-color: @lg_tooltip; color: @lg_tooltip_fg; box-shadow: inset 0 1px 0 @lg_rim, inset 0 0 0 1px @lg_edge, 0 10px 28px 0 @lg_deep_shadow; border: none; }
+.osd { background-color: @lg_osd; }
 infobar > revealer > box, infobar { background-color: alpha(@accent_bg_color, 0.55); border: none; }
 
 /* ---- tabs ------------------------------------------------------------------------------------------------------------ */

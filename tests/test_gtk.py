@@ -80,11 +80,12 @@ def test_gtk4_surfaces_carry_alpha_and_rim():
     assert "inset 0 1px 0 var(--lg-rim)" in css
 
 
-def test_gtk4_menus_and_dialogs_stay_solid_enough():
+def test_gtk4_menus_and_dialogs_are_solid():
+    # Nothing is blurred behind them (see test_floating_surfaces.py).
     for dark in (True, False):
         t = toks(dark, 0.0)
-        assert gtk4.popover_color(t).a >= 0.9
-        assert gtk4.dialog_color(t).a >= 0.95
+        assert gtk4.popover_color(t).a == 1.0
+        assert gtk4.dialog_color(t).a == 1.0
 
 
 def test_gtk4_terminal_menus_get_their_own_fill():
@@ -100,7 +101,7 @@ def test_gtk4_terminal_menus_get_their_own_fill():
         assert "var(--lg-popover-solid)" in rule.group(1)
         assert re.search(r"\.window-contents popover > arrow \{[^}]*background-image[^}]*lg-popover-solid", css)
         for t in (dark, light):
-            assert gtk4.text_popover_color(t).a >= 0.95
+            assert gtk4.text_popover_color(t).a == 1.0
             assert f"--lg-popover-solid: {gtk4.text_popover_color(t).css}" in css
 
 

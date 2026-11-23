@@ -2492,6 +2492,64 @@ def check_app_glass(ctx: Ctx) -> Check:
 
 
 # ---------------------------------------------------------------------------------------------
+# Pop-ups inside apps
+# ---------------------------------------------------------------------------------------------
+def _through_popup(ctx: Ctx, kit: str, shot: str) -> tuple[float, float]:
+    """Opens the test window (a white half and a black half, an empty pop-up across the split).
+    Gives back how different the two halves still are under the pop-up, as a share of their
+    difference on the bare window, and that bare difference (0-255)."""
+    sh = ctx.sh
+    lgqa.launch(["python3", str(HERE / "pop-board.py"), kit], log=f"pop-board-{kit}")
+    w = sh.wait_window(rf"PopBoard GTK {kit}")
+    sh.put(w["id"], 200, 160, 760, 520, focus=True)
+    settle(4)                               # the pop-up opens 1.5 s after the window
+    a = lgqa.load(sh.shot(shot))
+    fx, fy, fw, fh = sh.window_by_id(w["id"])["frame"]
+    s, cx = ctx.s, fx + fw / 2
+
+    def halves(y: float, h: float) -> float:
+        white = lgqa.lum(lgqa.crop(a, [v * s for v in (cx - 130, y, 100, h)]))
+        black = lgqa.lum(lgqa.crop(a, [v * s for v in (cx + 30, y, 100, h)]))
+        return float(np.median(white) - np.median(black))
+
+    bare = halves(fy + fh - 60, 40)         # below the pop-up
+    under = halves(fy + 170, 110)           # inside it, well clear of its edges
+    lgqa.save(lgqa.crop(a, [v * s for v in (fx - 10, fy - 10, fw + 20, fh + 20)]), REPORT / f"{shot}.png")
+    return (under / bare if bare > 1 else 1.0), bare
+
+
+def check_app_popups(ctx: Ctx) -> Check:
+    c = Check("apppopups", "Pop-ups inside apps hide what is behind them",
+              "Opens a window that is half white and half black, in GTK 4 and in GTK 3 (on Orchis Dark), with "
+              "an empty pop-up across the two halves. Nothing is blurred behind a pop-up inside an app, so "
+              "the pop-up must look the same over white and over black: any difference is the window "
+              "showing through it.")
+    sh = ctx.sh
+    limit = LIMITS["apppopups"]["max_see_through"]
+    try:
+        for kit, name in (("4", "GTK 4"), ("3", "GTK 3")):
+            sh.close_all()
+            lgqa.kill_apps()
+            share, bare = _through_popup(ctx, kit, f"apppopups-gtk{kit}")
+            pic = f"apppopups-gtk{kit}.png"
+            if bare < 150:
+                c.add(False, f"{name}: the test window did not show its white and black halves.", pic)
+            elif share > 0.6:
+                c.add(False, f"{name}: the pop-up did not open.", pic)
+            else:
+                ok = abs(share) <= limit
+                c.add(ok, f"{name}: the pop-up hides the window behind it ({abs(share) * 100:.1f} % of it shows "
+                      f"through; the limit is {limit * 100:.0f} %)." if ok else
+                      f"{name}: the window shows through the pop-up ({abs(share) * 100:.1f} % of it; the limit is "
+                      f"{limit * 100:.0f} %).", pic)
+    finally:
+        sh.close_all()
+        lgqa.kill_apps()
+        settle(1)
+    return c
+
+
+# ---------------------------------------------------------------------------------------------
 # Weather frost
 # ---------------------------------------------------------------------------------------------
 FROST = f"Main.extensionManager.lookup('{LG}').stateObj._frost"
@@ -2633,7 +2691,7 @@ def check_frost(ctx: Ctx) -> Check:
     return c
 
 
-ALL = {"looks": check_looks, "titlebars": check_titlebars, "snap": check_snap, "appglass": check_app_glass, "frost": check_frost, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
+ALL = {"looks": check_looks, "titlebars": check_titlebars, "snap": check_snap, "appglass": check_app_glass, "apppopups": check_app_popups, "frost": check_frost, "leftovers": check_leftovers, "resize": check_resize, "speed": check_speed,
        "popups": check_popups, "restart": check_restart, "restore": check_restore, "lock": check_lock,
        "log": check_log, "safe": check_safe, "upgrade": check_upgrade, "spawn": check_spawn}
 
