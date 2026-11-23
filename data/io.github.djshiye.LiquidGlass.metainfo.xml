@@ -131,6 +131,12 @@
     <keyword>appearance</keyword>
   </keywords>
   <releases>
+    <release version="1.7.10" date="2026-11-23">
+      <description>
+        <p>Pop-ups inside apps are now solid. Menus, dropdown lists, popovers, dialogs, tooltips and toasts no longer show the window's text through them, in GTK and Qt apps alike. They keep their glass rim and shadow.</p>
+        <p>Apps that follow the Fedora Glass colours get two new colours for their own pop-ups.</p>
+      </description>
+    </release>
     <release version="1.7.9" date="2026-11-20">
       <description>
         <p>A big clean-up release. A pause from Quick Settings now holds over the first lock of a session, Reduce Motion is respected, and menus shown during a window animation draw the right glass straight away. Light menus lose the grey frame at their edge, and links and tinted glass stay readable with any accent colour.</p>
