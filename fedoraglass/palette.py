@@ -32,9 +32,11 @@ class Tokens:
     view: Color          # lists, text areas, terminal-like content
     card: Color          # cards and boxed lists, drawn on window/view
     window_chrome: Color # sidebars and bars inside app windows (chrome, with the windows part's look)
-    popover: Color       # menus and popovers (no live blur behind them in GTK)
+    popover: Color       # the Shell's menus and popovers: thin glass, the Shell blurs what is behind
     dialog: Color
     osd: Color           # Shell OSD / on-screen overlays
+    floating: Color      # menus, dropdown lists, popovers and sheets inside an app: solid, see floating()
+    tooltip: Color       # tooltips inside an app, as solid as `floating`
     hover: Color         # hover wash
     active: Color        # pressed wash
     # Lines and light
@@ -104,6 +106,19 @@ def _jsonable(v: object) -> object:
 
 DARK_FG = Color.hex("#f4f5f9")       # text on dark glass
 MIN_TEXT_CONTRAST = 4.5              # WCAG AA for body text
+
+# A menu, dropdown list, popover, sheet or tooltip that an app draws over its own content has
+# nothing blurred behind it: whatever it covers shows through sharp. Measured on the test
+# desktop with white text behind a dark menu (grey levels above the menu's own 32): 48 at the
+# Shell menus' 78 %, 21 at 90 % (GTK menus up to 1.7.9: the text reads through the menu,
+# between its rows), 7 at 97 %, where a heading or a button behind a sheet is still a ghost
+# you can read. Qt's menus were at 61 % (see render/kvantum.py), and a pop-up painted with a
+# wash like `card` (7 %) is only a frame around the window's text. So whatever floats inside
+# an app is solid, at every look: its glass is the rim light, the edge and the shadow. The
+# Shell's own menus stay thin, as the Shell blurs what is behind them.
+def floating(c: Color) -> Color:
+    """`c` as the fill of something that floats inside an app, with no blur behind it."""
+    return c.with_alpha(1.0)
 
 
 def _surfaces(s: Settings, dark: bool, tint: Color, strength: float, f: float) -> dict[str, Color]:
@@ -259,6 +274,8 @@ def build(settings: Settings, *, dark: bool, system_accent: str | None = None) -
         popover=menus["popover"],
         dialog=menus["dialog"],
         osd=menus["osd"],
+        floating=floating(menus["popover"]),
+        tooltip=floating(menus["osd"]),
         hover=hover,
         active=active,
         highlight=rim,

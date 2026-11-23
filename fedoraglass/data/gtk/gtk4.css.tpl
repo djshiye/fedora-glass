@@ -385,7 +385,7 @@ banner > revealer > widget {
   box-shadow: inset 0 -1px 0 var(--lg-edge);
 }
 .osd:not(button):not(progressbar):not(popover):not(.flat) {
-  background-color: var(--lg-tooltip);
+  background-color: var(--lg-osd);
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 0 0 1px var(--lg-edge), 0 8px 24px 0 var(--lg-deep-shadow);
 }
 .osd:not(button):not(progressbar):not(popover) { color: var(--lg-tooltip-fg); }
@@ -460,8 +460,8 @@ revealer.top-bar > windowhandle { box-shadow: inset 0 -1px 0 var(--lg-divider); 
 /* Ptyxis paints its menus from a style sheet that outranks this one: its top bar colour
    at the terminal's opacity. Fedora Glass makes that top bar colour clear so the bar is
    glass, which left the menus with no fill at all and the terminal text showing through.
-   Ptyxis sets only the fill colour, so a layer of menu glass goes on top: a little more
-   solid than other menus, as bright terminal text sits right behind with no blur. */
+   Ptyxis sets only the fill colour, so a layer of the same menu glass goes on top:
+   bright terminal text sits right behind with no blur. */
 .window-contents popover > contents {
   background-image:
     linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 40%),

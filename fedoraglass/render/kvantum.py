@@ -336,8 +336,10 @@ def build_svg(t: Tokens) -> str:
     box(sh, "itemview", "pressed", Look(sel_press), RI)
     box(sh, "itemview", "toggled", Look(t.selection), RI)
 
-    # menus and tooltips
-    pop_top = t.popover
+    # menus (combo box lists are drawn as menus too) and tooltips: the palette's floating
+    # surfaces, as nothing is blurred behind them. This fill is all of their see-through:
+    # reduce_menu_opacity stays 0 (see build_config).
+    pop_top = t.floating
     box(sh, "menu", "normal", Look(pop_top, pop_top, edge.with_alpha(min(1, edge.a * 1.4)), rim), RM)
     box(sh, "menuitem", "normal", Look(CLEAR), RI)
     for state in ("focused", "pressed", "toggled"):
@@ -347,7 +349,7 @@ def build_svg(t: Tokens) -> str:
     box(sh, "menubaritem", "focused", Look(t.hover, None, edge, rim), RI + 1)
     box(sh, "menubaritem", "pressed", Look(t.selection, None, p.acc_edge), RI + 1)
     box(sh, "menubaritem", "toggled", Look(t.selection, None, p.acc_edge), RI + 1)
-    box(sh, "tooltip", "normal", Look(t.popover, t.popover, edge.with_alpha(min(1, edge.a * 1.5)), rim), RT)
+    box(sh, "tooltip", "normal", Look(t.tooltip, t.tooltip, edge.with_alpha(min(1, edge.a * 1.5)), rim), RT)
 
     # tabs: a raised glass pill for the current one
     tabs = {"normal": Look(CLEAR), "focused": Look(t.hover, None, None, None),
@@ -440,7 +442,9 @@ def build_config(t: Tokens) -> str:
     # dark text on a see-through light window over a dark wallpaper is unreadable.
     window_alpha = max(t.window.a, 0.45 if t.dark else 0.78)
     window_reduce = _clamp((1 - window_alpha) * 100, 0, 75)
-    menu_reduce = _clamp((1 - t.popover.a) * 100, 0, 60)
+    # Menus take no reduce_menu_opacity: Kvantum multiplies it with the see-through the
+    # menu's own picture already has, which left menus and combo box lists at 0.78 x 0.78 =
+    # 61 % and the window's text readable through them (up to 1.7.9).
 
     def fr(n: int) -> str:
         return f"frame.top={n}\nframe.bottom={n}\nframe.left={n}\nframe.right={n}"
@@ -463,7 +467,7 @@ translucent_windows=true
 blurring=false
 popup_blurring=false
 reduce_window_opacity={window_reduce}
-reduce_menu_opacity={menu_reduce}
+reduce_menu_opacity=0
 menu_shadow_depth=0
 tooltip_shadow_depth=0
 spread_menuitems=true

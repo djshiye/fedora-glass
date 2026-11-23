@@ -28,7 +28,7 @@ RUN set -e; n=1; \
       gnome-shell gnome-shell-extensions gnome-shell-extension-prefs mutter xwayland dbus dbus-x11 gjs gnome-menus \
       gsettings-desktop-schemas libglib2.0-bin libglib2.0-dev-bin dconf-cli \
       nautilus ptyxis gedit adwaita-icon-theme fonts-cantarell fonts-dejavu-core \
-      python3 python3-gi python3-numpy python3-pil git curl unzip libxml2-utils procps xz-utils libarchive-tools \
+      python3 python3-gi gir1.2-gtk-3.0 gir1.2-gtk-4.0 python3-numpy python3-pil git curl unzip libxml2-utils procps xz-utils libarchive-tools \
       libnss3 libatk-bridge2.0-0t64 libgtk-3-0t64 libgbm1 libasound2t64 libcups2t64 libxss1 libxtst6 libsecret-1-0 \
       libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libnotify4 >/tmp/apt.log 2>&1; do \
       echo "Package install try $n failed:"; tail -n 30 /tmp/apt.log; \
