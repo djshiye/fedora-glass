@@ -310,10 +310,12 @@ test('a closing window keeps its backdrop for the close animation, and asks the 
 // A title bar drawn by GNOME (an X11 window, as Qt apps under Kvantum have with the opt-in
 // "same title bar") is no reason to leave a window out: Meta has no is_client_decorated on
 // GNOME 50 or 51, and these windows keep their glass, or the solid backdrop while it is paused.
+// The window here answers is_client_decorated as a later GNOME might, so a rule that left
+// such windows out would fail this test.
 test('an X11 window with a title bar from GNOME gets glass like any other, and a solid backdrop while the glass is paused', () => {
     const x11 = (id, y) => {
         const a = windowAt(id, 100, y, 800, 300, 'FeatherPad');
-        Object.assign(a.meta_window, {decorated: true, get_client_type: () => 1});
+        Object.assign(a.meta_window, {decorated: true, get_client_type: () => 1, is_client_decorated: () => false});
         return a;
     };
     const a = x11(0, 100);
