@@ -1610,8 +1610,15 @@ class Engine:
                     continue
                 if fresh:
                     backup.save()   # recorded only now (a GReset before it took the record)
-                if a.keep_user_change and backup.changed_since(self.env, gkey, backup.data["gsettings"][gkey]):
-                    continue    # the user picked their own value after ours: it stays, as on Restore
+                rec = backup.data["gsettings"][gkey]
+                if a.keep_user_change and backup.changed_since(self.env, gkey, rec):
+                    if not a.picked or a.value == rec["ours"]:
+                        continue    # the user picked their own value after ours: it stays, as on Restore
+                    # A new pick in Fedora Glass after one made elsewhere (a pointer from
+                    # Tweaks): it is set, and Restore gives back that latest choice of theirs.
+                    if not self.env.dry_run and (now := self.env.gsettings_get(a.schema, a.key, a.path)) is not None:
+                        rec["value"] = now
+                        backup.save()
                 if self.env.gsettings_get(a.schema, a.key, a.path) == a.value:
                     # Already so: setting it again would still tell every listener (Dash to
                     # Panel rebuilds its panels for some keys) on each Apply and dark/light switch.
@@ -1621,7 +1628,7 @@ class Engine:
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
                 elif a.keep_user_change and not self.env.dry_run:
-                    backup.data["gsettings"][gkey]["ours"] = a.value
+                    rec["ours"] = a.value
             elif isinstance(a, GReset):
                 if (err := backup.reset_gsetting(tid, self.env, a)):
                     errs.append(err)

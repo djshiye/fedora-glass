@@ -33,9 +33,9 @@ class Cursor(Target):
         if s.cursor_theme == KEEP or cursors.theme_dir(ctx.env, s.cursor_theme) is None:
             out.append(GReset(IFACE, "cursor-theme"))
         else:
-            out.append(GSet(IFACE, "cursor-theme", f"'{s.cursor_theme}'", keep_user_change=True))
+            out.append(GSet(IFACE, "cursor-theme", f"'{s.cursor_theme}'", keep_user_change=True, picked=True))
         if s.cursor_size:
-            out.append(GSet(IFACE, "cursor-size", str(s.cursor_size), keep_user_change=True))
+            out.append(GSet(IFACE, "cursor-size", str(s.cursor_size), keep_user_change=True, picked=True))
         else:
             out.append(GReset(IFACE, "cursor-size"))
         return out

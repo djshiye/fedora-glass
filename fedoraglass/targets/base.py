@@ -41,6 +41,8 @@ class GSet:
     optional: bool = True      # skip silently if the key doesn't exist on this version
     # Another app's own setting: if the user changes it after us, undoing leaves their choice.
     keep_user_change: bool = False
+    # The user's own pick in Fedora Glass: a new pick is set even after a change made elsewhere.
+    picked: bool = False
 
     def describe(self) -> str:
         where = f"{self.schema}:{self.path}" if self.path else self.schema

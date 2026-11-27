@@ -250,6 +250,48 @@ def test_a_pointer_the_user_picks_elsewhere_afterwards_stays_on_restore(env):
     assert env.gs[(IFACE, None)]["cursor-theme"] == "'Breeze_Snow'"
 
 
+def test_a_new_pick_in_the_app_after_a_change_in_tweaks_is_set(env):
+    install(env, "fedora-glass-dark", "fedora-glass-light")
+    apply(env, cursor_theme="fedora-glass-dark", cursor_size=32)
+    env.gs[(IFACE, None)]["cursor-size"] = "48"                  # GNOME Settings > Accessibility
+    env.gs[(IFACE, None)]["cursor-theme"] = "'Breeze_Snow'"     # GNOME Tweaks
+    eng, errs = apply(env, cursor_theme="fedora-glass-light", cursor_size=24)
+    assert not errs
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'fedora-glass-light'"
+    assert env.gs[(IFACE, None)]["cursor-size"] == "24"
+    # Restore gives back what was picked elsewhere just before: the person's latest own choice.
+    assert not eng.revert()
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'Breeze_Snow'"
+    assert env.gs[(IFACE, None)]["cursor-size"] == "48"
+
+
+def test_the_same_pick_again_leaves_a_pointer_picked_in_tweaks_alone(env):
+    install(env, "fedora-glass-dark")
+    apply(env, cursor_theme="fedora-glass-dark", cursor_size=32)
+    env.gs[(IFACE, None)]["cursor-theme"] = "'Breeze_Snow'"
+    env.gs[(IFACE, None)]["cursor-size"] = "48"
+    eng, _ = apply(env, cursor_theme="fedora-glass-dark", cursor_size=32)
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'Breeze_Snow'"
+    assert env.gs[(IFACE, None)]["cursor-size"] == "48"
+    assert not eng.revert()
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'Breeze_Snow'"
+
+
+def test_a_night_look_with_its_own_pointer_sets_it_at_the_switch(env):
+    """Day look with one pointer, night look with another, a change in Tweaks during the
+    day: the switch to night (the watcher applies only what is applied) sets the night one."""
+    install(env, "fedora-glass-dark", "fedora-glass-light")
+    eng = Engine(env, [Cursor()])
+    eng.apply(Settings(cursor_theme="fedora-glass-light"))
+    env.gs[(IFACE, None)]["cursor-theme"] = "'Breeze_Snow'"
+    eng.apply(Settings(cursor_theme="fedora-glass-dark"), if_applied=True, applied_only=True)
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'fedora-glass-dark'"
+    eng.apply(Settings(cursor_theme="fedora-glass-light"), if_applied=True, applied_only=True)
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'fedora-glass-light'"
+    assert not eng.revert()
+    assert env.gs[(IFACE, None)]["cursor-theme"] == "'Breeze_Snow'"
+
+
 def test_a_style_that_is_not_installed_is_not_set(env):
     _, errs = apply(env, cursor_theme="fedora-glass-whitesur")
     assert not errs
