@@ -11,10 +11,14 @@ Sheet {
     subtitle: qsTr("Version %1").arg(Backend.version)
     iconSource: typeof appIconUrl !== "undefined" ? appIconUrl : ""
     iconName: "info"
-    width: Math.min(600, (parent ? parent.width : 800) - 64)
-    // What is left of the window under the sheet's head, its button row and the list's title:
-    // the list scrolls inside this when the descriptions wrap onto many lines.
-    readonly property real listRoom: (parent ? parent.height : 600) - 232
+    width: Math.min(640, (parent ? parent.width : 800) - 64)
+    // The window's transparent shadow margin: the sheet is centred in the whole window, but
+    // only what lies inside the margin is the window the person sees.
+    property real windowMargin: 0
+    // What is left of the window under the sheet's head, its button row and the list's title,
+    // keeping a gap to the window's edge: the list scrolls inside this when the descriptions
+    // wrap onto many lines.
+    readonly property real listRoom: (parent ? parent.height : 600) - 2 * windowMargin - 2 * 8 - 203
 
     readonly property url releasesUrl: "https://github.com/djshiye/fedora-glass/releases"
     readonly property var shortcuts: [

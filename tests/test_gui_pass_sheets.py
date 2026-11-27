@@ -273,9 +273,10 @@ def test_no_keyboard_shortcut_description_is_cut_and_the_sheet_fits_the_window(q
         ci = sheet.property("contentItem")
         top = ci.mapToScene(ci.boundingRect().topLeft()).y()
         bottom = ci.mapToScene(ci.boundingRect().bottomLeft()).y()
-        assert top >= 0 and bottom <= win.height(), "the sheet is taller than the window"
+        m = win.property("margin")
+        assert top >= m + 8 and bottom <= win.height() - m - 8, "the sheet touches the window's edge"
         row = _button_row(sheet)
-        assert row.mapToScene(row.boundingRect().bottomLeft()).y() <= win.height()
+        assert row.mapToScene(row.boundingRect().bottomLeft()).y() <= win.height() - m - 8
         fl = _flickable(ci)
         assert fl.property("contentHeight") <= fl.height() + 0.5, "the list scrolls in the smallest window"
     finally:
@@ -313,3 +314,17 @@ def test_search_offers_terminal_colours_only_where_that_box_is_shown(qml):
         b._terminal_pal = saved
         b.targetsChanged.emit()
         win.close()
+
+
+def test_a_keyboard_shortcuts_list_that_wraps_a_lot_scrolls_inside_the_window(qml, win):
+    _small_window(win)
+    sheet = _open(win, "aboutSheet")
+    sheet.setProperty("width", 330)      # every description wraps onto several lines
+    _spin(300)
+    ci = sheet.property("contentItem")
+    top = ci.mapToScene(ci.boundingRect().topLeft()).y()
+    bottom = ci.mapToScene(ci.boundingRect().bottomLeft()).y()
+    m = win.property("margin")
+    fl = _flickable(ci)
+    assert fl.property("contentHeight") > fl.height() + 0.5, "the list is not long enough to test the cap"
+    assert top >= m + 8 and bottom <= win.height() - m - 8, "the sheet touches the window's edge"

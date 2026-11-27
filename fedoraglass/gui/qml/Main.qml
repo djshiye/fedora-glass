@@ -1026,7 +1026,7 @@ Window {
     }
     WelcomeSheet { id: welcomeSheet }
     ResultsSheet { id: resultsSheet }
-    AboutSheet { id: aboutSheet }
+    AboutSheet { id: aboutSheet; windowMargin: win.margin }
 
     Sheet {
         id: confirmSheet
