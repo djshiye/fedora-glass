@@ -2028,7 +2028,11 @@ def main(argv: list[str] | None = None, stdin=None) -> int:
                 print("\n".join(finish_by_hand(paths)), file=sys.stderr)
             except Exception:  # noqa: BLE001 - only a hint; the exit code says it all
                 pass
-        return 4 if unfinished or switch_gone(paths) else 0
+        if unfinished or switch_gone(paths):
+            return 4
+        # For a person at a text console; the package scripts and the app do not read it.
+        print("The glass login screen is off. The normal login screen comes back the next time it starts.")
+        return 0
     try:
         values = parse_values(argv[1])
         picture = None

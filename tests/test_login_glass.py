@@ -1913,6 +1913,38 @@ def test_an_off_that_cannot_finish_says_what_is_left_and_how_to_finish(main_root
     assert capsys.readouterr().err == ""
 
 
+@needs_dconf
+def test_an_off_that_worked_says_so_at_a_text_console(main_root, monkeypatch, capsys):
+    if os.geteuid() != 0:
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+    assert on(main_root)[0] == 0
+    capsys.readouterr()
+    assert lg.main(["x", "off"]) == 0
+    out = capsys.readouterr()
+    assert out.out.startswith("The glass login screen is off.") and out.err == ""
+    broken = Path(main_root.root) / "etc/dconf/db/gdm.d/50-broken"
+    assert on(main_root)[0] == 0
+    broken.write_text("not a keyfile\n")
+    capsys.readouterr()
+    assert lg.main(["x", "off"]) == 4
+    assert capsys.readouterr().out == ""          # only the problems, on stderr
+
+
+@needs_dconf
+def test_status_after_an_off_that_did_not_finish_says_not_fully_off(main_root, monkeypatch, capsys):
+    from fedoraglass import __main__ as cli
+    assert on(main_root)[0] == 0
+    (Path(main_root.root) / "etc/dconf/db/gdm.d/50-broken").write_text("not a keyfile\n")
+    assert any(p.startswith("still there") for p in lg.turn_off(main_root))
+    assert os.path.exists(main_root.state) and os.path.lexists(main_root.leaving)
+    capsys.readouterr()
+    assert cli.main(["login-screen", "status"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("Glass login screen: not fully off yet")
+    assert "trial" not in out and "To turn it off" not in out
+    assert "To finish it: sudo fedora-glass login-screen off" in out
+
+
 def test_finishing_by_hand_names_our_own_db_and_the_profile_line(tmp_path):
     paths = lg.Paths(str(tmp_path))
     own = tmp_path / "etc/dconf/db" / (lg.OWN_DB + ".d")
@@ -1963,6 +1995,7 @@ def test_the_cli_login_screen_off_needs_root_and_runs_the_helper(monkeypatch, ca
     ({"available": True, "why": "", "state": "trial", "stopped": "", "values": {}}, "trial"),
     ({"available": True, "why": "", "state": "on", "stopped": "", "values": {}}, "on"),
     ({"available": False, "why": "not-gdm", "state": "off", "stopped": "crash", "values": None}, "did not start"),
+    ({"available": True, "why": "", "state": "trial", "stopped": "", "values": {}, "leaving": True}, "not fully off"),
 ])
 def test_the_cli_login_screen_status_summary(monkeypatch, capsys, st, words):
     from fedoraglass import __main__ as cli

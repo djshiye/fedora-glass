@@ -817,6 +817,11 @@ def cmd_login_screen(args: argparse.Namespace) -> int:
     s = login_glass.status(login_glass.Paths("/"))
     state = {"on": "on", "trial": "on trial (it turns itself off again if nobody logs in through it)",
              "off": "off"}.get(s.get("state"), "off")
+    if s.get("leaving"):
+        # Whatever state.json still says: an off was asked for, and only finishing it is left.
+        print("Glass login screen: not fully off yet (an earlier off did not finish)")
+        print("To finish it: sudo fedora-glass login-screen off (it says what is in the way)")
+        return 0
     print(f"Glass login screen: {state}")
     if s.get("stopped") in LOGIN_STOPPED and s.get("state") == "off":
         print(f"It turned itself off because {LOGIN_STOPPED[s['stopped']]}.")
