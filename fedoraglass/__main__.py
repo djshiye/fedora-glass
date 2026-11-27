@@ -97,11 +97,46 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 def cmd_plan(args: argparse.Namespace) -> int:
     # Commands that only look move and write nothing, not even a damaged settings file.
-    for tid, actions in _engine().plan(settings_mod.load(fix=False)).items():
+    eng = _engine()
+    for tid, actions in eng.plan(settings_mod.load(fix=False)).items():
         print(f"[{tid}]")
+        touched: set[tuple] = set()
         for a in actions:
-            print(f"  {a.describe()}")
+            print(f"  {_plan_line(eng.env, a, touched)}")
     return 0
+
+
+def _plan_line(env, a, touched: set[tuple]) -> str:
+    """One step of `fedora-glass plan`, said as Apply would take it: a file or setting that
+    already holds what Apply would put there is left alone (write_if_changed), and a file
+    behind a link in an app's own folder is not written at all. Read only, through the
+    same reader as Apply."""
+    from .engine import PLAIN
+    from .safefs import Box, LinkInside, box_root
+    from .targets.base import GReset, GSet, WriteFile
+    if isinstance(a, WriteFile):
+        root = box_root(a.path, env.home)
+        fs = PLAIN if root is None else Box(root, env.home)
+        if fs is not PLAIN:
+            try:
+                fs.lstat(a.path)
+            except LinkInside as e:
+                return f"{a.path}: {e}"
+            except OSError:
+                pass            # anything else in the way: Apply's write says what
+        data = a.content.encode() if isinstance(a.content, str) else a.content
+        if fs.same_file(a.path, data, fs.kept_mode(a.path, a.mode)):
+            return f"unchanged {a.path}"
+    elif isinstance(a, (GSet, GReset)):
+        key = (a.schema, a.path, a.key)
+        # A key set twice (User Themes is bounced to read a new theme file) changes either way.
+        again = key in touched
+        touched.add(key)
+        if isinstance(a, GSet) and not again and a.key in env.gsettings_keys(a.schema, a.path) \
+                and env.gsettings_get(a.schema, a.key, a.path) == a.value:
+            where = f"{a.schema}:{a.path}" if a.path else a.schema
+            return f"unchanged {where} {a.key}"
+    return a.describe()
 
 
 def cmd_status(args: argparse.Namespace) -> int:

@@ -402,6 +402,8 @@ class _Plain:
     def write_if_changed(path: Path, data: bytes, mode: int = 0o644) -> None:
         write_if_changed(path, data, mode)
 
+    same_file = staticmethod(same_file)
+
     @staticmethod
     def unlink(path: Path) -> None:
         path.unlink()
