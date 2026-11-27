@@ -114,13 +114,19 @@ def test_escape_closes_the_list_without_picking(qml, win):
 def _rows(dd):
     """The menu rows of the open list, in order."""
     from PySide6.QtCore import QObject
-    pop = [c for c in dd.findChildren(QObject) if "Popup" in c.metaObject().className()][0]
-    out, todo = [], [pop.property("contentItem")]
-    while todo:
-        it = todo.pop()
-        if it.property("modelData") is not None:
-            out.append(it)
-        todo.extend(it.childItems())
+    out = []
+    # A tooltip is a popup too: take the one that holds the rows.
+    for pop in [c for c in dd.findChildren(QObject) if "Popup" in c.metaObject().className()]:
+        out, todo = [], [pop.property("contentItem")]
+        while todo:
+            it = todo.pop()
+            if it is None:
+                continue
+            if it.property("modelData") is not None:
+                out.append(it)
+            todo.extend(it.childItems())
+        if out:
+            break
     return sorted(out, key=lambda r: r.property("index"))
 
 
