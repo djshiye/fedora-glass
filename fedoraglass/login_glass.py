@@ -1501,6 +1501,17 @@ def turn_on(paths: Paths, values: dict, picture: tuple[bytes, str] | None) -> tu
         else:
             st = _new_state(values, a, kind, pic_sha)
         txn = Txn()
+
+        def rollback() -> list[str]:
+            problems = txn.rollback()
+            if problems:
+                # Part of it could not be put back (a full disk), and the undo of a new
+                # state.json still went: an off in progress, from here on, is the only record
+                # of the db that may hold the switch, for the guard or the next off.
+                _step(problems, "the leaving flag", _mark_leaving, paths,
+                      {a.plan.db} | {n for n in _d_dirs(paths) if _ours_in(paths, n)})
+                _off_locked(paths, None, keep_stopped=True)
+            return problems
         try:
             _install(paths, txn, st, a, picture[0] if picture else None, work, st_prev)
             txn.remove(paths.stopped)
@@ -1508,10 +1519,10 @@ def turn_on(paths: Paths, values: dict, picture: tuple[bytes, str] | None) -> tu
             # and checked, so a failure of ours never leaves the person with neither.
             _take_off_painted_glass(paths)
         except Unavailable as e:
-            problems = txn.rollback()
+            problems = rollback()
             return (4 if problems else 3), e.why if not problems else f"{e}; could not undo: {problems[0]}"
         except BaseException as e:
-            problems = txn.rollback()
+            problems = rollback()
             if not isinstance(e, Exception):
                 raise
             return 4, f"{e}" + (f"; could not undo: {problems[0]}" if problems else "")

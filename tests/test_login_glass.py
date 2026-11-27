@@ -516,6 +516,62 @@ def test_a_failing_compile_on_a_change_puts_the_earlier_look_back(tmp_path):
     assert Path(paths.state).read_bytes() == st_before
 
 
+def undo_cannot_write_the_db(monkeypatch, paths: lg.Paths, after_compile=None) -> None:
+    """`on` gets past the compile of the login screen's db, then fails; its undo cannot write
+    the old db back (the disk filled up meanwhile)."""
+    def bad_post(p, w):
+        if after_compile:
+            after_compile()
+        raise lg.Failed("the check could not write its probe")
+    monkeypatch.setattr(lg, "post_check", bad_post)
+    real_wa, real_rb = lg.write_atomic, lg.Txn.rollback
+    rolling = []
+
+    def wa(path, data, mode=0o644):
+        if rolling and path == os.path.join(paths.db_dir, "gdm"):
+            raise OSError(28, "No space left on device")
+        return real_wa(path, data, mode)
+
+    def rb(self):
+        rolling.append(1)
+        try:
+            return real_rb(self)
+        finally:
+            rolling.clear()
+    monkeypatch.setattr(lg, "write_atomic", wa)
+    monkeypatch.setattr(lg.Txn, "rollback", rb)
+
+
+@needs_dconf
+def test_an_undo_that_cannot_put_the_db_back_still_leaves_the_normal_login_screen(fedora, monkeypatch):
+    undo_cannot_write_the_db(monkeypatch, fedora)
+    code, msg = on(fedora)
+    assert code == 4 and "could not undo" in msg
+    assert UUID not in effective(fedora)
+    assert effective(fedora, lg.DUE_KEY) == ""
+    assert lg.switch_gone(fedora) == []
+    assert not os.path.lexists(fedora.leaving) and not os.path.exists(fedora.state)
+    assert lg.status(fedora)["state"] == "off"
+
+
+@needs_dconf
+def test_an_undo_that_fails_on_a_full_disk_leaves_an_off_the_guard_finishes(fedora, monkeypatch):
+    root = Path(fedora.root)
+    broken = root / "etc/dconf/db/gdm.d/50-broken"
+    # The db can no longer be compiled either, so the off cannot finish at once.
+    undo_cannot_write_the_db(monkeypatch, fedora, lambda: broken.write_text("not a keyfile\n"))
+    assert on(fedora)[0] == 4
+    assert UUID in effective(fedora)
+    assert os.path.lexists(fedora.leaving)        # the guard's unit runs at the next boot
+    assert "gdm" in lg._leaving_dbs(fedora)
+    assert lg.status(fedora)["leaving"]
+    broken.unlink()
+    monkeypatch.undo()
+    assert guard(fedora) == "off: leaving"
+    assert UUID not in effective(fedora)
+    assert not os.path.lexists(fedora.leaving) and not os.path.exists(fedora.state)
+
+
 @needs_dconf
 def test_not_available_reasons(tmp_path):
     def fresh(name, **kw):
