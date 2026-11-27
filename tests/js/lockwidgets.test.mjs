@@ -89,3 +89,56 @@ test('hidden notifications take no room and do not wake the screen, until shown 
     b._wakeUpScreenForSource({});
     assert.equal(b.woke, true);
 });
+
+// GNOME's WeatherClient, which says "loading" the moment a refresh starts and answers a
+// second later; the lock screen asks for one as it comes up.
+function weatherChip(temp) {
+    const make = t => ({
+        is_valid: () => t !== null, get_temp_summary: () => `${t} °C`, get_conditions: () => '-', get_sky: () => 'Clear sky',
+        get_symbolic_icon_name: () => 'weather-clear-symbolic', get_location_name: () => 'X',
+    });
+    const client = {available: true, hasLocation: true, loading: false, info: make(temp), make};
+    const chip = {visible: false, icon: {}, label: {text: ''}};
+    const w = {cfg: {weatherPlace: false}, _weatherClient: client, _weatherChip: chip};
+    const sync = () => W.LockWidgets.prototype._syncWeather.call(w);
+    return {client, chip, sync};
+}
+
+test('the weather chip stays while the numbers refresh, and shows the new ones', () => {
+    const {client, chip, sync} = weatherChip(-4);
+    sync();
+    assert.equal(chip.visible, true);
+    assert.equal(chip.label.text, '-4°  ·  Clear sky');
+    client.loading = true;
+    sync();
+    assert.equal(chip.visible, true, 'no blink while it loads');
+    assert.equal(chip.label.text, '-4°  ·  Clear sky');
+    client.loading = false;
+    client.info = client.make(-7);
+    sync();
+    assert.equal(chip.visible, true);
+    assert.equal(chip.label.text, '-7°  ·  Clear sky');
+});
+
+test('the weather chip goes when the refresh finds nothing', () => {
+    const {client, chip, sync} = weatherChip(-4);
+    sync();
+    client.loading = true;
+    sync();
+    client.loading = false;
+    client.info = client.make(null);
+    sync();
+    assert.equal(chip.visible, false);
+});
+
+test('a weather chip with nothing to show yet stays hidden while it loads', () => {
+    const {client, chip, sync} = weatherChip(null);
+    client.loading = true;
+    sync();
+    assert.equal(chip.visible, false);
+    client.loading = false;
+    client.info = client.make(3);
+    sync();
+    assert.equal(chip.visible, true);
+    assert.equal(chip.label.text, '3°  ·  Clear sky');
+});

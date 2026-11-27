@@ -272,6 +272,10 @@ export class LockWidgets {
         const client = this._weatherClient, chip = this._weatherChip;
         if (!client || !chip)
             return;
+        // The lock screen asks for fresh numbers as it comes up: what the chip shows stays
+        // until they are in (hiding it made it blink and the battery chip jump sideways).
+        if (client.loading && chip.visible && chip.label.text)
+            return;
         const info = client.info;
         const ok = client.available && client.hasLocation && !client.loading && info?.is_valid();
         const text = ok ? weatherText(info, this.cfg.weatherPlace) : '';
