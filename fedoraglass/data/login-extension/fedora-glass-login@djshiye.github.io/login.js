@@ -403,8 +403,9 @@ export class LoginGlass {
         const clockH = this._clockBox ? this._clockBox.get_preferred_height(-1)[1] : 0;
         const above = clockH ? this._topLeast() + clockH + TOP_GAP + (this._card ? PROMPT_PAD : 0) + 4 : 0;
         const fixedTop = this._fixedTop = typeof this._dialog._getFixedTopActorAllocation === 'function';
+        const height = this._boxHeight = fixedTop ? 0 : this._promptHeight();
         return promptPlace({
-            fixedTop, height: fixedTop ? 0 : this._promptHeight(),
+            fixedTop, height,
             scale: this._context.scale_factor, textScale, screen: m?.height ?? global.stage.height, above, own, content,
         });
     }
@@ -910,10 +911,22 @@ export class LoginGlass {
         // Only where GNOME has laid it out: until then it says how tall it would like to
         // be, the room above it included, and this is decided once.
         const f = prompt.has_allocation() ? LoginGlass.frame(prompt) : null;
-        if (!m || !f || f[1] + f[3] <= m.y + m.height - PROMPT_SPARE)
+        if (!m || !f || this._shownBottom(prompt, f) <= m.y + m.height - PROMPT_SPARE)
             return;
         this._place = this._promptPlace(true);
         this._restyle();
+    }
+
+    /**
+     * Where what GNOME's prompt shows ends (stage px), its frame f. Where its theme gives it
+     * a fixed height (GNOME 51.1), the box is mostly empty under the field: then where the
+     * last of what is in it ends (the message and the list of ways to log in are).
+     */
+    _shownBottom(prompt, f) {
+        if (!this._boxHeight)
+            return f[1] + f[3];
+        const ends = prompt.get_children().map(a => LoginGlass.frame(a)).filter(b => b).map(b => b[1] + b[3]);
+        return ends.length ? Math.max(...ends) : f[1] + f[3];
     }
 
     /**
@@ -935,8 +948,9 @@ export class LoginGlass {
         if (!m || !prompt.has_allocation() || !(Math.abs(prompt.margin_top - this._place.margin * scale) < 1))
             return;
         // A user's prompt, with the avatar and the field: what promptPlace means.
+        const box = LoginGlass.frame(prompt);
         const user = LoginGlass.frame(prompt._userWell), field = LoginGlass.frame(prompt._mainBox);
-        if (!LoginGlass.frame(prompt) || !user || !field)
+        if (!box || !user || !field)
             return;
         const top = Math.round(user[1] - m.y);
         const want = this._promptPlace(false, (field[1] + field[3] - user[1]) / scale);
@@ -949,8 +963,10 @@ export class LoginGlass {
                 this._place = {...this._place, top};
             return;
         }
-        // Every px of margin lowers it by one (a fixed top) or by half (centred).
-        const gain = this._fixedTop ? scale : scale / 2;
+        // Every px of margin lowers it by one (a fixed top, or a fixed height GNOME cut to the
+        // screen's) or by half (centred).
+        const cut = this._boxHeight && box[3] < this._boxHeight * scale - 1;
+        const gain = this._fixedTop || cut ? scale : scale / 2;
         const margin = Math.round(Math.max(0, Math.min(600, this._place.margin - off / gain)));
         if (this._placeTries >= PLACE_TRIES || margin === this._place.margin) {
             // It does not follow: the closest place seen, and no more tries.

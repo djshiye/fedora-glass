@@ -187,23 +187,29 @@ export function promptPlace({fixedTop = true, height = 0, scale = 1, textScale =
     const way = fixedTop ? 'fixedTop' : height > 0 ? 'offset' : 'centred';
     const content = Math.round(seen === null ? PROMPT_FIXED[way] + PROMPT_TEXT[way] * textScale : unit(seen, 1, 20000));
     // GNOME 51.1: the prompt is as tall as its theme says, or as tall as what is in it.
-    const box = Math.max(height, content + PROMPT_ROOM[way] * textScale);
-    const room = way === 'offset' ? box - content : PROMPT_ROOM[way] * textScale;
+    // Under the field, GNOME's room for messages (on GNOME 51.1 the rest of the box is empty).
+    const room = PROMPT_ROOM[way] * textScale;
+    const box = Math.max(height, content + room);
     const middle = screen / 2;
     // Where what the prompt shows begins with a margin of m px above it (stage px), as
     // GNOME lays it out. GNOME 51.0: its fixed top and the margin. GNOME 50: the prompt
     // (margin, content and room) is centred, so every 2 px of margin lower it by 1.
-    // GNOME 51.1: the same with its fixed height, and OFFSET lower (rounded down, as there).
+    // GNOME 51.1: the same with its fixed height, and OFFSET lower (rounded down, as there);
+    // but it gives the prompt no more than the screen's height, the margin included: cut
+    // so, the box begins OFFSET under the screen's top, and every px of margin lowers it by 1.
+    const cut = m => (box + m) * scale > screen;
     const at = {
         fixedTop: m => middle - FIXED_TOP + m * scale,
         centred: m => middle + (m - content - room) * scale / 2,
-        offset: m => Math.floor(middle - (box + m) * scale / 2) + OFFSET + m * scale,
+        offset: m => Math.floor(middle - Math.min((box + m) * scale, screen) / 2) + OFFSET + m * scale,
     }[way];
     // ...and the margin that makes it begin at top.
+    const centredBox = top => 2 * (top - middle - OFFSET) / scale + box;
     const marginFor = {
         fixedTop: top => (top - (middle - FIXED_TOP)) / scale,
         centred: top => 2 * (top - middle) / scale + content + room,
-        offset: top => 2 * (top - middle - OFFSET) / scale + box,
+        offset: top => cut(centredBox(top)) ? (top - OFFSET - Math.floor(middle - screen / 2)) / scale
+            : centredBox(top),
     }[way];
     if (own) {
         return {margin: null, content, top: Math.round(fixedTop ? middle - FIXED_TOP + OWN_MARGIN * scale

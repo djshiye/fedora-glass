@@ -142,10 +142,63 @@ test('a layout that takes no notice of the margin: a few tries, the first place 
     g.ext.disable();
 });
 
-test('GNOME 51.1 on a short screen: the prompt still gets GNOME\'s own place back, once', async () => {
-    const g = await started({gnome: '51.1', screen: 600});
+test('GNOME 51.1 on a screen shorter than its theme\'s box and our margin: GNOME cuts the box, the card still where it belongs', async () => {
+    // 600 px: under the big clock, with room for GNOME's messages under the field.
+    for (const [screen, textScale, middle] of [[600, 1, 340], [720, 1, 360], [720, 1.25, 360]]) {
+        const what = `${screen} px, text ${textScale}`;
+        const g = await started({gnome: '51.1', screen, textScale});
+        const listClock = g.top.y;
+        const seen = g.pick();
+        assert.notEqual(margin(g.fake), null, `${what}: our place is kept`);
+        assert.ok(g.d._authPrompt.height < 550, `${what}: cut`);
+        assert.ok(Math.abs(seen.cardMiddle - middle) <= 4, `${what}: card middle ${seen.cardMiddle}`);
+        if (screen === 600)
+            assert.ok(g.top.y + g.top.height <= g.d._authPrompt._userWell.y, `${what}: the clock above the prompt`);
+        assert.equal(seen.clock, listClock, `${what}: the clock stays`);
+        assert.equal(g.loads(), 1, `${what}: nothing to set again`);
+        assert.deepEqual(logged, []);
+        g.ext.disable();
+    }
+});
+
+test('GNOME 51.1 on a screen too short for what it shows: the prompt still gets GNOME\'s own place back, once', async () => {
+    const g = await started({gnome: '51.1', screen: 400});
     assert.notEqual(margin(g.fake), null);
     g.pick();
+    assert.equal(margin(g.fake), null, 'no room of ours above the prompt');
+    assert.equal(g.loads(), 2);
+    g.back();
+    g.pick();
+    assert.equal(g.loads(), 2, 'given back once');
+    assert.deepEqual(logged, []);
+    g.ext.disable();
+});
+
+test('GNOME 51.1 on a screen 768 to 864 px tall: the prompt keeps our place, the card in the middle and the clock staying', async () => {
+    // Its theme's 550 px box reaches near the screen's bottom there, but under the field it
+    // is empty: what GNOME shows ends far higher.
+    for (const [screen, textScale] of [[768, 1], [800, 1], [864, 1], [800, 1.25], [864, 1.5]]) {
+        const what = `${screen} px, text ${textScale}`;
+        const g = await started({gnome: '51.1', screen, textScale});
+        const listClock = g.top.y;
+        const seen = g.pick();
+        assert.notEqual(margin(g.fake), null, `${what}: our place is kept`);
+        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 4, `${what}: card middle ${seen.cardMiddle}`);
+        assert.equal(seen.clock, listClock, `${what}: the clock stays`);
+        assert.equal(g.loads(), 1, `${what}: nothing to set again`);
+        assert.deepEqual(logged, []);
+        g.ext.disable();
+    }
+});
+
+test('GNOME 51.1 at 864 px: a long message under the field still gives the prompt GNOME\'s own place back, once', async () => {
+    const g = await started({gnome: '51.1', screen: 864});
+    g.pick();
+    assert.notEqual(margin(g.fake), null);
+    const well = g.d._authPrompt._inputWell;
+    well.height = 864 - 4 - well.y;
+    well.emit('notify::allocation');
+    g.fake.laters.run();
     assert.equal(margin(g.fake), null, 'no room of ours above the prompt');
     assert.equal(g.loads(), 2);
     g.back();

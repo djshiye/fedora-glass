@@ -409,7 +409,8 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
  * is loaded), as loginDialog.js of that GNOME does: 51.0 from a fixed top 275 px above the
  * middle; 50 centred by its natural height, the margin included; 51.1 centred by the theme's
  * fixed height (or more, should what it shows need more) and the margin, 50 px lower. GNOME
- * rounds down; St puts the margin on the actor, and Clutter lays it out under the margin.
+ * rounds down and gives a centred prompt no more than the screen's height; St puts the
+ * margin on the actor, and Clutter lays it out under the margin.
  */
 function layOut(fake, d, gnome, {foreign, ignoreMargin}) {
     const prompt = d._authPrompt, g = PROMPT[gnome], s = fake.themeContext.scale_factor;
@@ -425,11 +426,13 @@ function layOut(fake, d, gnome, {foreign, ignoreMargin}) {
     const content = (Math.round(g.fixed + g.text * ts) + (foreign ? 26 - 16 + 6 : 0)) * s;
     const room = (g.room * ts + (foreign ? 30 : 0)) * s;
     const box = Math.max((g.height ?? 0) * s, content + room);
+    // Centred, GNOME gives it no more than the screen's height, the margin included.
+    const given = Math.min(placed + box, m.height);
     const top = gnome === '51.0' ? Math.floor(mid - 275) + placed
-        : Math.floor(mid - (placed + box) / 2) + (gnome === '51.1' ? 50 : 0) + placed;
+        : Math.floor(mid - given / 2) + (gnome === '51.1' ? 50 : 0) + placed;
     const set = (a, y, height) => Object.assign(a, {y, height});
     prompt.margin_top = M;
-    set(prompt, top, box);
+    set(prompt, top, gnome === '51.0' ? box : given - placed);
     set(prompt._userWell, top, content - field - 16 * s);
     set(prompt._userWell.get_first_child(), top, avatar);
     set(prompt._inputWell, top + content - field, field + room);

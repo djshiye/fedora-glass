@@ -255,6 +255,26 @@ test('on a short screen the prompt stands under the big clock, while GNOME\'s me
     assert.deepEqual(S.promptPlace({fixedTop: false, screen: 864, above: 330}), {margin: 99, content: 236, top: 330});
 });
 
+test('GNOME 51.1 on a short screen: under the big clock when GNOME\'s messages fit, not its theme\'s empty box', () => {
+    // 864 px: what it shows and its room for messages fit under the clock, its 550 px box does not.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 864, above: 330}), {margin: 246, content: 249, top: 330});
+    assert.equal(S.promptPlace({fixedTop: false, height: 550, screen: 1080, above: 330}).top, 415, 'room enough: in the middle');
+});
+
+test('GNOME 51.1 cuts its prompt\'s box to the screen\'s height, the margin included: then it begins OFFSET under the top', () => {
+    // 768 px under the clock: 342 px of margin and the 550 px box would be 892 px; cut, 280 px do it.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 768, above: 330}), {margin: 280, content: 249, top: 330});
+    // 720 px, in the middle: 201 px would be cut; 186 px.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 720}), {margin: 186, content: 249, top: 236});
+    // Just not cut: 751 px is the box and 201 px of margin.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 752}), {margin: 201, content: 249, top: 251});
+    // A scale factor of 2 and 1600 px: 251 px of margin would be 2 px too tall.
+    const two = S.promptPlace({fixedTop: false, height: 550, scale: 2, screen: 1600});
+    assert.ok(Math.abs(two.top + two.content - 800) <= 2, JSON.stringify(two));
+    // GNOME's own place on a screen shorter than the box.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 500, own: true}), {margin: null, content: 249, top: 50});
+});
+
 test('GNOME\'s own place for the prompt: no margin of ours, and a guess of where it then begins', () => {
     // GNOME 51: its fixed top (275 px above the middle) and its theme's 80 px.
     assert.deepEqual(S.promptPlace({own: true}), {margin: null, content: 240, top: 345});
