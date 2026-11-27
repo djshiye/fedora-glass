@@ -4070,6 +4070,7 @@ class Backend(QObject):
         c = self._known_colours(path)
         if c is not None:
             self._use_colours(c)
+            self.wallpaperMatchChanged.emit()   # the note follows, even when nothing new is worked out
             return
         if path in self._wall_tasks:
             return
@@ -4151,7 +4152,8 @@ class Backend(QObject):
             s = replace(self._s, **{flag: False, own: "", what: back})
         self._replace_editor(s.normalized())
         self._match_wallpaper()
-        self.wallpaperMatchChanged.emit()   # the note follows the switch, even when the colours are known
+        if not on:
+            self.wallpaperMatchChanged.emit()   # the note goes away with the switch
 
     tintFromWallpaper = Property(bool, _get_tint_from_wallpaper, _set_tint_from_wallpaper, notify=settingsChanged)
     accentFromWallpaper = Property(bool, _get_accent_from_wallpaper, _set_accent_from_wallpaper, notify=settingsChanged)
