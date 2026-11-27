@@ -77,7 +77,8 @@ def read_app_text(path: Path, home: Path) -> str | None:
     """The UTF-8 text of an app's own file below a box (its own line endings kept), or None
     when it can't be read, isn't a plain file, or a link is at it or on the way."""
     root = box_root(path, home)
-    assert root is not None
+    if root is None:            # callers ask box_root first; never fall back to a plain read
+        return None
     try:
         return Box(root, home).read_bytes(path).decode("utf-8")
     except (OSError, UnicodeDecodeError):

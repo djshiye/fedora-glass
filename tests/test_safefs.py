@@ -55,6 +55,13 @@ def test_a_home_called_snap_is_not_an_app_folder(tmp_path):
 
 
 # ---- reading ------------------------------------------------------------------------------
+def test_read_app_text_of_a_file_in_no_app_folder_gives_nothing(tmp_path):
+    home = tmp_path / "home"
+    (home / ".config").mkdir(parents=True)
+    (home / ".config/a.json").write_text("{}")
+    assert safefs.read_app_text(home / ".config/a.json", home) is None
+
+
 def test_read_gives_the_bytes_of_a_plain_file(box):
     b, root, _out = box
     (root / "config/app/a.json").write_bytes(b'{"a": 1}\r\n')
