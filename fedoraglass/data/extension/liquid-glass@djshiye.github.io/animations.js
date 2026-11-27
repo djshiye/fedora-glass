@@ -303,8 +303,10 @@ const lerp = (a, b, t) => a + (b - a) * t;
  */
 function moveFns(actor, from, to, curve, wob, opacity) {
     const {width: w, height: h} = actor;
-    const sx = u => lerp(from.sx, to.sx, curve(u)) * (1 + wob(u));
-    const sy = u => lerp(from.sy, to.sy, curve(u)) * (1 - wob(u));
+    // A spring into a tiny icon overshoots below zero: the least it draws is SCALE_MIN, and the
+    // translation is worked out from that, so it is not a runaway value for the guard.
+    const sx = u => Math.max(C.SCALE_MIN, lerp(from.sx, to.sx, curve(u)) * (1 + wob(u)));
+    const sy = u => Math.max(C.SCALE_MIN, lerp(from.sy, to.sy, curve(u)) * (1 - wob(u)));
     // Keep the box's centre on a straight path while it scales.
     const cx0 = from.tx + w * from.sx / 2, cy0 = from.ty + h * from.sy / 2;
     const cx1 = to.tx + w * to.sx / 2, cy1 = to.ty + h * to.sy / 2;
