@@ -83,6 +83,7 @@ Item {
         loginNew: Backend.loginCardKind === "new" && (Backend.glassLoginCanTurnOn || Backend.glassLoginOn),
         loginOn: Backend.loginCardKind === "new" && Backend.glassLoginOn,
         previous: Backend.hasPrevious,
+        terminal: Backend.terminalPalette !== "",
         looks: Backend.savedLooks.length > 0
     })
     readonly property int maxResults: 7

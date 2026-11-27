@@ -38,7 +38,7 @@ var entries = [
     { en: "Header bar height", title: qsTr("Header bar height"), ew: "header bar title bar height size compact", tw: qsTr("header bar title bar height size compact"), page: "windows", name: "headerHeight" },
     { en: "Header bar opacity", title: qsTr("Header bar opacity"), ew: "header bar transparency opacity see through", tw: qsTr("header bar transparency opacity see through"), page: "windows", name: "headerOpacity" },
     { en: "Terminal follows light and dark", title: qsTr("Terminal follows light and dark"), ew: "terminal ptyxis light dark follow", tw: qsTr("terminal ptyxis light dark follow"), page: "windows", name: "terminalFollowsStyle" },
-    { en: "Terminal colours", title: qsTr("Terminal colours"), ew: "terminal colours palette colors", tw: qsTr("terminal colours palette colors"), page: "windows", name: "terminalColors" },
+    { en: "Terminal colours", title: qsTr("Terminal colours"), ew: "terminal colours palette colors", tw: qsTr("terminal colours palette colors"), page: "windows", name: "terminalColors", needs: "terminal" },
     { en: "Qt apps title bar", title: qsTr("Qt apps title bar"), ew: "qt kde title bar x11 keepassxc", tw: qsTr("qt kde title bar x11 keepassxc"), page: "windows", name: "qtGnomeTitlebars" },
     // Motion
     { en: "Motion style", title: qsTr("Motion style"), ew: "animation motion calm lively playful off gnome", tw: qsTr("animation motion calm lively playful off gnome"), page: "motion", name: "motionStyle" },

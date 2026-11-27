@@ -280,3 +280,36 @@ def test_no_keyboard_shortcut_description_is_cut_and_the_sheet_fits_the_window(q
         assert fl.property("contentHeight") <= fl.height() + 0.5, "the list scrolls in the smallest window"
     finally:
         win.close()
+
+
+def test_search_offers_terminal_colours_only_where_that_box_is_shown(qml):
+    from PySide6.QtCore import QMetaObject, Q_ARG
+    b = _backend(qml)
+    win = _window(qml)
+    side = _find(win, "sidebar")
+    field = _find(win, "searchField")
+
+    def found():
+        field.setProperty("text", "terminal colours")
+        _spin(30)
+        return [e["name"] for e in side.property("allResults").toVariant()]
+    saved = b._terminal_pal
+    try:
+        b._terminal_pal = ""
+        b.targetsChanged.emit()
+        _spin()
+        assert "terminalColors" not in found()
+        b._terminal_pal = "Adwaita"
+        b.targetsChanged.emit()
+        _spin()
+        assert "terminalColors" in found()
+        # And it lands on the box, which is shown.
+        QMetaObject.invokeMethod(win, "goTo", Q_ARG("QVariant", "windows"), Q_ARG("QVariant", "terminalColors"))
+        _spin(900)
+        box = _find(win, "terminalColors")
+        assert box is not None and box.property("visible") and box.property("height") > 2
+    finally:
+        field.setProperty("text", "")
+        b._terminal_pal = saved
+        b.targetsChanged.emit()
+        win.close()
