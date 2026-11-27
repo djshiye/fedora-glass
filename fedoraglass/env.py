@@ -227,7 +227,8 @@ class Env:
             dirs = [d for d in (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":") if d]
             found = [Path(d) / "glib-2.0/schemas" for d in dirs]
             found.insert(0, self.data / "glib-2.0/schemas")
-            found[:0] = reversed([Path(d) for d in (os.environ.get("GSETTINGS_SCHEMA_DIR") or "").split(":") if d])
+            # Its folders in their own order: the first one wins, as in GLib.
+            found[:0] = [Path(d) for d in (os.environ.get("GSETTINGS_SCHEMA_DIR") or "").split(":") if d]
             src = None
             for d in reversed(found):           # lowest priority first: it is the parent
                 if (d / "gschemas.compiled").is_file():

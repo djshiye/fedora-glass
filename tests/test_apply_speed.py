@@ -96,6 +96,45 @@ def test_settings_read_here_match_gsettings_exactly(tmp_path):
     assert ["org.example.glasstest.profile:/org/example/profiles/one/", "name", "'mine'", "'mine'"] in rows
 
 
+ORDER = """<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.example.glassorder" path="/org/example/glassorder/">
+    <key name="from" type="s"><default>'{name}'</default></key>
+  </schema>
+</schemalist>
+"""
+
+ASK = textwrap.dedent("""
+    import json, subprocess, sys
+    sys.path.insert(0, sys.argv[1])
+    from fedoraglass.env import Env
+    e = Env()
+    assert e._gio_module() is not None, "reading here is on (dconf)"
+    r = subprocess.run(["gsettings", "get", "org.example.glassorder", "from"], capture_output=True, text=True)
+    print(json.dumps([e.gsettings_get("org.example.glassorder", "from"), r.stdout.strip()]))
+""")
+
+
+@pytest.mark.skipif(not (TOOLS and DCONF), reason="needs gsettings, glib-compile-schemas, a session bus and dconf")
+def test_two_schema_folders_are_searched_in_the_order_gsettings_uses(tmp_path):
+    """GSETTINGS_SCHEMA_DIR with two folders that both have a schema: the first one wins."""
+    pytest.importorskip("gi")
+    for name in ("first", "second"):
+        d = tmp_path / name
+        d.mkdir()
+        (d / "org.example.glassorder.gschema.xml").write_text(ORDER.format(name=name))
+        subprocess.run(["glib-compile-schemas", str(d)], check=True)
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(tmp_path),
+           "XDG_CONFIG_HOME": str(tmp_path / "config"), "XDG_DATA_HOME": str(tmp_path / "data"),
+           "XDG_RUNTIME_DIR": str(tmp_path / "run"),
+           "GSETTINGS_SCHEMA_DIR": f"{tmp_path / 'first'}:{tmp_path / 'second'}"}
+    (tmp_path / "run").mkdir(mode=0o700)
+    r = subprocess.run(["dbus-run-session", "--", sys.executable, "-c", ASK, str(ROOT)], env=env,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout.strip().splitlines()[-1]) == ["'first'", "'first'"]
+
+
 def test_faked_commands_still_answer_settings(tmp_path):
     """Tests (and anything else) that fake Env.run keep seeing every question."""
     asked = []
