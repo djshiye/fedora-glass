@@ -9,7 +9,7 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {BoxPointer} from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
-import {Signals, grow} from './common.js';
+import {Signals, grow, motion} from './common.js';
 import {report} from './safety.js';
 import {Follower} from './follower.js';
 
@@ -157,6 +157,9 @@ export class Popups {
         this._laters = new Map();      // pending later -> [child, its destroy handler]
         this._switchers = new Map();   // Alt+Tab pop-up -> [signal ids]
         this._tints = new Map();       // Dash to Panel's window previews -> PreviewTint
+        // What is on screen as the glass starts (the Glass tile switched back on under the open
+        // Quick Settings): the glass comes in under it, the menu does not open again.
+        this._starting = true;
         // Some pop-ups (Alt+Tab) are added before they finish building, so look a moment later.
         this._signals.on(ui, 'child-added', (_p, child) => {
             if (ours(child))
@@ -184,6 +187,7 @@ export class Popups {
             this._signals.on(bin, 'child-added', (_b, banner) => this._follow(banner, tray, 'calendar'));
             bin.get_children().forEach(b => this._follow(b, tray, 'calendar'));
         }
+        this._starting = false;
     }
 
     // Run fn just before the next frame, unless child is gone by then (tooltips and
@@ -271,7 +275,11 @@ export class Popups {
         if (!surface || this._followers.has(surface) || this._waiting.has(surface))
             return;
         if (surface.mapped) {
-            this._makeFollower(surface, anchor, part, source);
+            const f = this._makeFollower(surface, anchor, part, source);
+            if (f && this._starting) {
+                motion.current?.forget(f);
+                f.setMotion({open: 1});
+            }
             return;
         }
         // Build the glass when the menu first opens, not before: menus that are made
