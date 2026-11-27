@@ -249,3 +249,34 @@ def test_the_leave_sheets_buttons_lie_inside_it_in_every_language(qml, lang):
         assert right <= win.width() - 32 + 0.5, "the sheet is wider than the window allows"
     finally:
         win.close()
+
+
+def _texts_under(item):
+    out, todo = [], [item]
+    while todo:
+        it = todo.pop()
+        if it.metaObject().className().startswith("QQuickText"):
+            out.append(it)
+        todo.extend(it.childItems())
+    return out
+
+
+def test_no_keyboard_shortcut_description_is_cut_and_the_sheet_fits_the_window(qml, lang):
+    win = _window(qml)
+    try:
+        _small_window(win)
+        sheet = _open(win, "aboutSheet")
+        shown = {s["what"] for s in sheet.property("shortcuts").toVariant()}
+        texts = [t for t in _texts_under(sheet.property("contentItem")) if t.property("text") in shown]
+        assert len(texts) == len(shown)
+        assert [t.property("text") for t in texts if t.property("truncated")] == []
+        ci = sheet.property("contentItem")
+        top = ci.mapToScene(ci.boundingRect().topLeft()).y()
+        bottom = ci.mapToScene(ci.boundingRect().bottomLeft()).y()
+        assert top >= 0 and bottom <= win.height(), "the sheet is taller than the window"
+        row = _button_row(sheet)
+        assert row.mapToScene(row.boundingRect().bottomLeft()).y() <= win.height()
+        fl = _flickable(ci)
+        assert fl.property("contentHeight") <= fl.height() + 0.5, "the list scrolls in the smallest window"
+    finally:
+        win.close()
