@@ -124,3 +124,50 @@ def test_the_mouse_still_picks_from_the_list(qml, win, capfd):
     assert picks == [model[-1]["value"]]
     assert not _opened(dd)
     assert "Error" not in capfd.readouterr().err
+
+
+def _label_of(row):
+    from PySide6.QtCore import QObject
+    todo = [row]
+    while todo:
+        it = todo.pop()
+        if it.property("text") == row.property("modelData")["label"] and it.metaObject().className().startswith("QQuickText"):
+            return it
+        todo.extend(it.childItems())
+
+
+def test_a_long_name_stays_inside_its_row_and_clear_of_the_check_mark(qml, win):
+    from PySide6.QtCore import Qt
+    long_name = "My very own look for long evenings at the desk, " * 2
+    picks = []
+    dd = _dropdown(win, picks)
+    dd.setProperty("model", [{"value": "a", "label": "Short"},
+                             {"value": "b", "label": long_name, "tip": ""}])
+    dd.setProperty("value", "b")
+    dd.setProperty("glyphs", False)
+    _spin(100)
+    _key(win, Qt.Key_Return)
+    _spin(300)
+    rows = _rows(dd)
+    short, long_, button = _label_of(rows[0]), _label_of(rows[1]), None
+    assert short.property("truncated") is False
+    assert long_.property("truncated") is True
+    check = [c for c in rows[1].childItems() if c.property("name") == "check"][0]
+    assert long_.x() + long_.width() <= check.x(), "the name runs under the check mark"
+    assert long_.x() + long_.width() <= rows[1].width()
+    # The closed button cuts a long name the same way.
+    _key(win, Qt.Key_Escape)
+    _spin(300)
+    closed = [c for c in _texts(dd) if c.property("text") == long_name]
+    assert closed and closed[0].property("truncated") is True
+    assert closed[0].mapToItem(dd, 0, 0).x() + closed[0].width() <= dd.width()
+
+
+def _texts(item):
+    out, todo = [], list(item.childItems())
+    while todo:
+        it = todo.pop()
+        if it.metaObject().className().startswith("QQuickText"):
+            out.append(it)
+        todo.extend(it.childItems())
+    return out

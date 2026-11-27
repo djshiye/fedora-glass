@@ -197,12 +197,15 @@ FocusScope {
                     }
                     Text {
                         x: root.glyphs ? 48 : 12
+                        // Room up to the check mark (or the right padding), so a long name is cut, not run under it.
+                        width: row.width - x - (row.selected ? 38 : 12)
                         anchors.verticalCenter: parent.verticalCenter
                         textFormat: Text.PlainText
                         text: row.modelData.label
                         color: Theme.text
                         font.pixelSize: Theme.fsBody
                         font.weight: row.selected ? Font.DemiBold : Font.Medium
+                        elide: Text.ElideRight
                     }
                     Icon {
                         visible: row.selected
