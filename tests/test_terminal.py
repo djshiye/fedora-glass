@@ -26,6 +26,16 @@ def ctx_for(env, dark=True, frost=0.4, **kw):
     return Context(settings=s, tokens=d if dark else l, dark=d, light=l, env=env)
 
 
+def test_palette_is_legible_on_a_mid_grey_terminal():
+    """A dark tint at full strength in light style makes the terminal a mid grey: the
+    colours have to go darker there, white cannot reach their contrast."""
+    t = toks(False, 0.0, tint="#000000", tint_strength=1.0)
+    p = rt.derive(t)
+    assert 0.18 < p.bg.luminance() < 0.4, p.bg.hex6
+    for i in range(1, 7):
+        assert p.ansi[i].contrast(p.bg) >= 4.5, (i, p.ansi[i].hex6, p.bg.hex6)
+    assert p.accent.contrast(p.bg) >= 4.5
+
 @pytest.mark.parametrize("dark,frost", CASES)
 def test_palette_is_legible(dark, frost):
     t = toks(dark, frost)

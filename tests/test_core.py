@@ -67,6 +67,29 @@ def test_text_contrast_on_glass():
             assert t.fg.contrast(_over(t.popover, hostile)) >= 4.5, ("popover", dark, f)
 
 
+def test_accent_text_reads_on_every_window_glass():
+    """Links and focus rings in the accent colour read at 4.5:1 on the window, also on
+    the mid greys a dark tint makes in light style (white text can't reach it there)."""
+    for dark in (True, False):
+        for tint in ("#2e3440", "#1a237e", "#4a148c", "#000000", "#ffffff", "#f6d32d"):
+            for strength in (0.3, 0.7, 0.9, 1.0):
+                for frost in (0.0, 0.5, 1.0):
+                    for accent in ("blue", "yellow", "red", "slate"):
+                        t = palette.build(Settings(tint=tint, tint_strength=strength, frost=frost,
+                                                   accent=accent), dark=dark)
+                        win = t.window.with_alpha(1.0)
+                        assert t.accent_text.contrast(win) >= 4.5, (dark, tint, strength, frost, accent)
+
+
+def test_ensure_contrast_goes_dark_on_a_mid_grey():
+    """White and black read the same at a luminance of about 0.18: above it the colour
+    has to get darker, even though the background is not light."""
+    from fedoraglass.color import ensure_contrast
+    bg = Color.hex("#9b9fa6")
+    assert ensure_contrast(Color.hex("#2b6cbb"), bg, 4.5).contrast(bg) >= 4.5
+    assert ensure_contrast(Color.hex("#ffd0d0"), bg, 4.5).contrast(bg) >= 4.5
+
+
 def test_reduce_transparency_is_nearly_opaque():
     t = palette.build(Settings(reduce_transparency=True), dark=True)
     assert min(t.window.a, t.chrome.a, t.view.a, t.popover.a) >= 0.95
