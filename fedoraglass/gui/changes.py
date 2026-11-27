@@ -8,6 +8,7 @@ is ever left out of the list. No Qt in here.
 
 from __future__ import annotations
 
+import functools
 from dataclasses import fields
 from typing import Any, Callable
 
@@ -192,25 +193,53 @@ def _apps_of(ids: Any, app_of: AppOf | None) -> list[str]:
     return list(seen.values())
 
 
-def _no_glass_apps(v: Any, app_of: AppOf | None = None, names: bool = False) -> str:
-    """The apps without glass: how many, or (when a count would read the same) which."""
+def _no_glass_apps(v: Any, app_of: AppOf | None = None) -> str:
+    """The apps without glass: how many."""
     apps = _apps_of(v, app_of)
-    if names:
-        return ", ".join(apps)
     return _("None") if not apps else (_("1 app") if len(apps) == 1 else _("{n} apps").format(n=len(apps)))
 
 
-def _app_glass(v: Any, app_of: AppOf | None = None, names: bool = False) -> str:
+def _app_glass_look(v: Any, look: str, app_of: AppOf | None) -> list[str]:
+    return _apps_of([i for i, x in v.items() if x == look], app_of)
+
+
+def _few(apps: list[str]) -> str:
+    """At most 3 app names, then " …": the sheet cuts a long line short."""
+    return ", ".join(apps[:3]) + (" …" if len(apps) > 3 else "")
+
+
+def _app_glass(v: Any, app_of: AppOf | None = None) -> str:
     """Per-app glass strength in words: "More solid: gimp, Code; Clearer: kitty"."""
     if not v:
         return _("None")
     out = []
     for look, word in APP_GLASS_LABELS.items():
-        apps = _apps_of([i for i, x in v.items() if x == look], app_of)
+        apps = _app_glass_look(v, look, app_of)
         if apps:
-            shown = ", ".join(apps) if names else ", ".join(apps[:3]) + (" …" if len(apps) > 3 else "")
-            out.append(_("{look}: {apps}").format(look=tr(word), apps=shown))
+            out.append(_("{look}: {apps}").format(look=tr(word), apps=_few(apps)))
     return "; ".join(out)
+
+
+def _apps_that_differ(key: str, b: Any, a: Any, app_of: AppOf | None) -> tuple[str, str] | None:
+    """Only the apps that differ, the ones only before and the ones only after ("" for
+    none). None when the same apps stand behind other ids."""
+    if key == "no_glass_apps":
+        was, now = _apps_of(b, app_of), _apps_of(a, app_of)
+        gone, new = [x for x in was if x not in now], [x for x in now if x not in was]
+        if not gone and not new:
+            return None
+        return _few(gone), _few(new)
+    gone_parts, new_parts = [], []
+    for look, word in APP_GLASS_LABELS.items():
+        was, now = _app_glass_look(b, look, app_of), _app_glass_look(a, look, app_of)
+        gone, new = [x for x in was if x not in now], [x for x in now if x not in was]
+        if gone:
+            gone_parts.append(_("{look}: {apps}").format(look=tr(word), apps=_few(gone)))
+        if new:
+            new_parts.append(_("{look}: {apps}").format(look=tr(word), apps=_few(new)))
+    if not gone_parts and not new_parts:
+        return None
+    return "; ".join(gone_parts), "; ".join(new_parts)
 
 
 def _plain(v: Any) -> str:
@@ -319,7 +348,7 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
         if k in ("accent", "accent_own"):
             fmt = lambda v: accent(v, system_accent)    # noqa: E731
         if k in ("no_glass_apps", "app_glass"):
-            fmt = lambda v, names=False: (_no_glass_apps if k == "no_glass_apps" else _app_glass)(v, app_of, names)    # noqa: E731
+            fmt = functools.partial(_no_glass_apps if k == "no_glass_apps" else _app_glass, app_of=app_of)
         try:
             before, after = fmt(b), fmt(a)
         except (TypeError, ValueError):
@@ -328,8 +357,12 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
             # 45.2% and 45.4% both read 45%: still say it moved.
             digits = next((n for n in (1, 2, 3) if round(a * 100, n) != round(b * 100, n)), 4)
             before, after = f"{b * 100:.{digits}f}%", f"{a * 100:.{digits}f}%"
-        elif before == after and k in ("no_glass_apps", "app_glass"):
-            before, after = fmt(b, names=True), fmt(a, names=True)      # the same count: say which
+        elif k in ("no_glass_apps", "app_glass") and (
+                before == after or (k == "app_glass" and all(_apps_that_differ(k, b, a, app_of) or ()))):
+            # An app swapped, or the same text for both: name only the apps that differ (the
+            # sheet cuts a long line short), or for the same apps behind other ids, the ids.
+            gone, new = _apps_that_differ(k, b, a, app_of) or (_plain(b), _plain(a))
+            before, after = gone or _("None"), new or _("None")
         elif before == after:
             before, after = _plain(b), _plain(a)
         rows.append(_row(page, name, tr(label), before, after, k))

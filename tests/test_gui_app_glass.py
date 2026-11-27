@@ -88,6 +88,19 @@ def test_see_changes_names_the_apps_and_counts_each_app_once(make_backend, apps_
     assert (row["before"], row["after"]) == ("Visual Studio Code, Steam", "GNU Image Manipulation Program, NotInstalled")
 
 
+def test_see_changes_never_reads_the_same_on_both_sides_for_an_app_taken_off_and_put_back(make_backend, apps_dirs):
+    b = make_backend()
+    _loaded(b)
+    b._set("no_glass_apps", ["code"])       # one id only: an older list, or typed into the file
+    b._saved = b._s
+    b._forget()
+    b.toggleNoGlassApp("code.desktop")
+    b.toggleNoGlassApp("code.desktop")
+    assert b.property("dirty")
+    row = next(r for r in _js(b.property("changeList")) if r["key"] == "no_glass_apps")
+    assert row["before"] != row["after"]
+
+
 def test_see_changes_reset_and_apply(make_backend, apps_dirs):
     from fedoraglass import palette
     from fedoraglass.render import glass as rg

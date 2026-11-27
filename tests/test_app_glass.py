@@ -147,6 +147,35 @@ def test_see_changes_never_shows_python_text_for_apps_that_read_the_same():
     assert row["before"] != row["after"] and "d" in row["before"] and "e" in row["after"]
 
 
+def test_see_changes_shows_only_the_app_that_was_swapped_in_a_long_list():
+    from fedoraglass.gui import changes
+    was = Settings(no_glass_apps=["steam", "code", "firefox"])
+    now = Settings(no_glass_apps=["steam", "code", "gimp"])
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "no_glass_apps")
+    assert (row["before"], row["after"]) == ("firefox", "gimp")
+    was = Settings(app_glass={"steam": "solid", "code": "solid", "firefox": "solid"})
+    now = Settings(app_glass={"steam": "solid", "code": "solid", "gimp": "solid"})
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "app_glass")
+    assert (row["before"], row["after"]) == ("More solid: firefox", "More solid: gimp")
+
+
+def test_see_changes_shows_at_most_three_of_the_apps_that_differ():
+    from fedoraglass.gui import changes
+    was = Settings(no_glass_apps=["a", "b", "c", "d", "e"])
+    now = Settings(no_glass_apps=["f", "g", "h", "i", "j"])
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "no_glass_apps")
+    assert (row["before"], row["after"]) == ("a, b, c …", "f, g, h …")
+
+
+def test_see_changes_falls_back_to_the_ids_when_the_same_apps_have_other_ids():
+    from fedoraglass.gui import changes
+    for key, was, now in (("no_glass_apps", ["gimp"], ["gimp", "org.gimp.GIMP"]),
+                          ("app_glass", {"gimp": "solid"}, {"gimp": "solid", "org.gimp.GIMP": "solid"})):
+        row = next(r for r in changes.change_rows(Settings(**{key: now}), Settings(**{key: was}), app_of=_gimp)
+                   if r["key"] == key)
+        assert row["before"] != row["after"], key
+
+
 def test_see_changes_shows_app_names_three_at_a_time():
     from fedoraglass.gui import changes
     now = Settings(app_glass={"gimp": "solid", "org.gimp.GIMP": "solid", "a": "solid", "b": "solid", "c": "solid"})
