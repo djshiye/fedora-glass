@@ -2097,6 +2097,7 @@ export const DEFAULT_LOOK = Object.freeze({
     veil: [0, 0, 0, 0], // straight rgba: the theme's veil over this glass, so the line reads through it
     textShade: 0,       // 0..1, a soft shade right behind bright text (clear glass)
     shade: 0,           // 0..0.9, the theme's own soft shadow under the veil (it fills a menu's box)
+    frostless: 0,       // 1: the weather frost never reaches this glass (the lock screen's)
 });
 
 /**
@@ -3100,9 +3101,11 @@ class FedoraGlassPane extends Clutter.Actor {
     }
 
     // Weather frost: the glass itself (not the content's light over a menu, not the rim over
-    // a window, not a full-screen sheet like the lock screen's).
+    // a window, not a full-screen sheet like the lock screen's, nor the card on it: that is
+    // still on screen for a moment after unlocking, when the frost comes back).
     _frosts() {
-        return (this._layer === LAYERS.full || this._layer === LAYERS.glass) && !(this._look.solid > 0.5);
+        return (this._layer === LAYERS.full || this._layer === LAYERS.glass) && !(this._look.solid > 0.5) &&
+            !(this._look.frostless > 0.5);
     }
 
     _applyFrost() {
@@ -3155,7 +3158,8 @@ class FedoraGlassPane extends Clutter.Actor {
 
     // Where the ice lives (see wakeIce): the panel's and menus' glass and the light over them.
     _iceLive() {
-        return (this._layer === LAYERS.glass || this._layer === LAYERS.reflections) && !(this._look.solid > 0.5);
+        return (this._layer === LAYERS.glass || this._layer === LAYERS.reflections) && !(this._look.solid > 0.5) &&
+            !(this._look.frostless > 0.5);
     }
 
     // In use: a menu or popup shown, or the pointer at work on or near a bar (or pressing
