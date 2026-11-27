@@ -107,14 +107,14 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
 
 def _plan_line(env, a, touched: set[tuple]) -> str:
-    """One step of `fedora-glass plan`, said as Apply would take it: a file or setting that
+    """One step of `fedora-glass plan`, said as Apply would take it: a file, setting or list that
     already holds what Apply would put there is left alone (write_if_changed), and a file
     behind a link in an app's own folder is not written at all. Read only, through the
     same reader as Apply. Each step on its own: when Apply skips a whole part for such a
     link (or a linked config folder), the part's other files still show here."""
-    from .engine import PLAIN
+    from .engine import PLAIN, parse_strv
     from .safefs import Box, LinkInside, box_root
-    from .targets.base import GReset, GSet, WriteFile
+    from .targets.base import GReset, GSet, ListEdit, WriteFile
     if isinstance(a, WriteFile):
         root = box_root(a.path, env.home)
         fs = PLAIN if root is None else Box(root, env.home)
@@ -134,10 +134,31 @@ def _plan_line(env, a, touched: set[tuple]) -> str:
         again = key in touched
         touched.add(key)
         if isinstance(a, GSet) and not again and a.key in env.gsettings_keys(a.schema, a.path) \
-                and env.gsettings_get(a.schema, a.key, a.path) == a.value:
+                and _same_setting(env.gsettings_get(a.schema, a.key, a.path), a.value):
+            where = f"{a.schema}:{a.path}" if a.path else a.schema
+            return f"unchanged {where} {a.key}"
+    elif isinstance(a, ListEdit) and a.key in env.gsettings_keys(a.schema, a.path):
+        # Already on the list (or already off it): the list stays as it is.
+        items = parse_strv(env.gsettings_get(a.schema, a.key, a.path))
+        if all(i in items for i in a.add) and not any(i in items for i in a.remove):
             where = f"{a.schema}:{a.path}" if a.path else a.schema
             return f"unchanged {where} {a.key}"
     return a.describe()
+
+
+def _same_setting(now: str | None, want: str) -> bool:
+    """Whether a setting that reads `now` already holds `want` (both GVariant text): the same
+    text, or the same value written another way (0.301 reads back as 0.30099999999999999)."""
+    if now is None or now == want:
+        return now is not None
+    try:
+        import gi
+        gi.require_version("GLib", "2.0")
+        from gi.repository import GLib
+        held = GLib.Variant.parse(None, now, None, None)
+        return bool(held.equal(GLib.Variant.parse(held.get_type(), want, None, None)))
+    except Exception:       # no GLib here, or not GVariant text: said as a change, as before
+        return False
 
 
 def cmd_status(args: argparse.Namespace) -> int:

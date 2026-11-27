@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from fedoraglass import __main__ as cli
 from fedoraglass import settings as settings_mod
 from fedoraglass.engine import Engine
@@ -94,6 +96,54 @@ def test_plan_says_unchanged_for_a_setting_that_already_holds_its_value(fake_env
     _code, lines = _plan(capsys, fake_env.home)
     assert "  unchanged org.gnome.shell.extensions.user-theme name" in lines
     assert not any("user-theme name = " in line for line in lines)
+
+
+def test_plan_says_unchanged_for_a_list_that_already_has_the_item(fake_env, monkeypatch, capsys):
+    from fedoraglass.targets import shell as ts
+    from tests.test_shell import install
+    install(fake_env, ts.USER_THEME)
+    shell = fake_env.gs[("org.gnome.shell", None)] = {"enabled-extensions": "['other@example.org']",
+                                                       "disabled-extensions": "@as []"}
+    monkeypatch.setattr(cli, "_engine", lambda: Engine(fake_env, [ts.GnomeShell()]))
+    add = f"  org.gnome.shell enabled-extensions: add {ts.USER_THEME}"
+    _code, lines = _plan(capsys, fake_env.home)
+    assert add in lines and "  unchanged org.gnome.shell disabled-extensions" in lines
+    cli.main(["apply"])
+    capsys.readouterr()
+    assert ts.USER_THEME in shell["enabled-extensions"]
+    _code, lines = _plan(capsys, fake_env.home)
+    assert "  unchanged org.gnome.shell enabled-extensions" in lines
+    assert "  unchanged org.gnome.shell disabled-extensions" in lines
+    assert not any("extensions: " in line for line in lines), lines
+    # Switched off in GNOME's Extensions: the user's own Apply would switch it on again, and plan says so.
+    shell["enabled-extensions"], shell["disabled-extensions"] = "['other@example.org']", f"['{ts.USER_THEME}']"
+    _code, lines = _plan(capsys, fake_env.home)
+    assert add in lines
+    assert f"  org.gnome.shell disabled-extensions: remove {ts.USER_THEME}" in lines
+
+
+def test_plan_says_unchanged_for_a_number_that_reads_back_in_another_form(fake_env, monkeypatch, capsys):
+    pytest.importorskip("gi")
+    from fedoraglass.targets.base import GSet
+
+    class Planned:
+        env = fake_env
+
+        def plan(self, _settings):
+            return {"panel": [GSet("org.example.panel", "opacity", "0.301"), GSet("org.example.panel", "size", "5"),
+                              GSet("org.example.panel", "name", "'a'")]}
+
+    monkeypatch.setattr(cli, "_engine", Planned)
+    panel = fake_env.gs[("org.example.panel", None)] = {"opacity": "0.30099999999999999", "size": "uint32 5", "name": "'b'"}
+    assert _plan(capsys, fake_env.home) == (0, ["[panel]", "  unchanged org.example.panel opacity",
+                                                "  unchanged org.example.panel size",
+                                                "  set org.example.panel name = 'a'"])
+    panel["opacity"], panel["size"] = "0.3", "uint32 6"
+    assert _plan(capsys, fake_env.home)[1][1:3] == ["  set org.example.panel opacity = 0.301",
+                                                     "  set org.example.panel size = 5"]
+    # Text that is no setting's value is never taken for the same.
+    assert not cli._same_setting(None, "5") and not cli._same_setting("nonsense(", "5")
+    assert not cli._same_setting("'5'", "5")
 
 
 def test_plan_says_why_apply_leaves_a_file_behind_a_link_in_an_apps_folder(fake_env, monkeypatch, capsys):
