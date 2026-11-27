@@ -102,7 +102,7 @@ class GnomeShell(Target):
             unchanged = False
         acts: list[Action] = [WriteFile(path, css)]
 
-        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(USER_THEME,)))
+        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(USER_THEME,), off_key="disabled-extensions"))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(USER_THEME,)))
 
         schema = "org.gnome.shell.extensions.user-theme"
@@ -158,7 +158,7 @@ class GlassEffects(Target):
                        if f[0] in ("extension.js", "metadata.json") else 0)
         acts: list[Action] = [WriteFile(d / name, text) for name, text in files]
         acts.append(WriteFile(self.config_path(env), rg.render_config(self.resolved(ctx), ctx.tokens)))
-        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,)))
+        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,), off_key="disabled-extensions"))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))
         # Blur my Shell keeps blurring until our glass is there to take over.
         if ctx.glass_running and env.extension_path(BLUR) is not None:

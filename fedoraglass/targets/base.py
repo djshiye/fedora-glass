@@ -83,6 +83,10 @@ class ListEdit:
     add: tuple[str, ...] = ()
     remove: tuple[str, ...] = ()
     path: str | None = None
+    # The list in the same schema that holds the items the user switched off (for
+    # enabled-extensions, disabled-extensions): an Apply Fedora Glass makes by itself
+    # never adds those back.
+    off_key: str | None = None
 
     def describe(self) -> str:
         parts = [f"add {', '.join(self.add)}" if self.add else "", f"remove {', '.join(self.remove)}" if self.remove else ""]

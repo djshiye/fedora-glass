@@ -1488,10 +1488,12 @@ class Engine:
             if not if_applied and not self.env.dry_run:
                 _clear_restored(self.env)
                 note_applied_style(self.env)
-            return self._apply(settings, only, full=full, progress=progress)
+            return self._apply(settings, only, full=full, progress=progress, auto=if_applied)
 
     def _apply(self, settings: Settings, only: set[str] | None, full: bool = False,
-               progress: Progress | None = None) -> list[Result]:
+               progress: Progress | None = None, auto: bool = False) -> list[Result]:
+        """`auto`: Fedora Glass applies by itself (the watcher, the update steps), so an
+        extension the user switched off since stays off (see _run_actions)."""
         try:
             ctx = self.context(settings, check_glass=True)
             backup = Backup(self.env)
@@ -1547,7 +1549,7 @@ class Engine:
                         [tr(LINK_LEFT).format(folder=_tilde(f, self.env.home)) for f in left]
                         + [str(LinkInside(f, self.env.home)) for f in inside])))
                     continue
-                errs = self._run(t.id, actions, backup)
+                errs = self._run(t.id, actions, backup, auto)
                 if not errs:
                     backup.retire(t.id, {str(a.path) for a in actions if isinstance(a, WriteFile)})
             except LinkInside as e:
@@ -1580,9 +1582,10 @@ class Engine:
         # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
         # it right away, so the parts that wait for the glass are finished now, not after a
         # restart. A brand-new extension still waits for the next login.
-        glass_on = any(r.target == GlassEffects.id and r.status == "applied" for r in results)
+        glass_on = any(r.target == GlassEffects.id and r.status == "applied" for r in results) \
+            and (not auto or self.env.extension_on(GLASS_UUID))     # left off: it won't start
         if waiting and glass_on and not ctx.glass_running and not self.env.dry_run and self._glass_starts():
-            later = self._apply(settings, set(waiting))
+            later = self._apply(settings, set(waiting), auto=auto)
             done = {r.target for r in later}
             results = [r for r in results if r.target not in done] + later
         if full and not self.env.dry_run:
@@ -1700,13 +1703,13 @@ class Engine:
                 backup.record_command(tid, a)
         backup.save()
 
-    def _run(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+    def _run(self, tid: str, actions: list[Action], backup: Backup, auto: bool = False) -> list[str]:
         # This part's settings go out together at its end, one change per schema, written
         # in this process (see Env.gsettings_batch).
         with self.env.gsettings_batch():
-            return self._run_actions(tid, actions, backup)
+            return self._run_actions(tid, actions, backup, auto)
 
-    def _run_actions(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+    def _run_actions(self, tid: str, actions: list[Action], backup: Backup, auto: bool = False) -> list[str]:
         errs: list[str] = []
         self._record_originals(tid, actions, backup)
         for a in actions:
@@ -1762,15 +1765,24 @@ class Engine:
                 rec = backup.data["lists"].get(key, {"target": tid, "added": [], "removed": []})
                 # Each item remembers its own target, so turning one target off undoes only its items.
                 by = {i: list_owner(rec, i) for i in rec["added"] + rec["removed"]}
+                add, remove = a.add, a.remove
+                if auto:
+                    # Applied by itself (the watcher, an update): what the user switched off
+                    # since stays off, in GNOME's Extensions app say. Gone after we added it,
+                    # or on the list of switched-off ones (on before the first Apply, so never
+                    # added by us). Only the user's own Apply switches it on again.
+                    off = parse_strv(self.env.gsettings_get(a.schema, a.off_key, a.path)) if a.off_key else []
+                    add = tuple(i for i in add if i in items or (i not in rec["added"] and i not in off))
+                    remove = ()
                 changed = False
-                for i in a.add:
+                for i in add:
                     if i not in items:
                         items.append(i)
                         changed = True
                         if i not in rec["added"]:
                             rec["added"].append(i)
                             by[i] = tid
-                for i in a.remove:
+                for i in remove:
                     if i in items:
                         items.remove(i)
                         changed = True
