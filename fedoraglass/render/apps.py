@@ -16,6 +16,7 @@ from pathlib import Path
 from ..color import BLACK, WHITE, Color
 from ..palette import Tokens
 from ..radius import scale
+from ..safefs import box_root, read_app_text
 from .terminal import derive
 
 # ---- small text editors that keep the user's own lines ----------------------
@@ -37,7 +38,11 @@ def merge_json_text(existing: str | None, updates: dict) -> str | None:
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-def read_text(path: Path) -> str | None:
+def read_text(path: Path, home: Path | None = None) -> str | None:
+    """`home`: a file below an app's own folder there (a Flatpak's, a Snap's, a vault) is
+    read without following any link on the way, as the app can swap its folders for links."""
+    if home is not None and box_root(path, home) is not None:
+        return read_app_text(path, home)
     try:
         if path.is_symlink():
             return None

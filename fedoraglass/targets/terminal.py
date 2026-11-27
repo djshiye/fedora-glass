@@ -147,7 +147,7 @@ class Ptyxis(Target):
         env = ctx.env
         acts: list[Action] = [WriteFile(self.flatpak_palette(env, app_id), palette)]
         kf = self.flatpak_keyfile(env, app_id)
-        text = _read_exact(kf)
+        text = _read_exact(kf, env.home)
         cp = _keyfile(text) if text else None
         if text is None or (text and cp is None):
             return acts          # a link or not text: left alone (live_notes says so)
@@ -180,7 +180,7 @@ class Ptyxis(Target):
             out.append(_("Ptyxis from Flatpak keeps its settings in its own file, which Fedora Glass changes. "
                          "Restart Ptyxis to see it."))
             kf = self.flatpak_keyfile(ctx.env, fp)
-            text = _read_exact(kf)
+            text = _read_exact(kf, ctx.env.home)
             if text is None or (text and _keyfile(text) is None):
                 out.insert(0, _("The Flatpak Ptyxis settings file is a link or can't be read, so its profiles were not changed."))
         return out

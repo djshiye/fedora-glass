@@ -9,12 +9,14 @@ from __future__ import annotations
 import configparser
 import json
 import os
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..i18n import _, N_
 from ..env import Env
 from ..render import apps as ra
+from ..safefs import Box, box_root, read_app_text
 from .base import Action, Command, Context, Detection, Target, WriteFile
 
 APPIMAGE_DIRS = ("AppImages", "Applications", ".local/bin", "Downloads")
@@ -80,9 +82,10 @@ class AppTarget(Target):
         return list(self.notes)
 
 
-def _json_edit(path: Path, updates: dict) -> Action | None:
-    """WriteFile of `path` with keys merged in; None if it holds something that isn't plain JSON."""
-    text = ra.read_text(path) if path.exists() else None
+def _json_edit(path: Path, updates: dict, home: Path | None = None) -> Action | None:
+    """WriteFile of `path` with keys merged in; None if it holds something that isn't plain JSON.
+    `home`: see render.apps.read_text."""
+    text = ra.read_text(path, home) if path.exists() else None
     if path.exists() and text is None:
         return None
     merged = ra.merge_json_text(text, updates)
@@ -126,7 +129,7 @@ class Discord(AppTarget):
             sp = d / "settings/settings.json"
             if not sp.is_file():
                 continue
-            text = ra.read_text(sp)
+            text = ra.read_text(sp, ctx.env.home)
             try:
                 data = json.loads(text) if text else None
             except (ValueError, RecursionError):    # nested thousands deep: not readable
@@ -202,7 +205,10 @@ class VSCode(AppTarget):
             acts.append(WriteFile(vsix, data))
             try:
                 have = any(ext_dir.glob(f"{ra.VSCODE_ID}-*"))
-                same = vsix.is_file() and vsix.read_bytes() == data
+                if (box := box_root(vsix, env.home)) is None:
+                    same = vsix.is_file() and vsix.read_bytes() == data
+                else:
+                    same = Box(box, env.home).read_bytes(vsix, len(data)) == data
             except OSError:
                 have = same = False
             if not (have and same):
@@ -216,7 +222,7 @@ class VSCode(AppTarget):
                              "window.autoDetectColorScheme": ctx.settings.scheme == "auto",
                              "workbench.preferredDarkColorTheme": ra.VSCODE_LABELS[True],
                              "workbench.preferredLightColorTheme": ra.VSCODE_LABELS[False]}
-            edit = _json_edit(settings, updates)
+            edit = _json_edit(settings, updates, env.home)
             if edit is not None:
                 acts.append(edit)
         return acts
@@ -224,7 +230,7 @@ class VSCode(AppTarget):
     def live_notes(self, ctx: Context) -> list[str]:
         out = list(self.notes)
         for settings, *_rest in self.installs(ctx.env):
-            if settings.exists() and ra.merge_json_text(ra.read_text(settings), {}) is None:
+            if settings.exists() and ra.merge_json_text(ra.read_text(settings, ctx.env.home), {}) is None:
                 out.insert(0, _("settings.json has comments, so it was not changed: select the theme manually."))
                 break
         return out
@@ -271,17 +277,27 @@ class Obsidian(AppTarget):
     def vaults(self, env: Env) -> list[Path]:
         out: list[Path] = []
         for d in self.config_dirs(env):
-            text = ra.read_text(d / "obsidian.json")
+            text = ra.read_text(d / "obsidian.json", env.home)
             try:
                 vaults = json.loads(text or "")["vaults"]
             except (ValueError, KeyError, TypeError, RecursionError):
                 continue
+            # The Flatpak's list is written by the sandboxed app: a folder it names is a vault
+            # only once Obsidian made its .obsidian folder there (the app can't, outside its
+            # sandbox), so it can't have us make files in any folder it likes.
+            boxed = box_root(d / "obsidian.json", env.home) is not None
             if isinstance(vaults, dict):
                 for v in vaults.values():
                     p = v.get("path") if isinstance(v, dict) else None
-                    if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out:
+                    if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out \
+                            and (not boxed or self._made_by_obsidian(Path(p))):
                         out.append(Path(p))
         return out
+
+    @staticmethod
+    def _made_by_obsidian(vault: Path) -> bool:
+        base = vault / ".obsidian"
+        return ".." not in vault.parts and base.is_dir() and not base.is_symlink()
 
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
@@ -294,7 +310,7 @@ class Obsidian(AppTarget):
                 continue
             acts.append(WriteFile(theme / "manifest.json", ra.obsidian_manifest()))
             acts.append(WriteFile(theme / "theme.css", css))
-            edit = _json_edit(base / "appearance.json", {"cssTheme": "Fedora Glass"})
+            edit = _json_edit(base / "appearance.json", {"cssTheme": "Fedora Glass"}, ctx.env.home)
             if edit is not None:
                 acts.append(edit)
         return acts
@@ -344,7 +360,7 @@ class QBittorrent(AppTarget):
         env = ctx.env
         acts: list[Action] = []
         for conf, d in self.installs(env):
-            text = ra.read_text(conf) if conf.exists() else ""
+            text = ra.read_text(conf, env.home) if conf.exists() else ""
             acts += [
                 # Both blocks from the scheme in use: qBittorrent picks its block by its own
                 # idea of dark mode, which need not match the style sheet's (a white side list).
@@ -393,7 +409,7 @@ class Prism(AppTarget):
             WriteFile(theme / "themeStyle.css", ra.qt_qss(ctx.tokens)),
         ]
         cfg = d / "prismlauncher.cfg"
-        text = ra.read_text(cfg) if cfg.exists() else None
+        text = ra.read_text(cfg, ctx.env.home) if cfg.exists() else None
         if text is not None:
             acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID}),
                                   edits=("ini", "General", ("ApplicationTheme",))))
@@ -451,9 +467,12 @@ def firefox_profiles(env: Env) -> list[Path]:
     out: list[Path] = []
     seen: set[Path] = set()
     for root in firefox_roots(env):
-        text = ra.read_text(root / "profiles.ini")
+        text = ra.read_text(root / "profiles.ini", env.home)
         if not text:
             continue
+        # The Flatpak's or the Snap's own list, which the sandboxed Firefox writes: only
+        # profiles inside its own folder count, never one it points at elsewhere.
+        box = box_root(root / "profiles.ini", env.home)
         cp = configparser.RawConfigParser(strict=False, interpolation=None)
         try:
             cp.read_string(text)
@@ -463,8 +482,10 @@ def firefox_profiles(env: Env) -> list[Path]:
             if not sec.startswith("Profile") or not cp.has_option(sec, "Path"):
                 continue
             rel = cp.get(sec, "IsRelative", fallback="1").strip() != "0"
-            p = Path(cp.get(sec, "Path").strip())
-            p = root / p if rel else p
+            raw = Path(cp.get(sec, "Path").strip())
+            p = root / raw if rel else raw
+            if box is not None and (not rel or raw.is_absolute() or ".." in raw.parts or not p.is_relative_to(box)):
+                continue
             if not p.is_absolute() or not p.is_dir() or p.is_symlink():
                 continue
             key = p.resolve()
@@ -474,9 +495,18 @@ def firefox_profiles(env: Env) -> list[Path]:
     return out
 
 
-def _read_exact(path: Path) -> str | None:
+def _read_exact(path: Path, home: Path | None = None) -> str | None:
     """A file's text with its own line endings ("" when there is none); None when it isn't
-    UTF-8 text or is a link. read_text would turn the user's CRLF lines into LF ones."""
+    UTF-8 text or is a link. read_text would turn the user's CRLF lines into LF ones.
+    `home`: see render.apps.read_text."""
+    if home is not None and (box := box_root(path, home)) is not None:
+        try:
+            st = Box(box, home).lstat(path)
+        except OSError:         # a link on the way
+            return None
+        if st is None:
+            return ""
+        return None if stat.S_ISLNK(st.st_mode) else read_app_text(path, home)
     try:
         if path.is_symlink():
             return None
@@ -534,13 +564,13 @@ class Firefox(AppTarget):
             for user_file, ours in (("userChrome.css", ra.FIREFOX_CHROME_FILE),
                                     ("userContent.css", ra.FIREFOX_CONTENT_FILE)):
                 path = chrome / user_file
-                text = _read_exact(path)
+                text = _read_exact(path, ctx.env.home)
                 if text is None:
                     break           # not text we can read: leave this profile alone
                 edits.append(WriteFile(path, ra.css_import_block(text, ours), edits=block))
             else:
                 ujs = prof / "user.js"
-                text = _read_exact(ujs)
+                text = _read_exact(ujs, ctx.env.home)
                 if text is None:
                     continue
                 acts += [WriteFile(chrome / ra.FIREFOX_CHROME_FILE, chrome_css),
