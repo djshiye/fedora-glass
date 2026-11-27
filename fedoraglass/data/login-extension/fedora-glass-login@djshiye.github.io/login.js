@@ -48,6 +48,8 @@ const CARD_HOLD_MS = 1000;   // the card staying where it is while GNOME asks GD
 const CARD_JUMP_MS = 250;    // after the user list was given its place: the card goes with it in one step
 const LIST_GAP = 8;          // px kept free between the user list's card and GNOME's logo
 const LIST_TRIES = 8;        // times the user list is given a new place before a new row comes or goes
+const PLACE_SLACK = 2;       // px GNOME's prompt may stand off where it should before its margin is set from what is seen
+const PLACE_TRIES = 4;       // times the prompt's margin is set from what is seen, for each build
 const UPOWER = 'org.freedesktop.UPower';
 const DISPLAY_DEVICE = '/org/freedesktop/UPower/devices/DisplayDevice';
 
@@ -353,6 +355,9 @@ export class LoginGlass {
         }
         this._makeTop(layer);
         this._place = this._promptPlace();
+        this._placeTries = 0;      // until GNOME has laid its prompt out with this style (_checkPromptPlace)
+        this._placeBest = null;
+        this._placeChecked = false;
         this._listMargin = 0;      // until GNOME has laid its user list out with this style (_giveListPlace)
         this._listTries = 0;
         this._listRows = -1;
@@ -383,19 +388,31 @@ export class LoginGlass {
     /**
      * How much room to keep above GNOME's prompt so that what it shows stands in the
      * middle of the screen, or under the big clock where the screen is too short for
-     * both (see promptPlace in style.js).
+     * both (see promptPlace in style.js). content: how tall what it shows was seen to be
+     * (px), when it was.
      */
-    _promptPlace(own = false) {
+    _promptPlace(own = false, content = null) {
         const textScale = this._textScale = this._textScaling();
         const m = Main.layoutManager.primaryMonitor;
         // What the clock needs from the screen's top to where the prompt begins (a few
         // px to spare: the prompt is placed by a rounded margin).
         const clockH = this._clockBox ? this._clockBox.get_preferred_height(-1)[1] : 0;
         const above = clockH ? this._topLeast() + clockH + TOP_GAP + (this._card ? PROMPT_PAD : 0) + 4 : 0;
+        const fixedTop = this._fixedTop = typeof this._dialog._getFixedTopActorAllocation === 'function';
         return promptPlace({
-            fixedTop: typeof this._dialog._getFixedTopActorAllocation === 'function',
-            scale: this._context.scale_factor, textScale, screen: m?.height ?? global.stage.height, above, own,
+            fixedTop, height: fixedTop ? 0 : this._promptHeight(),
+            scale: this._context.scale_factor, textScale, screen: m?.height ?? global.stage.height, above, own, content,
         });
+    }
+
+    /** The fixed height (px) GNOME's theme gives its prompt (GNOME 51.1), or 0 for none. */
+    _promptHeight() {
+        try {
+            const h = this._dialog._authPrompt.get_theme_node().get_height() / Math.max(1, this._context.scale_factor || 1);
+            return Number.isFinite(h) && h > 0 ? h : 0;
+        } catch {
+            return 0;
+        }
     }
 
     /** The text scaling factor (Large Text is 1.25), 1 where it cannot be read. */
@@ -840,6 +857,7 @@ export class LoginGlass {
         if (!this._layer)
             return;
         this._givePromptRoom();
+        this._checkPromptPlace();
         this._giveListPlace();
         this._placeTop();
         this._placeCard();
@@ -870,6 +888,57 @@ export class LoginGlass {
         if (!m || !f || f[1] + f[3] <= m.y + m.height - PROMPT_SPARE)
             return;
         this._place = this._promptPlace(true);
+        this._restyle();
+    }
+
+    /**
+     * Where GNOME really put its prompt, looked at once it has laid it out with our margin.
+     * A theme nobody knows sizes the prompt otherwise than promptPlace thinks, and a GNOME
+     * may place it otherwise: off by PLACE_SLACK px or more, the margin is set again from
+     * what is seen, at most PLACE_TRIES times (the place that came closest stays if that
+     * does not get it right), and from then on the clock and the user list go by where
+     * the prompt really begins. Within PLACE_SLACK px nothing changes. Once for each build.
+     */
+    _checkPromptPlace() {
+        if (this._place.margin === null || this._placeChecked)
+            return;
+        const m = Main.layoutManager.primaryMonitor;
+        const prompt = this._dialog._authPrompt;
+        const scale = Math.min(4, Math.max(1, this._context.scale_factor || 1));
+        // Only where GNOME has laid it out with the margin asked for (St puts a style's
+        // margin on the actor): until then it stands where an older style put it.
+        if (!m || !prompt.has_allocation() || !(Math.abs(prompt.margin_top - this._place.margin * scale) < 1))
+            return;
+        // A user's prompt, with the avatar and the field: what promptPlace means.
+        const user = LoginGlass.frame(prompt._userWell), field = LoginGlass.frame(prompt._mainBox);
+        if (!LoginGlass.frame(prompt) || !user || !field)
+            return;
+        const top = Math.round(user[1] - m.y);
+        const want = this._promptPlace(false, (field[1] + field[3] - user[1]) / scale);
+        const off = top - want.top;
+        if (!this._placeBest || Math.abs(off) < Math.abs(this._placeBest.off))
+            this._placeBest = {margin: this._place.margin, top, off};
+        if (Math.abs(off) < PLACE_SLACK) {
+            this._placeChecked = true;
+            if (this._placeTries)
+                this._place = {...this._place, top};
+            return;
+        }
+        // Every px of margin lowers it by one (a fixed top) or by half (centred).
+        const gain = this._fixedTop ? scale : scale / 2;
+        const margin = Math.round(Math.max(0, Math.min(600, this._place.margin - off / gain)));
+        if (this._placeTries >= PLACE_TRIES || margin === this._place.margin) {
+            // It does not follow: the closest place seen, and no more tries.
+            const best = this._placeBest;
+            this._placeChecked = true;
+            const again = best.margin !== this._place.margin;
+            this._place = {...this._place, margin: best.margin, top: best.top};
+            if (again)
+                this._restyle();
+            return;
+        }
+        this._placeTries++;
+        this._place = {margin, content: want.content, top: Math.round(top + (margin - this._place.margin) * gain)};
         this._restyle();
     }
 

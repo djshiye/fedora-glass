@@ -198,6 +198,42 @@ test('the room above GNOME\'s prompt brings what it shows to the middle of the s
     assert.equal(S.promptPlace({fixedTop: true, textScale: 3, scale: 4}).margin, 0, 'never under 0');
 });
 
+test('GNOME 51.1 centres a prompt of the fixed height its theme gives, 50 px lower: the margin brings it to the middle', () => {
+    // As GNOME 51.1 lays it out: the 550 px box and the margin centred (rounded down), 50 px lower.
+    const gnome511 = (screen, margin, scale = 1) => Math.floor(screen / 2 - (550 + margin) * scale / 2) + 50 + margin * scale;
+    for (const screen of [1080, 1152, 1440]) {
+        const p = S.promptPlace({fixedTop: false, height: 550, screen});
+        assert.deepEqual([p.margin, p.content], [201, 249], `${screen}`);
+        assert.equal(p.top, gnome511(screen, p.margin));
+        assert.ok(Math.abs(p.top + p.content / 2 - screen / 2) <= 1, `${screen}: in the middle`);
+    }
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 1152}), {margin: 201, content: 249, top: 451});
+    // Large text: the name and the field grow, the box does not.
+    const large = S.promptPlace({fixedTop: false, height: 550, textScale: 1.25});
+    assert.deepEqual(large, {margin: 177, content: 273, top: 403});
+    assert.equal(large.top, gnome511(1080, large.margin));
+    // A scale factor of 2: the 50 px are stage px, a stylesheet's px are doubled.
+    const two = S.promptPlace({fixedTop: false, height: 550, scale: 2, screen: 2160});
+    assert.equal(two.top, gnome511(2160, two.margin, 2));
+    assert.ok(Math.abs(two.top + two.content - 1080) <= 2);
+    // GNOME's own place there: the box alone, centred and 50 px lower.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, own: true}), {margin: null, content: 249, top: 315});
+    // GNOME 51.0 (a fixed top) and 50 (no fixed height) are as they were.
+    assert.deepEqual(S.promptPlace({height: 550}), {margin: 155, content: 240, top: 420});
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 0}), {margin: 67, content: 236, top: 422});
+    assert.throws(() => S.promptPlace({fixedTop: false, height: '550'}));
+});
+
+test('what the prompt was seen to show sets where it goes, instead of the usual sizes', () => {
+    // 200 px seen instead of 240: it begins 20 px lower, and 20 px more margin put it there.
+    assert.deepEqual(S.promptPlace({content: 200}), {margin: 175, content: 200, top: 440});
+    // Centred, GNOME 50 brings a taller prompt to the middle by itself: the same margin.
+    assert.deepEqual(S.promptPlace({fixedTop: false, content: 260}), {margin: 67, content: 260, top: 410});
+    // GNOME 51.1's box keeps its height: 30 px more to show begin 15 px higher, with 30 px less margin.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, content: 279}), {margin: 171, content: 279, top: 400});
+    assert.throws(() => S.promptPlace({content: NaN}));
+});
+
 test('on a short screen the prompt stands under the big clock, while GNOME\'s messages still fit', () => {
     // 330 px for the clock: more than the middle leaves on 864 and 768 px.
     for (const fixedTop of [true, false]) {
