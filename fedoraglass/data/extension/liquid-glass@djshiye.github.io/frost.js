@@ -178,7 +178,9 @@ export class WeatherFrost {
         this._connect();
         const client = this._client;
         const now = GLib.get_real_time();
-        if (client?.available && client.hasLocation && askWeatherNow(now))
+        // An answer is neither still loading nor valid; a failed one is asked again sooner.
+        const failed = !client?.loading && !client?.info?.is_valid?.();
+        if (client?.available && client.hasLocation && askWeatherNow(now, failed))
             client.update();
         this._sync();   // a reading may have gone stale meanwhile
     }

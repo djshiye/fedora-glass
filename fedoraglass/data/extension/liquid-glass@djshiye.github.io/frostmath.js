@@ -153,10 +153,13 @@ export function iceStep(t, dt, speed) {
 // once it can't be refreshed (offline): after that the glass goes back to your look.
 export const REFRESH_US = 30 * 60 * 1e6;
 export const STALE_US = 3 * 3600 * 1e6;
+// After an ask that got no answer (the network not back yet after the PC woke up) the
+// next try comes sooner: this long, then twice as long after each further failure.
+export const RETRY_US = 3 * 60 * 1e6;
 
 /** Whether fresh numbers are due, by the wall clock (it keeps running while the PC sleeps). */
-export function refreshDue(lastUs, nowUs) {
-    return !lastUs || nowUs - lastUs >= REFRESH_US || nowUs < lastUs;
+export function refreshDue(lastUs, nowUs, waitUs = REFRESH_US) {
+    return !lastUs || nowUs - lastUs >= waitUs || nowUs < lastUs;
 }
 
 // When GNOME's weather was last asked, for everything that asks it (the frost and the lock
@@ -164,11 +167,23 @@ export function refreshDue(lastUs, nowUs) {
 // start from "never" at every lock and unlock, so each of those asked the weather service
 // again (1.7.1), far more often than every 30 minutes.
 let weatherAskedUs = 0;
+// How many asks in a row got no valid answer.
+let weatherFailed = 0;
 
-/** Whether to ask GNOME's weather now; says yes at most once per 30 minutes, whoever asks. */
-export function askWeatherNow(nowUs) {
-    if (!refreshDue(weatherAskedUs, nowUs))
+/**
+ * Whether to ask GNOME's weather now: at most once per 30 minutes, whoever asks, unless
+ * the last ask got no valid answer (`failed`): then sooner, 3 minutes after the first one,
+ * and twice as long after each further one (6, 12, 24), never more than 30. Offline all
+ * day that is a few failing local tries and then one every 30 minutes, which is why it
+ * doubles. A request still loading is not a failure.
+ */
+export function askWeatherNow(nowUs, failed = false) {
+    const fails = failed ? weatherFailed + 1 : 0;
+    const wait = fails ? Math.min(REFRESH_US, RETRY_US * 2 ** (fails - 1)) : REFRESH_US;
+    if (!refreshDue(weatherAskedUs, nowUs, wait))
         return false;
+    // Nothing asked before: nothing failed before.
+    weatherFailed = weatherAskedUs ? fails : 0;
     weatherAskedUs = nowUs;
     return true;
 }
@@ -176,6 +191,7 @@ export function askWeatherNow(nowUs) {
 /** For tests: as if the weather was never asked. */
 export function forgetWeatherAsked() {
     weatherAskedUs = 0;
+    weatherFailed = 0;
 }
 
 /** Whether a reading taken at `atUs` is too old to frost the glass by. */
