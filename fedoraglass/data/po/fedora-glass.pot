@@ -101,56 +101,56 @@ msgstr ""
 msgid "remove the {package} package"
 msgstr ""
 
-#: fedoraglass/engine.py:1027
+#: fedoraglass/engine.py:1046
 msgid "Flatpak overrides: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:1061
+#: fedoraglass/engine.py:1080
 msgid "is now a folder, left as it is"
 msgstr ""
 
-#: fedoraglass/engine.py:1072
+#: fedoraglass/engine.py:1091
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr ""
 
-#: fedoraglass/engine.py:1138
+#: fedoraglass/engine.py:1157
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr ""
 
-#: fedoraglass/engine.py:1164
+#: fedoraglass/engine.py:1183
 msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr ""
 
-#: fedoraglass/engine.py:1176
+#: fedoraglass/engine.py:1195
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr ""
 
-#: fedoraglass/engine.py:1178
+#: fedoraglass/engine.py:1197
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr ""
 
-#: fedoraglass/engine.py:1390
+#: fedoraglass/engine.py:1409
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr ""
 
-#: fedoraglass/engine.py:1459
-#: fedoraglass/engine.py:1481
+#: fedoraglass/engine.py:1478
+#: fedoraglass/engine.py:1500
 msgid "Backup"
 msgstr ""
 
-#: fedoraglass/engine.py:1502
+#: fedoraglass/engine.py:1524
 msgid "Couldn't start: {error}"
 msgstr ""
 
-#: fedoraglass/engine.py:1578
+#: fedoraglass/engine.py:1603
 msgid "Colours for other apps"
 msgstr ""
 
-#: fedoraglass/engine.py:1727
+#: fedoraglass/engine.py:1753
 msgid "missing setting {schema} {key}"
 msgstr ""
 
-#: fedoraglass/engine.py:287
+#: fedoraglass/engine.py:304
 msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
 msgstr ""
 
@@ -158,7 +158,7 @@ msgstr ""
 msgid "Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, and this part needs the glass behind it."
 msgstr ""
 
-#: fedoraglass/engine.py:555
+#: fedoraglass/engine.py:574
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr ""
 
@@ -166,7 +166,7 @@ msgstr ""
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr ""
 
-#: fedoraglass/engine.py:867
+#: fedoraglass/engine.py:886
 msgid "{path} is a folder"
 msgstr ""
 

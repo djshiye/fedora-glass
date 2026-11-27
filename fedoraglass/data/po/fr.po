@@ -101,56 +101,56 @@ msgstr "Mode sans échec"
 msgid "remove the {package} package"
 msgstr "supprimer le paquet {package}"
 
-#: fedoraglass/engine.py:1027
+#: fedoraglass/engine.py:1046
 msgid "Flatpak overrides: {error}"
 msgstr "Surcharges Flatpak : {error}"
 
-#: fedoraglass/engine.py:1061
+#: fedoraglass/engine.py:1080
 msgid "is now a folder, left as it is"
 msgstr "est maintenant un dossier, laissé tel quel"
 
-#: fedoraglass/engine.py:1072
+#: fedoraglass/engine.py:1091
 msgid "{path}: the saved copy of your original was lost, so this file was left as it is (it may still have the Fedora Glass look)"
 msgstr "{path} : la copie enregistrée de votre original a été perdue, ce fichier a donc été laissé tel quel (il peut encore avoir le style Fedora Glass)"
 
-#: fedoraglass/engine.py:1138
+#: fedoraglass/engine.py:1157
 msgid "{path}: changed since Apply and can't be read, so it was left as it is"
 msgstr "{path} : modifié depuis l’application et illisible, il a donc été laissé tel quel"
 
-#: fedoraglass/engine.py:1164
+#: fedoraglass/engine.py:1183
 msgid "Kept your {folder} folder because it has files you added ({files}). It still uses {owner}. To get your link to {owner} back, move those files out and press Restore original again."
 msgstr "Votre dossier {folder} a été conservé car il contient des fichiers que vous avez ajoutés ({files}). Il utilise encore {owner}. Pour retrouver votre lien vers {owner}, déplacez ces fichiers ailleurs et appuyez de nouveau sur Rétablir l’original."
 
-#: fedoraglass/engine.py:1176
+#: fedoraglass/engine.py:1195
 msgid "Kept your {folder} folder because it has files you added. Your link to {owner} was not restored."
 msgstr "Votre dossier {folder} a été conservé car il contient des fichiers que vous avez ajoutés. Votre lien vers {owner} n’a pas été rétabli."
 
-#: fedoraglass/engine.py:1178
+#: fedoraglass/engine.py:1197
 msgid "Couldn't restore your {folder} link to {owner}: {reason}."
 msgstr "Impossible de rétablir votre lien {folder} vers {owner} : {reason}."
 
-#: fedoraglass/engine.py:1390
+#: fedoraglass/engine.py:1409
 msgid "Fedora Glass can't use its folder {folder} ({error}). Nothing was changed. Check that the folder belongs to you."
 msgstr "Fedora Glass ne peut pas utiliser son dossier {folder} ({error}). Rien n'a été modifié. Vérifiez que le dossier vous appartient."
 
-#: fedoraglass/engine.py:1459
-#: fedoraglass/engine.py:1481
+#: fedoraglass/engine.py:1478
+#: fedoraglass/engine.py:1500
 msgid "Backup"
 msgstr "Sauvegarde"
 
-#: fedoraglass/engine.py:1502
+#: fedoraglass/engine.py:1524
 msgid "Couldn't start: {error}"
 msgstr "Démarrage impossible : {error}"
 
-#: fedoraglass/engine.py:1578
+#: fedoraglass/engine.py:1603
 msgid "Colours for other apps"
 msgstr "Couleurs pour les autres applications"
 
-#: fedoraglass/engine.py:1727
+#: fedoraglass/engine.py:1753
 msgid "missing setting {schema} {key}"
 msgstr "réglage manquant {schema} {key}"
 
-#: fedoraglass/engine.py:287
+#: fedoraglass/engine.py:304
 msgid "Fedora Glass was updated while it was open. Close it and open it again, then press Apply."
 msgstr "Fedora Glass a été mis à jour pendant qu’il était ouvert. Fermez-le, rouvrez-le, puis appuyez sur Appliquer."
 
@@ -158,7 +158,7 @@ msgstr "Fedora Glass a été mis à jour pendant qu’il était ouvert. Fermez-l
 msgid "Finishes after you restart your PC. GNOME only starts the Fedora Glass extension when your PC starts, and this part needs the glass behind it."
 msgstr "Se termine après le redémarrage de votre ordinateur. GNOME ne lance l’extension Fedora Glass qu’au démarrage de l’ordinateur, et cette partie a besoin du verre derrière elle."
 
-#: fedoraglass/engine.py:555
+#: fedoraglass/engine.py:574
 msgid "Fedora Glass can't read its backup of your original look ({path}: {error}). Nothing was changed, so that backup stays as it is. If you don't need your original look back, move that file somewhere else and try again."
 msgstr "Fedora Glass ne peut pas lire la sauvegarde de votre style d’origine ({path} : {error}). Rien n’a été modifié, cette sauvegarde reste telle quelle. Si vous n’avez pas besoin de retrouver votre style d’origine, déplacez ce fichier ailleurs et réessayez."
 
@@ -166,7 +166,7 @@ msgstr "Fedora Glass ne peut pas lire la sauvegarde de votre style d’origine (
 msgid "Left alone: {folder} is a link to a folder outside your home folder, or to one that isn't yours."
 msgstr "Laissé tel quel : {folder} est un lien vers un dossier extérieur à votre dossier personnel, ou vers un dossier qui n’est pas à vous."
 
-#: fedoraglass/engine.py:867
+#: fedoraglass/engine.py:886
 msgid "{path} is a folder"
 msgstr "{path} est un dossier"
 
