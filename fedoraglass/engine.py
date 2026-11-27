@@ -949,7 +949,12 @@ class Backup:
                 del self.data["commands"][key]
             else:
                 problems.append(f"{' '.join(e['undo'])}: {r.err.strip()}")
-        self.save()
+        try:
+            self.save()
+        except OSError as err:
+            # A full disk: what was put back stays so, and the stored originals stay too
+            # (only a saved manifest lets them go), so the next Restore can finish.
+            problems.append(f"{self.manifest_path}: {err}")
         return problems
 
     def _restore_file(self, key: str, e: dict, new_dirs: set[str]) -> str | None:
@@ -1447,7 +1452,12 @@ class Engine:
                     backup.retire(t.id, {str(a.path) for a in actions if isinstance(a, WriteFile)})
             except Exception as e:  # a broken target must not stop the others
                 errs = [f"{type(e).__name__}: {e}"]
-            backup.save()
+            try:
+                backup.save()
+            except OSError as e:
+                # A full disk: this part failed, said once (its own save above may have said it).
+                if (msg := f"{type(e).__name__}: {e}") not in errs:
+                    errs.append(msg)
             if errs:
                 results.append(Result(t.id, tr(t.name), "failed", "; ".join(errs)))
             elif not actions:

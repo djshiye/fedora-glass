@@ -200,3 +200,43 @@ def test_last_good_copy_alone_is_not_followed(fake_env):
     fresh.data["gsettings"]["x|/|y"] = {"target": "t", "value": "1"}
     fresh.save()
     assert not fresh.last_good_path.exists()
+
+
+def _full_disk_for_the_manifest(monkeypatch):
+    import errno
+    real = engine_mod.atomic_write
+
+    def full(path, data, mode=0o644, durable=False):
+        if path.name.startswith("manifest.json"):
+            raise OSError(errno.ENOSPC, "No space left on device")
+        return real(path, data, mode, durable)
+    monkeypatch.setattr(engine_mod, "atomic_write", full)
+
+
+def test_apply_on_a_full_disk_says_the_part_failed(fake_env, monkeypatch):
+    """Applied before, then a part finds something new to record while the disk is full:
+    a failed part with the reason, like any other, never a Python error."""
+    from tests.test_restore_safety import EditTarget
+    a, b = fake_env.config / "Code/User/settings.json", fake_env.config / "micro/settings.json"
+    a.parent.mkdir(parents=True)
+    a.write_text("{}")
+    Engine(fake_env, [EditTarget(id="t", name="T", path=a)]).apply(Settings())
+    eng = Engine(fake_env, [EditTarget(id="t", name="T", path=a), EditTarget(id="u", name="U", path=b)])
+    _full_disk_for_the_manifest(monkeypatch)
+    res = {r.target: r for r in eng.apply(Settings())}
+    assert res["u"].status == "failed"
+    assert res["u"].message.count("No space left on device") == 1
+
+
+def test_restore_on_a_full_disk_says_so_and_can_run_again(fake_env, monkeypatch):
+    g4, g3 = user_files(fake_env)
+    eng = gtk_engine(fake_env)
+    eng.apply(Settings())
+    _full_disk_for_the_manifest(monkeypatch)
+    problems = eng.revert()
+    assert len(problems) == 1 and "No space left on device" in problems[0]
+    assert g4.read_text() == "/* my own gtk4 */\n"
+    monkeypatch.undo()              # space freed
+    assert eng.revert() == []
+    assert g3.read_text() == "/* my own gtk3 */\n"
+    assert not eng.is_applied()
