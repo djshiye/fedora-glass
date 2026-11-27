@@ -11,6 +11,8 @@ import shutil
 import stat
 import threading
 
+import pytest
+
 from fedoraglass import engine as eng
 from fedoraglass.engine import Backup, Engine
 from fedoraglass.safefs import Box
@@ -217,6 +219,60 @@ def test_a_flatpak_obsidian_list_needs_a_folder_obsidian_made(only_flatpak, tmp_
     cfg.mkdir(parents=True)
     (cfg / "obsidian.json").write_text(json.dumps({"vaults": {"a": {"path": str(real)}, "b": {"path": str(other)}}}))
     assert ta.Obsidian().vaults(env) == [real]
+
+
+def other_spelling(env, tmp_path, how):
+    """The way into the app's own folder by another name than ~ itself: /proc/self/root in
+    front, or a second name for home (as /home is for /var/home on Silverblue)."""
+    if how == "proc":
+        return lambda p: f"/proc/self/root{p}"
+    alias = tmp_path / "alias"
+    alias.symlink_to(env.home)
+    return lambda p: str(alias / p.relative_to(env.home))
+
+
+def vault_by_other_spelling(env, tmp_path, how):
+    install_flatpak(env, ta.OBSIDIAN_FLATPAK)
+    app = env.home / ".var/app/md.obsidian.Obsidian"
+    (app / "realv/.obsidian").mkdir(parents=True)
+    (app / "realv/.obsidian/appearance.json").write_text('{"cssTheme": "x", "planted": "by the app"}')
+    v = app / "v"
+    v.symlink_to(app / "realv")
+    (app / "config/obsidian").mkdir(parents=True)
+    spelled = other_spelling(env, tmp_path, how)(v)
+    (app / "config/obsidian/obsidian.json").write_text(json.dumps({"vaults": {"a": {"path": spelled}}}))
+    victim = env.home / ".config/autostart"
+    victim.mkdir(parents=True)
+    return v, victim
+
+
+@pytest.mark.parametrize("how", ["proc", "alias"])
+def test_a_flatpak_obsidian_vault_named_another_way_never_leads_apply_outside(only_flatpak, tmp_path,
+                                                                              monkeypatch, how):
+    env = only_flatpak
+    v, victim = vault_by_other_spelling(env, tmp_path, how)
+    real_plan = ta.Obsidian.plan
+
+    def plan_then_swap(self, ctx):
+        acts = real_plan(self, ctx)
+        v.unlink()
+        v.symlink_to(victim)            # the app points its link at a folder of the person's
+        return acts
+    monkeypatch.setattr(ta.Obsidian, "plan", plan_then_swap)
+    Engine(env, [ta.Obsidian()]).apply(Settings())
+    assert files_in(victim) == []
+
+
+@pytest.mark.parametrize("how", ["proc", "alias"])
+def test_a_flatpak_obsidian_vault_named_another_way_never_leads_restore_outside(only_flatpak, tmp_path, how):
+    env = only_flatpak
+    v, victim = vault_by_other_spelling(env, tmp_path, how)
+    e = Engine(env, [ta.Obsidian()])
+    e.apply(Settings())
+    v.unlink()
+    v.symlink_to(victim)
+    e.revert()
+    assert files_in(victim) == []
 
 
 # ---- a link at the file itself --------------------------------------------------------------

@@ -290,14 +290,18 @@ class Obsidian(AppTarget):
                 for v in vaults.values():
                     p = v.get("path") if isinstance(v, dict) else None
                     if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out \
-                            and (not boxed or self._made_by_obsidian(Path(p))):
+                            and (not boxed or self._made_by_obsidian(Path(p), env.home)):
                         out.append(Path(p))
         return out
 
     @staticmethod
-    def _made_by_obsidian(vault: Path) -> bool:
+    def _made_by_obsidian(vault: Path, home: Path) -> bool:
         base = vault / ".obsidian"
-        return ".." not in vault.parts and base.is_dir() and not base.is_symlink()
+        # Below ~ it is guarded by the path alone (~/.var/app/<id> is seen as the app's own).
+        # Named any other way (/proc/self/root/..., a second name for home) it must hold no
+        # link at all: one could lead into the app's folder, where the app can repoint it.
+        plain = vault.is_relative_to(home) or os.path.realpath(vault) == str(vault)
+        return plain and ".." not in vault.parts and base.is_dir() and not base.is_symlink()
 
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
