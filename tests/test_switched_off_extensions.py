@@ -238,3 +238,92 @@ def test_the_first_apply_switches_both_on(env):
     eng.apply(Settings())
     on, off = lists(env)
     assert rg.UUID in on and ts.USER_THEME in on and off == []
+
+
+# ---- the user's own Apply, when the Shell part has to wait for the next login
+
+def test_user_themes_switched_off_before_the_first_apply_comes_on_at_the_next_login(fake_env):
+    """The glass is brand new, so GNOME only starts it at the next login and the Shell part
+    waits; the user asked for the Shell theme with their Apply, so it comes on then."""
+    eng = desktop(fake_env)
+    fake_env.gs[SHELL]["disabled-extensions"] = f"['{ts.USER_THEME}']"
+    fake_env.glass_loaded = False
+    s = Settings()
+    settings_mod.save(s)
+    eng.apply(s)
+    assert "shell" in read_pending()
+    fake_env.glass_loaded = True            # the next login
+    assert cli.finish_pending(eng, sleep=lambda x: None)
+    on, off = lists(fake_env)
+    assert ts.USER_THEME in on and ts.USER_THEME not in off, (on, off)
+
+
+def test_user_themes_comes_on_at_login_after_an_apply_made_while_the_older_glass_runs(fake_env):
+    """Applied; User Themes switched off; an update installed, and the user presses Apply
+    while GNOME still runs the glass of the version before. A dark/light switch on the way
+    waits too, and does not take back what the user asked for."""
+    eng = desktop(fake_env)
+    s = Settings()
+    settings_mod.save(s)
+    eng.apply(s)
+    switch_off(fake_env, ts.USER_THEME)
+    fake_env.glass_loaded = False           # GNOME runs the older glass
+    eng.apply(s)                            # the user's own Apply
+    assert "shell" in read_pending()
+    automatic(fake_env, eng, "scheme")
+    assert "shell" in read_pending()
+    fake_env.glass_loaded = True            # the next login
+    assert cli.finish_pending(eng, sleep=lambda x: None)
+    on, off = lists(fake_env)
+    assert ts.USER_THEME in on and ts.USER_THEME not in off, (on, off)
+    assert not read_pending()
+
+
+def test_user_themes_left_waiting_by_an_automatic_apply_stays_off_at_login(fake_env):
+    """Only the user's Apply counts: one the update step made by itself leaves it off."""
+    eng = desktop(fake_env)
+    s = Settings()
+    settings_mod.save(s)
+    eng.apply(s)
+    switch_off(fake_env, ts.USER_THEME)
+    before = lists(fake_env)
+    fake_env.glass_loaded = False           # GNOME runs the older glass
+    automatic(fake_env, eng, "update")
+    assert "shell" in read_pending()
+    fake_env.glass_loaded = True
+    assert cli.finish_pending(eng, sleep=lambda x: None)
+    assert lists(fake_env) == before
+
+
+def test_a_waiting_file_from_an_older_version_is_still_finished_at_login(fake_env):
+    eng = desktop(fake_env)
+    s = Settings()
+    settings_mod.save(s)
+    fake_env.glass_loaded = False
+    eng.apply(s)
+    engine_mod.pending_path().write_text(json.dumps(sorted(read_pending())))   # ids only
+    fake_env.glass_loaded = True
+    assert cli.finish_pending(eng, sleep=lambda x: None)
+    assert fake_env.extension_on(ts.USER_THEME)
+
+
+def test_once_finished_the_users_apply_no_longer_counts_at_a_later_login(fake_env):
+    """The mark goes with the waiting part: User Themes switched off after that login
+    stays off through the next update."""
+    eng = desktop(fake_env)
+    s = Settings()
+    settings_mod.save(s)
+    fake_env.glass_loaded = False
+    eng.apply(s)
+    assert engine_mod.read_pending_asked() == read_pending()
+    fake_env.glass_loaded = True
+    assert cli.finish_pending(eng, sleep=lambda x: None)
+    assert not engine_mod.pending_path().exists()
+    switch_off(fake_env, ts.USER_THEME)
+    before = lists(fake_env)
+    fake_env.glass_loaded = False
+    automatic(fake_env, eng, "update")
+    assert "shell" in read_pending() and not engine_mod.read_pending_asked()
+    fake_env.glass_loaded = True
+    assert cli.finish_pending(eng, sleep=lambda x: None)
+    assert lists(fake_env) == before

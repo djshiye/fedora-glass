@@ -95,19 +95,36 @@ def read_upto(path: Path, limit: int) -> bytes:
     return raw
 
 
-def read_pending() -> set[str]:
+def _read_pending_file() -> list:
     try:
         # A few part ids: anything near this size is not one of ours.
         data = json.loads(read_upto(pending_path(), 64 * 1024).decode("utf-8"))
     except (OSError, ValueError, RecursionError):   # nested thousands deep: damaged
-        return set()
-    return {x for x in data if isinstance(x, str)} if isinstance(data, list) else set()
+        return []
+    return data if isinstance(data, list) else []
 
 
-def _write_pending(ids: set[str]) -> None:
+def read_pending() -> set[str]:
+    return {x for x in _read_pending_file() if isinstance(x, str)}
+
+
+def read_pending_asked() -> set[str]:
+    """The waiting parts the user's own Apply left waiting (not the watcher's): finished at
+    login with the user's own rules, so an extension they asked for comes on then."""
+    data, asked = _read_pending_file(), set()
+    for x in data:
+        if isinstance(x, dict) and isinstance(x.get("asked"), list):
+            asked |= {i for i in x["asked"] if isinstance(i, str)}
+    return asked & {x for x in data if isinstance(x, str)}
+
+
+def _write_pending(ids: set[str], asked: set[str] | None = None) -> None:
     path = pending_path()
     if ids:
-        atomic_write(path, json.dumps(sorted(ids)).encode())
+        # The marks ride along in the same list: older versions keep only its strings,
+        # and drop the marks whenever they write it, as they drop the parts they finish.
+        marks = [{"asked": sorted(m)}] if (m := (asked or set()) & ids) else []
+        atomic_write(path, json.dumps(sorted(ids) + marks).encode())
     else:
         with contextlib.suppress(OSError):
             path.unlink()
@@ -1495,7 +1512,8 @@ class Engine:
     def _apply(self, settings: Settings, only: set[str] | None, full: bool = False,
                progress: Progress | None = None, auto: bool = False) -> list[Result]:
         """`auto`: Fedora Glass applies by itself (the watcher, the update steps), so an
-        extension the user switched off since stays off (see _run_actions)."""
+        extension the user switched off since stays off (see _run_actions), except in a
+        part the user's own Apply left waiting for the glass (read_pending_asked)."""
         try:
             ctx = self.context(settings, check_glass=True)
             backup = Backup(self.env)
@@ -1505,8 +1523,8 @@ class Engine:
             # it would end the watcher, and its user service would start it again and again.
             return [Result("apply", _("Apply"), "failed", _("Couldn't start: {error}").format(error=e))]
         results: list[Result] = []
-        pending = read_pending()
-        waiting = set(pending)
+        pending, asked = read_pending(), read_pending_asked()
+        waiting, held = set(pending), set()
         todo = [t for t in self.targets if not only or t.id in only]
         for i, t in enumerate(todo):
             if progress is not None:
@@ -1537,6 +1555,7 @@ class Engine:
             # (`fedora-glass watch`) finishes them then.
             if t.waits_for_glass and not ctx.glass_running:
                 waiting.add(t.id)
+                held.add(t.id)
                 results.append(Result(t.id, tr(t.name), "info", tr(WAITING)))
                 continue
             waiting.discard(t.id)
@@ -1551,7 +1570,8 @@ class Engine:
                         [tr(LINK_LEFT).format(folder=_tilde(f, self.env.home)) for f in left]
                         + [str(LinkInside(f, self.env.home)) for f in inside])))
                     continue
-                errs = self._run(t.id, actions, backup, auto)
+                # A part the user's own Apply left waiting is finished as they asked.
+                errs = self._run(t.id, actions, backup, auto and t.id not in asked)
                 if not errs:
                     backup.retire(t.id, {str(a.path) for a in actions if isinstance(a, WriteFile)})
             except LinkInside as e:
@@ -1575,8 +1595,9 @@ class Engine:
             else:
                 results.append(Result(t.id, tr(t.name), "applied"))
         try:
-            if waiting != pending and not self.env.dry_run:
-                _write_pending(waiting)
+            marked = (asked if auto else asked | held) & waiting
+            if (waiting != pending or marked != asked) and not self.env.dry_run:
+                _write_pending(waiting, marked)
             self._write_tokens(ctx)
         except OSError as e:
             results.append(Result("tokens", _("Colours for other apps"), "failed", str(e)))
@@ -1646,7 +1667,7 @@ class Engine:
                 if parked:
                     unpark_arcmenu(self.env)
             if not self.env.dry_run:
-                _write_pending(set() if target is None else read_pending() - {target})
+                _write_pending(set() if target is None else read_pending() - {target}, read_pending_asked())
                 if target is None:
                     with contextlib.suppress(OSError):
                         atomic_write(restored_path(self.env), b"", 0o600)

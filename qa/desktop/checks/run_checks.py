@@ -1701,7 +1701,7 @@ def shell_parts_done(c: Check, when: str) -> None:
     the glass were finished by the same Apply, not left for a restart (1.5.6 left them)."""
     p = lgqa.HOME / ".config/liquid-glass/pending-shell.json"
     try:
-        waiting = json.loads(p.read_text()) if p.exists() else []
+        waiting = [x for x in json.loads(p.read_text()) if isinstance(x, str)] if p.exists() else []
     except ValueError:
         waiting = ["unreadable"]
     theme = lgqa.subprocess.run(["gsettings", "get", "org.gnome.shell.extensions.user-theme", "name"], env=lgqa.ENV,
