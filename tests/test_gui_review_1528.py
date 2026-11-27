@@ -130,6 +130,33 @@ def test_a_new_gnome_accent_is_followed_while_the_app_is_open(qml, fake_env, tmp
     assert heard == ["teal"]
 
 
+def test_a_new_gnome_accent_tells_the_login_card_it_is_behind(qml, fake_env, tmp_path, monkeypatch):
+    from fedoraglass.gui.backend import Backend
+    b = _backend(fake_env, tmp_path)
+    b._system_accent = "blue"
+    assert b._saved.accent == "system"
+    b._gl_status = {"available": True, "why": "", "state": "on", "stopped": "",
+                    "values": b.glass_login_values(b._saved), "picture_sha256": "", "leaving": False}
+    b._gl_checking = False
+    monkeypatch.setattr(Backend, "_glass_login_available", lambda self: True)
+    assert b.property("glassLoginState") == "on" and not b.property("loginGlassStale")
+    card: list = []
+    preview: list = []
+    settings: list = []
+    b.loginGlassChanged.connect(lambda: card.append(1))
+    b.settingsChanged.connect(lambda: settings.append(1))
+    # The preview reads glassLoginLook: its own signal fires for the edits and the accent.
+    meta = b.metaObject().property(b.metaObject().indexOfProperty("glassLoginLook"))
+    assert meta.notifySignal().name() == b"loginLookChanged"
+    b.loginLookChanged.connect(lambda: preview.append(1))
+    b._accent_lines("accent-color: 'teal'\n")
+    assert b.property("loginGlassStale") and b.property("glassLoginState") == "behind"
+    assert card and preview
+    assert not settings      # nothing was edited: the "Put back" offer stays
+    b.setProperty("loginClock", "gnome")
+    assert len(preview) == 2
+
+
 def test_accent_watch_follows_gsettings_and_survives_a_missing_key(qml, fake_env, tmp_path, monkeypatch):
     bindir = tmp_path / "bin"
     bindir.mkdir()

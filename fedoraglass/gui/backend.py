@@ -333,6 +333,7 @@ class Backend(QObject):
     restorableChanged = Signal()
     headerNoteChanged = Signal()
     loginGlassChanged = Signal()
+    loginLookChanged = Signal()         # the login preview's values: an edit or GNOME's accent
     safeModeChanged = Signal()
     glassPausedChanged = Signal()
     speedChanged = Signal()
@@ -493,6 +494,8 @@ class Backend(QObject):
         self._apps_state = "idle"           # idle, loading or ready
         self._apps_task: _Task | None = None
         self.settingsChanged.connect(self.noGlassAppsChanged)
+        self.settingsChanged.connect(self.loginLookChanged)
+        self.systemAccentChanged.connect(self.loginLookChanged)
         self.settingsChanged.connect(self._forget_discarded)     # any change (or Apply) ends "Put back"
         self.settingsChanged.connect(self.weatherFrostChanged)    # the preview's frost follows the sliders
         self.installedAppsChanged.connect(self.noGlassAppsChanged)
@@ -939,6 +942,7 @@ class Backend(QObject):
             return
         self._system_accent = accent
         self.systemAccentChanged.emit()
+        self.loginGlassChanged.emit()   # a login screen that has the old accent is behind now
         self._rebuild_tokens()      # the preview and this window, when they use the system accent
         if self._looks is not None:
             self.looksChanged.emit()    # a saved look's tile can show the system accent
@@ -3036,7 +3040,7 @@ class Backend(QObject):
         """The wallpaper the login screen copies (and its preview shows): the dark style's."""
         return self._wallpaper_for(True)
 
-    @Property("QVariantMap", notify=settingsChanged)
+    @Property("QVariantMap", notify=loginLookChanged)
     def glassLoginLook(self) -> dict:
         """The editor's login screen values, for the preview (it follows the sliders)."""
         return self.glass_login_values(self._s)
