@@ -466,6 +466,29 @@ def test_a_wallpaper_without_colour_keeps_the_tint_and_says_so(qml, fake_env, tm
     assert b.settings().tint == own and "hardly any colour" in b.property("wallpaperMatchNote")
 
 
+def test_the_colourless_wallpaper_note_comes_back_when_the_switch_is_turned_on_again(qml, fake_env, tmp_path):
+    from PySide6.QtGui import QColor, QImage
+    img = QImage(32, 18, QImage.Format_RGB32)
+    img.fill(QColor("#777777"))
+    img.save(str(tmp_path / "grey.png"))
+    fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})["picture-uri"] = f"'file://{tmp_path}/grey.png'"
+    b = _backend(fake_env, tmp_path)
+    # What the window shows: the note as last read when wallpaperMatchChanged went out.
+    shown = {"note": b.property("wallpaperMatchNote")}
+    b.wallpaperMatchChanged.connect(lambda: shown.update(note=b.property("wallpaperMatchNote")))
+    b.setProperty("tintFromWallpaper", True)
+    _settle(lambda: not b.property("wallpaperMatchBusy"))
+    _spin(100)
+    assert "hardly any colour" in shown["note"]
+    b.setProperty("tintFromWallpaper", False)
+    b.wallpaperMatchChanged.emit()      # Apply, a new wallpaper or the Light/Dark pill, while it is off
+    _spin(100)
+    assert shown["note"] == ""
+    b.setProperty("tintFromWallpaper", True)      # the colours are known: no new job
+    _spin(100)
+    assert "hardly any colour" in shown["note"]
+
+
 def test_a_wallpaper_picture_qt_cannot_read_is_said_so_not_called_colourless(qml, fake_env, tmp_path):
     bad = tmp_path / "wall.jxl"
     bad.write_bytes(b"\xff\x0a" + os.urandom(200))     # a format without its Qt plugin here
