@@ -422,6 +422,27 @@ def test_tint_matches_the_wallpaper_live_and_again_on_apply(qml, fake_env, tmp_p
     assert not b.property("dirty")
 
 
+def test_a_look_that_follows_the_wallpaper_shows_as_picked_after_the_picture_changed(qml, fake_env, tmp_path):
+    pic = _picture(tmp_path / "wall.png", "#8a2be2")         # violet
+    bg = fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})
+    bg["picture-uri"] = bg["picture-uri-dark"] = f"'file://{pic}'"
+    b = _backend(fake_env, tmp_path)
+    own = b.settings().tint
+    b.setProperty("tintFromWallpaper", True)
+    assert _settle(lambda: b.settings().tint != own)
+    look = b.saveLook("Follows my wallpaper")
+    assert b.property("activeLook") == look
+    b.setProperty("frost", 0.9)
+    assert b.property("activeLook") == ""
+    time.sleep(0.01)
+    _picture(pic, "#2e8b57")                                  # a new wallpaper, same file
+    os.utime(pic, ns=(time.time_ns(), time.time_ns() + 10**9))
+    b.useLook(look)
+    assert _settle(lambda: 120 < _hue(b.settings().tint) < 170)    # follows the picture shown now
+    _spin(100)
+    assert b.property("activeLook") == look
+
+
 def test_picking_a_tint_by_hand_stops_matching(qml, fake_env, tmp_path):
     pic = _picture(tmp_path / "wall.png", "#ff8c00")
     fake_env.gs.setdefault(("org.gnome.desktop.background", None), {})["picture-uri"] = f"'file://{pic}'"

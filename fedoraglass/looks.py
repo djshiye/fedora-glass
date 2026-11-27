@@ -199,7 +199,14 @@ def look_values(look: dict, cursor_installed: Callable[[str], bool] = lambda _id
     or can't set here, are not in it: the editor keeps its own for those."""
     s, taken = _apply_keys(Settings(), look, cursor_installed)
     d = _compared(s)
-    return {k: d[k] for k in taken}
+    out = {k: d[k] for k in taken}
+    # A colour that follows the wallpaper is what the picture shown now gives, not the one
+    # the look was saved with: it doesn't tell this look from another.
+    if s.tint_from_wallpaper:
+        out.pop("tint", None)
+    if s.accent_from_wallpaper:
+        out.pop("accent", None)
+    return out
 
 
 def compared(s: Settings) -> dict:
@@ -210,8 +217,8 @@ def compared(s: Settings) -> dict:
 
 def holds(values: dict, s: Settings | dict) -> bool:
     """Whether the editor settings `s` already are the look with these `look_values`
-    (as same_look(s, apply_look(s, look)) says, but cheap). `s` may already be what
-    `compared` made of it."""
+    (as same_look(s, apply_look(s, look)) says, but cheap, and a colour that follows the
+    wallpaper is not compared). `s` may already be what `compared` made of it."""
     d = s if isinstance(s, dict) else compared(s)
     return all(_close(d[k], v) for k, v in values.items())
 

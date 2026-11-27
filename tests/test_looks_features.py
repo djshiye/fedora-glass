@@ -140,6 +140,33 @@ def test_holding_a_look_worked_out_once_says_what_same_look_says(editor, look):
         assert looks.holds(looks.look_values(look, has), editor) is want
 
 
+def test_a_look_that_follows_the_wallpaper_is_held_whatever_colour_the_picture_gives_now():
+    look = {"frost": 0.3, "tint": "#8a2be2", "tint_from_wallpaper": True,
+            "accent": "#aa44ff", "accent_from_wallpaper": True}
+    values = looks.look_values(look)
+    assert "tint" not in values and "accent" not in values
+    assert values["tint_from_wallpaper"] and values["accent_from_wallpaper"]
+    now = Settings(frost=0.3, tint="#2e8b57", accent="#33aa66", tint_from_wallpaper=True,
+                   accent_from_wallpaper=True)
+    assert looks.holds(values, now)
+    # Not when the editor does not follow the wallpaper, or something else differs.
+    assert not looks.holds(values, Settings(frost=0.3, tint="#2e8b57", accent="#33aa66"))
+    assert not looks.holds(values, Settings(frost=0.4, tint="#2e8b57", accent="#33aa66",
+                                            tint_from_wallpaper=True, accent_from_wallpaper=True))
+
+
+def test_each_colour_of_a_look_is_held_by_its_own_wallpaper_switch():
+    look = {"tint": "#8a2be2", "tint_from_wallpaper": True, "accent": "#aa44ff"}
+    values = looks.look_values(look)
+    assert "tint" not in values and values["accent"] == "#aa44ff"
+    assert looks.holds(values, Settings(tint="#2e8b57", accent="#aa44ff", tint_from_wallpaper=True))
+    assert not looks.holds(values, Settings(tint="#2e8b57", accent="#33aa66", tint_from_wallpaper=True))
+    # A look that keeps its own tint still needs that same tint.
+    fixed = looks.look_values({"tint": "#8a2be2"})
+    assert not looks.holds(fixed, Settings(tint="#2e8b57"))
+    assert looks.holds(fixed, Settings(tint="#8a2be2"))
+
+
 def test_each_own_colour_is_kept_by_its_own_wallpaper_switch():
     mine = Settings(accent_from_wallpaper=True, accent_own="teal", tint_from_wallpaper=False, tint_own="#112233")
     s = looks.apply_look(mine, {"frost": 0.3})
