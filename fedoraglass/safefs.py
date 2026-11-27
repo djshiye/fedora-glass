@@ -264,14 +264,27 @@ class Box:
         except OSError:
             return False
 
-    def copy(self, path: Path, dest: Path) -> int:
+    def copy(self, path: Path, dest: Path, limit: int = APP_FILE_MAX) -> int:
         """Copy the plain file at `path` to `dest` (outside every box) with its mode and
         times, as shutil.copy2 does, and give its mode. Never through a link: the app could
-        point one at a secret of the person's and have it handed back at Restore."""
+        point one at a secret of the person's and have it handed back at Restore. Capped as
+        read_bytes is (a huge sparse file would fill the backup), and nothing is left at
+        `dest` when it fails."""
         with self._reading(path) as (fd, st):
-            with open(dest, "wb") as out:
-                while (b := os.read(fd, 1 << 20)):
-                    out.write(b)
+            if st.st_size > limit:
+                raise OSError(errno.EFBIG, f"over {limit} bytes", str(path))
+            try:
+                with open(dest, "wb") as out:
+                    size = 0
+                    while (b := os.read(fd, min(1 << 20, limit + 1 - size))):
+                        size += len(b)
+                        if size > limit:
+                            raise OSError(errno.EFBIG, f"over {limit} bytes", str(path))
+                        out.write(b)
+            except BaseException:
+                with contextlib.suppress(OSError):
+                    os.unlink(dest)
+                raise
         os.chmod(dest, stat.S_IMODE(st.st_mode))
         os.utime(dest, ns=(st.st_atime_ns, st.st_mtime_ns))
         return st.st_mode & 0o777

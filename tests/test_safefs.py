@@ -242,6 +242,20 @@ def test_copy_keeps_bytes_mode_and_times_and_refuses_a_link(box, tmp_path):
     assert not (tmp_path / "copy2").exists()
 
 
+def test_copy_of_a_file_bigger_than_the_cap_is_refused_and_leaves_nothing(box, tmp_path):
+    b, root, _out = box
+    src = root / "config/app/a.conf"
+    with open(src, "wb") as f:
+        f.truncate(safefs.APP_FILE_MAX + 1)     # sparse: no disk used, but would fill the backup
+    with pytest.raises(OSError) as e:
+        b.copy(src, tmp_path / "copy")
+    assert e.value.errno == errno.EFBIG and not (tmp_path / "copy").exists()
+    src.write_bytes(b"x" * 11)
+    with pytest.raises(OSError) as e:
+        b.copy(src, tmp_path / "copy", 10)
+    assert e.value.errno == errno.EFBIG and not (tmp_path / "copy").exists()
+
+
 # ---- the race -----------------------------------------------------------------------------
 def test_a_folder_flipped_to_a_link_and_back_never_lets_a_write_out(box):
     """The app swaps its folder for a link to the person's folder and back, as fast as it
