@@ -12,7 +12,23 @@ pytest.importorskip("PySide6.QtGui")
 pytest.importorskip("PySide6.QtQuick")
 from PySide6.QtQuick import QQuickWindow  # noqa: F401 - the window comes back as a QQuickWindow
 
+from test_gui_backend import app  # noqa: F401 - the fixture
 from test_gui_ux_keys import _backend, _find, _goto, _key, _spin, _window
+
+LANGS = ["de", "es", "fr", "it", "pt_BR"]
+
+
+@pytest.fixture(params=LANGS)
+def lang(request, app):
+    """The app in each translated language, put back after."""
+    from fedoraglass import i18n
+    i18n.reset(request.param)
+    i18n.install_qt(app)
+    yield request.param
+    for t in getattr(app, "_fg_translators", []):
+        app.removeTranslator(t)
+    app._fg_translators = []
+    i18n.reset("")
 
 
 @pytest.fixture
@@ -214,3 +230,22 @@ def test_a_long_list_of_things_not_restored_scrolls_and_close_stays_in_the_windo
     assert bottom <= win.height(), "the Close button is below the window"
     fl = _flickable(sheet.property("contentItem"))
     assert fl is not None and fl.property("contentHeight") > fl.height(), "the list cannot be scrolled"
+
+
+def test_the_leave_sheets_buttons_lie_inside_it_in_every_language(qml, lang):
+    win = _window(qml)
+    try:
+        _small_window(win)
+        sheet = _open(win, "leaveSheet")
+        left = sheet.property("contentItem").mapToScene(sheet.property("contentItem").boundingRect().topLeft()).x()
+        right = left + sheet.property("width")
+        row = _button_row(sheet)
+        buttons = [b for b in row.childItems() if b.isVisible()]
+        assert len(buttons) == 3
+        first = buttons[0].mapToScene(buttons[0].boundingRect().topLeft()).x()
+        last = buttons[-1].mapToScene(buttons[-1].boundingRect().topRight()).x()
+        assert first >= left + 24 - 0.5, "the first button comes too close to the sheet's left edge"
+        assert last <= right - 24 + 0.5
+        assert right <= win.width() - 32 + 0.5, "the sheet is wider than the window allows"
+    finally:
+        win.close()

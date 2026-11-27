@@ -1053,15 +1053,18 @@ Window {
         title: qsTr("Apply your changes before closing?")
         subtitle: qsTr("You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last.")
         iconName: "info"
-        width: Math.min(560, win.width - 64)
+        // As wide as its three buttons need (longer labels, as in German, would run out of the sheet).
+        width: Math.min(Math.max(560, leaveClose.implicitWidth + leaveCancel.implicitWidth + leaveApply.implicitWidth + 16 + 48), win.width - 64)
         buttons: [
             LgButton {
+                id: leaveClose
                 text: qsTr("Close without applying")
                 kind: "danger"
                 onClicked: { leaveSheet.close(); win.closeAnyway = true; win.close() }
             },
-            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: leaveSheet.close() },
+            LgButton { id: leaveCancel; text: qsTr("Cancel"); kind: "secondary"; onClicked: leaveSheet.close() },
             LgButton {
+                id: leaveApply
                 text: qsTr("Apply and close")
                 kind: "primary"
                 iconName: "check"
