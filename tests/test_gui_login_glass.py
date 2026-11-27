@@ -540,6 +540,20 @@ def test_a_failed_update_keeps_the_glass_that_is_on(backend, helper):
         "Nothing was changed: the new look could not be set up, so the login screen keeps the look it had"
 
 
+def test_a_failed_update_that_cannot_undo_says_the_glass_login_screen_is_off():
+    from fedoraglass.gui.backend import Backend
+    said = Backend._glass_failure(
+        4, "", "fedora-glass-login on: no room; could not undo: [Errno 28] No space left on device", "on", True)
+    assert said == ("The new look could not be set up and the one before could not be put back, "
+                    "so the glass login screen is now off. You can turn it on again.")
+    # Without the marker the helper did put the earlier glass back; a first Turn on that
+    # cannot undo leaves the normal login screen, as it says.
+    assert Backend._glass_failure(4, "", "no room", "on", True) == \
+        "Nothing was changed: the new look could not be set up, so the login screen keeps the look it had"
+    assert Backend._glass_failure(4, "", "no room; could not undo: x", "on", False) == \
+        "Nothing was changed: it could not be set up, so the normal login screen stays"
+
+
 def test_apply_leaves_it_alone_while_it_is_off(backend, helper):
     b = backend()
     b.setProperty("lockBlur", 20)

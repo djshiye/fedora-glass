@@ -2829,6 +2829,10 @@ class Backend(QObject):
         elif code == 3:
             word = (out.split() or [""])[-1]
             reason = loginlook.why_text(word if word in loginlook.WHY else "error")
+        elif code == 4 and update and "could not undo" in f"{out}\n{err}":
+            # The undo failed too (a full disk): the helper turned the glass off instead.
+            return _("The new look could not be set up and the one before could not be put back, "
+                     "so the glass login screen is now off. You can turn it on again.")
         elif code == 4 and update:
             # The helper rolled back to the glass that was on: that one stays, not GNOME's.
             reason = _("the new look could not be set up, so the login screen keeps the look it had")
