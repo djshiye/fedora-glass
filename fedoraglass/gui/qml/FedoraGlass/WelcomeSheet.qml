@@ -167,6 +167,7 @@ Sheet {
                                 width: parent.width - 24
                                 spacing: 1
                                 Text {
+                                    textFormat: Text.PlainText
                                     text: Theme.presetLabel(tile.modelData.name)
                                     color: tile.selected ? Theme.accentText : Theme.text
                                     font.pixelSize: Theme.fsBody
@@ -175,6 +176,7 @@ Sheet {
                                 Text {
                                     width: parent.width
                                     elide: Text.ElideRight
+                                    textFormat: Text.PlainText
                                     text: tile.modelData.caption
                                     color: Theme.textDim
                                     font.pixelSize: Theme.fsSmall
@@ -198,6 +200,7 @@ Sheet {
                 objectName: "welcomeFound"
                 visible: text.length > 0
                 width: parent.width
+                textFormat: Text.PlainText
                 text: Backend.foundSummary
                 color: Theme.textDim
                 font.pixelSize: Theme.fsSmall
@@ -235,9 +238,10 @@ Sheet {
                         Column {
                             width: parent.width - 40
                             spacing: 2
-                            Text { text: modelData.title; color: Theme.text; font.pixelSize: 13; font.weight: Font.DemiBold }
+                            Text { textFormat: Text.PlainText; text: modelData.title; color: Theme.text; font.pixelSize: 13; font.weight: Font.DemiBold }
                             Text {
                                 width: parent.width
+                                textFormat: Text.PlainText
                                 text: modelData.text
                                 wrapMode: Text.WordWrap
                                 color: Theme.textDim

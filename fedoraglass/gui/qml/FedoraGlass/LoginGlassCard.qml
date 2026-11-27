@@ -29,7 +29,7 @@ Card {
         signal picked(var v)
         width: parent.width
         spacing: 8
-        Text { text: parent.label; color: parent.enabled ? Theme.text : Theme.textFaint; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+        Text { textFormat: Text.PlainText; text: parent.label; color: parent.enabled ? Theme.text : Theme.textFaint; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
         Segmented {
             id: seg
             width: parent.width
@@ -89,6 +89,7 @@ Card {
                     objectName: "loginGlassStatus"
                     width: parent.width - 18
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: Backend.glassLoginStatus
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall + 1
@@ -341,6 +342,7 @@ Card {
                         Text {
                             width: parent.width - 15
                             wrapMode: Text.WordWrap
+                            textFormat: Text.PlainText
                             text: parent.modelData
                             color: Theme.textDim
                             font.pixelSize: Theme.fsSmall + 1

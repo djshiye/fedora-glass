@@ -93,6 +93,7 @@ SettingsPage {
                     objectName: "previousTitle"
                     width: parent.width
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: Backend.previousIsForward ? qsTr("Go forward to the look you went back from")
                                                     : qsTr("Go back to the look before your last Apply")
                     color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold
@@ -101,6 +102,7 @@ SettingsPage {
                     objectName: "previousWhen"
                     width: parent.width
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: Backend.previousWhen
                           ? (Backend.previousIsForward ? qsTr("It was applied %1. One click applies it again.").arg(Backend.previousWhen)
                                                        : qsTr("It was applied %1. One click applies it again, and you can come forward after.").arg(Backend.previousWhen))
@@ -162,6 +164,7 @@ SettingsPage {
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: Backend.hasBackup
                           ? qsTr("Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept.")
                           : qsTr("Nothing to restore yet: Fedora Glass hasn't changed anything on your desktop.")

@@ -72,6 +72,7 @@ SettingsPage {
                             wrapMode: Text.WordWrap
                             color: Theme.textFaint
                             font.pixelSize: Theme.fsSmall
+                            textFormat: Text.PlainText
                             text: Backend.glassLive && Backend.glassPaused
                                   ? qsTr("The preview shows these as you change them. Your desktop shows them once you resume the glass.")
                                   : Backend.glassLive

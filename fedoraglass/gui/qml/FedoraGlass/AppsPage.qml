@@ -24,6 +24,7 @@ Item {
             spacing: 4
             Text { text: qsTr("Apps and surfaces"); color: Theme.text; font.pixelSize: Theme.fsHeading; font.weight: Font.Bold }
             Text {
+                textFormat: Text.PlainText
                 text: Backend.targetsReady
                       ? qsTr("%1 will be themed on Apply. Anything not installed is skipped, and Restore original undoes everything.").arg(Backend.activeTargetCount)
                       : qsTr("Checking what's installed…")
@@ -171,6 +172,7 @@ Item {
                             spacing: 2
                             Text {
                                 objectName: "notInstalledTitle"
+                                textFormat: Text.PlainText
                                 text: qsTr("Not installed here (%1)").arg(page.missing.length)
                                 color: Theme.textDim
                                 font.pixelSize: Theme.fsBody
@@ -209,6 +211,7 @@ Item {
                                 id: nameText
                                 x: 48; y: 11
                                 width: Math.min(220, parent.width * 0.34)
+                                textFormat: Text.PlainText
                                 text: mrow.modelData.name || mrow.modelData.id
                                 color: Theme.text
                                 opacity: 0.85

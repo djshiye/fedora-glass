@@ -86,6 +86,7 @@ SettingsPage {
                             Text {
                                 width: tile.width
                                 horizontalAlignment: Text.AlignHCenter
+                                textFormat: Text.PlainText
                                 text: tile.modelData.label
                                 color: tile.selected ? Theme.text : Theme.textDim
                                 font.pixelSize: 13

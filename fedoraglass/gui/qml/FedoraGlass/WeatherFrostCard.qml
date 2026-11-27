@@ -102,6 +102,7 @@ Card {
                 Text {
                     objectName: "weatherStatusText"
                     width: parent.width - 24
+                    textFormat: Text.PlainText
                     text: card.status
                     wrapMode: Text.WordWrap
                     color: Theme.textDim
@@ -316,6 +317,7 @@ Card {
                     width: ts.xOf(modelData.b) - ts.xOf(modelData.a)
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
+                    textFormat: Text.PlainText
                     text: modelData.label
                     color: Theme.textFaint
                     font.pixelSize: Theme.fsSmall

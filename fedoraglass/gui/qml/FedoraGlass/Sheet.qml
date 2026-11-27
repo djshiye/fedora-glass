@@ -172,6 +172,7 @@ C.Popup {
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
                         width: parent.width
+                        textFormat: Text.PlainText
                         text: sheet.title
                         color: Theme.text
                         font.pixelSize: 18
@@ -181,6 +182,7 @@ C.Popup {
                     Text {
                         visible: text.length > 0
                         width: parent.width
+                        textFormat: Text.PlainText
                         text: sheet.subtitle
                         color: Theme.textDim
                         font.pixelSize: Theme.fsBody

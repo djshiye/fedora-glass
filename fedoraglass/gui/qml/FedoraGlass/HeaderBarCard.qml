@@ -45,6 +45,7 @@ Card {
                         color: Theme.textDim
                         font.pixelSize: Theme.fsSmall
                         lineHeight: 1.15
+                        textFormat: Text.PlainText
                         text: noteCol.done ? qsTr("Files shows the new bars the next time you open it. Terminal does once all its windows are closed.")
                                            : qsTr("Open apps keep the old bars until reopened. Terminal updates once all its windows are closed. Files keeps running in the background, so restart it here.")
                     }
@@ -127,6 +128,7 @@ Card {
                                 color: Theme.textDim
                                 font.pixelSize: Theme.fsSmall
                                 lineHeight: 1.15
+                                textFormat: Text.PlainText
                                 text: termCol.chosen && !termCol.parent.own
                                       ? qsTr("Terminal uses the Fedora Glass colours, so its top bar is glass.")
                                       : termCol.chosen

@@ -47,6 +47,7 @@ Item {
             Row {
                 spacing: 8
                 Text {
+                    textFormat: Text.PlainText
                     text: row.item.name || row.item.id
                     color: Theme.text
                     font.pixelSize: Theme.fsBody
@@ -84,6 +85,7 @@ Item {
             }
             Text {
                 width: parent.width
+                textFormat: Text.PlainText
                 text: row.item.summary || ""
                 color: Theme.textDim
                 font.pixelSize: 13
@@ -131,6 +133,7 @@ Item {
                     Text {
                         id: notesLabel
                         anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
                         text: row.notesOpen ? (row.notes.length === 1 ? qsTr("Hide 1 note") : qsTr("Hide %1 notes").arg(row.notes.length))
                                             : (row.notes.length === 1 ? qsTr("1 note") : qsTr("%1 notes").arg(row.notes.length))
                         color: Theme.accentText

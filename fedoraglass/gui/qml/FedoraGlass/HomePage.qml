@@ -304,6 +304,7 @@ SettingsPage {
                 anchors.right: parent.right
                 anchors.rightMargin: 8
                 anchors.verticalCenter: ic.verticalCenter
+                textFormat: Text.PlainText
                 text: qt.title
                 elide: Text.ElideRight
                 fontSizeMode: Text.HorizontalFit
@@ -316,6 +317,7 @@ SettingsPage {
                 x: 12
                 y: ic.y + ic.height + 7
                 width: parent.width - 12 - moreBtn.width - 4
+                textFormat: Text.PlainText
                 text: qt.state_
                 elide: Text.ElideRight
                 color: qt.on ? Theme.accentText : Theme.textFaint

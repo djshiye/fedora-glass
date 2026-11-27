@@ -197,6 +197,7 @@ Item {
                 anchors.right: changedDot.visible ? changedDot.left : parent.right
                 anchors.rightMargin: changedDot.visible ? 8 : 0
                 anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
                 text: nav.modelData.label
                 elide: Text.ElideRight
                 color: nav.selected ? Theme.text : Theme.textDim
@@ -269,6 +270,7 @@ Item {
                 visible: root.results.length === 0
                 width: parent.width
                 padding: 12
+                textFormat: Text.PlainText
                 text: qsTr("No setting matches \"%1\"").arg(field.text.trim())
                 color: Theme.textDim
                 font.pixelSize: 13
@@ -292,8 +294,8 @@ Item {
                         x: 12
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
-                        Text { text: res.modelData.title; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
-                        Text { text: root.pageLabels[res.modelData.page] || ""; color: Theme.textFaint; font.pixelSize: 12 }
+                        Text { textFormat: Text.PlainText; text: res.modelData.title; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                        Text { textFormat: Text.PlainText; text: root.pageLabels[res.modelData.page] || ""; color: Theme.textFaint; font.pixelSize: 12 }
                     }
                     MouseArea {
                         id: resMouse
@@ -312,6 +314,7 @@ Item {
                 visible: more > 0
                 width: parent.width
                 leftPadding: 12; rightPadding: 12; topPadding: 6; bottomPadding: 6
+                textFormat: Text.PlainText
                 text: (more === 1 ? qsTr("1 more setting matches. Type more to narrow it down.") : qsTr("%1 more settings match. Type more to narrow it down.").arg(more))
                 color: Theme.textFaint
                 font.pixelSize: 12

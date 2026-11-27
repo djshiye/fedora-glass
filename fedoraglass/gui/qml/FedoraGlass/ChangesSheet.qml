@@ -81,6 +81,7 @@ Sheet {
                     width: col.width
                     spacing: 6
                     Text {
+                        textFormat: Text.PlainText
                         text: pg.modelData.label
                         color: Theme.textDim
                         font.pixelSize: 13
@@ -124,6 +125,7 @@ Sheet {
                                             x: 10
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: parent.width - x - values.width - 16
+                                            textFormat: Text.PlainText
                                             text: change.modelData.label
                                             color: Theme.text
                                             font.pixelSize: Theme.fsBody
@@ -139,6 +141,7 @@ Sheet {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: Math.min(implicitWidth, 150)
                                                 elide: Text.ElideRight
+                                                textFormat: Text.PlainText
                                                 text: change.modelData.before
                                                 color: Theme.textFaint
                                                 font.pixelSize: Theme.fsBody
@@ -153,6 +156,7 @@ Sheet {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: Math.min(implicitWidth, 170)
                                                 elide: Text.ElideRight
+                                                textFormat: Text.PlainText
                                                 text: change.modelData.after
                                                 color: Theme.text
                                                 font.pixelSize: Theme.fsBody
@@ -205,6 +209,7 @@ Sheet {
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
                         text: sheet.total === 0 ? qsTr("none: no part that is switched on is installed here")
                             : sheet.plan.length === 1 ? qsTr("%1 changes in 1 place, each backed up first").arg(sheet.total)
                             : qsTr("%1 changes in %2 places, each backed up first").arg(sheet.total).arg(sheet.plan.length)
@@ -252,9 +257,10 @@ Sheet {
                                 rotation: grp.open ? 90 : 0
                                 Behavior on rotation { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
                             }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: grp.modelData.name; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+                            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: grp.modelData.name; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
+                                textFormat: Text.PlainText
                                 text: grp.n === 0 ? qsTr("nothing to change") : grp.n === 1 ? qsTr("1 change") : qsTr("%1 changes").arg(grp.n)
                                 color: Theme.textFaint
                                 font.pixelSize: 12
@@ -267,6 +273,7 @@ Sheet {
                         visible: grp.open && text.length > 0
                         x: 24
                         width: parent.width - x
+                        textFormat: Text.PlainText
                         text: grp.modelData.plain || ""
                         color: Theme.textDim
                         font.pixelSize: Theme.fsSmall
@@ -301,6 +308,7 @@ Sheet {
                                         id: line
                                         x: 24
                                         width: parent.width - 24
+                                        textFormat: Text.PlainText
                                         text: act.modelData.text
                                         color: Theme.text
                                         wrapMode: Text.WrapAnywhere

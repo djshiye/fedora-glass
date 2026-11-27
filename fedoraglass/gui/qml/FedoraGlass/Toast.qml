@@ -49,6 +49,7 @@ Rectangle {
         Icon { name: toast.iconName; size: 18; color: toast.iconColor; anchors.verticalCenter: parent.verticalCenter }
         Text {
             id: label
+            textFormat: Text.PlainText
             text: toast.text
             color: Theme.text
             font.pixelSize: Theme.fsBody

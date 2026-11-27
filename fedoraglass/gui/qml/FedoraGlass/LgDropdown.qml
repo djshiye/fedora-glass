@@ -71,6 +71,7 @@ FocusScope {
         Text {
             width: parent.width - (root.glyphs ? 36 : 0)
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
             text: root.currentIndex >= 0 ? root.model[root.currentIndex].label : ""
             color: Theme.text
             font.pixelSize: Theme.fsBody
@@ -197,6 +198,7 @@ FocusScope {
                     Text {
                         x: root.glyphs ? 48 : 12
                         anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
                         text: row.modelData.label
                         color: Theme.text
                         font.pixelSize: Theme.fsBody

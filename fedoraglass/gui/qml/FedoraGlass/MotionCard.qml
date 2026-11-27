@@ -239,6 +239,7 @@ Card {
                     color: Theme.textDim
                     font.pixelSize: Theme.fsSmall
                     lineHeight: 1.15
+                    textFormat: Text.PlainText
                     text: parent.parent.parent.message
                 }
             }
@@ -290,6 +291,7 @@ Card {
 
             Text {
                 x: 12; y: 10
+                textFormat: Text.PlainText
                 text: root.pvEvent === "minimize" ? qsTr("Minimize and restore") : root.pvEvent === "launch" ? qsTr("App starting") : root.pvEvent === "hover" ? qsTr("Panel hover") : root.pvEvent === "close" ? qsTr("Close") : qsTr("Open", "motion event")
                 color: Theme.textFaint
                 font.pixelSize: 11
@@ -391,10 +393,11 @@ Card {
                             y: head.wide ? (head.height - height) / 2 : 14
                             width: head.wide ? parent.width - ctl.width - 12 : parent.width
                             spacing: 2
-                            Text { width: parent.width; text: row.modelData.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; elide: Text.ElideRight }
+                            Text { width: parent.width; textFormat: Text.PlainText; text: row.modelData.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; elide: Text.ElideRight }
                             Text {
                                 visible: row.modelData.caption.length > 0
                                 width: parent.width
+                                textFormat: Text.PlainText
                                 text: row.modelData.caption
                                 color: Theme.textFaint
                                 font.pixelSize: Theme.fsSmall
@@ -471,6 +474,7 @@ Card {
                                     wrapMode: Text.WordWrap
                                     color: Theme.textFaint
                                     font.pixelSize: Theme.fsSmall
+                                    textFormat: Text.PlainText
                                     text: row.cfg.preset === "off" ? qsTr("Nothing plays, so there is nothing to adjust.")
                                                                    : qsTr("GNOME's own animation keeps its own timing.")
                                 }

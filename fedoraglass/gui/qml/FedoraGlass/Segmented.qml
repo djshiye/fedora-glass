@@ -121,6 +121,7 @@ FocusScope {
                     }
                     Text {
                         visible: !root.iconOnly
+                        textFormat: Text.PlainText
                         text: seg.modelData.label || ""
                         color: seg.selected ? root._text : root._textDim
                         font.pixelSize: root.compact ? 13 : Theme.fsBody

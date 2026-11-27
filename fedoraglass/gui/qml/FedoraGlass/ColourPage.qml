@@ -64,6 +64,7 @@ SettingsPage {
                     Text { text: qsTr("Tint"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                     Text {
                         objectName: "tintCaption"
+                        textFormat: Text.PlainText
                         text: Backend.tintFromWallpaper ? qsTr("Taken from your wallpaper") : qsTr("The colour the glass leans towards")
                         color: Theme.textFaint; font.pixelSize: Theme.fsSmall
                     }
@@ -142,6 +143,7 @@ SettingsPage {
                 Text {
                     objectName: "wallpaperNoteText"
                     width: parent.width - noteIcon.width - 8
+                    textFormat: Text.PlainText
                     text: parent.note
                     wrapMode: Text.WordWrap
                     color: Theme.textDim

@@ -118,6 +118,7 @@ C.AbstractButton {
             x: tile.hasMenu ? 8 : 6
             width: tile.width - 2 * x
             horizontalAlignment: Text.AlignHCenter
+            textFormat: Text.PlainText
             text: tile.shownName
             elide: Text.ElideRight
             // Longer names (other languages) shrink a little before they are cut.

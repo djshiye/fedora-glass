@@ -123,6 +123,7 @@ Item {
             Text {
                 visible: Backend.lockGreeting
                 anchors.horizontalCenter: parent.horizontalCenter
+                textFormat: Text.PlainText
                 text: root.greeting()
                 color: "white"
                 font.pixelSize: root.pt(17)
@@ -269,6 +270,7 @@ Item {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
+                    textFormat: Text.PlainText
                     text: Backend.userName || qsTr("You")
                     color: "white"
                     font.pixelSize: root.pt(14)
@@ -476,6 +478,7 @@ Item {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
+                    textFormat: Text.PlainText
                     text: Backend.userName || qsTr("You")
                     color: "white"
                     font.pixelSize: root.pt(14)

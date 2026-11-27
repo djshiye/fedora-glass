@@ -5,6 +5,7 @@ import FedoraGlass.Core
 Text {
     width: parent ? parent.width : 300
     leftPadding: 4; rightPadding: 4
+    textFormat: Text.PlainText
     text: Backend.glassPaused
           ? qsTr("The preview changes as you move things. Glass is paused, so your desktop shows what you apply once you resume it.")
           : qsTr("The preview changes as you move things. Your desktop changes when you press Apply.")

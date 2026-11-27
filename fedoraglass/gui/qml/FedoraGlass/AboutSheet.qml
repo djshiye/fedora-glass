@@ -101,6 +101,7 @@ Sheet {
                                     Text {
                                         id: cap
                                         anchors.centerIn: parent
+                                        textFormat: Text.PlainText
                                         text: parent.modelData
                                         color: Theme.text
                                         font.pixelSize: 12
@@ -114,6 +115,7 @@ Sheet {
                             anchors.leftMargin: 12
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
+                            textFormat: Text.PlainText
                             text: line.modelData.what
                             color: Theme.textDim
                             font.pixelSize: Theme.fsBody
