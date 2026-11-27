@@ -274,7 +274,9 @@ export class LockWidgets {
             return;
         // The lock screen asks for fresh numbers as it comes up: what the chip shows stays
         // until they are in (hiding it made it blink and the battery chip jump sideways).
-        if (client.loading && chip.visible && chip.label.text)
+        // Not when the place or GNOME Weather itself went meanwhile: GNOME then never ends
+        // that load, and the old numbers would stay until unlock.
+        if (client.loading && client.available && client.hasLocation && chip.visible && chip.label.text)
             return;
         const info = client.info;
         const ok = client.available && client.hasLocation && !client.loading && info?.is_valid();

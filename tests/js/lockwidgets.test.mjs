@@ -142,3 +142,15 @@ test('a weather chip with nothing to show yet stays hidden while it loads', () =
     assert.equal(chip.visible, true);
     assert.equal(chip.label.text, '3°  ·  Clear sky');
 });
+
+test('the weather chip goes at once when the place or GNOME Weather is gone, even mid-refresh', () => {
+    for (const gone of ['hasLocation', 'available']) {
+        const {client, chip, sync} = weatherChip(-4);
+        sync();
+        assert.equal(chip.visible, true);
+        client.loading = true;   // GNOME drops a place without ever ending the load
+        client[gone] = false;
+        sync();
+        assert.equal(chip.visible, false, gone);
+    }
+});
