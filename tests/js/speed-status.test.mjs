@@ -242,3 +242,57 @@ test('the frame the glass wakes up in is timed from its first glass, and one wit
     assert.equal(s._views.get(v).last, usNow - 5e6, 'an end without a start, long after: left out');
     s.destroy();
 });
+
+const REQ = '/home/u/.config/liquid-glass/speed-check.json';
+const ask = id => {
+    globalThis.fake.fs.set(REQ, {text: JSON.stringify({id})});
+    for (const [path, m] of globalThis.fake.monitors)
+        if (path === '/home/u/.config/liquid-glass')
+            m.handlers.forEach(fn => fn(m, {get_basename: () => 'speed-check.json'}, null));
+};
+function runChecks(rounds = 2) {
+    for (let r = 0; r < rounds; r++) {
+        for (let i = 0; i < 2000; i++) { frame(2); clock.advance(16); }
+        clock.advance(40000);
+    }
+}
+
+test('a check asked for while another runs (the app closed and opened again) runs when the first ends', () => {
+    globalThis.fake.shown = 3;
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    ask('00000000000000a1');
+    assert.ok(s._check, 'the first check runs');
+    for (let i = 0; i < 50; i++) { frame(2); clock.advance(16); }
+    ask('00000000000000b2');            // the reopened app asks again
+    assert.equal(s._check.id, '00000000000000a1', 'the running one is not cut short');
+    runChecks(3);
+    assert.equal(status().check.id, '00000000000000b2', 'the app gets the answer to its own check');
+    assert.equal(status().check.state, 'done');
+    s.destroy();
+});
+
+test('of several asked for during a check only the newest runs, and an answered one is not run again', () => {
+    globalThis.fake.shown = 3;
+    const ran = [];
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    const start = s._startCheck.bind(s);
+    s._startCheck = id => { ran.push(id); start(id); };
+    ask('00000000000000a1');
+    ask('00000000000000b2');
+    ask('00000000000000c3');
+    runChecks(4);
+    assert.deepEqual(ran, ['00000000000000a1', '00000000000000c3']);
+    assert.equal(status().check.id, '00000000000000c3');
+    s.destroy();
+});
+
+test('a check waiting for the first one to end does not start after the glass is let go', () => {
+    globalThis.fake.shown = 3;
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    ask('00000000000000a1');
+    ask('00000000000000b2');
+    s._endCheck('failed', 'busy');      // the first ends; the second is about to start
+    s.destroy();                        // the screen locks
+    clock.advance(0);
+    assert.equal(s._check, null, 'nothing started after destroy');
+});
