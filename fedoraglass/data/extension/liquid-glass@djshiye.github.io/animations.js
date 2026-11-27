@@ -28,7 +28,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
-import {Signals, dtpPanels} from './common.js';
+import {Signals, disposed, dtpPanels} from './common.js';
 import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
@@ -44,7 +44,7 @@ const WM_SETS = ['_mapping', '_minimizing', '_unminimizing', '_destroying', '_sk
 const COMPLETED = {open: 'completed_map', minimize: 'completed_minimize', unminimize: 'completed_unminimize',
     close: 'completed_destroy'};
 const WATCHDOG_MIN_MS = 1500;
-const RETARGET_MS = 120;     // a restore this soon after a minimize was cut short starts where it was
+const RETARGET_MS = 120;     // a minimize or restore this soon after the other was cut short starts where it was
 const FIELD = {'scale-x': 'scale_x', 'scale-y': 'scale_y', 'translation-x': 'translation_x',
     'translation-y': 'translation_y', 'opacity': 'opacity'};
 
@@ -550,7 +550,7 @@ class WindowAnimations {
         this._owner = owner;
         this._blocked = [];     // GNOME's own handlers, blocked while ours run
         this._ids = [];
-        this._cut = new WeakMap();   // actor -> where its minimize was cut short, and when
+        this._cut = new WeakMap();   // actor -> where its minimize or restore was cut short, and when
         this._stocked = new WeakSet();   // actors whose current event GNOME's own code took
     }
 
@@ -1096,6 +1096,7 @@ class PanelAnimations {
             this._watched.set(item, w);
         }
         this._grabHover.start();
+        this._followTaskbars();
         // New taskbar icons come and go with apps: look again when they do.
         if (!this._taskbarIds) {
             this._taskbarIds = new Signals();
@@ -1103,6 +1104,31 @@ class PanelAnimations {
             this._taskbarIds.on(Shell.WindowTracker.get_default(), 'tracked-windows-changed', () => this._queueRefresh());
             // Dash to Panel restarted, or Spawn/ArcMenu turned on: new buttons to lift.
             this._taskbarIds.on(Main.extensionManager, 'extension-state-changed', () => this._queueRefresh());
+        }
+    }
+
+    // Dash to Panel fills a taskbar after we first look at it (its icons come as deferred
+    // work): look again whenever it adds one. Only the panels that exist now are followed.
+    _followTaskbars() {
+        const boxes = new Set();
+        for (const p of panels()) {
+            const box = p.taskbar?._box;
+            if (box && typeof box.connect === 'function' && !disposed(box))
+                boxes.add(box);
+        }
+        this._taskbarBoxes ??= new Map();
+        for (const [box, signals] of [...this._taskbarBoxes]) {
+            if (boxes.has(box))
+                continue;
+            this._taskbarBoxes.delete(box);
+            signals.clear();
+        }
+        for (const box of boxes) {
+            if (this._taskbarBoxes.has(box))
+                continue;
+            const signals = new Signals();
+            signals.on(box, 'child-added', () => this._queueRefresh());
+            this._taskbarBoxes.set(box, signals);
         }
     }
 
@@ -1124,6 +1150,9 @@ class PanelAnimations {
             this._unwatch(item);
         this._taskbarIds?.clear();
         this._taskbarIds = null;
+        for (const signals of this._taskbarBoxes?.values() ?? [])
+            signals.clear();
+        this._taskbarBoxes = null;
     }
 
     // Dash to Panel has its own hover animation; when it is on, its icons are left to it.
