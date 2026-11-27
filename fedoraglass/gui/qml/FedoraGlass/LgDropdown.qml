@@ -151,13 +151,13 @@ FocusScope {
             implicitWidth: list.implicitWidth
             implicitHeight: list.implicitHeight
             Keys.onPressed: (e) => {
-                kbd = true
-                if (e.key === Qt.Key_Down) { cur = Math.min(root.model.length - 1, cur + 1); e.accepted = true }
-                else if (e.key === Qt.Key_Up) { cur = Math.max(0, cur - 1); e.accepted = true }
-                else if (e.key === Qt.Key_Home) { cur = 0; e.accepted = true }
-                else if (e.key === Qt.Key_End) { cur = root.model.length - 1; e.accepted = true }
+                popup.kbd = true
+                if (e.key === Qt.Key_Down) { popup.cur = Math.min(root.model.length - 1, popup.cur + 1); e.accepted = true }
+                else if (e.key === Qt.Key_Up) { popup.cur = Math.max(0, popup.cur - 1); e.accepted = true }
+                else if (e.key === Qt.Key_Home) { popup.cur = 0; e.accepted = true }
+                else if (e.key === Qt.Key_End) { popup.cur = root.model.length - 1; e.accepted = true }
                 else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    root.activated(root.model[cur].value)
+                    root.activated(root.model[popup.cur].value)
                     popup.close()
                     e.accepted = true
                 }
