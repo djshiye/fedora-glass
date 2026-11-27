@@ -39,6 +39,7 @@ const STUBS = {
         BindConstraint: class { constructor(p = {}) { Object.assign(this, {offset: 0}, p); } }};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},
+        AppState: {STOPPED: 0, STARTING: 1, RUNNING: 2},
         WindowTracker: {get_default: () => globalThis.fake.windowTracker},
     };`,
     'gi/GObject': `export default {

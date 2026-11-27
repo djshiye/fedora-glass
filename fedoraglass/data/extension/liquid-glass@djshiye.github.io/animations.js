@@ -944,6 +944,35 @@ function inner(item) {
     return item._iconContainer ?? item.get_first_child?.() ?? null;
 }
 
+// Which way is away from the screen edge the item's Dash to Panel panel sits on, as a step
+// {dx, dy}: up for a bottom panel, down for a top one, right or left for a side one. Up
+// whenever it cannot be told (no such panel, no monitor): the way it always went.
+function awayFromEdge(item) {
+    const up = {dx: 0, dy: -1};
+    try {
+        for (const p of panels()) {
+            const box = p.panelBox;
+            if (!box)
+                continue;
+            let a = item;
+            for (let i = 0; a && a !== box && i < 40; i++)
+                a = a.get_parent?.();
+            if (a !== box)
+                continue;
+            const mon = p.monitor ?? Main.layoutManager.findMonitorForActor?.(box);
+            const [x, y] = box.get_transformed_position();
+            const {width: w, height: h} = box;
+            if (!mon || ![x, y, w, h].every(Number.isFinite))
+                return up;
+            // A panel is a strip: its long side runs along the edge it sits on.
+            if (w >= h)
+                return y + h / 2 < mon.y + mon.height / 2 ? {dx: 0, dy: 1} : up;
+            return x + w / 2 < mon.x + mon.width / 2 ? {dx: 1, dy: 0} : {dx: -1, dy: 0};
+        }
+    } catch {}
+    return up;
+}
+
 function statusButtons() {
     const out = new Set();
     const areas = [Main.panel?.statusArea, ...panels().map(p => p.statusArea)];
@@ -1122,7 +1151,9 @@ class PanelAnimations {
         const curve = on ? C.curve(m.preset, m.intensity) : C.spring(m.preset === 'scalefade' ? 0 : m.intensity * 0.5);
         const jelly = C.wobble(m.preset, m.intensity);
         const wob = on ? u => C.HOVER_SQUASH * jelly(u) : () => 0;
-        const to = {sx: goal.scale, sy: goal.scale, tx: tw * (1 - goal.scale) / 2, ty: th * (1 - goal.scale) / 2 - goal.lift};
+        const {dx, dy} = awayFromEdge(t);
+        const to = {sx: goal.scale, sy: goal.scale, tx: tw * (1 - goal.scale) / 2 + dx * goal.lift,
+            ty: th * (1 - goal.scale) / 2 + dy * goal.lift};
         const ms = on ? C.duration('hover', m.preset, m.speed) : C.hoverOutDuration(m.speed);
         const fns = moveFns(t, from, to, curve, wob, null);
         delete fns.opacity;
@@ -1172,11 +1203,12 @@ class PanelAnimations {
         const height = C.launchHeight(m.intensity);
         const {width: w, height: h} = target;
         const sq = u => 0.08 * hop.squash(u);
+        const {dx, dy} = awayFromEdge(target);
         const fns = {
             'scale-x': u => 1 + sq(u),
             'scale-y': u => 1 - sq(u),
-            'translation-x': u => -w * sq(u) / 2,
-            'translation-y': u => h * sq(u) - height * hop.lift(u),
+            'translation-x': u => -w * sq(u) / 2 + dx * height * hop.lift(u),
+            'translation-y': u => h * sq(u) + dy * height * hop.lift(u),
         };
         animate(target, C.duration('launch', m.preset, m.speed), fns, finished => {
             if (finished && this._launching.get(app) === l)
@@ -1222,6 +1254,7 @@ class PanelAnimations {
             // Around where it is: an icon still lifted under the pointer (its click minimized
             // the window) gives from its lift and keeps it.
             const at = visual(t);
+            const {dx, dy} = awayFromEdge(t);
             const amp = 0.1 * m.intensity;
             const wob = C.wobble('jelly', 1);
             const sq = m.preset === 'jelly' ? u => 0.6 * m.intensity * wob(u) : u => -amp * Math.sin(Math.PI * u) * (1 - u);
@@ -1229,8 +1262,8 @@ class PanelAnimations {
             animate(t, 320 / m.speed, {
                 'scale-x': u => at.sx * (1 + sq(u)),
                 'scale-y': u => at.sy * (1 - sq(u)),
-                'translation-x': u => at.tx - w * at.sx * sq(u) / 2,
-                'translation-y': u => at.ty + h * at.sy * sq(u) - dip(u),
+                'translation-x': u => at.tx - w * at.sx * sq(u) / 2 + dx * dip(u),
+                'translation-y': u => at.ty + h * at.sy * sq(u) + dy * dip(u),
             }, () => (this._watched.has(icon) ? this._hover(icon) : reset(t)));
         }
     }

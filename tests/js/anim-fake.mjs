@@ -89,6 +89,7 @@ export class Actor extends Emitter {
     show() { this.visible = true; }
     hide() { this.visible = false; }
     get_stage() { return {}; }
+    get_transformed_position() { return [this.x, this.y]; }
     get_texture() { return {}; }
     add_transition(name, t) {
         if (this._tr.has(name))
