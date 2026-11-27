@@ -59,8 +59,10 @@ export default class FedoraGlassExtension extends Extension {
         this._locked = null;
         const back = left && GLib.get_monotonic_time() - left.at < BACK_SOON_US ? left : null;
         left = null;
-        if (!back)
+        if (!back) {
             Speed.forget?.();       // switched off and on by hand: the speed watch begins afresh
+            WeatherFrost.forget?.();    // and the weather is read afresh
+        }
         // Paused from Quick Settings: held here, so it lasts through locking the screen and
         // is gone at the next login. Only said for the app (pausestate.js), never read back.
         this._paused = back?.paused === true;
@@ -516,8 +518,8 @@ export default class FedoraGlassExtension extends Extension {
         }
         this._leavingWidgets = null;
         this._stopSession();
-        // (The speed watch is forgotten at the next start that is no quick return: see enable.)
-        WeatherFrost.forget?.();
+        // (The speed watch and the weather frost's last reading are forgotten at the next
+        // start that is no quick return: see enable.)
         this._dropLeavingPopups();
         try {
             this._config?.destroy();
