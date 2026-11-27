@@ -50,6 +50,9 @@ const LIST_GAP = 8;          // px kept free between the user list's card and GN
 const LIST_TRIES = 8;        // times the user list is given a new place before a new row comes or goes
 const PLACE_SLACK = 2;       // px GNOME's prompt may stand off where it should before its margin is set from what is seen
 const PLACE_TRIES = 4;       // times the prompt's margin is set from what is seen, for each build
+// GNOME's own clocks follow GnomeDesktop's wall clock, which also speaks up as soon as the
+// PC wakes from sleep (GLib's timers stand still meanwhile). Without it, the minute timer alone.
+const WallClock = import('gi://GnomeDesktop').then(m => m.default?.WallClock ?? null).catch(() => null);
 const UPOWER = 'org.freedesktop.UPower';
 const DISPLAY_DEVICE = '/org/freedesktop/UPower/devices/DisplayDevice';
 
@@ -148,6 +151,7 @@ export class LoginGlass {
         this._waitLater = 0;
         this._waitId = 0;
         this._tickId = 0;
+        this._wallClock = null;
         this._theme = null;
         this._loading = false;
         this._group = Main.screenShield?._lockDialogGroup;
@@ -679,13 +683,34 @@ export class LoginGlass {
         }
         layer.add_child(box);
         this._drawn.on(box, 'notify::allocation', () => this._queue());
-        if (this._time)
+        if (this._time) {
             this._tick();
+            this._followWallClock();
+        }
+    }
+
+    // The time again whenever GNOME's wall clock says it changed, besides the minute timer.
+    _followWallClock() {
+        const time = this._time;
+        WallClock.then(Type => this._safe(() => {
+            if (!Type || this._time !== time || this._wallClock)
+                return;   // none, or built again meanwhile
+            try {
+                this._wallClock = new Type({time_only: true});
+            } catch {
+                return;   // the minute timer alone
+            }
+            this._drawn.on(this._wallClock, 'notify::clock', () => this._tick());
+        }));
     }
 
     _tick() {
         if (!this._time)
             return;
+        // Called by the wall clock too: one timer to the next minute, never two.
+        if (this._tickId)
+            GLib.source_remove(this._tickId);
+        this._tickId = 0;
         const now = new Date();
         this._time.text = formatTime(now, {timeOnly: true});
         // The lock screen's date format, in GNOME's own words for this language.
@@ -1315,6 +1340,10 @@ export class LoginGlass {
         this._batterySignals = null;
         this._battery = null;
         this._drawn.clear();
+        try {
+            this._wallClock?.run_dispose();
+        } catch {}
+        this._wallClock = null;
         this._smallClockWatched = false;
         this._showSmallClock();
         this._unloadStyle();

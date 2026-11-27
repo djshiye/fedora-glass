@@ -87,7 +87,21 @@ const STUBS = {
         disconnect(id) { if (!this._h.delete(id)) throw new Error('no handler ' + id); }
         emit(s) { for (const [k, fn] of [...this._h.values()]) if (k === s) fn(this); }
         destroy() { this.actor.destroy(); globalThis.fake.bgManagers.delete(this); } }`,
-    'resource/dateUtils.js': `export const formatTime = () => '09:41';
+    // GNOME's wall clock (GnomeDesktop): says notify::clock when the time shown changes, also
+    // right after a wake from sleep. With fakeNoGnomeDesktop set, it cannot be imported.
+    'gi/GnomeDesktop': `if (globalThis.fakeNoGnomeDesktop)
+            throw new Error('Typelib file for namespace GnomeDesktop not found');
+        class WallClock {
+            constructor(p = {}) { this.props = p; this._h = new Map(); this._n = 1; this.disposed = false;
+                (globalThis.fake.wallClocks ??= []).push(this); }
+            connect(s, fn) { this._h.set(this._n, [s, fn]); return this._n++; }
+            disconnect(id) { if (!this._h.delete(id)) throw new Error('no handler ' + id); }
+            emit(s) { for (const [k, fn] of [...this._h.values()]) if (k === s) fn(this); }
+            run_dispose() { this.disposed = true; }
+            get listeners() { return this._h.size; }
+        }
+        export default {WallClock};`,
+    'resource/dateUtils.js': `export const formatTime = d => [d.getHours(), d.getMinutes()].map(n => String(n).padStart(2, '0')).join(':');
         export const formatDateWithCFormatString = (_d, f) => 'Friday ' + f;`,
     'gettext': 'export const dgettext = (_d, s) => s;',
 };
