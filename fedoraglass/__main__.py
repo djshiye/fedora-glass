@@ -562,6 +562,10 @@ class Watcher:
             _guarded("Apply", self.eng.apply, s, only=None if contrast or accent or looked is not None else self.only,
                      if_applied=True, applied_only=True)
         if scheme:
+            if not runs_installed_version():
+                # The update landed while this switch was handled, so its Apply was refused:
+                # not noted, the new watcher's catch-up puts this style's look on.
+                return
             # The look now on is this style's: the next login has nothing to catch up on.
             from .engine import note_applied_style
             note_applied_style(self._env())

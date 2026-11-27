@@ -90,6 +90,28 @@ def test_a_switch_without_day_and_night_looks_is_caught_up_too(fake_env, monkeyp
     assert new.applied == [{"frost": 0.3, "tint": Settings().tint, "only": {"shell"}}]
 
 
+def test_an_update_landing_while_a_switch_is_handled_is_still_caught_up(fake_env, monkeypatch):
+    """dnf writes the new version after the older watcher's first look at the disk: its Apply
+    is refused, so the switch must not be noted, or the new watcher finds nothing to catch up."""
+    settings_mod.save(Settings(frost=0.4))
+    _style(fake_env, False)
+    engine.note_applied_style(fake_env)
+    monkeypatch.setattr(cli, "finish_pending", lambda *a, **k: True)
+    checks = []
+
+    def installed():
+        checks.append(1)
+        return len(checks) == 1
+    monkeypatch.setattr(engine, "runs_installed_version", installed)
+    old = RefusingEng(fake_env)
+    w = cli.Watcher(old)
+    w.only = {"shell"}
+    _style(fake_env, True)
+    w.changed({cli.SCHEME})
+    assert old.applied == []
+    assert engine.read_applied_style(fake_env) is False, "noted dark, though the desktop still shows light"
+
+
 # ---- a wallpaper with a ' in its name ------------------------------------------------------
 def test_a_picture_with_an_apostrophe_is_read_as_gsettings_prints_it(fake_env):
     pic = _pic(fake_env.home, "Dino's beach.png")
