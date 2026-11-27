@@ -171,3 +171,46 @@ def _texts(item):
             out.append(it)
         todo.extend(it.childItems())
     return out
+
+
+def _small_window(win, w=1000, h=600):
+    m = win.property("margin")
+    win.setWidth(w + 2 * m)
+    win.setHeight(h + 2 * m)
+    win.show()
+    _spin(300)
+
+
+def _open(win, name):
+    from PySide6.QtCore import QMetaObject
+    sheet = _find(win, name)
+    QMetaObject.invokeMethod(sheet, "open")
+    _spin(500)
+    return sheet
+
+
+def _button_row(sheet):
+    """The row of buttons at the foot of a sheet."""
+    return sheet.property("contentItem").childItems()[-1].childItems()[0]
+
+
+def _flickable(item):
+    todo = [item]
+    while todo:
+        it = todo.pop()
+        if it.metaObject().className().startswith("QQuickFlickable"):
+            return it
+        todo.extend(it.childItems())
+
+
+def test_a_long_list_of_things_not_restored_scrolls_and_close_stays_in_the_window(qml, win):
+    _small_window(win)
+    sheet = _find(win, "problemsSheet")
+    sheet.setProperty("problems", [f"~/.local/share/some-app/config/file-{i}.css: could not be put back (Permission denied)"
+                                   for i in range(25)])
+    sheet = _open(win, "problemsSheet")
+    row = _button_row(sheet)
+    bottom = row.mapToScene(row.boundingRect().bottomLeft()).y()
+    assert bottom <= win.height(), "the Close button is below the window"
+    fl = _flickable(sheet.property("contentItem"))
+    assert fl is not None and fl.property("contentHeight") > fl.height(), "the list cannot be scrolled"

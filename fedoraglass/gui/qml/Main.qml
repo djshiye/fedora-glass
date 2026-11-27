@@ -1119,19 +1119,29 @@ Window {
         iconName: "alert"
         iconColor: Theme.warn
         buttons: [ LgButton { text: qsTr("Close"); kind: "primary"; onClicked: problemsSheet.close() } ]
-        Column {
+        // Many lines scroll inside the sheet, so Close stays in view.
+        Flickable {
             width: parent.width
-            spacing: 6
-            Repeater {
-                model: problemsSheet.problems
-                delegate: Text {
-                    required property string modelData
-                    width: parent.width
-                    text: modelData
-                    color: Theme.textDim
-                    font.family: Theme.mono
-                    font.pixelSize: 12
-                    wrapMode: Text.WrapAnywhere
+            height: Math.min(contentHeight, problemsSheet.maxBodyHeight)
+            contentHeight: problemsList.height
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            C.ScrollBar.vertical: LgScrollBar {}
+            Column {
+                id: problemsList
+                width: parent.width - 8
+                spacing: 6
+                Repeater {
+                    model: problemsSheet.problems
+                    delegate: Text {
+                        required property string modelData
+                        width: parent.width
+                        text: modelData
+                        color: Theme.textDim
+                        font.family: Theme.mono
+                        font.pixelSize: 12
+                        wrapMode: Text.WrapAnywhere
+                    }
                 }
             }
         }
