@@ -149,8 +149,7 @@ FIELDS: dict[str, tuple[str, str, str, Callable[[Any], str]]] = {
     # Shell features
     "lighter_on_battery": (N_("Lighter glass on battery"), "glass", "lighterOnBattery", onoff),
     "quick_toggle": (N_("Glass switch in Quick Settings"), "glass", "quickToggle", onoff),
-    "no_glass_apps": (N_("Apps without glass"), "windows", "noGlassCard",
-                      lambda v: _("None") if not v else (_("1 app") if len(v) == 1 else _("{n} apps").format(n=len(v)))),
+    "no_glass_apps": (N_("Apps without glass"), "windows", "noGlassCard", lambda v: _no_glass_apps(v)),
     "app_glass": (N_("Glass strength for apps"), "windows", "noGlassCard", lambda v: _app_glass(v)),
     # Weather frost
     "weather_frost": (N_("Weather frost"), "glass", "weatherFrostSwitch", onoff),
@@ -178,19 +177,49 @@ STYLE_LABELS = {"off": N_("Off"), "calm": N_("Calm"), "gnome": N_("GNOME"), "liv
                 "custom": N_("Your own mix")}
 
 
+# An id a window carries -> (its app's key, its name): the app picker's list knows them.
+AppOf = Callable[[str], tuple[str, str]]
 APP_GLASS_LABELS = {"solid": N_("More solid"), "clearer": N_("Clearer")}
 
 
-def _app_glass(v: Any) -> str:
+def _apps_of(ids: Any, app_of: AppOf | None) -> list[str]:
+    """The apps behind some window ids, by name, in order: one app has several ids (its
+    desktop id and its window class), and ids that differ only in case are one."""
+    seen: dict[str, str] = {}
+    for i in ids:
+        key, name = app_of(i) if app_of else (i.casefold(), i)
+        seen.setdefault(key, name)
+    return list(seen.values())
+
+
+def _no_glass_apps(v: Any, app_of: AppOf | None = None, names: bool = False) -> str:
+    """The apps without glass: how many, or (when a count would read the same) which."""
+    apps = _apps_of(v, app_of)
+    if names:
+        return ", ".join(apps)
+    return _("None") if not apps else (_("1 app") if len(apps) == 1 else _("{n} apps").format(n=len(apps)))
+
+
+def _app_glass(v: Any, app_of: AppOf | None = None, names: bool = False) -> str:
     """Per-app glass strength in words: "More solid: gimp, Code; Clearer: kitty"."""
     if not v:
         return _("None")
     out = []
     for look, word in APP_GLASS_LABELS.items():
-        ids = [i for i, x in v.items() if x == look]
-        if ids:
-            out.append(_("{look}: {apps}").format(look=tr(word), apps=", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")))
+        apps = _apps_of([i for i, x in v.items() if x == look], app_of)
+        if apps:
+            shown = ", ".join(apps) if names else ", ".join(apps[:3]) + (" …" if len(apps) > 3 else "")
+            out.append(_("{look}: {apps}").format(look=tr(word), apps=shown))
     return "; ".join(out)
+
+
+def _plain(v: Any) -> str:
+    """A value in words when its usual text reads the same: never Python's list or dict."""
+    if isinstance(v, dict):
+        return ", ".join(f"{i}: {x}" for i, x in v.items())
+    if isinstance(v, (list, tuple)):
+        return ", ".join(map(str, v))
+    return str(v)
 
 
 def _row(page: str, name: str, label: str, before: str, after: str, key: str) -> dict:
@@ -269,7 +298,8 @@ LOGIN_OWN = ("login_blur", "login_dim", "login_tint", "login_card", "login_clock
 
 
 def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
-                target_names: dict[str, str] | None = None, system_accent: str = "") -> list[dict]:
+                target_names: dict[str, str] | None = None, system_accent: str = "",
+                app_of: AppOf | None = None) -> list[dict]:
     """Every difference between the editor (`now`) and the look applied last (`was`), as
     rows {"page", "name", "label", "before", "after", "key"}, in page order."""
     now, was = now.normalized(), was.normalized()
@@ -288,6 +318,8 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
         label, page, name, fmt = FIELDS.get(k, (_human(k), "advanced", "", str))
         if k in ("accent", "accent_own"):
             fmt = lambda v: accent(v, system_accent)    # noqa: E731
+        if k in ("no_glass_apps", "app_glass"):
+            fmt = lambda v, names=False: (_no_glass_apps if k == "no_glass_apps" else _app_glass)(v, app_of, names)    # noqa: E731
         try:
             before, after = fmt(b), fmt(a)
         except (TypeError, ValueError):
@@ -296,8 +328,10 @@ def change_rows(now: Settings, was: Settings, *, has_dash_to_panel: bool = True,
             # 45.2% and 45.4% both read 45%: still say it moved.
             digits = next((n for n in (1, 2, 3) if round(a * 100, n) != round(b * 100, n)), 4)
             before, after = f"{b * 100:.{digits}f}%", f"{a * 100:.{digits}f}%"
+        elif before == after and k in ("no_glass_apps", "app_glass"):
+            before, after = fmt(b, names=True), fmt(a, names=True)      # the same count: say which
         elif before == after:
-            before, after = str(b), str(a)
+            before, after = _plain(b), _plain(a)
         rows.append(_row(page, name, tr(label), before, after, k))
     rows += _motion_rows(now, was)
     rows += _part_rows(now, was)

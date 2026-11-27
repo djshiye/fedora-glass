@@ -361,7 +361,7 @@ class Backend(QObject):
         self._memo_inputs: tuple = ()
         for sig in (self.settingsChanged, self.savedChanged, self.targetsChanged, self.targetStatesChanged,
                     self.looksChanged, self.partialChanged, self.tokensChanged, self.previewChanged,
-                    self.uiChanged, self.systemAccentChanged):
+                    self.uiChanged, self.systemAccentChanged, self.installedAppsChanged):
             sig.connect(self._forget)
         self._env = env or Env()
         self._engine_factory = engine_factory or self._default_engine
@@ -3936,8 +3936,14 @@ class Backend(QObject):
     # ---- unapplied changes in plain words -------------------------------------------------
     def _change_rows(self) -> list[dict]:
         names = {t["id"]: t["name"] for t in self._targets}
+        index = self._app_of()
+
+        def app_of(i: str) -> tuple[str, str]:
+            a = index.get(i.casefold())     # an id no installed app has stands as itself
+            return (a["id"], a["name"]) if a else (i.casefold(), i)
         return changes_mod.change_rows(self._s, self._saved, has_dash_to_panel=self.hasDashToPanel,
-                                       target_names=names, system_accent=self._system_accent or "blue")
+                                       target_names=names, system_accent=self._system_accent or "blue",
+                                       app_of=app_of)
 
     @Property("QVariantList", notify=settingsChanged)
     def changeList(self) -> list[dict]:
