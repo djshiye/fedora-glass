@@ -665,7 +665,7 @@ class WindowAnimations {
     // path, so Mutter hears it finished before the next one starts.
     _finishEarlier(shellwm, actor) {
         const wm = Main.wm;
-        stop(actor, false);
+        stop(actor, true);   // it lands and reports, so a cut-short restore is noted
         if (wm._mapping.has(actor))
             wm._mapWindowDone(shellwm, actor);
         if (wm._minimizing.has(actor))
@@ -785,9 +785,12 @@ class WindowAnimations {
         const wm = Main.wm;
         const win = actor.meta_window;
         wm._minimizing.add(actor);
+        // Minimized right after a restore was cut short: carry on from where it was.
+        const earlier = this._cut.get(actor);
+        this._cut.delete(actor);
         const done = (finished, anim) => {
             if (!finished && anim?.cut)
-                this._cut.set(actor, {at: GLib.get_monotonic_time(), state: visual(actor), cut: anim.cut});
+                this._cut.set(actor, {at: GLib.get_monotonic_time(), kind: 'minimize', state: visual(actor), cut: anim.cut});
             actor.translation_x = actor.translation_y = 0;
             wm._minimizeWindowDone(shellwm, actor);   // resets the rest and tells the window manager
             if (finished)
@@ -803,7 +806,11 @@ class WindowAnimations {
             genie(actor, icon, 0, 1, ms, m.intensity, done);
             return;
         }
-        const from = visual(actor);
+        const c = earlier?.kind === 'unminimize' && (GLib.get_monotonic_time() - earlier.at) / 1000 < RETARGET_MS &&
+            'scale-x' in earlier.cut ? earlier.cut : null;
+        const from = c
+            ? {sx: c['scale-x'], sy: c['scale-y'], tx: c['translation-x'] ?? 0, ty: c['translation-y'] ?? 0, op: c.opacity ?? 255}
+            : visual(actor);
         // The window travels in without passing the icon; the preset shapes its size,
         // which can dip below the icon's and come back (the bounce lands in the icon).
         const curve = m.preset === 'scalefade' ? C.easeInOut : C.curve(m.preset, m.intensity);
@@ -819,7 +826,12 @@ class WindowAnimations {
         const wm = Main.wm;
         const win = actor.meta_window;
         wm._unminimizing.add(actor);
-        const done = () => {
+        // Restored right after a minimize was cut short: carry on from where it was.
+        const cut = this._cut.get(actor);
+        this._cut.delete(actor);
+        const done = (finished, anim) => {
+            if (!finished && anim?.cut)
+                this._cut.set(actor, {at: GLib.get_monotonic_time(), kind: 'unminimize', cut: anim.cut});
             actor.translation_x = actor.translation_y = 0;
             wm._unminimizeWindowDone(shellwm, actor);
         };
@@ -836,10 +848,7 @@ class WindowAnimations {
             genie(actor, icon, 1, 0, ms, m.intensity, done);
             return;
         }
-        // Restored right after a minimize was cut short: carry on from where it was.
-        const cut = this._cut.get(actor);
-        this._cut.delete(actor);
-        const recent = cut && (GLib.get_monotonic_time() - cut.at) / 1000 < RETARGET_MS;
+        const recent = cut?.kind === 'minimize' && (GLib.get_monotonic_time() - cut.at) / 1000 < RETARGET_MS;
         const from = recent
             ? {sx: cut.cut['scale-x'], sy: cut.cut['scale-y'], tx: cut.cut['translation-x'], ty: cut.cut['translation-y'],
                 op: cut.cut.opacity}
