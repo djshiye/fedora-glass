@@ -52,7 +52,6 @@ def test_apply_only_does_not_save_the_settings(fake_env, monkeypatch):
     assert settings_mod.load().frost == 0.9
 
 
-
 # ---- `fedora-glass plan` ---------------------------------------------------------------------
 def _plan(capsys, home) -> tuple[int, list[str]]:
     code = cli.main(["plan"])

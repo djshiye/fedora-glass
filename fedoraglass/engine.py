@@ -1791,9 +1791,10 @@ class Engine:
                 add, remove = a.add, a.remove
                 if auto:
                     # Applied by itself (the watcher, an update): what the user switched off
-                    # since stays off, in GNOME's Extensions app say. Gone after we added it,
-                    # or on the list of switched-off ones (on before the first Apply, so never
-                    # added by us). Only the user's own Apply switches it on again.
+                    # since stays off, in GNOME's Extensions app say. Switched off is gone
+                    # after we added it, or on the list of switched-off ones. That list counts
+                    # for one that was on before the first Apply, so never added by us. Only
+                    # the user's own Apply switches it on again.
                     off = parse_strv(self.env.gsettings_get(a.schema, a.off_key, a.path)) if a.off_key else []
                     add = tuple(i for i in add if i in items or (i not in rec["added"] and i not in off))
                     remove = ()

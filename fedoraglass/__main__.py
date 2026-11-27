@@ -110,7 +110,8 @@ def _plan_line(env, a, touched: set[tuple]) -> str:
     """One step of `fedora-glass plan`, said as Apply would take it: a file or setting that
     already holds what Apply would put there is left alone (write_if_changed), and a file
     behind a link in an app's own folder is not written at all. Read only, through the
-    same reader as Apply."""
+    same reader as Apply. Each step on its own: when Apply skips a whole part for such a
+    link (or a linked config folder), the part's other files still show here."""
     from .engine import PLAIN
     from .safefs import Box, LinkInside, box_root
     from .targets.base import GReset, GSet, WriteFile
