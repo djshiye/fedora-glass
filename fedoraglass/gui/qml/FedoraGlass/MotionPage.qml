@@ -139,7 +139,8 @@ SettingsPage {
             SwitchRow {
                 objectName: "liquidMotion"
                 label: qsTr("Liquid motion")
-                caption: qsTr("Glass gives a little when pressed and settles as menus open")
+                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on")
+                                                    : qsTr("Glass gives a little when pressed and settles as menus open")
                 tip: qsTr("Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings.")
                 checked: Backend.liquidMotion
                 onToggled: (on) => { Backend.liquidMotion = on; if (Theme.preview) Theme.preview.showPopup() }
@@ -161,7 +162,7 @@ SettingsPage {
             SwitchRow {
                 objectName: "menuGrow"
                 label: qsTr("Menus grow from their button")
-                caption: ""
+                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on") : ""
                 tip: Backend.hasStartMenu ? qsTr("The start menu, quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                                           : qsTr("Quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                 enabled: Backend.liquidMotion

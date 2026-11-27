@@ -73,7 +73,9 @@ SettingsPage {
                             color: Theme.textFaint
                             font.pixelSize: Theme.fsSmall
                             textFormat: Text.PlainText
-                            text: Backend.glassLive && Backend.glassPaused
+                            text: Backend.reduceTransparency
+                                  ? qsTr("Reduce transparency is on, so no glass is drawn. Turn it off under Advanced to see these.")
+                                  : Backend.glassLive && Backend.glassPaused
                                   ? qsTr("The preview shows these as you change them. Your desktop shows them once you resume the glass.")
                                   : Backend.glassLive
                                   ? qsTr("The preview shows these as you change them.")
@@ -162,6 +164,16 @@ SettingsPage {
                 text: qsTr("Where the glass shows")
                 caption: qsTr("Each one costs some graphics power. Turn it off where you don't need it.")
                 resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows", "quick_toggle"]
+            }
+            Text {
+                objectName: "glassReduceNote"
+                visible: Backend.reduceTransparency
+                width: parent.width
+                wrapMode: Text.WordWrap
+                color: Theme.textFaint
+                font.pixelSize: Theme.fsSmall
+                textFormat: Text.PlainText
+                text: qsTr("Reduce transparency is on, so no glass is drawn. Turn it off under Advanced to see these.")
             }
             Flow {
                 width: parent.width

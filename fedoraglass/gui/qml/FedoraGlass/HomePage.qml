@@ -205,6 +205,9 @@ SettingsPage {
                 columns: 2
                 spacing: 10
                 readonly property real tileW: (width - spacing) / 2
+                // Reduce transparency draws no glass at all, so these two tiles lead to its switch.
+                readonly property string reduceTip: qsTr("Reduce transparency is on, so no glass is drawn. Click to go to that switch.")
+                function openReduce() { Window.window.goTo("advanced", "reduceTransparency") }
                 readonly property var pointerName: {
                     if (Backend.cursorTheme === "keep" || Backend.cursorTheme === "")
                         return qsTr("Your own")
@@ -220,10 +223,11 @@ SettingsPage {
                     width: tiles.tileW
                     iconName: "window"
                     title: qsTr("Windows")
-                    state_: Backend.blurAppWindows ? qsTr("On") : qsTr("Off")
-                    on: Backend.blurAppWindows
-                    tip: qsTr("Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass.")
-                    onActivated: Backend.blurAppWindows = !Backend.blurAppWindows
+                    state_: Backend.blurAppWindows && !Backend.reduceTransparency ? qsTr("On") : qsTr("Off")
+                    on: Backend.blurAppWindows && !Backend.reduceTransparency
+                    tip: Backend.reduceTransparency ? tiles.reduceTip
+                         : qsTr("Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass.")
+                    onActivated: Backend.reduceTransparency ? tiles.openReduce() : Backend.blurAppWindows = !Backend.blurAppWindows
                     onMore: Window.window.goTo("glass", "glassAppWindows")
                 }
                 QuickTile {
@@ -242,10 +246,11 @@ SettingsPage {
                     width: tiles.tileW
                     iconName: "lock"
                     title: qsTr("Glass lock")
-                    state_: Backend.lockGlass ? qsTr("On") : qsTr("Off")
-                    on: Backend.lockGlass
-                    tip: qsTr("A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login.")
-                    onActivated: Backend.lockGlass = !Backend.lockGlass
+                    state_: Backend.lockGlass && !Backend.reduceTransparency ? qsTr("On") : qsTr("Off")
+                    on: Backend.lockGlass && !Backend.reduceTransparency
+                    tip: Backend.reduceTransparency ? tiles.reduceTip
+                         : qsTr("A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login.")
+                    onActivated: Backend.reduceTransparency ? tiles.openReduce() : Backend.lockGlass = !Backend.lockGlass
                     onMore: Window.window.goTo("lock", "lockGlass")
                 }
                 QuickTile {
