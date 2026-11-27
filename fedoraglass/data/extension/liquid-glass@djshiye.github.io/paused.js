@@ -15,7 +15,7 @@
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {dtpPanels} from './common.js';
+import {disposed, dtpPanels} from './common.js';
 import {PopupStyle} from './popupstyle.js';
 
 const DASH_TO_PANEL = 'dash-to-panel@jderose9.github.com';
@@ -55,10 +55,15 @@ export function liftPanel(dt, alpha, warn = () => {}) {
     };
 }
 
+// A destroyed panel still answers, and every call on it only fills the log.
+function deadPanel(panel) {
+    return disposed(panel) || disposed(panel.panelBox ?? panel);
+}
+
 export class PausedStyle {
     constructor(cfg) {
         this._alpha = cfg?.pausedAlpha ?? 0.96;
-        this._lifted = new Map();   // DynamicTransparency -> undo
+        this._lifted = new Map();   // DynamicTransparency -> [its panel, undo]
         this._dtp = null;
         this._dtpId = 0;
         // Dash to Panel switched off and on again is a new object with new panels, which
@@ -101,6 +106,11 @@ export class PausedStyle {
                 }
             }
         }
+        // Panels Dash to Panel took down since: nothing to put back, and nothing to keep.
+        for (const [dt, [panel]] of [...this._lifted]) {
+            if (deadPanel(panel))
+                this._lifted.delete(dt);
+        }
         for (const p of dtpPanels()) {   // never the ones Dash to Panel already destroyed
             const dt = p?.dynamicTransparency;
             if (!dt || this._lifted.has(dt))
@@ -108,7 +118,7 @@ export class PausedStyle {
             try {
                 const undo = liftPanel(dt, this._alpha, m => console.warn(`Fedora Glass: ${m}`));
                 if (undo)
-                    this._lifted.set(dt, undo);
+                    this._lifted.set(dt, [p, undo]);
             } catch (e) {
                 console.error(`Fedora Glass: no solid Dash to Panel panel: ${e}`);
             }
@@ -116,7 +126,11 @@ export class PausedStyle {
     }
 
     _dropPanels() {
-        for (const undo of this._lifted.values()) {
+        for (const [panel, undo] of this._lifted.values()) {
+            // A panel Dash to Panel took down meanwhile (a screen re-plugged, its settings
+            // changed): touching it only fills the log.
+            if (deadPanel(panel))
+                continue;
             try {
                 undo();
             } catch {}   // that panel is gone
