@@ -101,7 +101,11 @@ SettingsPage {
                 objectName: "motionSpeed"
                 width: parent.width
                 height: 32
-                enabled: Backend.motionStyle !== "off"
+                // GNOME's own animations keep their own timing, so only a preset we draw takes a speed.
+                enabled: ["open", "minimize", "close", "launch", "hover"].some((ev) => {
+                    const p = (Backend.motion[ev] || {}).preset
+                    return p && p !== "off" && p !== "gnome"
+                })
                 opacity: enabled ? 1 : 0.5
                 Text { id: speedLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Speed"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                 Text { id: slower; x: 90; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Slower"); color: Theme.textFaint; font.pixelSize: Theme.fsSmall }

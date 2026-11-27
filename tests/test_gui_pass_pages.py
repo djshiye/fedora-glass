@@ -105,3 +105,63 @@ def test_motion_page_says_liquid_motion_is_off_while_reduce_transparency_is_on(q
     finally:
         b.discardChanges()
         win.close()
+
+
+# ---------------------------------------------------------------- GNOME motion style and Speed
+
+def _speed_enabled(win):
+    return _find(win, "motionSpeed").property("enabled")
+
+
+def test_speed_slider_is_off_when_gnome_draws_every_animation(qml):
+    b = _probe_backend(qml)
+    win = _window(qml)
+    try:
+        _page(win, "motion")
+        b.setMotionStyle("gnome")
+        _spin(100)
+        assert _speed_enabled(win) is False
+        b.setMotionStyle("lively")
+        _spin(100)
+        assert _speed_enabled(win) is True
+        b.setMotionStyle("off")
+        _spin(100)
+        assert _speed_enabled(win) is False
+    finally:
+        b.discardChanges()
+        win.close()
+
+
+def test_speed_slider_works_for_a_mix_with_one_animation_of_our_own(qml):
+    b = _probe_backend(qml)
+    win = _window(qml)
+    try:
+        _page(win, "motion")
+        b.setMotionStyle("gnome")
+        b.setMotion("minimize", "preset", "genie")      # one of ours among GNOME's own
+        _spin(100)
+        assert _speed_enabled(win) is True
+        b.setMotion("minimize", "preset", "gnome")
+        _spin(100)
+        assert _speed_enabled(win) is False
+    finally:
+        b.discardChanges()
+        win.close()
+
+
+def test_preview_of_a_gnome_animation_ignores_the_speed(qml):
+    """GNOME keeps its own timing on the desktop, so the preview must not play it faster."""
+    win = _window(qml)
+    try:
+        _page(win, "motion")
+        card = _find(win, "motionCard")
+        card.play("open", "gnome", 0.5, 1.0)
+        slow = card.property("pvDur")
+        card.play("open", "gnome", 0.5, 2.0)
+        assert card.property("pvDur") == slow
+        card.play("open", "spring", 0.5, 1.0)
+        one = card.property("pvDur")
+        card.play("open", "spring", 0.5, 2.0)
+        assert card.property("pvDur") == one / 2
+    finally:
+        win.close()

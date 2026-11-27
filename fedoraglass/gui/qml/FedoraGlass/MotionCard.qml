@@ -132,7 +132,7 @@ Card {
         pvEvent = ev
         pvPreset = preset
         pvI = intensity
-        pvSpeed = speed
+        pvSpeed = preset === "gnome" ? 1 : speed      // GNOME keeps its own timing
         anim.stop()
         pvT = 0
         anim.duration = pvTotal
