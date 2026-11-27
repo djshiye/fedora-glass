@@ -1023,6 +1023,10 @@ class Backup:
         except (OSError, UnicodeDecodeError):
             current = before = None
         out = unmerge(current, before, e["edits"]) if current is not None else None
+        if out is not None and out != current:
+            # Written before the record goes: a write that fails (a full disk) keeps the
+            # record and the stored original, so the next Restore can finish the job.
+            atomic_write(p, out.encode("utf-8"), p.stat().st_mode & 0o777)
         if e.get("copy"):
             self._used_copies.append(e["copy"])
         del self.data["files"][key]
@@ -1030,8 +1034,6 @@ class Backup:
             # Can't read it any more (VS Code allows comments): leave the user's file as
             # it is rather than wipe what they changed since.
             return _("{path}: changed since Apply and can't be read, so it was left as it is").format(path=p)
-        if out != current:
-            atomic_write(p, out.encode("utf-8"), p.stat().st_mode & 0o777)
         return None
 
     def _restore_folder(self, key: str, e: dict) -> str | None:
