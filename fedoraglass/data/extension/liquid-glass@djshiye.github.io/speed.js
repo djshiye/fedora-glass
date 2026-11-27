@@ -29,7 +29,7 @@ import {collect} from './gcsweep.js';
 import {setQuality, glassRenders, stirAllPanes, shownPanes, tellOfPaints, holdPaints} from './glass.js';
 import {GrabMove} from './grabmove.js';
 import {PowerWatch} from './power.js';
-import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
+import {CHECK_METHOD, LEVELS, Tuner, checkStands, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
 
 const REQUEST = 'speed-check.json';
 const REQUEST_MAX = 1024;
@@ -498,7 +498,7 @@ export class Speed {
         this._syncHold();
         const phases = c.phases;
         this._result = {id: c.id, state, error, refresh: Math.round((c.refresh ?? 0) * 10) / 10, phases,
-            pick: state === 'done' ? pickLevel(phases) : ''};
+            pick: state === 'done' ? pickLevel(phases) : '', method: CHECK_METHOD};
         // Back to what the setting (or auto) had; auto no deeper than this check allows.
         if (state === 'done') {
             this._done = this._result;
@@ -534,8 +534,12 @@ export class Speed {
             const phases = c.phases.slice(0, LEVELS.length).filter(x => x && LEVELS.includes(x.level)).map(x => ({
                 level: x.level, fps: Number(x.fps) || 0, late: Number(x.late) || 0,
                 verdict: ['smooth', 'ok', 'slow'].includes(x.verdict) ? x.verdict : 'slow'}));
-            return {id: c.id, state: 'done', error: '', refresh: Number(c.refresh) || 0, phases,
+            const result = {id: c.id, state: 'done', error: '', refresh: Number(c.refresh) || 0, phases,
                 pick: LEVELS.includes(c.pick) ? c.pick : ''};
+            if (typeof c.method === 'number')
+                result.method = c.method;
+            // One from the check before 1.7.7 with no smooth level is not carried on.
+            return checkStands(result) ? result : null;
         } catch {
             return null;
         }

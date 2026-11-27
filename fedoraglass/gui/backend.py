@@ -1196,6 +1196,16 @@ class Backend(QObject):
         c = status.get("check")
         return c if isinstance(c, dict) else {}
 
+    @staticmethod
+    def _check_stands(check: dict) -> bool:
+        """Whether a result kept in the status file still tells the truth (tuning.js checkStands).
+        The check before 1.7.7 could only make a level look slower than it is: a smooth level in
+        it stands, but a result with none may be nothing but its doing."""
+        method = check.get("method")
+        if isinstance(method, int) and not isinstance(method, bool) and method >= 2:
+            return True
+        return any(isinstance(p, dict) and p.get("verdict") == "smooth" for p in check["phases"])
+
     def _start_speed_watch(self) -> None:
         self._speed_status = self._read_speed_status()
         # The last finished check shows again when the app opens, also when a later
@@ -1203,7 +1213,8 @@ class Backend(QObject):
         c = self._check_of(self._speed_status)
         if c.get("state") != "done" and isinstance(self._speed_status.get("lastDone"), dict):
             c = self._speed_status["lastDone"]
-        if c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]:
+        if (c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]
+                and self._check_stands(c)):
             self._speed_result = c
             self._speed_state = "done"
         self._rewatch_speed()
