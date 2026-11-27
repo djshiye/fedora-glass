@@ -1217,16 +1217,19 @@ class PanelAnimations {
             if (!t?.get_stage() || running.has(t))
                 continue;
             const {width: w, height: h} = t;
+            // Around where it is: an icon still lifted under the pointer (its click minimized
+            // the window) gives from its lift and keeps it.
+            const at = visual(t);
             const amp = 0.1 * m.intensity;
             const wob = C.wobble('jelly', 1);
             const sq = m.preset === 'jelly' ? u => 0.6 * m.intensity * wob(u) : u => -amp * Math.sin(Math.PI * u) * (1 - u);
             const dip = m.preset === 'bounce' ? u => 3 * m.intensity * Math.abs(Math.sin(2 * Math.PI * u)) * (1 - u) : () => 0;
             animate(t, 320 / m.speed, {
-                'scale-x': u => 1 + sq(u),
-                'scale-y': u => 1 - sq(u),
-                'translation-x': u => -w * sq(u) / 2,
-                'translation-y': u => h * sq(u) - dip(u),
-            }, () => reset(t));
+                'scale-x': u => at.sx * (1 + sq(u)),
+                'scale-y': u => at.sy * (1 - sq(u)),
+                'translation-x': u => at.tx - w * at.sx * sq(u) / 2,
+                'translation-y': u => at.ty + h * at.sy * sq(u) - dip(u),
+            }, () => (this._watched.has(icon) ? this._hover(icon) : reset(t)));
         }
     }
 
