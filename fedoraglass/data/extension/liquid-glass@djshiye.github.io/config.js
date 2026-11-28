@@ -71,8 +71,10 @@ function cleanSurface(raw, def) {
         out.enabled = raw.enabled;
     if ('behind' in def && (raw.behind === 'windows' || raw.behind === 'wallpaper'))
         out.behind = raw.behind;
+    // Up to 48: the roundest corners Python writes are the windows' at the top of the Corner
+    // roundness slider (43 px). A ceiling of 40 left their glass less round than the windows.
     if ('radius' in def)
-        out.radius = num(raw.radius, def.radius, 0, 40);
+        out.radius = num(raw.radius, def.radius, 0, 48);
     if ('blur' in def)
         out.blur = num(raw.blur, def.blur, 0, 100);
     if ('brightness' in def)

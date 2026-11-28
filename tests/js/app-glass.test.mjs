@@ -90,3 +90,12 @@ test('old settings objects without the new keys still pick a look', () => {
     assert.equal(lookFor(['a'], {look, appGlass: new Map([['a', 'solid']])}), look, 'no looks: the windows look');
     assert.equal(lookFor(['a'], {look, appGlass: {a: 'solid'}, appLooks: {solid: {}}}), look, 'not a Map: ignored');
 });
+
+test('the windows keep the corner radius written for them, up to the roundest the slider gives', () => {
+    // 43 px is what Python writes at Corner roundness 32 (tests/test_shell.py ties the two):
+    // a ceiling of 40 here left the glass and the solid backdrop less round than the window.
+    assert.equal(parse(JSON.stringify({windows: {radius: 43}})).windows.radius, 43);
+    assert.equal(parse(JSON.stringify({windows: {radius: 41}})).windows.radius, 41);
+    assert.equal(parse(JSON.stringify({windows: {radius: 500}})).windows.radius, 48);
+    assert.equal(parse(JSON.stringify({windows: {radius: -3}})).windows.radius, 0);
+});

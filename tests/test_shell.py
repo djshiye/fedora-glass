@@ -687,6 +687,19 @@ def test_start_on_desktop_keeps_dash_to_panel_and_just_perfection_in_step(fake_e
     assert fake_env.gs[(dtp, None)]["hide-overview-on-startup"] == "true"
 
 
+def test_the_extension_keeps_the_roundest_window_corners_python_writes(fake_env):
+    """At the top of the Corner roundness slider the windows get 43 px corners. The extension
+    cut the radius it read at 40, so their glass and the solid backdrop were less round."""
+    from fedoraglass.radius import scale
+    cfg = json.loads(rg.render_config(Settings(radius=32), tokens(0.5, True, radius=32)))
+    assert cfg["windows"]["radius"] == scale(32)["l"] == 43
+    own = Settings(parts={"windows": {"radius": 32}}).normalized()     # the windows' own Corners
+    assert json.loads(rg.render_config(own, palette.build(own, dark=True)))["windows"]["radius"] == 43
+    js = (rg.SOURCE / "config.js").read_text()
+    ceiling = int(re.search(r"out\.radius = num\(raw\.radius, def\.radius, 0, (\d+)\)", js).group(1))
+    assert ceiling >= 43
+
+
 def test_desktop_options_are_checked_in_the_extension():
     js = (rg.SOURCE / "config.js").read_text()
     assert "desktop: {startOnDesktop: false, overviewOff: false}" in js
