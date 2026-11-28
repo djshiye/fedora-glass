@@ -330,3 +330,70 @@ def test_user_units_skip_system_users(script, name):
     unit = text.split(f"{name} <<'UNIT'\n", 1)[1].split("\nUNIT\n", 1)[0] if f"{name} <<'UNIT'" in text \
         else text.split(f"/{name}\" <<'UNIT'\n", 1)[1].split("\nUNIT\n", 1)[0]
     assert "\nConditionUser=!@system\n" in unit.split("[Service]")[0]
+
+
+USER_UNITS = ("liquid-glass-watch.service", "fedora-glass-before-login.service")
+UNIT_SCRIPTS = ("packaging/fedora-glass.spec", "packaging/install-tree.sh")
+
+
+def _user_unit(script, name):
+    text = (ROOT / script).read_text()
+    return text.split(f"{name} <<'UNIT'\n", 1)[1].split("\nUNIT\n", 1)[0] if f"{name} <<'UNIT'" in text \
+        else text.split(f"/{name}\" <<'UNIT'\n", 1)[1].split("\nUNIT\n", 1)[0]
+
+
+def _exec_condition(unit):
+    """The unit's ExecCondition= command as systemd runs it: split like a shell word list,
+    $$ is a plain $. The line may use nothing else of systemd's own expansion (no % and no
+    other $), so this is all of it."""
+    import shlex
+    lines = [x for x in unit.splitlines() if x.startswith("ExecCondition=")]
+    assert len(lines) == 1, unit
+    line = lines[0].split("=", 1)[1]
+    assert "%" not in line and "$" not in line.replace("$$", "")
+    return [w.replace("$$", "$") for w in shlex.split(line)]
+
+
+@pytest.mark.parametrize("name", USER_UNITS)
+def test_user_units_skip_the_login_screens_own_users(name):
+    """GDM 49 and later run the login screen as gdm-greeter, gdm-greeter-2, ... (UIDs above
+    60000, so not system users): neither the watcher nor the step before login runs there.
+    systemd gives every user service the user's name in $USER."""
+    import subprocess
+    units = [_user_unit(s, name) for s in UNIT_SCRIPTS]
+    assert units[0] == units[1]
+    unit = units[0]
+    service = unit.split("[Service]", 1)[1].split("\n[", 1)[0]
+    assert any(x.startswith("ExecCondition=") for x in service.splitlines())
+    argv = _exec_condition(unit)
+    for user, code in (("gdm-greeter", 1), ("gdm-greeter-2", 1), ("gdm-greeter-12", 1),
+                       ("dino", 0), ("gdm", 0), ("gdmuser", 0), ("greeter", 0), ("", 0), (None, 0)):
+        env = {"PATH": "/usr/bin:/bin"} | ({} if user is None else {"USER": user})
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=10, env=env)
+        # 1 skips the unit without failing it (no restart, no failed session target).
+        assert (r.returncode, r.stderr) == (code, ""), (user, argv)
+
+
+@pytest.mark.parametrize("name", USER_UNITS)
+def test_systemd_reads_the_user_units_without_a_complaint(tmp_path, name):
+    import subprocess
+    if not shutil.which("systemd-analyze"):
+        pytest.skip("no systemd-analyze here")
+    launcher = tmp_path / "fedora-glass"
+    launcher.write_text("#!/bin/sh\n")
+    launcher.chmod(0o755)
+    units = tmp_path / "user"
+    units.mkdir()
+    for script in UNIT_SCRIPTS:
+        # The launcher of the package is not on this machine: the unit points at a stand-in.
+        f = units / name
+        f.write_text(_user_unit(script, name).replace("=/usr/bin/fedora-glass ", f"={launcher} ") + "\n")
+        runtime = tmp_path / "run"
+        runtime.mkdir(mode=0o700, exist_ok=True)
+        r = subprocess.run(["systemd-analyze", "verify", "--user", "--man=no", str(f)],
+                           capture_output=True, text=True, timeout=60,
+                           env={**os.environ, "XDG_RUNTIME_DIR": str(runtime)})
+        if "Failed to initialize manager" in r.stderr:
+            pytest.skip("systemd-analyze cannot start here: " + r.stderr.strip()[:200])
+        ours = [x for x in (r.stdout + r.stderr).splitlines() if name in x or str(f) in x]
+        assert r.returncode == 0 and ours == [], (script, r.stdout + r.stderr)

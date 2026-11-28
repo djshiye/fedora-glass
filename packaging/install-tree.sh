@@ -103,6 +103,9 @@ PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
+# GDM 49 and later run the login screen as throwaway users (gdm-greeter, gdm-greeter-2, ...)
+# that are not system users: they are skipped by name (exit 1 skips without failing).
+ExecCondition=/bin/sh -c 'case "$$USER" in gdm-greeter*) exit 1 ;; esac'
 ExecStart=/usr/bin/fedora-glass watch
 Restart=on-failure
 RestartSec=5
@@ -126,6 +129,9 @@ Before=gnome-session-pre.target
 
 [Service]
 Type=oneshot
+# GDM 49 and later run the login screen as throwaway users (gdm-greeter, gdm-greeter-2, ...)
+# that are not system users: they are skipped by name (exit 1 skips without failing).
+ExecCondition=/bin/sh -c 'case "$$USER" in gdm-greeter*) exit 1 ;; esac'
 ExecStart=/usr/bin/fedora-glass before-login
 TimeoutStartSec=20
 NoNewPrivileges=true
