@@ -5361,116 +5361,116 @@ msgstr "Tema personalizado de Prism (paleta y hoja de estilo), seleccionado como
 msgid "Close Prism Launcher before applying so it doesn't overwrite its settings."
 msgstr "Cierra Prism Launcher antes de aplicar para que no sobrescriba sus ajustes."
 
-#: fedoraglass/targets/apps.py:427
+#: fedoraglass/targets/apps.py:431
 msgid "Writes a theme in your colours for Brave and Helium. You load it once yourself; the note says how."
 msgstr "Escribe un tema con tus colores para Brave y Helium. Lo cargas tú una vez; la nota explica cómo."
 
-#: fedoraglass/targets/apps.py:429
+#: fedoraglass/targets/apps.py:433
 msgid "Chromium theme extension with the glass colours (loaded once by hand)."
 msgstr "Extensión de tema de Chromium con los colores del cristal (se carga una vez a mano)."
 
-#: fedoraglass/targets/apps.py:436
+#: fedoraglass/targets/apps.py:440
 msgid "Brave and Helium are not installed"
 msgstr "Brave y Helium no están instalados"
 
-#: fedoraglass/targets/apps.py:446
+#: fedoraglass/targets/apps.py:450
 msgid "One-time step per browser: open chrome://extensions, turn on Developer mode, choose Load unpacked and pick {folder}."
 msgstr "Paso único por navegador: abre chrome://extensions, activa el Modo de desarrollador, elige Cargar descomprimida y selecciona {folder}."
 
-#: fedoraglass/targets/apps.py:448
+#: fedoraglass/targets/apps.py:452
 msgid "Later changes need Reload on that extension's card. Chromium themes follow the scheme in use when you apply, and browser windows stay opaque."
 msgstr "Los cambios posteriores necesitan Recargar en la tarjeta de esa extensión. Los temas de Chromium siguen el esquema en uso al aplicar, y las ventanas del navegador siguen opacas."
 
-#: fedoraglass/targets/apps.py:450
+#: fedoraglass/targets/apps.py:454
 msgid "Fedora Glass never edits browser profiles."
 msgstr "Fedora Glass nunca edita los perfiles del navegador."
 
-#: fedoraglass/targets/apps.py:527
+#: fedoraglass/targets/apps.py:531
 msgid "Fedora Glass colours for Firefox's toolbars, tabs and menus."
 msgstr "Colores de Fedora Glass para las barras de herramientas, pestañas y menús de Firefox."
 
-#: fedoraglass/targets/apps.py:528
+#: fedoraglass/targets/apps.py:532
 msgid "Adds a Fedora Glass style sheet to each Firefox profile and one line to its userChrome.css, userContent.css and user.js. Restore original takes them away."
 msgstr "Añade una hoja de estilo de Fedora Glass a cada perfil de Firefox y una línea a su userChrome.css, userContent.css y user.js. Restaurar original las quita."
 
-#: fedoraglass/targets/apps.py:533
+#: fedoraglass/targets/apps.py:537
 msgid "Restart Firefox to see it (Firefox only reads these files when it starts)."
 msgstr "Reinicia Firefox para verlo (Firefox solo lee estos archivos al iniciarse)."
 
-#: fedoraglass/targets/apps.py:534
+#: fedoraglass/targets/apps.py:538
 msgid "Keep Firefox's theme on System theme or Dark/Light (Add-ons > Themes): the colours follow the light or dark style Firefox uses. Windows stay solid."
 msgstr "Mantén el tema de Firefox en Tema del sistema o Oscuro/Claro (Complementos > Temas): los colores siguen el estilo claro u oscuro que usa Firefox. Las ventanas siguen sólidas."
 
-#: fedoraglass/targets/apps.py:536
+#: fedoraglass/targets/apps.py:540
 msgid "Your own userChrome.css and userContent.css are kept; Fedora Glass only adds one import line, and Restore original takes it away again."
 msgstr "Tus propios userChrome.css y userContent.css se conservan; Fedora Glass solo añade una línea de importación, y Restaurar original la quita de nuevo."
 
-#: fedoraglass/targets/apps.py:538
+#: fedoraglass/targets/apps.py:542
 msgid "Firefox keeps the 'allow userChrome.css' switch in its own settings after Restore. Without the Fedora Glass files it changes nothing; reset it in about:config if you like."
 msgstr "Firefox mantiene el interruptor «allow userChrome.css» en sus propios ajustes tras Restaurar. Sin los archivos de Fedora Glass no cambia nada; restablécelo en about:config si quieres."
 
-#: fedoraglass/targets/apps.py:547
+#: fedoraglass/targets/apps.py:551
 msgid "No Firefox profile yet: start Firefox once, then come back"
 msgstr "Aún no hay perfil de Firefox: inicia Firefox una vez y vuelve"
 
-#: fedoraglass/targets/apps.py:591
+#: fedoraglass/targets/apps.py:595
 msgid "Left alone because its chrome folder or user.js is a link: {names}."
 msgstr "Se dejó como está porque su carpeta chrome o user.js es un enlace: {names}."
 
-#: fedoraglass/targets/apps.py:619
+#: fedoraglass/targets/apps.py:623
 msgid "Slack has no theme file. Open Preferences > Themes, scroll to the bottom, choose 'Create a custom theme' and paste this string:"
 msgstr "Slack no tiene archivo de tema. Abre Preferencias > Temas, desplázate al final, elige «Crear un tema personalizado» y pega esta cadena:"
 
-#: fedoraglass/targets/apps.py:628
+#: fedoraglass/targets/apps.py:632
 msgid "No theme file; a ready-made sidebar theme string is shown to paste."
 msgstr "Sin archivo de tema; se muestra una cadena de tema de barra lateral lista para pegar."
 
-#: fedoraglass/targets/apps.py:629
+#: fedoraglass/targets/apps.py:633
 msgid "Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead."
 msgstr "No cambia nada: Slack no tiene archivo de tema. Pega en su lugar la cadena de tema de la página Aplicaciones."
 
-#: fedoraglass/targets/apps.py:633
+#: fedoraglass/targets/apps.py:637
 msgid "Not themed: Steam draws its own UI."
 msgstr "Sin tema: Steam dibuja su propia interfaz."
 
-#: fedoraglass/targets/apps.py:634
+#: fedoraglass/targets/apps.py:638
 msgid "Changes nothing: Steam draws its own look."
 msgstr "No cambia nada: Steam dibuja su propio aspecto."
 
-#: fedoraglass/targets/apps.py:635
+#: fedoraglass/targets/apps.py:639
 msgid "Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone."
 msgstr "Steam no tiene un método de tema compatible; las pieles de terceros se rompen con las actualizaciones, así que Fedora Glass lo deja en paz."
 
-#: fedoraglass/targets/apps.py:637
-#: fedoraglass/targets/apps.py:642
+#: fedoraglass/targets/apps.py:641
+#: fedoraglass/targets/apps.py:646
 msgid "Not themed; follows the system dark mode."
 msgstr "Sin tema; sigue el modo oscuro del sistema."
 
-#: fedoraglass/targets/apps.py:638
+#: fedoraglass/targets/apps.py:642
 msgid "Changes nothing: Zoom follows your light or dark setting by itself."
 msgstr "No cambia nada: Zoom sigue por sí solo tu ajuste claro u oscuro."
 
-#: fedoraglass/targets/apps.py:639
+#: fedoraglass/targets/apps.py:643
 msgid "In Zoom: Settings > General > Theme > Use system setting."
 msgstr "En Zoom: Configuración > General > Tema > Usar el ajuste del sistema."
 
-#: fedoraglass/targets/apps.py:643
+#: fedoraglass/targets/apps.py:647
 msgid "Changes nothing: Claude follows your light or dark setting by itself."
 msgstr "No cambia nada: Claude sigue por sí solo tu ajuste claro u oscuro."
 
-#: fedoraglass/targets/apps.py:644
+#: fedoraglass/targets/apps.py:648
 msgid "In Claude: Settings > Appearance > Match system."
 msgstr "En Claude: Configuración > Apariencia > Igual que el sistema."
 
-#: fedoraglass/targets/apps.py:647
+#: fedoraglass/targets/apps.py:651
 msgid "Follows the GTK 3 theme automatically."
 msgstr "Sigue el tema GTK 3 automáticamente."
 
-#: fedoraglass/targets/apps.py:648
+#: fedoraglass/targets/apps.py:652
 msgid "Changes nothing here: LibreOffice picks up the GTK 3 look by itself."
 msgstr "Aquí no cambia nada: LibreOffice toma por sí solo el aspecto de GTK 3."
 
-#: fedoraglass/targets/apps.py:649
+#: fedoraglass/targets/apps.py:653
 msgid "LibreOffice's GTK 3 backend picks up the adw-gtk3 glass theme. If it looks flat, set Tools > Options > LibreOffice > View > Icon/Application colours to Automatic."
 msgstr "El backend GTK 3 de LibreOffice toma el tema de cristal adw-gtk3. Si se ve plano, establece Herramientas > Opciones > LibreOffice > Ver > Colores de iconos/aplicación en Automático."
 
@@ -5510,19 +5510,19 @@ msgstr "Sobre tu tema GTK 3 actual"
 msgid "adw-gtk3 found in {folder}"
 msgstr "adw-gtk3 encontrado en {folder}"
 
-#: fedoraglass/targets/gtk.py:158
+#: fedoraglass/targets/gtk.py:161
 msgid "Flatpak apps"
 msgstr "Aplicaciones Flatpak"
 
-#: fedoraglass/targets/gtk.py:159
+#: fedoraglass/targets/gtk.py:162
 msgid "Lets sandboxed GTK apps read the Fedora Glass GTK 3 and 4 style files."
 msgstr "Permite que las aplicaciones GTK en sandbox lean los archivos de estilo GTK 3 y 4 de Fedora Glass."
 
-#: fedoraglass/targets/gtk.py:160
+#: fedoraglass/targets/gtk.py:163
 msgid "Lets Flatpak apps read the Fedora Glass style files, so they get the same look. They can read them, not change them."
 msgstr "Permite que las aplicaciones Flatpak lean los archivos de estilo de Fedora Glass, para que tengan el mismo aspecto. Pueden leerlos, no cambiarlos."
 
-#: fedoraglass/targets/gtk.py:163
+#: fedoraglass/targets/gtk.py:166
 msgid "GTK 3 Flatpak apps also need the adw-gtk3 theme runtime from Flathub: flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"
 msgstr "Las aplicaciones Flatpak GTK 3 también necesitan el runtime del tema adw-gtk3 de Flathub: flatpak install flathub org.gtk.Gtk3theme.adw-gtk3 org.gtk.Gtk3theme.adw-gtk3-dark"
 
@@ -5679,16 +5679,16 @@ msgstr "Define los colores, el borde y el efecto al pasar el cursor de Dash to P
 msgid "Turns the panel into glass, floating or docked, with matching hover highlights and running-app dots."
 msgstr "Convierte el panel en cristal, flotante o acoplado, con resaltado al pasar el puntero y puntos de aplicaciones abiertas a juego."
 
-#: fedoraglass/targets/shell.py:450
+#: fedoraglass/targets/shell.py:454
 msgid "Sets ArcMenu's colours and corners so the menu and its button look like glass."
 msgstr "Define los colores y esquinas de ArcMenu para que el menú y su botón parezcan de cristal."
 
-#: fedoraglass/targets/shell.py:453
-#: fedoraglass/targets/shell.py:473
+#: fedoraglass/targets/shell.py:457
+#: fedoraglass/targets/shell.py:477
 msgid "Turns the start menu and its button into glass, with matching colours, corners, search box and hover highlights."
 msgstr "Convierte el menú de inicio y su botón en cristal, con colores, esquinas, cuadro de búsqueda y resaltado a juego."
 
-#: fedoraglass/targets/shell.py:470
+#: fedoraglass/targets/shell.py:474
 msgid "Sets Spawn's colours and corners so the menu and its button look like glass."
 msgstr "Define los colores y esquinas de Spawn para que el menú y su botón parezcan de cristal."
 
