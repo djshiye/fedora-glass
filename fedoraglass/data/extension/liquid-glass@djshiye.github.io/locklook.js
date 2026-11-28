@@ -24,7 +24,10 @@ export const CARD_CEILING = 0.11;
 export function sheetLook(c) {
     return {blur: c.blur, refraction: 34, bend: 40, depth: 0.2, dispersion: 0.25, saturation: 1.35,
         brightness: c.dim, tint: c.tint, highlight: 0.5, bleed: 0, pointerLight: 0, motion: 0,
-        adapt: 0, shadow: 0, ceiling: SHEET_CEILING, solid: 1, rim: 0};
+        adapt: 0, shadow: 0, ceiling: SHEET_CEILING, solid: 1, rim: 0,
+        // The weather frost is for the desktop's glass: it comes back in the same moment as
+        // the unlock, while this glass is still sliding away.
+        frostless: 1};
 }
 
 export function cardLook(c) {

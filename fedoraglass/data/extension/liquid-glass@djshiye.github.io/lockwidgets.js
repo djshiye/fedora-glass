@@ -226,7 +226,10 @@ export class LockWidgets {
         const now = GLib.get_real_time();
         // One time for the whole session, shared with the weather frost: a lock or an
         // unlock by itself never asks the weather service again.
-        if (client?.hasLocation && askWeatherNow(now))
+        // (Without GNOME Weather the chip never shows: nothing to fetch for.) A failed
+        // answer, as after waking before the network is back, is asked again sooner.
+        const failed = !client?.loading && !client?.info?.is_valid?.();
+        if (client?.available && client.hasLocation && askWeatherNow(now, failed))
             client.update();
     }
 
@@ -268,6 +271,12 @@ export class LockWidgets {
     _syncWeather() {
         const client = this._weatherClient, chip = this._weatherChip;
         if (!client || !chip)
+            return;
+        // The lock screen asks for fresh numbers as it comes up: what the chip shows stays
+        // until they are in (hiding it made it blink and the battery chip jump sideways).
+        // Not when the place or GNOME Weather itself went meanwhile: GNOME then never ends
+        // that load, and the old numbers would stay until unlock.
+        if (client.loading && client.available && client.hasLocation && chip.visible && chip.label.text)
             return;
         const info = client.info;
         const ok = client.available && client.hasLocation && !client.loading && info?.is_valid();

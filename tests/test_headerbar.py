@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
 from fedoraglass import palette, settings as settings_mod
-from fedoraglass.render import headerbar
+from fedoraglass.color import Color
+from fedoraglass.render import gtk3, headerbar
 from fedoraglass.settings import Settings
 from fedoraglass.targets import gtk as tg
 from fedoraglass.targets import terminal as tt
@@ -146,3 +148,70 @@ def test_clear_dark_header_keeps_white_text_readable():
     # and Ptyxis's bar lands on the same header alpha
     c = headerbar.ptyxis_titlebar(s, dark, 0.2)
     assert 1 - (1 - c.a) * (1 - 0.2) == pytest.approx(floor, abs=1e-3)
+
+
+_HEADER_FILL = r"headerbar, \.titlebar, headerbar:backdrop, \.titlebar:backdrop \{ background-color: (rgba?\([^)]*\))"
+
+
+def _kept_gtk3(env, theme: str, desktop_dark: bool, **kw):
+    """(the header bar's fill, the tokens of the sheet) for a GTK 3 theme the user kept."""
+    env.gs[("org.gnome.desktop.interface", None)]["gtk-theme"] = f"'{theme}'"
+    s = Settings(scheme="dark" if desktop_dark else "light", **kw)
+    d, l = both(s)
+    ctx = Context(settings=s, tokens=d if desktop_dark else l, dark=d, light=l, env=env)
+    css = next(a for a in tg.Gtk3().plan(ctx) if isinstance(a, WriteFile)).content
+    m = re.search(_HEADER_FILL, css)
+    assert m, "no see-through rule for the header bar"
+    r, g, b, *a = (float(n) for n in re.findall(r"[\d.]+", m[1]))
+    dark = tg.kept_theme_is_dark(env)
+    return Color(r / 255, g / 255, b / 255, a[0] if a else 1.0), (d if (desktop_dark if dark is None else dark) else l)
+
+
+def _over(c: Color, glass: Color) -> Color:
+    return Color(*(f * c.a + g * (1 - c.a) for f, g in zip((c.r, c.g, c.b), (glass.r, glass.g, glass.b))), 1.0)
+
+
+@pytest.mark.parametrize("theme,desktop_dark,glass", [
+    # a dark theme kept on a light desktop: white title, light glass, at worst a white wallpaper
+    ("Orchis-Dark", False, Color(1.0, 1.0, 1.0)),
+    # GTK 3's own light theme on a dark desktop: dark title, the dark glass of a dark wallpaper
+    ("Adwaita", True, Color(0.12, 0.12, 0.13)),
+])
+@pytest.mark.parametrize("frost", (0.0, 0.4, 1.0))
+@pytest.mark.parametrize("chosen", (0.1, 0.5))
+def test_gtk3_header_bar_of_a_kept_theme_unlike_the_desktop_stays_readable(fake_env, theme, desktop_dark, glass,
+                                                                         frost, chosen):
+    """A see-through header bar took the sheet's colour at the chosen strength, with a floor
+    worked out for glass as dark as the sheet. With Orchis-Dark kept on a light desktop that
+    was a 29 % dark bar with a white title over light glass (1.7:1), with Adwaita on a dark
+    desktop a 10 % light bar with a dark title over dark glass (1.4:1)."""
+    fill, sheet = _kept_gtk3(fake_env, theme, desktop_dark, frost=frost, header_opacity=chosen)
+    assert sheet.fg.contrast(_over(fill, glass)) >= 4.5
+    # no clearer than the window under it, which has its own floor for this (0.82 dark on light)
+    body = gtk3.named_colors(sheet, sheet.dark and not desktop_dark)["window_bg_color"].a
+    assert fill.a == pytest.approx(max(chosen, body), abs=1e-3)
+
+
+@pytest.mark.parametrize("theme,desktop_dark", [("Orchis-Dark", False), ("Adwaita", True)])
+def test_gtk3_header_bar_of_a_kept_theme_unlike_the_desktop_can_still_be_more_solid(fake_env, theme, desktop_dark):
+    fill, _sheet = _kept_gtk3(fake_env, theme, desktop_dark, header_opacity=1.0)
+    assert fill.a == 1.0
+
+
+@pytest.mark.parametrize("theme,desktop_dark", [("Orchis-Dark", True), ("Adwaita", False), ("Missing", True),
+                                                ("Missing", False)])
+def test_gtk3_header_bar_keeps_the_chosen_see_through_when_the_theme_is_like_the_desktop(fake_env, theme, desktop_dark):
+    """Orchis-Dark on a dark desktop, Adwaita on a light one, and a theme nothing is known
+    about (its sheet follows the desktop): the bar is as see-through as chosen, as before."""
+    s = Settings(header_opacity=0.1)
+    d, l = both(s)
+    fill, _sheet = _kept_gtk3(fake_env, theme, desktop_dark, header_opacity=0.1)
+    assert fill.a == pytest.approx(headerbar.header_alpha(s.normalized(), d if desktop_dark else l), abs=1e-3)
+    assert fill.a < (d if desktop_dark else l).window.a
+
+
+def test_gtk3_header_bar_floor_is_only_for_the_see_through_rule():
+    """Height alone writes no colour rule, whatever floor is passed."""
+    s = Settings(header_height=40)
+    assert "background-color" not in headerbar.gtk3_css(s, both(s)[0], 0.82)
+    assert headerbar.gtk3_css(Settings(), both(Settings())[0], 0.82) == ""

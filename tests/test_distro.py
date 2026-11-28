@@ -228,6 +228,8 @@ case " $* " in
 esac
 exit 0
 """)
+    # Writes down each byte code step (fit, drop) in tmp_path/bytecode-steps.
+    (bin_ / "fedora-glass-bytecode").write_text(f'#!/bin/sh\necho "$*" >> {tmp_path}/bytecode-steps\n')
     # The real helper deletes what preinst set aside as unchanged; that's all needed here.
     (bin_ / "dpkg-maintscript-helper").write_text(
         "#!/bin/sh\n[ \"$1\" = rm_conffile ] && [ \"$DPKG_MAINTSCRIPT_NAME\" = postinst ] && rm -f \"$2.dpkg-remove\"\nexit 0\n")
@@ -235,6 +237,7 @@ exit 0
         f.chmod(0o755)
     def fix(text):
         return (text.replace("/etc/apt/", f"{tmp_path}/etc/apt/")
+                    .replace("/usr/libexec/fedora-glass-bytecode", f"{bin_}/fedora-glass-bytecode")
                     .replace("/usr/share/fedora-glass/apt/", f"{share}/")
                     .replace("/var/lib/fedora-glass", f"{tmp_path}/var/lib/fedora-glass")
                     .replace("/var/lib/liquid-glass", f"{tmp_path}/var/lib/liquid-glass")
@@ -520,6 +523,26 @@ def test_deb_upgrade_leaves_the_watcher_as_it_is(tmp_path):
     run("prerm", "upgrade", "1.5.23-1")             # prerm upgrade: no mark, no change
     run("postinst", "configure", "1.5.22-1")
     assert not on.exists()
+
+
+def test_deb_fits_the_byte_code_after_each_install_and_drops_it_only_on_removal(tmp_path):
+    run, src, pref, mark = _deb_scripts(tmp_path)
+    steps = tmp_path / "bytecode-steps"
+    said = lambda: steps.read_text().splitlines() if steps.exists() else []
+    run("postinst", "configure", "")                # first install
+    assert said() == ["fit"]
+    run("prerm", "upgrade", "1.7.11-1")             # an upgrade keeps it
+    run("postinst", "configure", "1.7.10-1")
+    assert said() == ["fit", "fit"]
+    run("prerm", "remove")
+    assert said() == ["fit", "fit", "drop"]
+    run("postrm", "remove")
+    run("postrm", "purge")
+    assert said() == ["fit", "fit", "drop"]
+    prerm = (PKG / "deb/prerm").read_text()
+    block = prerm.split('if [ "$1" = remove ]; then\n', 1)[1].split("\nfi\n", 1)[0]
+    # after the undo and the login screen's off, while the files are still there
+    assert block.rstrip().splitlines()[-1].strip() == "/usr/libexec/fedora-glass-bytecode drop >/dev/null 2>&1 || :"
 
 
 def test_deb_purge_takes_the_watcher_mark(tmp_path):

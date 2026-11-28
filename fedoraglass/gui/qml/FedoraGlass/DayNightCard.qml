@@ -42,6 +42,7 @@ Card {
                 objectName: "dayNightCaption"
                 width: parent.width
                 wrapMode: Text.WordWrap
+                textFormat: Text.PlainText
                 text: !card.hasLooks
                       ? qsTr("Save two looks to switch between them with GNOME's light and dark style.")
                       : card.follows
@@ -101,6 +102,7 @@ Card {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
                 text: pick.label
                 color: Theme.textDim
                 font.pixelSize: Theme.fsSmall + 1

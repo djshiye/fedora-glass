@@ -48,6 +48,11 @@ const CARD_HOLD_MS = 1000;   // the card staying where it is while GNOME asks GD
 const CARD_JUMP_MS = 250;    // after the user list was given its place: the card goes with it in one step
 const LIST_GAP = 8;          // px kept free between the user list's card and GNOME's logo
 const LIST_TRIES = 8;        // times the user list is given a new place before a new row comes or goes
+const PLACE_SLACK = 2;       // px GNOME's prompt may stand off where it should before its margin is set from what is seen
+const PLACE_TRIES = 4;       // times the prompt's margin is set from what is seen, for each build
+// GNOME's own clocks follow GnomeDesktop's wall clock, which also speaks up as soon as the
+// PC wakes from sleep (GLib's timers stand still meanwhile). Without it, the minute timer alone.
+const WallClock = import('gi://GnomeDesktop').then(m => m.default?.WallClock ?? null).catch(() => null);
 const UPOWER = 'org.freedesktop.UPower';
 const DISPLAY_DEVICE = '/org/freedesktop/UPower/devices/DisplayDevice';
 
@@ -146,6 +151,7 @@ export class LoginGlass {
         this._waitLater = 0;
         this._waitId = 0;
         this._tickId = 0;
+        this._wallClock = null;
         this._theme = null;
         this._loading = false;
         this._group = Main.screenShield?._lockDialogGroup;
@@ -353,6 +359,10 @@ export class LoginGlass {
         }
         this._makeTop(layer);
         this._place = this._promptPlace();
+        this._placeTries = 0;      // until GNOME has laid its prompt out with this style (_checkPromptPlace)
+        this._placeBest = null;
+        this._placeFirst = null;   // how far off the prompt stood at the first look, px
+        this._placeChecked = false;
         this._listMargin = 0;      // until GNOME has laid its user list out with this style (_giveListPlace)
         this._listTries = 0;
         this._listRows = -1;
@@ -383,19 +393,32 @@ export class LoginGlass {
     /**
      * How much room to keep above GNOME's prompt so that what it shows stands in the
      * middle of the screen, or under the big clock where the screen is too short for
-     * both (see promptPlace in style.js).
+     * both (see promptPlace in style.js). content: how tall what it shows was seen to be
+     * (px), when it was.
      */
-    _promptPlace(own = false) {
+    _promptPlace(own = false, content = null) {
         const textScale = this._textScale = this._textScaling();
         const m = Main.layoutManager.primaryMonitor;
         // What the clock needs from the screen's top to where the prompt begins (a few
         // px to spare: the prompt is placed by a rounded margin).
         const clockH = this._clockBox ? this._clockBox.get_preferred_height(-1)[1] : 0;
         const above = clockH ? this._topLeast() + clockH + TOP_GAP + (this._card ? PROMPT_PAD : 0) + 4 : 0;
+        const fixedTop = this._fixedTop = typeof this._dialog._getFixedTopActorAllocation === 'function';
+        const height = this._boxHeight = fixedTop ? 0 : this._promptHeight();
         return promptPlace({
-            fixedTop: typeof this._dialog._getFixedTopActorAllocation === 'function',
-            scale: this._context.scale_factor, textScale, screen: m?.height ?? global.stage.height, above, own,
+            fixedTop, height,
+            scale: this._context.scale_factor, textScale, screen: m?.height ?? global.stage.height, above, own, content,
         });
+    }
+
+    /** The fixed height (px) GNOME's theme gives its prompt (GNOME 51.1), or 0 for none. */
+    _promptHeight() {
+        try {
+            const h = this._dialog._authPrompt.get_theme_node().get_height() / Math.max(1, this._context.scale_factor || 1);
+            return Number.isFinite(h) && h > 0 ? h : 0;
+        } catch {
+            return 0;
+        }
     }
 
     /** The text scaling factor (Large Text is 1.25), 1 where it cannot be read. */
@@ -662,13 +685,34 @@ export class LoginGlass {
         }
         layer.add_child(box);
         this._drawn.on(box, 'notify::allocation', () => this._queue());
-        if (this._time)
+        if (this._time) {
             this._tick();
+            this._followWallClock();
+        }
+    }
+
+    // The time again whenever GNOME's wall clock says it changed, besides the minute timer.
+    _followWallClock() {
+        const time = this._time;
+        WallClock.then(Type => this._safe(() => {
+            if (!Type || this._time !== time || this._wallClock)
+                return;   // none, or built again meanwhile
+            try {
+                this._wallClock = new Type({time_only: true});
+            } catch {
+                return;   // the minute timer alone
+            }
+            this._drawn.on(this._wallClock, 'notify::clock', () => this._tick());
+        }));
     }
 
     _tick() {
         if (!this._time)
             return;
+        // Called by the wall clock too: one timer to the next minute, never two.
+        if (this._tickId)
+            GLib.source_remove(this._tickId);
+        this._tickId = 0;
         const now = new Date();
         this._time.text = formatTime(now, {timeOnly: true});
         // The lock screen's date format, in GNOME's own words for this language.
@@ -771,7 +815,7 @@ export class LoginGlass {
         // ways to log in, a button showing.
         const parts = [prompt._userWell, prompt._inputWell, prompt._mainBox, prompt._message, prompt._authList,
             prompt._timedLoginIndicator, prompt._capsLockWarningLabel, prompt._webLoginDialog, prompt.cancelButton,
-            prompt._defaultButtonWell].filter(a => a instanceof Clutter.Actor);
+            prompt._entryArea, prompt._defaultButtonWell].filter(a => a instanceof Clutter.Actor);
         for (const a of parts) {
             for (const s of ['notify::visible', 'notify::opacity', 'notify::allocation'])
                 this._drawn.on(a, s, () => this._queue());
@@ -840,6 +884,7 @@ export class LoginGlass {
         if (!this._layer)
             return;
         this._givePromptRoom();
+        this._checkPromptPlace();
         this._giveListPlace();
         this._placeTop();
         this._placeCard();
@@ -867,10 +912,117 @@ export class LoginGlass {
         // Only where GNOME has laid it out: until then it says how tall it would like to
         // be, the room above it included, and this is decided once.
         const f = prompt.has_allocation() ? LoginGlass.frame(prompt) : null;
-        if (!m || !f || f[1] + f[3] <= m.y + m.height - PROMPT_SPARE)
+        if (!m || !f || this._shownBottom(prompt, f) <= m.y + m.height - PROMPT_SPARE)
             return;
+        const margin = this._place.margin;
         this._place = this._promptPlace(true);
         this._restyle();
+        // For the journal, next to the line on the prompt's place (_notePlace): from here on
+        // that line no longer holds. With what was tried, for a report from a PC nobody can
+        // look at (the real-boot check reads this one too).
+        const first = this._placeFirst === null ? 'not looked at' : `${this._placeFirst} px off`;
+        console.log('Fedora Glass login: the prompt has GNOME\'s own place: with ours it would end below the screen ' +
+            `(margin ${margin}, set again: ${this._placeTries}, at first: ${first}, screen: ${m.height} px)`);
+    }
+
+    /**
+     * Where what GNOME's prompt shows ends (stage px), its frame f. Where its theme gives it
+     * a fixed height (GNOME 51.1), the box is mostly empty under the field: then where the
+     * last of what is in it ends (the message and the list of ways to log in are).
+     */
+    _shownBottom(prompt, f) {
+        if (!this._boxHeight)
+            return f[1] + f[3];
+        const ends = prompt.get_children().map(a => LoginGlass.frame(a)).filter(b => b).map(b => b[1] + b[3]);
+        return ends.length ? Math.max(...ends) : f[1] + f[3];
+    }
+
+    /**
+     * Where GNOME really put its prompt, looked at once it has laid it out with our margin.
+     * A theme nobody knows sizes the prompt otherwise than promptPlace thinks, and a GNOME
+     * may place it otherwise: off by PLACE_SLACK px or more, the margin is set again from
+     * what is seen, at most PLACE_TRIES times (the place that came closest stays if that
+     * does not get it right), and from then on the clock and the user list go by where
+     * the prompt really begins. Within PLACE_SLACK px nothing changes. Once for each build.
+     */
+    _checkPromptPlace() {
+        if (this._place.margin === null || this._placeChecked)
+            return;
+        const m = Main.layoutManager.primaryMonitor;
+        const prompt = this._dialog._authPrompt;
+        const scale = Math.min(4, Math.max(1, this._context.scale_factor || 1));
+        // Only where GNOME has laid it out with the margin asked for (St puts a style's
+        // margin on the actor): until then it stands where an older style put it.
+        if (!m || !prompt.has_allocation() || !(Math.abs(prompt.margin_top - this._place.margin * scale) < 1))
+            return;
+        // A user's prompt, with the avatar and the field: what promptPlace means, and what
+        // the card goes around (contentRect). Not GNOME's own boxes: on GNOME 51 the field's
+        // row is taller than the field (4em, the field in its middle), and a card set by
+        // the row stood a few px too high. And only once the field is there: GNOME shows
+        // its prompt first and the field when GDM asks its question; until then the row
+        // holds the back button alone, which is shorter than the field.
+        const box = LoginGlass.frame(prompt);
+        const user = LoginGlass.contentRect(prompt, [prompt._userWell]);
+        const field = LoginGlass.frame(prompt._entry);
+        if (!box || !user || !field)
+            return;
+        // The field counts while GNOME still fades it in; whatever else shows in its row too.
+        const row = LoginGlass.contentRect(prompt, [prompt._mainBox]);
+        const begin = Math.min(user[1], field[1]);
+        const end = Math.max(user[3], field[1] + field[3], row ? row[3] : begin);
+        const top = Math.round(begin - m.y);
+        const want = this._promptPlace(false, (end - begin) / scale);
+        const off = top - want.top;
+        const tall = Math.round((end - begin) / scale);
+        if (this._placeFirst === null)
+            this._placeFirst = off;
+        if (!this._placeBest || Math.abs(off) < Math.abs(this._placeBest.off))
+            this._placeBest = {margin: this._place.margin, top, off, tall};
+        if (Math.abs(off) < PLACE_SLACK) {
+            this._placeChecked = true;
+            if (this._placeTries)
+                this._place = {...this._place, top};
+            this._notePlace(top, want.top, tall, true);
+            return;
+        }
+        // Every px of margin lowers it by one (a fixed top, or a fixed height GNOME cut to the
+        // screen's) or by half (centred).
+        const cut = this._boxHeight && box[3] < this._boxHeight * scale - 1;
+        const gain = this._fixedTop || cut ? scale : scale / 2;
+        const margin = Math.round(Math.max(0, Math.min(600, this._place.margin - off / gain)));
+        if (this._placeTries >= PLACE_TRIES || margin === this._place.margin) {
+            // It does not follow: the closest place seen, and no more tries.
+            const best = this._placeBest;
+            this._placeChecked = true;
+            const again = best.margin !== this._place.margin;
+            this._place = {...this._place, margin: best.margin, top: best.top};
+            if (again)
+                this._restyle();
+            this._notePlace(best.top, best.top - best.off, best.tall, false);
+            return;
+        }
+        this._placeTries++;
+        this._place = {margin, content: want.content, top: Math.round(top + (margin - this._place.margin) * gain)};
+        this._restyle();
+    }
+
+    /**
+     * One line for the journal once the prompt's place was looked at: where what it shows
+     * begins (px down the screen), where it was wanted, how tall it is, how often the margin
+     * was set again, how far off the prompt stood at the first look and how GNOME places it
+     * here. "set again: 0" means GNOME and its login theme place the prompt as this add-on
+     * expects. Set again from a few px off is a font or a theme that sizes the prompt
+     * otherwise; from far off it is a GNOME or a theme that places it in a way nobody tried
+     * this on. The real-boot check reads the line (prompt_places in qa/vm/login_boot.py:
+     * keep the two alike).
+     */
+    _notePlace(top, wanted, tall, follows) {
+        const way = this._fixedTop ? 'fixedTop' : this._boxHeight ? 'offset' : 'centred';
+        const screen = Main.layoutManager.primaryMonitor?.height ?? 0;
+        console.log(`Fedora Glass login: the prompt stands ${top} px down the screen, wanted ${wanted}` +
+            `${follows ? '' : ', and does not follow the margin'} (${tall} px tall, margin ${this._place.margin}, ` +
+            `set again: ${this._placeTries}, at first: ${this._placeFirst} px off, way: ${way}, screen: ${screen} px, ` +
+            `scale: ${this._context.scale_factor}, text: ${this._textScale})`);
     }
 
     /**
@@ -1002,9 +1154,10 @@ export class LoginGlass {
      * The stage rectangle of what the prompt shows ([x0, y0, x1, y1]): the avatar, the
      * name, the entry and its buttons, a message only while it has text, and whatever
      * else is visible in it. GNOME keeps room under the entry for messages that may
-     * come; the card does not cover that room while it is empty.
+     * come; the card does not cover that room while it is empty. parts: the boxes of the
+     * prompt to look into (all of them, unless given: the avatar's well, or the field's row).
      */
-    static contentRect(prompt) {
+    static contentRect(prompt, parts = prompt.get_children()) {
         let r = null;
         const add = b => {
             if (!b)
@@ -1043,7 +1196,7 @@ export class LoginGlass {
                 add(LoginGlass.box(a));   // a picture drawn as a background (a user's avatar)
             }
         };
-        prompt.get_children().forEach(walk);
+        parts.filter(a => a).forEach(walk);
         return r;
     }
 
@@ -1246,6 +1399,10 @@ export class LoginGlass {
         this._batterySignals = null;
         this._battery = null;
         this._drawn.clear();
+        try {
+            this._wallClock?.run_dispose();
+        } catch {}
+        this._wallClock = null;
         this._smallClockWatched = false;
         this._showSmallClock();
         this._unloadStyle();

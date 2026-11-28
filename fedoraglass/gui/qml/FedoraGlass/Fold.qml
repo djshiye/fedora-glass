@@ -70,6 +70,7 @@ Item {
                 anchors.leftMargin: 10
                 y: header.stacked ? (parent.height - height - summaryText.height - 1) / 2
                                   : (parent.height - height) / 2
+                textFormat: Text.PlainText
                 text: root.title
                 color: Theme.text
                 font.pixelSize: Theme.fsBody
@@ -83,6 +84,7 @@ Item {
                 y: header.stacked ? titleText.y + titleText.height + 1 : (parent.height - height) / 2
                 width: parent.width - x - 14
                 horizontalAlignment: header.stacked ? Text.AlignLeft : Text.AlignRight
+                textFormat: Text.PlainText
                 text: root.summary
                 elide: Text.ElideRight
                 color: Theme.textFaint

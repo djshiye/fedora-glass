@@ -20,6 +20,19 @@ FocusScope {
     readonly property bool opened: popup.visible
     property bool _byMouse: false
 
+    // The list is as wide as its longest name asks for: never narrower than the button or 210 px, and
+    // never wider than listMax, where a longer name is cut. Measured in the picked row's heavier
+    // weight, so a name fits whether it is the picked one or not.
+    property real listMax: 400
+    FontMetrics { id: rowFont; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+    readonly property real _listWants: {
+        let widest = 0
+        for (let i = 0; i < model.length; i++)
+            widest = Math.max(widest, rowFont.advanceWidth(String(model[i].label)))
+        // the name's left edge, the name, room for the check mark, the list's own padding
+        return (glyphs ? 48 : 12) + Math.ceil(widest) + 38 + 2 * popup.padding
+    }
+
     implicitWidth: 170
     implicitHeight: 36
     activeFocusOnTab: true
@@ -71,6 +84,7 @@ FocusScope {
         Text {
             width: parent.width - (root.glyphs ? 36 : 0)
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
             text: root.currentIndex >= 0 ? root.model[root.currentIndex].label : ""
             color: Theme.text
             font.pixelSize: Theme.fsBody
@@ -109,20 +123,50 @@ FocusScope {
         id: popup
         property int cur: 0
         property bool kbd: false
+        // Where the pointer last was: the list moving under a resting pointer is not the pointer moving.
+        property real lastX: -1
+        property real lastY: -1
         readonly property real itemH: 36
         parent: root
         x: root.width - width
         padding: 6
-        margins: 10
-        width: Math.max(root.width, 210)
-        height: list.implicitHeight + 12
-        // Open under the button, or above it when there is no room below.
-        y: {
+        // Keeps clear of the window's transparent shadow edge as well as of the window.
+        readonly property real edge: 10 + (root.Window.window && root.Window.window.margin !== undefined ? root.Window.window.margin : 0)
+        margins: edge
+        width: Math.max(root.width, 210, Math.min(root._listWants, root.listMax))
+        // As tall as the names need, or as tall as the room on the side it opens to: a long list scrolls.
+        // The rows are not made until the list shows, so their height is counted from the model.
+        readonly property real wanted: root.model.length * itemH + 12
+        property real room: 0
+        height: Math.min(wanted, room > 0 ? room : (C.Overlay.overlay ? Math.max(itemH, C.Overlay.overlay.height - 2 * edge) : 100000))
+        // Open under the button, or above it when there is no room below. Worked out each time it
+        // opens: a binding would not see the page scroll under it.
+        y: root.height + 6
+        function place() {
             const win = C.Overlay.overlay
-            if (!win) return root.height + 6
-            const below = root.mapToItem(win, 0, root.height + 6 + height).y
-            return below > win.height - 10 ? -height - 6 : root.height + 6
+            const want = wanted
+            room = 0
+            let up = false
+            if (win) {
+                const top = root.mapToItem(win, 0, 0).y
+                const below = win.height - edge - (top + root.height + 6)
+                const above = top - 6 - edge
+                if (want > below) {
+                    up = above > below
+                    const avail = Math.floor(up ? above : below)
+                    room = avail >= want ? 0 : Math.max(itemH, avail)
+                }
+            }
+            y = up ? -height - 6 : root.height + 6
         }
+        // Puts the row the keys are on inside the visible part of a long list.
+        function reveal() {
+            const view = height - 12
+            const top = cur * itemH
+            if (top < scroller.contentY) scroller.contentY = top
+            else if (top + itemH > scroller.contentY + view) scroller.contentY = top + itemH - view
+        }
+        onAboutToShow: { place(); scroller.contentY = 0; reveal() }
         closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutsideParent
         focus: true
         onOpened: { kbd = root.activeFocus && !root._byMouse; keys.forceActiveFocus() }
@@ -150,21 +194,31 @@ FocusScope {
             implicitWidth: list.implicitWidth
             implicitHeight: list.implicitHeight
             Keys.onPressed: (e) => {
-                kbd = true
-                if (e.key === Qt.Key_Down) { cur = Math.min(root.model.length - 1, cur + 1); e.accepted = true }
-                else if (e.key === Qt.Key_Up) { cur = Math.max(0, cur - 1); e.accepted = true }
-                else if (e.key === Qt.Key_Home) { cur = 0; e.accepted = true }
-                else if (e.key === Qt.Key_End) { cur = root.model.length - 1; e.accepted = true }
+                popup.kbd = true
+                if (e.key === Qt.Key_Down) { popup.cur = Math.min(root.model.length - 1, popup.cur + 1); popup.reveal(); e.accepted = true }
+                else if (e.key === Qt.Key_Up) { popup.cur = Math.max(0, popup.cur - 1); popup.reveal(); e.accepted = true }
+                else if (e.key === Qt.Key_Home) { popup.cur = 0; popup.reveal(); e.accepted = true }
+                else if (e.key === Qt.Key_End) { popup.cur = root.model.length - 1; popup.reveal(); e.accepted = true }
                 else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    root.activated(root.model[cur].value)
+                    root.activated(root.model[popup.cur].value)
                     popup.close()
                     e.accepted = true
                 }
             }
 
+            // A long list (many saved looks) scrolls inside the window.
+            Flickable {
+            id: scroller
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: root.model.length * popup.itemH
+            clip: contentHeight > height
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
+            C.ScrollBar.vertical: LgScrollBar {}
             Column {
             id: list
-            width: parent.width
+            width: scroller.width
             spacing: 0
             Repeater {
                 model: root.model
@@ -196,11 +250,15 @@ FocusScope {
                     }
                     Text {
                         x: root.glyphs ? 48 : 12
+                        // Room up to the check mark (or the right padding), so a long name is cut, not run under it.
+                        width: row.width - x - (row.selected ? 38 : 12)
                         anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
                         text: row.modelData.label
                         color: Theme.text
                         font.pixelSize: Theme.fsBody
                         font.weight: row.selected ? Font.DemiBold : Font.Medium
+                        elide: Text.ElideRight
                     }
                     Icon {
                         visible: row.selected
@@ -214,7 +272,15 @@ FocusScope {
                     HoverHandler {
                         id: rowHover
                         cursorShape: Qt.PointingHandCursor
-                        onHoveredChanged: if (hovered) { popup.kbd = false; popup.cur = row.index }
+                        onHoveredChanged: if (hovered && !popup.kbd) popup.cur = row.index
+                        onPointChanged: {
+                            const p = point.scenePosition
+                            if (p.x === popup.lastX && p.y === popup.lastY) return
+                            popup.lastX = p.x
+                            popup.lastY = p.y
+                            popup.kbd = false
+                            if (hovered) popup.cur = row.index
+                        }
                     }
                     LgToolTip {
                         shown: popup.visible && (rowHover.hovered || (keys.activeFocus && row.lit && !rowHover.hovered && popup.kbd))
@@ -225,6 +291,7 @@ FocusScope {
                         onTapped: { root.activated(row.modelData.value); popup.close() }
                     }
                 }
+            }
             }
             }
         }

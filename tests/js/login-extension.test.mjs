@@ -21,9 +21,10 @@ await import(LOGIN_JS);
 // that tick was a 1000 ms timer, and "the wait is over" below took it for the card's wait.
 const RealDate = Date;
 const NOW = new RealDate(2026, 0, 9, 9, 41, 10).getTime();
+let now = NOW;     // the time of day the PC's clock says (a test that lets time jump sets it back)
 globalThis.Date = class extends RealDate {
-    constructor(...a) { super(...(a.length ? a : [NOW])); }
-    static now() { return NOW; }
+    constructor(...a) { super(...(a.length ? a : [now])); }
+    static now() { return now; }
 };
 
 const logged = [];
@@ -902,6 +903,41 @@ test('the card hugs what the prompt shows, and grows smoothly with a message', a
     assert.deepEqual(placed.at(-1), [772, 360, 376, 320]);
     assert.equal(fake.timeouts.list.size, before);
     ext.disable();
+});
+
+test('after the PC wakes from sleep the big clock shows the new time at once, as GNOME\'s own clocks do', async () => {
+    const {fake, ext, group, before} = await started();
+    const time = ext._glass._time, date = ext._glass._date;
+    assert.equal(time.text, '09:41');
+    const [wall] = fake.wallClocks;
+    assert.equal(fake.wallClocks.length, 1, 'GNOME\'s wall clock, one');
+    assert.equal(wall.listeners, 1);
+    const ticks = () => [...fake.timeouts.list.values()].filter(t => t.ms > 2000).length;
+    assert.equal(ticks(), 1, 'its own timer to the next minute too');
+    // Asleep for 8 hours: GLib's timers stand still meanwhile, so none is due on waking;
+    // GNOME's wall clock says the time has changed.
+    now = NOW + 8 * 3600 * 1000;
+    let dates = 0;
+    date.connect('notify::text', () => dates++);
+    wall.emit('notify::clock');
+    assert.equal(time.text, '17:41', 'the new time at once');
+    assert.equal(dates, 1, 'and the date again');
+    assert.equal(ticks(), 1, 'one timer to the next minute, never two');
+    wall.emit('notify::clock');
+    assert.equal(ticks(), 1);
+    // Built again (a screen added): the old wall clock is let go of, the new build has its own.
+    fake.layoutManager.emit('monitors-changed');
+    fake.laters.run();
+    await settle();
+    assert.deepEqual([wall.disposed, wall.listeners], [true, 0]);
+    assert.equal(fake.wallClocks.length, 2);
+    assert.equal(fake.wallClocks[1].listeners, 1);
+    assert.equal(ticks(), 1);
+    ext.disable();
+    now = NOW;
+    assert.ok(fake.wallClocks.every(w => w.disposed && w.listeners === 0), 'nothing listens to it any more');
+    assert.equal(fake.timeouts.list.size, 0, 'no timer left');
+    assertPlain(fake, group, before);
 });
 
 test('crash loops later than 2 s: two unclean ends in a row in one boot give safe; a clean end resets', async () => {

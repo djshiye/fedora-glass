@@ -26,7 +26,7 @@ SettingsPage {
         signal picked(var v)
         width: parent.width
         spacing: 8
-        Text { text: parent.label; color: parent.enabled ? Theme.text : Theme.textFaint; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+        Text { textFormat: Text.PlainText; text: parent.label; color: parent.enabled ? Theme.text : Theme.textFaint; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
         Segmented {
             id: seg
             width: parent.width
@@ -194,6 +194,7 @@ SettingsPage {
                 visible: Backend.lockWidgetWeather && page.weatherMissing
                 width: parent.width
                 wrapMode: Text.WordWrap
+                textFormat: Text.PlainText
                 text: page.weatherWhy
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsSmall
@@ -513,6 +514,7 @@ SettingsPage {
             objectName: "lockStatus"
             width: parent.width
             wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
             text: preview.screen === "login" ? qsTr("The login screen changes when you turn it on, and after Apply while it's on.")
                                              : qsTr("Changes show after Apply, the next time you lock.")
             color: Theme.textFaint

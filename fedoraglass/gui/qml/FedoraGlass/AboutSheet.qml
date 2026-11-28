@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic as C
 import FedoraGlass.Core
 
 // About: the version, a way to the release notes, and every keyboard shortcut.
@@ -10,7 +11,14 @@ Sheet {
     subtitle: qsTr("Version %1").arg(Backend.version)
     iconSource: typeof appIconUrl !== "undefined" ? appIconUrl : ""
     iconName: "info"
-    width: Math.min(540, (parent ? parent.width : 800) - 64)
+    width: Math.min(640, (parent ? parent.width : 800) - 64)
+    // The window's transparent shadow margin: the sheet is centred in the whole window, but
+    // only what lies inside the margin is the window the person sees.
+    property real windowMargin: 0
+    // What is left of the window under the sheet's head, its button row and the list's title,
+    // keeping a gap to the window's edge: the list scrolls inside this when the descriptions
+    // wrap onto many lines.
+    readonly property real listRoom: (parent ? parent.height : 600) - 2 * windowMargin - 2 * 8 - 203
 
     readonly property url releasesUrl: "https://github.com/djshiye/fedora-glass/releases"
     readonly property var shortcuts: [
@@ -56,68 +64,78 @@ Sheet {
         }
         Rectangle {
             width: parent.width
-            height: list.height + 20
+            height: Math.min(list.height + 20, sheet.listRoom)
             radius: Theme.rM
             color: Theme.well
             border.width: 1
             border.color: Theme.border
 
-            Column {
-                id: list
-                x: 14; y: 10
-                width: parent.width - 28
-                spacing: 0
-                Repeater {
-                    model: sheet.shortcuts
-                    delegate: Item {
-                        id: line
-                        required property var modelData
-                        required property int index
-                        width: list.width
-                        height: 36
-                        Accessible.role: Accessible.StaticText
-                        Accessible.name: qsTr("%1: %2").arg(modelData.keys.length > 1 ? qsTr("%1 or %2").arg(modelData.keys[0]).arg(modelData.keys[1]) : modelData.keys[0]).arg(modelData.what)
-                        Rectangle {
-                            visible: line.index > 0
-                            width: parent.width; height: 1
-                            color: Theme.divider
-                        }
-                        Row {
-                            id: keyRow
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 172
-                            spacing: 6
-                            Repeater {
-                                model: line.modelData.keys
-                                delegate: Rectangle {
-                                    required property string modelData
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: cap.implicitWidth + 14
-                                    height: 24
-                                    radius: 6
-                                    color: Theme.surfaceHi
-                                    border.width: 1
-                                    border.color: Theme.border
-                                    Text {
-                                        id: cap
-                                        anchors.centerIn: parent
-                                        text: parent.modelData
-                                        color: Theme.text
-                                        font.pixelSize: 12
-                                        font.weight: Font.Medium
+            Flickable {
+                anchors.fill: parent
+                contentHeight: list.height + 20
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                C.ScrollBar.vertical: LgScrollBar {}
+                Column {
+                    id: list
+                    x: 14; y: 10
+                    width: parent.width - 28
+                    spacing: 0
+                    Repeater {
+                        model: sheet.shortcuts
+                        delegate: Item {
+                            id: line
+                            required property var modelData
+                            required property int index
+                            width: list.width
+                            height: Math.max(36, desc.implicitHeight + 14)
+                            Accessible.role: Accessible.StaticText
+                            Accessible.name: qsTr("%1: %2").arg(modelData.keys.length > 1 ? qsTr("%1 or %2").arg(modelData.keys[0]).arg(modelData.keys[1]) : modelData.keys[0]).arg(modelData.what)
+                            Rectangle {
+                                visible: line.index > 0
+                                width: parent.width; height: 1
+                                color: Theme.divider
+                            }
+                            Row {
+                                id: keyRow
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 172
+                                spacing: 6
+                                Repeater {
+                                    model: line.modelData.keys
+                                    delegate: Rectangle {
+                                        required property string modelData
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: cap.implicitWidth + 14
+                                        height: 24
+                                        radius: 6
+                                        color: Theme.surfaceHi
+                                        border.width: 1
+                                        border.color: Theme.border
+                                        Text {
+                                            id: cap
+                                            anchors.centerIn: parent
+                                            textFormat: Text.PlainText
+                                            text: parent.modelData
+                                            color: Theme.text
+                                            font.pixelSize: 12
+                                            font.weight: Font.Medium
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Text {
-                            anchors.left: keyRow.right
-                            anchors.leftMargin: 12
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: line.modelData.what
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fsBody
-                            elide: Text.ElideRight
+                            Text {
+                                id: desc
+                                anchors.left: keyRow.right
+                                anchors.leftMargin: 12
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                textFormat: Text.PlainText
+                                text: line.modelData.what
+                                color: Theme.textDim
+                                font.pixelSize: Theme.fsBody
+                                wrapMode: Text.WordWrap
+                            }
                         }
                     }
                 }

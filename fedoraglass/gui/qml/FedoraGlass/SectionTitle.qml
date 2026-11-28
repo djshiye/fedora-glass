@@ -47,6 +47,7 @@ Column {
         objectName: root.captionName
         visible: root.caption.length > 0
         width: parent.width - root.leftPadding - root.rightPadding
+        textFormat: Text.PlainText
         text: root.caption
         wrapMode: Text.WordWrap
         color: Theme.textDim

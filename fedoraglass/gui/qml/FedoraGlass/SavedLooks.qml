@@ -134,7 +134,7 @@ Column {
             spacing: 10
             opacity: row.enabled ? 1 : 0.45
             Icon { anchors.verticalCenter: parent.verticalCenter; name: row.iconName; size: 16; color: row.danger ? Theme.bad : Theme.textDim }
-            Text { anchors.verticalCenter: parent.verticalCenter; text: row.text; color: row.danger ? Theme.bad : Theme.text; font.pixelSize: Theme.fsBody }
+            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: row.text; color: row.danger ? Theme.bad : Theme.text; font.pixelSize: Theme.fsBody }
         }
     }
 

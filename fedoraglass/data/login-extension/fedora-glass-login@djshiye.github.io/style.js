@@ -140,18 +140,21 @@ const sel = (list, state = '') => list.map(s => s + state).join(',\n');
 
 // ---- where the password prompt stands ----
 // The card belongs in the middle of the screen, as on the lock screen. GNOME puts its
-// prompt higher: on GNOME 51 and later its top is fixed FIXED_TOP stage px above the
-// middle, on GNOME 50 it is centred with the room it keeps under the field for messages.
-// A margin above it (a style, nothing is moved by hand) sets it right in both.
+// prompt higher: on GNOME 51.0 its top is fixed FIXED_TOP stage px above the middle, on
+// GNOME 50 it is centred with the room it keeps under the field for messages, and on
+// GNOME 51.1 its theme makes it a fixed height that is centred, OFFSET stage px lower.
+// A margin above it (a style, nothing is moved by hand) sets it right in all three.
 export const FIXED_TOP = 275;
+export const OFFSET = 50;
 // What the prompt shows, from the avatar's top to the field's bottom, in px: the avatar
 // (128) and the gap under it (16) as set below, and the name and the field's row, which
 // grow with the font (px at the usual 11pt font, times the text scaling factor). Under
-// the field GNOME keeps room for its messages (the same way).
-const PROMPT_FIXED = 144;
-const PROMPT_TEXT = {fixedTop: 96, centred: 92};
-const PROMPT_ROOM = {fixedTop: 74, centred: 67};
-// The room GNOME 51's own theme keeps above its prompt, in px (GNOME 50: none).
+// the field GNOME keeps room for its messages (the same way). GNOME 51.1 keeps 9 px more
+// above the field (its input well's margin).
+const PROMPT_FIXED = {fixedTop: 144, centred: 144, offset: 153};
+const PROMPT_TEXT = {fixedTop: 96, centred: 92, offset: 96};
+const PROMPT_ROOM = {fixedTop: 74, centred: 67, offset: 74};
+// The room GNOME 51.0's own theme keeps above its prompt, in px (GNOME 50 and 51.1: none).
 const OWN_MARGIN = 80;
 
 /**
@@ -159,38 +162,64 @@ const OWN_MARGIN = 80;
  * {margin (px as in a stylesheet), content (how tall that is, the same px), top (where it
  * then begins, stage px from the screen's top)}.
  *
- * fixedTop: GNOME places the prompt's top at a fixed height (GNOME 51+). scale: the
- * theme's scale factor. textScale: the text scaling factor. screen: the screen's height
- * in stage px. above: stage px to keep free above it (the big clock on a short screen):
- * then it stands lower than the middle, as long as GNOME's messages under the field still
- * fit on the screen.
+ * fixedTop: GNOME places the prompt's top at a fixed height (GNOME 51.0). height:
+ * otherwise, the fixed height (px) GNOME's theme gives the prompt, which it then centres
+ * OFFSET stage px lower (GNOME 51.1); 0 for none (GNOME 50). scale: the theme's scale
+ * factor. textScale: the text scaling factor. screen: the screen's height in stage px.
+ * above: stage px to keep free above it (the big clock on a short screen): then it
+ * stands lower than the middle, as long as GNOME's messages under the field still fit
+ * on the screen.
+ *
+ * content: how tall what the prompt shows really is (px), as measured on the screen
+ * (login.js), instead of the usual: a theme nobody knows sizes it otherwise.
  *
  * own: leave the prompt where GNOME puts it (margin null: no margin of ours). GNOME's
  * place is higher, so more fits under the field; login.js asks for it when what GNOME
  * shows there would end below the screen. top is then only a guess (for the clock).
  */
-export function promptPlace({fixedTop = true, scale = 1, textScale = 1, screen = 1080, above = 0, own = false} = {}) {
+export function promptPlace({fixedTop = true, height = 0, scale = 1, textScale = 1, screen = 1080, above = 0,
+    own = false, content: seen = null} = {}) {
     scale = unit(scale, 1, 4);
     textScale = unit(textScale, 0.5, 3);
     screen = unit(screen, 200, 20000);
     above = unit(above, 0, 20000);
-    const way = fixedTop ? 'fixedTop' : 'centred';
-    const content = Math.round(PROMPT_FIXED + PROMPT_TEXT[way] * textScale);
+    height = unit(height, 0, 20000);
+    const way = fixedTop ? 'fixedTop' : height > 0 ? 'offset' : 'centred';
+    const content = Math.round(seen === null ? PROMPT_FIXED[way] + PROMPT_TEXT[way] * textScale : unit(seen, 1, 20000));
+    // GNOME 51.1: the prompt is as tall as its theme says, or as tall as what is in it.
+    // Under the field, GNOME's room for messages (on GNOME 51.1 the rest of the box is empty).
     const room = PROMPT_ROOM[way] * textScale;
+    const box = Math.max(height, content + room);
     const middle = screen / 2;
+    // Where what the prompt shows begins with a margin of m px above it (stage px), as
+    // GNOME lays it out. GNOME 51.0: its fixed top and the margin. GNOME 50: the prompt
+    // (margin, content and room) is centred, so every 2 px of margin lower it by 1.
+    // GNOME 51.1: the same with its fixed height, and OFFSET lower (rounded down, as there);
+    // but it gives the prompt no more than the screen's height, the margin included: cut
+    // so, the box begins OFFSET under the screen's top, and every px of margin lowers it by 1.
+    const cut = m => (box + m) * scale > screen;
+    const at = {
+        fixedTop: m => middle - FIXED_TOP + m * scale,
+        centred: m => middle + (m - content - room) * scale / 2,
+        offset: m => Math.floor(middle - Math.min((box + m) * scale, screen) / 2) + OFFSET + m * scale,
+    }[way];
+    // ...and the margin that makes it begin at top.
+    const centredBox = top => 2 * (top - middle - OFFSET) / scale + box;
+    const marginFor = {
+        fixedTop: top => (top - (middle - FIXED_TOP)) / scale,
+        centred: top => 2 * (top - middle) / scale + content + room,
+        offset: top => cut(centredBox(top)) ? (top - OFFSET - Math.floor(middle - screen / 2)) / scale
+            : centredBox(top),
+    }[way];
     if (own) {
         return {margin: null, content, top: Math.round(fixedTop ? middle - FIXED_TOP + OWN_MARGIN * scale
-            : middle - (content + room) * scale / 2)};
+            : way === 'offset' ? at(0) : middle - (content + room) * scale / 2)};
     }
     let top = middle - content * scale / 2;
     if (above > top && above + (content + room + 16) * scale <= screen)
         top = above;
-    // GNOME 51+: the margin is what lies between its fixed top and ours. GNOME 50: the
-    // prompt (margin, content and room) is centred, so every 2 px of margin lower it by 1.
-    const margin = Math.round(unit(fixedTop ? (top - (middle - FIXED_TOP)) / scale
-        : 2 * (top - middle) / scale + content + room, 0, 600));
-    top = fixedTop ? middle - FIXED_TOP + margin * scale : middle + (margin - content - room) * scale / 2;
-    return {margin, content, top: Math.round(top)};
+    const margin = Math.round(unit(marginFor(top), 0, 600));
+    return {margin, content, top: Math.round(at(margin))};
 }
 
 // ---- where the list of users stands ----

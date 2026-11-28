@@ -28,7 +28,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
-import {Signals, dtpPanels} from './common.js';
+import {Signals, TaskbarBoxes, dtpPanels} from './common.js';
 import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
@@ -44,7 +44,7 @@ const WM_SETS = ['_mapping', '_minimizing', '_unminimizing', '_destroying', '_sk
 const COMPLETED = {open: 'completed_map', minimize: 'completed_minimize', unminimize: 'completed_unminimize',
     close: 'completed_destroy'};
 const WATCHDOG_MIN_MS = 1500;
-const RETARGET_MS = 120;     // a restore this soon after a minimize was cut short starts where it was
+const RETARGET_MS = 120;     // a minimize or restore this soon after the other was cut short starts where it was
 const FIELD = {'scale-x': 'scale_x', 'scale-y': 'scale_y', 'translation-x': 'translation_x',
     'translation-y': 'translation_y', 'opacity': 'opacity'};
 
@@ -303,8 +303,10 @@ const lerp = (a, b, t) => a + (b - a) * t;
  */
 function moveFns(actor, from, to, curve, wob, opacity) {
     const {width: w, height: h} = actor;
-    const sx = u => lerp(from.sx, to.sx, curve(u)) * (1 + wob(u));
-    const sy = u => lerp(from.sy, to.sy, curve(u)) * (1 - wob(u));
+    // A spring into a tiny icon overshoots below zero: the least it draws is SCALE_MIN, and the
+    // translation is worked out from that, so it is not a runaway value for the guard.
+    const sx = u => Math.max(C.SCALE_MIN, lerp(from.sx, to.sx, curve(u)) * (1 + wob(u)));
+    const sy = u => Math.max(C.SCALE_MIN, lerp(from.sy, to.sy, curve(u)) * (1 - wob(u)));
     // Keep the box's centre on a straight path while it scales.
     const cx0 = from.tx + w * from.sx / 2, cy0 = from.ty + h * from.sy / 2;
     const cx1 = to.tx + w * to.sx / 2, cy1 = to.ty + h * to.sy / 2;
@@ -548,7 +550,7 @@ class WindowAnimations {
         this._owner = owner;
         this._blocked = [];     // GNOME's own handlers, blocked while ours run
         this._ids = [];
-        this._cut = new WeakMap();   // actor -> where its minimize was cut short, and when
+        this._cut = new WeakMap();   // actor -> where its minimize or restore was cut short, and when
         this._stocked = new WeakSet();   // actors whose current event GNOME's own code took
     }
 
@@ -665,7 +667,7 @@ class WindowAnimations {
     // path, so Mutter hears it finished before the next one starts.
     _finishEarlier(shellwm, actor) {
         const wm = Main.wm;
-        stop(actor, false);
+        stop(actor, true);   // it lands and reports, so a cut-short restore is noted
         if (wm._mapping.has(actor))
             wm._mapWindowDone(shellwm, actor);
         if (wm._minimizing.has(actor))
@@ -785,9 +787,12 @@ class WindowAnimations {
         const wm = Main.wm;
         const win = actor.meta_window;
         wm._minimizing.add(actor);
+        // Minimized right after a restore was cut short: carry on from where it was.
+        const earlier = this._cut.get(actor);
+        this._cut.delete(actor);
         const done = (finished, anim) => {
             if (!finished && anim?.cut)
-                this._cut.set(actor, {at: GLib.get_monotonic_time(), state: visual(actor), cut: anim.cut});
+                this._cut.set(actor, {at: GLib.get_monotonic_time(), kind: 'minimize', state: visual(actor), cut: anim.cut});
             actor.translation_x = actor.translation_y = 0;
             wm._minimizeWindowDone(shellwm, actor);   // resets the rest and tells the window manager
             if (finished)
@@ -803,7 +808,11 @@ class WindowAnimations {
             genie(actor, icon, 0, 1, ms, m.intensity, done);
             return;
         }
-        const from = visual(actor);
+        const c = earlier?.kind === 'unminimize' && (GLib.get_monotonic_time() - earlier.at) / 1000 < RETARGET_MS &&
+            'scale-x' in earlier.cut ? earlier.cut : null;
+        const from = c
+            ? {sx: c['scale-x'], sy: c['scale-y'], tx: c['translation-x'] ?? 0, ty: c['translation-y'] ?? 0, op: c.opacity ?? 255}
+            : visual(actor);
         // The window travels in without passing the icon; the preset shapes its size,
         // which can dip below the icon's and come back (the bounce lands in the icon).
         const curve = m.preset === 'scalefade' ? C.easeInOut : C.curve(m.preset, m.intensity);
@@ -819,7 +828,12 @@ class WindowAnimations {
         const wm = Main.wm;
         const win = actor.meta_window;
         wm._unminimizing.add(actor);
-        const done = () => {
+        // Restored right after a minimize was cut short: carry on from where it was.
+        const cut = this._cut.get(actor);
+        this._cut.delete(actor);
+        const done = (finished, anim) => {
+            if (!finished && anim?.cut)
+                this._cut.set(actor, {at: GLib.get_monotonic_time(), kind: 'unminimize', cut: anim.cut});
             actor.translation_x = actor.translation_y = 0;
             wm._unminimizeWindowDone(shellwm, actor);
         };
@@ -836,10 +850,7 @@ class WindowAnimations {
             genie(actor, icon, 1, 0, ms, m.intensity, done);
             return;
         }
-        // Restored right after a minimize was cut short: carry on from where it was.
-        const cut = this._cut.get(actor);
-        this._cut.delete(actor);
-        const recent = cut && (GLib.get_monotonic_time() - cut.at) / 1000 < RETARGET_MS;
+        const recent = cut?.kind === 'minimize' && (GLib.get_monotonic_time() - cut.at) / 1000 < RETARGET_MS;
         const from = recent
             ? {sx: cut.cut['scale-x'], sy: cut.cut['scale-y'], tx: cut.cut['translation-x'], ty: cut.cut['translation-y'],
                 op: cut.cut.opacity}
@@ -931,6 +942,35 @@ function appIcons() {
 // so the click area stays where it is.
 function inner(item) {
     return item._iconContainer ?? item.get_first_child?.() ?? null;
+}
+
+// Which way is away from the screen edge the item's Dash to Panel panel sits on, as a step
+// {dx, dy}: up for a bottom panel, down for a top one, right or left for a side one. Up
+// whenever it cannot be told (no such panel, no monitor): the way it always went.
+function awayFromEdge(item) {
+    const up = {dx: 0, dy: -1};
+    try {
+        for (const p of panels()) {
+            const box = p.panelBox;
+            if (!box)
+                continue;
+            let a = item;
+            for (let i = 0; a && a !== box && i < 40; i++)
+                a = a.get_parent?.();
+            if (a !== box)
+                continue;
+            const mon = p.monitor ?? Main.layoutManager.findMonitorForActor?.(box);
+            const [x, y] = box.get_transformed_position();
+            const {width: w, height: h} = box;
+            if (!mon || ![x, y, w, h].every(Number.isFinite))
+                return up;
+            // A panel is a strip: its long side runs along the edge it sits on.
+            if (w >= h)
+                return y + h / 2 < mon.y + mon.height / 2 ? {dx: 0, dy: 1} : up;
+            return x + w / 2 < mon.x + mon.width / 2 ? {dx: 1, dy: 0} : {dx: -1, dy: 0};
+        }
+    } catch {}
+    return up;
 }
 
 function statusButtons() {
@@ -1056,6 +1096,7 @@ class PanelAnimations {
             this._watched.set(item, w);
         }
         this._grabHover.start();
+        this._followTaskbars();
         // New taskbar icons come and go with apps: look again when they do.
         if (!this._taskbarIds) {
             this._taskbarIds = new Signals();
@@ -1064,6 +1105,13 @@ class PanelAnimations {
             // Dash to Panel restarted, or Spawn/ArcMenu turned on: new buttons to lift.
             this._taskbarIds.on(Main.extensionManager, 'extension-state-changed', () => this._queueRefresh());
         }
+    }
+
+    // Dash to Panel fills a taskbar after we first look at it (its icons come as deferred
+    // work): look again whenever it adds one. Only the panels that exist now are followed.
+    _followTaskbars() {
+        this._taskbarBoxes ??= new TaskbarBoxes(() => this._queueRefresh());
+        this._taskbarBoxes.follow(panels());
     }
 
     _unwatch(item) {
@@ -1084,6 +1132,8 @@ class PanelAnimations {
             this._unwatch(item);
         this._taskbarIds?.clear();
         this._taskbarIds = null;
+        this._taskbarBoxes?.clear();
+        this._taskbarBoxes = null;
     }
 
     // Dash to Panel has its own hover animation; when it is on, its icons are left to it.
@@ -1111,7 +1161,9 @@ class PanelAnimations {
         const curve = on ? C.curve(m.preset, m.intensity) : C.spring(m.preset === 'scalefade' ? 0 : m.intensity * 0.5);
         const jelly = C.wobble(m.preset, m.intensity);
         const wob = on ? u => C.HOVER_SQUASH * jelly(u) : () => 0;
-        const to = {sx: goal.scale, sy: goal.scale, tx: tw * (1 - goal.scale) / 2, ty: th * (1 - goal.scale) / 2 - goal.lift};
+        const {dx, dy} = awayFromEdge(t);
+        const to = {sx: goal.scale, sy: goal.scale, tx: tw * (1 - goal.scale) / 2 + dx * goal.lift,
+            ty: th * (1 - goal.scale) / 2 + dy * goal.lift};
         const ms = on ? C.duration('hover', m.preset, m.speed) : C.hoverOutDuration(m.speed);
         const fns = moveFns(t, from, to, curve, wob, null);
         delete fns.opacity;
@@ -1161,11 +1213,12 @@ class PanelAnimations {
         const height = C.launchHeight(m.intensity);
         const {width: w, height: h} = target;
         const sq = u => 0.08 * hop.squash(u);
+        const {dx, dy} = awayFromEdge(target);
         const fns = {
             'scale-x': u => 1 + sq(u),
             'scale-y': u => 1 - sq(u),
-            'translation-x': u => -w * sq(u) / 2,
-            'translation-y': u => h * sq(u) - height * hop.lift(u),
+            'translation-x': u => -w * sq(u) / 2 + dx * height * hop.lift(u),
+            'translation-y': u => h * sq(u) + dy * height * hop.lift(u),
         };
         animate(target, C.duration('launch', m.preset, m.speed), fns, finished => {
             if (finished && this._launching.get(app) === l)
@@ -1208,16 +1261,20 @@ class PanelAnimations {
             if (!t?.get_stage() || running.has(t))
                 continue;
             const {width: w, height: h} = t;
+            // Around where it is: an icon still lifted under the pointer (its click minimized
+            // the window) gives from its lift and keeps it.
+            const at = visual(t);
+            const {dx, dy} = awayFromEdge(t);
             const amp = 0.1 * m.intensity;
             const wob = C.wobble('jelly', 1);
             const sq = m.preset === 'jelly' ? u => 0.6 * m.intensity * wob(u) : u => -amp * Math.sin(Math.PI * u) * (1 - u);
             const dip = m.preset === 'bounce' ? u => 3 * m.intensity * Math.abs(Math.sin(2 * Math.PI * u)) * (1 - u) : () => 0;
             animate(t, 320 / m.speed, {
-                'scale-x': u => 1 + sq(u),
-                'scale-y': u => 1 - sq(u),
-                'translation-x': u => -w * sq(u) / 2,
-                'translation-y': u => h * sq(u) - dip(u),
-            }, () => reset(t));
+                'scale-x': u => at.sx * (1 + sq(u)),
+                'scale-y': u => at.sy * (1 - sq(u)),
+                'translation-x': u => at.tx - w * at.sx * sq(u) / 2 + dx * dip(u),
+                'translation-y': u => at.ty + h * at.sy * sq(u) + dy * dip(u),
+            }, () => (this._watched.has(icon) ? this._hover(icon) : reset(t)));
         }
     }
 

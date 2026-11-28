@@ -71,6 +71,36 @@ def test_remove_and_the_picker_take_an_app_off_whatever_its_choice(make_backend,
     assert b.settings().app_glass == {}
 
 
+def test_see_changes_names_the_apps_and_counts_each_app_once(make_backend, apps_dirs):
+    b = make_backend()
+    _loaded(b)
+    b.addNoGlassApp("code.desktop")        # Code's desktop id and its window class are two ids
+    rows = {r["key"]: r for r in _js(b.property("changeList"))}
+    assert rows["no_glass_apps"]["after"] == "1 app"
+    # Swapping one app for another reads as names, with no Python list in it.
+    b._saved = b._s
+    b.removeNoGlassApp("code.desktop")
+    b.addNoGlassApp("org.gimp.GIMP.desktop")
+    b._set("no_glass_apps", [*b.settings().no_glass_apps, "NotInstalled"])
+    b._saved = b._saved.__class__(**{**b._saved.__dict__, "no_glass_apps": ["Code", "code", "Steam"]})
+    b._forget()
+    row = next(r for r in _js(b.property("changeList")) if r["key"] == "no_glass_apps")
+    assert (row["before"], row["after"]) == ("Visual Studio Code, Steam", "GNU Image Manipulation Program, NotInstalled")
+
+
+def test_see_changes_never_reads_the_same_on_both_sides_for_an_app_taken_off_and_put_back(make_backend, apps_dirs):
+    b = make_backend()
+    _loaded(b)
+    b._set("no_glass_apps", ["code"])       # one id only: an older list, or typed into the file
+    b._saved = b._s
+    b._forget()
+    b.toggleNoGlassApp("code.desktop")
+    b.toggleNoGlassApp("code.desktop")
+    assert b.property("dirty")
+    row = next(r for r in _js(b.property("changeList")) if r["key"] == "no_glass_apps")
+    assert row["before"] != row["after"]
+
+
 def test_see_changes_reset_and_apply(make_backend, apps_dirs):
     from fedoraglass import palette
     from fedoraglass.render import glass as rg
@@ -80,7 +110,7 @@ def test_see_changes_reset_and_apply(make_backend, apps_dirs):
     b.setAppGlass("org.gnome.Nautilus.desktop", "solid")
     rows = {r["key"]: r for r in _js(b.property("changeList"))}
     assert rows["app_glass"]["label"] == "Glass strength for apps"
-    assert rows["app_glass"]["after"] == "More solid: org.gnome.Nautilus"
+    assert rows["app_glass"]["after"] == "More solid: Files"
     assert "app_glass" in b.property("changedFromDefault")
     s = b.settings()
     w = rg.config(s, palette.build(s, dark=True))["windows"]

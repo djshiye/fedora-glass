@@ -29,7 +29,7 @@ import {collect} from './gcsweep.js';
 import {setQuality, glassRenders, stirAllPanes, shownPanes, tellOfPaints, holdPaints} from './glass.js';
 import {GrabMove} from './grabmove.js';
 import {PowerWatch} from './power.js';
-import {LEVELS, Tuner, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
+import {CHECK_METHOD, LEVELS, Tuner, checkStands, cleanQuality, deepestFor, frameLate, scorePhase, pickLevel} from './tuning.js';
 
 const REQUEST = 'speed-check.json';
 const REQUEST_MAX = 1024;
@@ -86,6 +86,8 @@ export class Speed {
         this._renders = glassRenders();
         this._retry = 0;
         this._check = null;        // the running check
+        this._askedMore = false;   // another check was asked for while it ran
+        this._againId = 0;         // the idle that starts that one
         this._drag = null;         // the window drag going on: {start, windows, views}
         this._writeId = 0;         // the status write waiting for a quiet moment
         this._writeReason = undefined;
@@ -380,8 +382,14 @@ export class Speed {
 
     _onRequest() {
         const id = this._readRequest();
-        if (!id || id === this._seenId || this._check)
+        if (!id || id === this._seenId)
             return;
+        if (this._check) {
+            // The app was closed and opened again, and does not know a check runs: it waits
+            // for this id. Looked at again when the running check ends.
+            this._askedMore = true;
+            return;
+        }
         this._seenId = id;
         this._startCheck(id);
     }
@@ -490,7 +498,7 @@ export class Speed {
         this._syncHold();
         const phases = c.phases;
         this._result = {id: c.id, state, error, refresh: Math.round((c.refresh ?? 0) * 10) / 10, phases,
-            pick: state === 'done' ? pickLevel(phases) : ''};
+            pick: state === 'done' ? pickLevel(phases) : '', method: CHECK_METHOD};
         // Back to what the setting (or auto) had; auto no deeper than this check allows.
         if (state === 'done') {
             this._done = this._result;
@@ -500,6 +508,14 @@ export class Speed {
             this._quality === 'auto' ? Math.min(c.back, this._tuner.level) : this._fixedLevel()));
         this._scheduleRetry();
         this._writeStatus();
+        if (this._askedMore && !this._againId) {
+            this._askedMore = false;
+            this._againId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+                this._againId = 0;
+                this._onRequest();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
     }
 
     _lastResult() {
@@ -518,8 +534,12 @@ export class Speed {
             const phases = c.phases.slice(0, LEVELS.length).filter(x => x && LEVELS.includes(x.level)).map(x => ({
                 level: x.level, fps: Number(x.fps) || 0, late: Number(x.late) || 0,
                 verdict: ['smooth', 'ok', 'slow'].includes(x.verdict) ? x.verdict : 'slow'}));
-            return {id: c.id, state: 'done', error: '', refresh: Number(c.refresh) || 0, phases,
+            const result = {id: c.id, state: 'done', error: '', refresh: Number(c.refresh) || 0, phases,
                 pick: LEVELS.includes(c.pick) ? c.pick : ''};
+            if (typeof c.method === 'number')
+                result.method = c.method;
+            // One from the check before 1.7.7 with no smooth level is not carried on.
+            return checkStands(result) ? result : null;
         } catch {
             return null;
         }
@@ -584,6 +604,10 @@ export class Speed {
             this._check = null;
             this._result = {id: c.id, state: 'failed', error: 'locked', refresh: 0, phases: [], pick: ''};
             this._writeStatus();
+        }
+        if (this._againId) {
+            GLib.source_remove(this._againId);
+            this._againId = 0;
         }
         // Going away (the screen locks): what is waiting is written now.
         if (this._writeId) {

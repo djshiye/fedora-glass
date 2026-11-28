@@ -43,7 +43,7 @@ C.Popup {
 
     contentItem: Column {
         spacing: 12
-        Text { text: pop.title; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+        Text { textFormat: Text.PlainText; text: pop.title; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
 
         Rectangle {
             id: square

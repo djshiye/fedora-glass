@@ -121,6 +121,7 @@ FocusScope {
                     }
                     Text {
                         visible: !root.iconOnly
+                        textFormat: Text.PlainText
                         text: seg.modelData.label || ""
                         color: seg.selected ? root._text : root._textDim
                         font.pixelSize: root.compact ? 13 : Theme.fsBody
@@ -142,7 +143,7 @@ FocusScope {
         color: "transparent"
         border.width: 2
         border.color: Theme.alpha(Theme.accent, 0.85)
-        opacity: root.activeFocus ? 1 : 0
+        opacity: root.activeFocus && !root._byMouse ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.fast } }
     }
 }

@@ -837,6 +837,10 @@ Window {
                         visible: !Backend.busy && footerStatus.fits
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.min(implicitWidth, Math.max(0, footerStatus.spare))
+                        // A sentence too long for its room (German at the smallest window) goes on
+                        // two lines before any of it is cut.
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
                         elide: Text.ElideRight
                         text: ({ dirty: Backend.changeCount === 1 ? qsTr("1 change not applied yet")
                                         : Backend.changeCount > 1 ? qsTr("%1 changes not applied yet").arg(Backend.changeCount)
@@ -1026,7 +1030,7 @@ Window {
     }
     WelcomeSheet { id: welcomeSheet }
     ResultsSheet { id: resultsSheet }
-    AboutSheet { id: aboutSheet }
+    AboutSheet { id: aboutSheet; windowMargin: win.margin }
 
     Sheet {
         id: confirmSheet
@@ -1053,15 +1057,18 @@ Window {
         title: qsTr("Apply your changes before closing?")
         subtitle: qsTr("You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last.")
         iconName: "info"
-        width: Math.min(560, win.width - 64)
+        // As wide as its three buttons need (longer labels, as in German, would run out of the sheet).
+        width: Math.min(Math.max(560, leaveClose.implicitWidth + leaveCancel.implicitWidth + leaveApply.implicitWidth + 16 + 48), win.width - 64)
         buttons: [
             LgButton {
+                id: leaveClose
                 text: qsTr("Close without applying")
                 kind: "danger"
                 onClicked: { leaveSheet.close(); win.closeAnyway = true; win.close() }
             },
-            LgButton { text: qsTr("Cancel"); kind: "secondary"; onClicked: leaveSheet.close() },
+            LgButton { id: leaveCancel; text: qsTr("Cancel"); kind: "secondary"; onClicked: leaveSheet.close() },
             LgButton {
+                id: leaveApply
                 text: qsTr("Apply and close")
                 kind: "primary"
                 iconName: "check"
@@ -1119,19 +1126,29 @@ Window {
         iconName: "alert"
         iconColor: Theme.warn
         buttons: [ LgButton { text: qsTr("Close"); kind: "primary"; onClicked: problemsSheet.close() } ]
-        Column {
+        // Many lines scroll inside the sheet, so Close stays in view.
+        Flickable {
             width: parent.width
-            spacing: 6
-            Repeater {
-                model: problemsSheet.problems
-                delegate: Text {
-                    required property string modelData
-                    width: parent.width
-                    text: modelData
-                    color: Theme.textDim
-                    font.family: Theme.mono
-                    font.pixelSize: 12
-                    wrapMode: Text.WrapAnywhere
+            height: Math.min(contentHeight, problemsSheet.maxBodyHeight)
+            contentHeight: problemsList.height
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            C.ScrollBar.vertical: LgScrollBar {}
+            Column {
+                id: problemsList
+                width: parent.width - 8
+                spacing: 6
+                Repeater {
+                    model: problemsSheet.problems
+                    delegate: Text {
+                        required property string modelData
+                        width: parent.width
+                        text: modelData
+                        color: Theme.textDim
+                        font.family: Theme.mono
+                        font.pixelSize: 12
+                        wrapMode: Text.WrapAnywhere
+                    }
                 }
             }
         }

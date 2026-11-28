@@ -17,6 +17,26 @@ C.Slider {
     focusPolicy: Qt.StrongFocus
     opacity: enabled ? 1 : 0.45
     Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+    // Qt's slider moves only on Left and Right. Up and Down step too, Page Up and Page Down move ten
+    // steps, Home and End go to the ends. Stepped with increase() and decrease(), so the value keeps
+    // its binding to the setting.
+    Keys.onPressed: (e) => {
+        const steps = { [Qt.Key_Up]: 1, [Qt.Key_Down]: -1, [Qt.Key_PageUp]: 10, [Qt.Key_PageDown]: -10,
+                        [Qt.Key_Home]: -100000, [Qt.Key_End]: 100000 }[e.key]
+        // Ctrl, Alt, Meta or Shift with a key keeps its other meanings.
+        if (steps === undefined || (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)))
+            return
+        e.accepted = true
+        const was = value
+        for (let i = 0; i < Math.abs(steps); i++) {
+            const before = value
+            steps > 0 ? increase() : decrease()
+            if (value === before)
+                break
+        }
+        if (value !== was)
+            moved()
+    }
     HoverHandler { cursorShape: control.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
 
     background: Item {

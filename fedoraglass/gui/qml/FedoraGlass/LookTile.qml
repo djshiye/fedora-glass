@@ -3,6 +3,7 @@ import QtQuick.Controls.Basic as C
 import QtQuick.Effects
 import QtQuick.Window
 import FedoraGlass.Core
+import "roving.js" as Roving
 
 // A look as a little picture of its glass on the wallpaper: the five built-in presets and
 // the user's own saved looks. A saved look shows its tint and accent too, and has a menu.
@@ -21,11 +22,29 @@ C.AbstractButton {
     signal menuRequested(Item from)
     readonly property bool _groupFocused: Window.activeFocusItem !== null && Window.activeFocusItem.rovingGroup === rovingGroup
     focusPolicy: activeFocus || (rovingStop && !_groupFocused) ? Qt.StrongFocus : Qt.ClickFocus
-    Keys.onLeftPressed: { const p = tile.nextItemInFocusChain(false); if (p && p.rovingGroup === tile.rovingGroup) p.forceActiveFocus(Qt.TabFocusReason) }
-    Keys.onRightPressed: { const n = tile.nextItemInFocusChain(true); if (n && n.rovingGroup === tile.rovingGroup) n.forceActiveFocus(Qt.TabFocusReason) }
     // The menu key or Shift+F10 opens a saved look's menu, as a right click does.
     Keys.onMenuPressed: if (hasMenu) tile.menuRequested(menuBtn)
-    Keys.onPressed: (e) => { if (hasMenu && e.key === Qt.Key_F10 && (e.modifiers & Qt.ShiftModifier)) { tile.menuRequested(menuBtn); e.accepted = true } }
+    Keys.onPressed: (e) => {
+        if (hasMenu && e.key === Qt.Key_F10 && (e.modifiers & Qt.ShiftModifier)) { tile.menuRequested(menuBtn); e.accepted = true }
+        // A row or grid of looks: the arrows, Home and End walk it in order.
+        else if (Roving.handleKey(tile, e)) e.accepted = true
+        // The list of saved looks: the next or the previous look, brought into view.
+        else if ((e.key === Qt.Key_Left || e.key === Qt.Key_Right) && !(e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)) && tile.ListView.view && tile.ListView.view === tile.rovingGroup) {
+            const view = tile.ListView.view
+            let at = -1
+            for (let k = 0; k < view.count && at < 0; k++)
+                if (view.itemAtIndex(k) === tile)
+                    at = k
+            const to = at + (e.key === Qt.Key_Right ? 1 : -1)
+            if (at >= 0 && to >= 0 && to < view.count) {
+                view.positionViewAtIndex(to, ListView.Contain)
+                const next = view.itemAtIndex(to)
+                if (next)
+                    next.forceActiveFocus(Qt.TabFocusReason)
+            }
+            e.accepted = true
+        }
+    }
     implicitHeight: thumbHeight + 44
     hoverEnabled: true
     readonly property string shownName: hasMenu ? name : Theme.presetLabel(name)   // presets are keyed by their English name
@@ -118,6 +137,7 @@ C.AbstractButton {
             x: tile.hasMenu ? 8 : 6
             width: tile.width - 2 * x
             horizontalAlignment: Text.AlignHCenter
+            textFormat: Text.PlainText
             text: tile.shownName
             elide: Text.ElideRight
             // Longer names (other languages) shrink a little before they are cut.

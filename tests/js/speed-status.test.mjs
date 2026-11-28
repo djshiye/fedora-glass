@@ -242,3 +242,108 @@ test('the frame the glass wakes up in is timed from its first glass, and one wit
     assert.equal(s._views.get(v).last, usNow - 5e6, 'an end without a start, long after: left out');
     s.destroy();
 });
+
+const REQ = '/home/u/.config/liquid-glass/speed-check.json';
+const ask = id => {
+    globalThis.fake.fs.set(REQ, {text: JSON.stringify({id})});
+    for (const [path, m] of globalThis.fake.monitors)
+        if (path === '/home/u/.config/liquid-glass')
+            m.handlers.forEach(fn => fn(m, {get_basename: () => 'speed-check.json'}, null));
+};
+function runChecks(rounds = 2) {
+    for (let r = 0; r < rounds; r++) {
+        for (let i = 0; i < 2000; i++) { frame(2); clock.advance(16); }
+        clock.advance(40000);
+    }
+}
+
+test('a check asked for while another runs (the app closed and opened again) runs when the first ends', () => {
+    globalThis.fake.shown = 3;
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    ask('00000000000000a1');
+    assert.ok(s._check, 'the first check runs');
+    for (let i = 0; i < 50; i++) { frame(2); clock.advance(16); }
+    ask('00000000000000b2');            // the reopened app asks again
+    assert.equal(s._check.id, '00000000000000a1', 'the running one is not cut short');
+    runChecks(3);
+    assert.equal(status().check.id, '00000000000000b2', 'the app gets the answer to its own check');
+    assert.equal(status().check.state, 'done');
+    s.destroy();
+});
+
+test('of several asked for during a check only the newest runs, and an answered one is not run again', () => {
+    globalThis.fake.shown = 3;
+    const ran = [];
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    const start = s._startCheck.bind(s);
+    s._startCheck = id => { ran.push(id); start(id); };
+    ask('00000000000000a1');
+    ask('00000000000000b2');
+    ask('00000000000000c3');
+    runChecks(4);
+    assert.deepEqual(ran, ['00000000000000a1', '00000000000000c3']);
+    assert.equal(status().check.id, '00000000000000c3');
+    s.destroy();
+});
+
+test('a check waiting for the first one to end does not start after the glass is let go', () => {
+    globalThis.fake.shown = 3;
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    ask('00000000000000a1');
+    ask('00000000000000b2');
+    s._endCheck('failed', 'busy');      // the first ends; the second is about to start
+    s.destroy();                        // the screen locks
+    clock.advance(0);
+    assert.equal(s._check, null, 'nothing started after destroy');
+});
+
+// A speed.json from the check of 1.7.6, before the check was made fair (1.7.7): every level slow.
+const OLD_ALL_SLOW = '{"version":1,"quality":"auto","level":"full","reason":"setting","power":"","since":1795780801,"check":{"id":"796e1b326b47ff5e","state":"done","error":"","refresh":120,"phases":[{"level":"full","fps":34.2,"late":0.691,"verdict":"slow"},{"level":"lighter","fps":14.5,"late":0.954,"verdict":"slow"},{"level":"lightest","fps":9,"late":0.966,"verdict":"slow"}],"pick":"full"},"lastDone":{"id":"796e1b326b47ff5e","state":"done","error":"","refresh":120,"phases":[{"level":"full","fps":34.2,"late":0.691,"verdict":"slow"},{"level":"lighter","fps":14.5,"late":0.954,"verdict":"slow"},{"level":"lightest","fps":9,"late":0.966,"verdict":"slow"}],"pick":"full"},"drag":{"at":1795790093,"frames":27,"median_ms":8.3,"p95_ms":8.6,"refresh":120,"windows":2}}';
+const phase = (level, verdict) => ({level, fps: 60, late: 0.01, verdict});
+const stored = (phases, extra = {}) => {
+    const c = {id: '00000000000000d4', state: 'done', error: '', refresh: 120, phases, pick: 'full', ...extra};
+    return JSON.stringify({version: 1, quality: 'auto', level: 'full', check: c, lastDone: c});
+};
+
+test('a result of the old, unfair check with no smooth level is not carried on or used by auto', () => {
+    globalThis.fake.fs.set(SPEED, {text: OLD_ALL_SLOW});
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    clock.advance(10);
+    const st = status();
+    assert.equal(st.lastDone, null, 'no verdict kept for the app to show');
+    assert.equal(st.check, null);
+    assert.equal(s._tuner.deepest, 2, 'auto as without a check');
+    assert.equal(st.drag.frames, 27, 'the last drag stays');
+    s.destroy();
+});
+
+test('a result of the old check with a smooth level still stands, and still limits auto', () => {
+    globalThis.fake.fs.set(SPEED, {text: stored([phase('full', 'smooth'), phase('lighter', 'smooth'), phase('lightest', 'smooth')])});
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    clock.advance(10);
+    assert.equal(status().lastDone.id, '00000000000000d4');
+    assert.equal(s._tuner.deepest, 1, 'never down to the lightest glass');
+    s.destroy();
+});
+
+test('a result with the mark of the fair check stands even with every level slow', () => {
+    globalThis.fake.fs.set(SPEED, {text: stored([phase('full', 'slow'), phase('lighter', 'slow'), phase('lightest', 'slow')], {method: 2})});
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    clock.advance(10);
+    assert.equal(status().lastDone.id, '00000000000000d4');
+    assert.equal(status().lastDone.method, 2, 'the mark is kept');
+    assert.equal(s._tuner.deepest, 2);
+    s.destroy();
+});
+
+test('a check made now is marked as made the fair way', () => {
+    globalThis.fake.shown = 3;
+    const s = new Speed({speed: {quality: 'auto'}}, () => {});
+    ask('00000000000000e5');
+    runChecks(2);
+    const st = status();
+    assert.equal(st.check.state, 'done');
+    assert.equal(st.check.method, 2);
+    assert.equal(st.lastDone.method, 2);
+    s.destroy();
+});

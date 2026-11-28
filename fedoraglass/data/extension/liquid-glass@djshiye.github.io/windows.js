@@ -764,10 +764,6 @@ class WindowGlass {
             return 'out';
         if (underFullscreen(this.actor, w))
             return 'out';
-        // A title bar drawn by the Shell is opaque: nothing would show.
-        if (typeof w.is_client_decorated === 'function' && w.get_client_type?.() === Meta.WindowClientType.X11 &&
-            !w.is_client_decorated())
-            return 'out';
         // Full screen stays 'out' (above): nothing may sit in a full-screen window's actor.
         const kind = windowKind(this.appIds(), s.skip, s.solid ?? []);
         this._titleOnly = kind === 'title';

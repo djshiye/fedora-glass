@@ -22,7 +22,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {Signals, disposed, dtpPanels} from './common.js';
+import {Signals, TaskbarBoxes, disposed, dtpPanels} from './common.js';
 import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {springStep as spring} from './curves.js';
@@ -180,6 +180,8 @@ export class HoverGlide {
         this._animIds = watchMotion(this._settings, () => this.settle());
         // A menu open (or the panel shown over a full-screen game): hover by pointer position.
         this._grabHover = new GrabHover(() => this._watched.keys(), icon => this._hover(icon));
+        // Icons that Dash to Panel puts into a taskbar after the first look at it.
+        this._taskbars = new TaskbarBoxes(() => this._queueRefresh());
     }
 
     update(look) {
@@ -235,6 +237,7 @@ export class HoverGlide {
     // Match the tiles to the panels, and the watched icons to the taskbars.
     _refresh() {
         const live = panels();
+        this._taskbars.follow(live);
         for (const [panel, tile] of [...this._tiles]) {
             // Gone from the list, destroyed without us hearing it, or the tile lost its place.
             if (!live.includes(panel) || tile.gone || disposed(tile.actor) || tile.actor.get_parent() !== panel) {
@@ -435,6 +438,7 @@ export class HoverGlide {
         this._signals.clear();
         this._dtpSignals.clear();
         this._dtp = null;
+        this._taskbars.clear();
         for (const icon of [...this._watched.keys()])
             this._unwatch(icon);
         if (this._later)

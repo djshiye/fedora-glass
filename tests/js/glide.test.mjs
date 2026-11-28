@@ -444,3 +444,181 @@ test('the shared Dash to Panel list leaves out disposed panels, and plain object
     assert.deepEqual(dtpPanels(), []);
     global.dashToPanel = was;
 });
+
+// Dash to Panel fills a taskbar after its panel is there (the icons come as deferred work):
+// a panel whose taskbar is still empty, as the glide finds it right after login.
+function lateScene() {
+    const panel = new Actor({pos: [100, 850], width: 1400, height: 44});
+    const icons = [];
+    const box = new Actor();
+    panel.taskbar = {_getAppIcons: () => icons, _box: box};
+    dtp.panels = [panel];
+    return {panel, icons, box};
+}
+
+// Dash to Panel adds the taskbar's i-th icon; the idle that looks again runs.
+function arrive({icons, box}, i = icons.length) {
+    const container = new Actor({pos: [100 + 4 + i * 52, 852], width: 48, height: 40});
+    const icon = new Actor({_container: container, hover: false});
+    icons.push(icon);
+    box.emit('child-added', icon);
+    fake.timeouts.fireAll();
+    return icon;
+}
+
+test('an icon Dash to Panel adds after the start gets the highlight', () => {
+    const s = lateScene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    assert.equal(s.box.handlerCount(), 1, 'the taskbar is followed');
+    // Until 1.7.10 nothing told the glide: a pinned icon had no highlight until a window
+    // opened or closed, and Dash to Panel's own highlight is clear while the glide is on.
+    const icon = arrive(s);
+    hover(icon, true);
+    frames(20);
+    const tile = tileOf(s.panel);
+    assert.equal(tile.opacity, 255, 'lit under the icon that came later');
+    assert.equal(tile.translation_x, 4);
+    // a second one: glides there
+    const next = arrive(s);
+    hover(icon, false);
+    hover(next, true);
+    frames(60);
+    assert.equal(tile.translation_x, 56);
+    g.destroy();
+    assert.equal(s.box.handlerCount(), 0, 'nothing stays connected to the taskbar');
+    assert.ok([icon, next].every(i => i.handlerCount() === 0));
+});
+
+test('after Dash to Panel builds a new panel its taskbar is followed and the old one let go', () => {
+    const old = lateScene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    const fresh = lateScene();          // dtp.panels is now the new panel alone
+    dtp.emit('panels-created');
+    fake.timeouts.fireAll();
+    assert.equal(old.box.handlerCount(), 0, 'the old taskbar is let go');
+    assert.equal(fresh.box.handlerCount(), 1);
+    const icon = arrive(fresh);
+    hover(icon, true);
+    frames(20);
+    assert.equal(tileOf(fresh.panel).opacity, 255);
+    g.destroy();
+    assert.equal(fresh.box.handlerCount(), 0);
+});
+
+test('a taskbar that was destroyed is never touched, and the glide switched off follows none', () => {
+    fake.warnings.length = 0;
+    const s = lateScene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    // Dash to Panel took the taskbar down behind our back: from now on every call on its
+    // box would only fill the log.
+    s.box[Symbol.for('fake-disposed')] = true;
+    s.box.connect = s.box.disconnect = () => fake.warnings.push('touched a disposed taskbar');
+    fake.windowTracker.emit('tracked-windows-changed');
+    fake.timeouts.fireAll();
+    g.update({...LOOK, enabled: false});
+    assert.deepEqual(fake.warnings, []);
+    const off = lateScene();
+    g.update({...LOOK, enabled: false});
+    assert.equal(off.box.handlerCount(), 0, 'off: no taskbar is followed');
+    arrive(off);
+    assert.equal(tileOf(off.panel), undefined, 'and an icon arriving makes no tile');
+    g.update(LOOK);
+    assert.equal(off.box.handlerCount(), 1);
+    g.destroy();
+    assert.equal(off.box.handlerCount(), 0);
+});
+
+// ---- while the glass is paused or in safe mode (paused.js) ------------------------------
+// The glide goes down with the animations when the glass stops, but Dash to Panel's own
+// hover colour stays clear (the app set it so): up to 1.7.10 a taskbar icon under the pointer
+// showed nothing at all while the glass was paused. The paused look carries a glide of its own.
+fake.fs = new Map();
+fake.themeContext = {get_theme: () => ({get_custom_stylesheets: () => [], load_stylesheet() {}, unload_stylesheet() {}}),
+    connect: () => 1, disconnect() {}};
+const {PausedStyle} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/paused.js');
+const PAUSED = {pausedCss: '', pausedAlpha: 0.96};
+
+function nothingLeft(panel, icons) {
+    assert.equal(tileOf(panel), undefined, 'no tile is left');
+    assert.ok(icons.every(i => i.handlerCount() === 0));
+    for (const o of [panel, dtp, fake.appSystem, fake.windowTracker, fake.extensionManager, stSettings])
+        assert.equal(o.handlerCount(), 0);
+    assert.equal(laters.size, 0);
+}
+
+test('paused: the gliding highlight carries on, follows its switch, and goes with the paused look', () => {
+    const {panel, icons} = scene();
+    const p = new PausedStyle({...PAUSED, glide: LOOK});
+    hover(icons[1], true);
+    frames(20);
+    const tile = tileOf(panel);
+    assert.equal(tile.opacity, 255, 'lit under the icon while the glass is paused');
+    assert.equal(tile.translation_x, 56);
+    assert.match(tile.style, /background-color: rgba\(255,255,255,0.08\); border-radius: 8px;/);
+    // A new look from the app while paused (another colour) reaches the same tile.
+    p.update({...PAUSED, glide: {...LOOK, color: 'rgba(0,0,0,0.06)'}});
+    assert.equal(tileOf(panel), tile);
+    assert.match(tile.style, /rgba\(0,0,0,0.06\)/);
+    // Switched off in the app while paused: gone; switched on again: back.
+    p.update({...PAUSED, glide: {...LOOK, enabled: false}});
+    assert.equal(tileOf(panel), undefined);
+    p.update({...PAUSED, glide: LOOK});
+    assert.ok(tileOf(panel));
+    hover(icons[1], false);
+    fake.timeouts.fireAll();
+    p.destroy();
+    nothingLeft(panel, icons);
+});
+
+test('paused: locking takes the highlight down at once, not with the sheet a moment later', () => {
+    const {panel, icons} = scene();
+    const p = new PausedStyle({...PAUSED, glide: LOOK});
+    assert.ok(tileOf(panel));
+    p.destroyLater(() => {});
+    nothingLeft(panel, icons);
+    p.destroy();     // the sheet's own end: nothing to do twice
+    nothingLeft(panel, icons);
+});
+
+test('paused: no highlight when the glide is switched off, or the config says nothing of it', () => {
+    const {panel, icons} = scene();
+    for (const cfg of [{...PAUSED, glide: {...LOOK, enabled: false}}, PAUSED, undefined]) {
+        const p = new PausedStyle(cfg);
+        assert.equal(tileOf(panel), undefined);
+        p.destroy();
+        nothingLeft(panel, icons);
+    }
+});
+
+test('paused: a highlight that cannot start leaves the rest of the paused look standing', () => {
+    const {panel, icons} = scene();
+    const lifted = {alpha: 0.29, _updateAlpha() { this.alpha = 0.29; }, _updateAlphaAndSet() { this._updateAlpha(); }};
+    panel.dynamicTransparency = lifted;
+    // GNOME's settings object refuses the glide's listener: the glide cannot be made.
+    const connect = stSettings.connect;
+    stSettings.connect = () => { throw new Error('no settings today'); };
+    const errors = [];
+    const error = console.error;
+    console.error = m => errors.push(String(m));
+    let p;
+    try {
+        p = new PausedStyle({...PAUSED, glide: LOOK});
+    } finally {
+        console.error = error;
+        stSettings.connect = connect;
+    }
+    assert.equal(lifted.alpha, 0.96, 'Dash to Panel\'s panel is solid all the same');
+    assert.equal(tileOf(panel), undefined);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /Fedora Glass: no gliding highlight while paused: Error: no settings today/);
+    // The next word from the app tries again, and now it can.
+    p.update({...PAUSED, glide: LOOK});
+    assert.ok(tileOf(panel));
+    p.destroy();
+    assert.equal(lifted.alpha, 0.29);
+    delete panel.dynamicTransparency;
+    nothingLeft(panel, icons);
+});

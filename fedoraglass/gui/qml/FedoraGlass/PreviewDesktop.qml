@@ -101,7 +101,7 @@ Item {
     readonly property color fgDim: t.fg_dim || "white"
     readonly property color fgFaint: t.fg_faint || "white"
     readonly property color folderBlue: dark ? "#62a0ea" : "#438de6"
-    readonly property string clock: Qt.formatDate(now, "MMM d") + "  " + Qt.formatTime(now, "h:mm AP")
+    readonly property string clock: dateText(now, false, false, true) + "  " + hm(now, true)
     // The panel clock and the calendar keep time: a tick on each new minute, only while
     // the preview is on screen (no timer runs for a hidden or minimized window).
     property date now: new Date()
@@ -117,6 +117,28 @@ Item {
         onTriggered: root.now = new Date()
     }
 
+    // Dates and times as GNOME shows them: in the app's language (in the session's own locale
+    // when that speaks it, so its order is kept) and with the session's 12- or 24-hour clock.
+    // The same in PreviewDesktop.qml and LockPreview.qml, so both previews tell one time.
+    readonly property var loc: {
+        const ui = Qt.uiLanguage.split("_")[0]
+        return !ui || Qt.locale().name.split("_")[0] === ui ? Qt.locale() : Qt.locale(Qt.uiLanguage)
+    }
+    readonly property bool h12: Qt.locale().timeFormat(Locale.ShortFormat).replace(/'[^']*'/g, "").search(/a/i) >= 0
+    // Without AM/PM, as on GNOME's lock screen ("h" alone counts to 23 in Qt).
+    function hm(d, ampm) {
+        return !h12 ? d.toLocaleString(loc, "HH:mm") : ampm ? d.toLocaleString(loc, "h:mm AP")
+             : (d.getHours() % 12 || 12) + d.toLocaleString(loc, ":mm")
+    }
+    // The locale's long date, with or without the weekday and the year, its month cut short or not.
+    function dateText(d, weekday, year, shortMonth) {
+        let f = loc.dateFormat(Locale.LongFormat)
+        if (!weekday) f = f.replace(/,?\s*dddd,?/, " ")
+        if (!year) f = f.replace(/,?\s*(?:'[^']*'\s*)?y+\.?/, " ")
+        if (shortMonth) f = f.replace("MMMM", "MMM")
+        return d.toLocaleString(loc, f.trim())
+    }
+
     function withAlpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
     // The look of one part (panel, arcmenu, windows, ...): its own tint, roundness, frost and
@@ -125,6 +147,10 @@ Item {
         const p = t.parts ? t.parts[name] : undefined
         return p && p[key] !== undefined ? p[key] : fallback
     }
+    // How much of its frost each part blurs on the desktop (render/glass.py FROST_SCALE): a thin
+    // bar shows the lens best with a light blur, menus hold text and want more.
+    readonly property var frostScale: ({ panel: 0.35, arcmenu: 1.2, quicksettings: 1.2, calendar: 1.2, overview: 1.0 })
+    function partBlur(name) { return Math.round(part(name, "blur", t.blur_radius || 0) * (frostScale[name] ?? 1)) }
     readonly property real bleedGlobal: t.bleed !== undefined ? t.bleed : 0.6
     // Window header bars: their height (47 px is GNOME's) and, when set, their own see-through glass.
     readonly property real headH: u((gtkThemed ? (Backend.headerHeight || 47) : 47) + 3)
@@ -298,7 +324,7 @@ Item {
         // Off (the Glass effects switches, the glass app switch, Reduce transparency): the
         // theme's own surface with a plain edge, and nothing blurred or bent behind it.
         property bool glass: true
-        blurRadius: (!glass ? 0 : part ? root.part(part, "blur", t.blur_radius || 0) * root.s : root.blurPx)
+        blurRadius: (!glass ? 0 : part ? root.partBlur(part) * root.s : root.blurPx)
                     + (glass ? root.iceBlur * root.s : 0)
         brightness: glass ? root.brightness : 0
         frost: glass ? root.ice.frost || 0 : 0
@@ -345,6 +371,7 @@ Item {
         saturation: root.windowsBlur ? root.saturation : 0
         brightness: root.windowsBlur ? root.brightness : 0
         radius: root.rWin
+        bleed: 0            // no colour bleed behind app windows (render/glass.py _window_look)
         rimOnTop: true
         shadowBlur: root.u(64)
         shadowY: root.u(18)
@@ -1247,8 +1274,8 @@ Item {
             x: cal.split + root.u(20); y: cal.pad
             width: cal.width - cal.split - root.u(20) - cal.pad
             spacing: root.u(10)
-            Label { text: Qt.formatDate(cal.today, "dddd"); color: cal.fgC; opacity: 0.7; font.pixelSize: root.u(14) }
-            Label { text: Qt.formatDate(cal.today, "MMMM d yyyy"); color: cal.fgC; font.weight: Font.Bold; font.pixelSize: root.u(20) }
+            Label { text: cal.today.toLocaleString(root.loc, "dddd"); color: cal.fgC; opacity: 0.7; font.pixelSize: root.u(14) }
+            Label { text: root.dateText(cal.today, false, true); color: cal.fgC; font.weight: Font.Bold; font.pixelSize: root.u(20) }
             Grid {
                 columns: 7
                 columnSpacing: 0; rowSpacing: root.u(4)
@@ -1562,7 +1589,7 @@ Item {
                 y: bar ? closeUpBox.height * 0.5 - root.panelH / 2 : closeUpBox.height * 0.36
                 width: closeUpBox.width; height: bar ? root.panelH : closeUpBox.height
                 radius: bar ? (root.floating ? Math.min(height / 2, root.lad(root.rPanel, "l")) : 0) : root.lad(root.part(pn, "radius", root.r), "m")
-                blurRadius: root.glassOn ? root.part(pn, "blur", t.blur_radius || 0) + root.iceBlur : 0
+                blurRadius: root.glassOn ? root.partBlur(pn) + root.iceBlur : 0
                 brightness: root.glassOn ? root.brightness : 0
                 frost: root.glassOn ? root.ice.frost || 0 : 0
                 flakes: root.glassOn ? root.ice.flakes || 0 : 0

@@ -119,6 +119,33 @@ def test_cut_short_restore_can_run_again(fake_env):
     assert not Path(copy).exists()
 
 
+def test_a_restore_that_cannot_write_a_changed_settings_file_can_run_again(fake_env, monkeypatch):
+    import errno
+    from fedoraglass import engine
+    sp = fake_env.config / "Code/User/settings.json"
+    sp.parent.mkdir(parents=True)
+    sp.write_text(json.dumps({"theme": "Old", "fontSize": 12}))
+    eng = edit_engine(fake_env, sp)
+    eng.apply(Settings())
+    # The app changes its own file after Apply, so Restore takes only our key out.
+    d = json.loads(sp.read_text())
+    d["fontSize"] = 16
+    sp.write_text(json.dumps(d))
+    real = engine.atomic_write
+
+    def full(path, data, mode=0o644, durable=False):
+        if path == sp:
+            raise OSError(errno.ENOSPC, "No space left on device")
+        return real(path, data, mode, durable)
+    monkeypatch.setattr(engine, "atomic_write", full)
+    assert eng.revert()                 # the disk is full: Restore says it failed
+    monkeypatch.setattr(engine, "atomic_write", real)
+    # Space freed: the next Restore finishes the job, with the stored original kept.
+    assert eng.revert() == []
+    assert json.loads(sp.read_text()) == {"theme": "Old", "fontSize": 16}
+    assert not eng.is_applied()
+
+
 @dataclass
 class CmdTarget(Target):
     def plan(self, ctx):

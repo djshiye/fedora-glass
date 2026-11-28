@@ -164,9 +164,10 @@ export class Actor extends Emitter {
 
     // As St: the room a style keeps inside the widget, by side (St.Side: top 0 ... left 3).
     // `pad` is [top, bottom] in px. Nothing here says what it paints.
+    // `themeHeight`: a fixed height the theme gives it (stage px), none (-1) unless set.
     get_theme_node() {
         const pad = side => (side === 0 ? this.pad?.[0] : side === 2 ? this.pad?.[1] : 0) ?? 0;
-        return {get_padding: pad, get_border_width: () => 0};
+        return {get_padding: pad, get_border_width: () => 0, get_height: () => this.themeHeight ?? -1};
     }
 
     get_transformed_position() {
@@ -259,11 +260,28 @@ export function makeTimers() {
     };
 }
 
+// What GNOME's prompt shows with its own theme (as the add-on's promptPlace counts it, px at
+// the usual text size and per unit of text scale), the room it keeps under the field, and
+// the fixed height GNOME 51.1's theme gives it.
+const PROMPT = {
+    '50': {fixed: 144, text: 92, room: 67},
+    '51.0': {fixed: 144, text: 96, room: 74},
+    '51.1': {fixed: 153, text: 96, room: 74, height: 550},
+};
+
 /**
- * A fresh greeter. dialog: false = the login dialog is not made yet. gnome50: GNOME 50's
- * login dialog, which centres its prompt (51 and later give it a fixed top).
+ * A fresh greeter. dialog: false = the login dialog is not made yet. gnome: whose login
+ * dialog, '51.0' (a fixed top for the prompt), '50' (centred: also gnome50) or '51.1'
+ * (centred by the fixed height its theme gives the prompt, 50 px lower).
+ *
+ * layout: the prompt is laid out as that GNOME does, each time a stylesheet comes or goes
+ * (and fake.relayout()), with the margin our stylesheet asks for; otherwise it stays where
+ * it is made. foreign: a theme of someone else's on top of GNOME's (a smaller avatar, a
+ * bigger name, a taller field and more room for messages). ignoreMargin: a layout that
+ * takes no notice of the margin (St still puts it on the prompt).
  */
-export function makeGreeter({dialog = true, look = LOOK, note = null, highContrast = false, gnome50 = false} = {}) {
+export function makeGreeter({dialog = true, look = LOOK, note = null, highContrast = false, gnome50 = false,
+    gnome = gnome50 ? '50' : '51.0', layout: laidOut = false, foreign = false, ignoreMargin = false} = {}) {
     const stage = new Actor({name: 'stage', width: 1920, height: 1080});
     stage._root = true;
     const laters = new Map();
@@ -307,9 +325,11 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
     const theme = {sheets: [], loads: 0, load_stylesheet(f) {
         this.sheets.push(f.path);
         this.loads++;
+        fake.relayout?.();
         return true;
     }, unload_stylesheet(f) {
         this.sheets = this.sheets.filter(p => p !== f.path);
+        fake.relayout?.();
     }, get_custom_stylesheets() {
         return this.sheets.map(p => ({path: p, equal: o => o?.path === p}));
     }};
@@ -344,7 +364,16 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
         prompt._entry = new Entry({name: 'entry', x: 850, y: 540, width: 270, height: 40});
         prompt._message = new Label({name: 'message', x: 800, y: 600, width: 320, height: 40});
         prompt._mainBox.add_child(prompt.cancelButton);
-        prompt._mainBox.add_child(prompt._entry);
+        // GNOME 51 keeps the field in a box of its own, which it hides until GDM asks its
+        // question; GNOME 50 has the field itself in the row, and hides it only for a list
+        // of ways to log in.
+        if (gnome === '50') {
+            prompt._mainBox.add_child(prompt._entry);
+        } else {
+            prompt._entryArea = new Actor({name: 'entryArea', x: 850, y: 540, width: 270, height: 40});
+            prompt._entryArea.add_child(prompt._entry);
+            prompt._mainBox.add_child(prompt._entryArea);
+        }
         prompt._inputWell.add_child(prompt._mainBox);
         prompt._inputWell.add_child(prompt._message);
         prompt.add_child(prompt._userWell);
@@ -354,8 +383,10 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
             _userList: new Actor({name: 'userList', x: 780, y: 500, width: 360, height: 80}),
             _notListedButton: new Button({name: 'notListed', x: 780, y: 586, width: 360, height: 30}),
             _bannerView: null});
-        if (!gnome50)
+        if (gnome === '51.0')
             d._getFixedTopActorAllocation = () => null;
+        if (PROMPT[gnome].height)
+            prompt.themeHeight = PROMPT[gnome].height * ctx.scale_factor;
         d._userList._box = new Actor();
         d._userList._box.add_child(new Actor({name: 'dino', x: 780, y: 500, width: 360, height: 80}));
         d._userList.add_child(d._userList._box);
@@ -364,6 +395,8 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
         d._userSelectionBox.add_child(d._notListedButton);
         d.add_child(prompt);
         fake.screenShield._dialog = d;
+        if (laidOut)
+            fake.relayout = () => layOut(fake, d, gnome, {foreign, ignoreMargin});
         return d;
     };
     if (dialog)
@@ -378,6 +411,54 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
         })(),
     };
     return fake;
+}
+
+/**
+ * Where GNOME puts its prompt and what is in it, with the margin of our stylesheet (when it
+ * is loaded), as loginDialog.js of that GNOME does: 51.0 from a fixed top 275 px above the
+ * middle; 50 centred by its natural height, the margin included; 51.1 centred by the theme's
+ * fixed height (or more, should what it shows need more) and the margin, 50 px lower. GNOME
+ * rounds down and gives a centred prompt no more than the screen's height; St puts the
+ * margin on the actor, and Clutter lays it out under the margin.
+ */
+function layOut(fake, d, gnome, {foreign, ignoreMargin}) {
+    const prompt = d._authPrompt, g = PROMPT[gnome], s = fake.themeContext.scale_factor;
+    const ts = fake.gsettings['org.gnome.desktop.interface']['text-scaling-factor'] ?? 1;
+    const m = fake.layoutManager.primaryMonitor;
+    const mid = m.y + m.height / 2;
+    const css = fake.themeContext.theme.sheets.includes(CSS_PATH) ? fake.fs.get(CSS_PATH)?.text ?? '' : '';
+    const ours = /prompt-layout {[^}]*margin-top: (\d+)px;/.exec(css);
+    const M = (ours ? Number(ours[1]) : gnome === '51.0' ? 80 : 0) * s;
+    const placed = ignoreMargin ? 0 : M;
+    // From the avatar's top to the field's bottom: the avatar, the name, the field's row.
+    const avatar = (foreign ? 112 : 128) * s, field = (foreign ? 46 : 40) * s;
+    const content = (Math.round(g.fixed + g.text * ts) + (foreign ? 26 - 16 + 6 : 0)) * s;
+    const room = (g.room * ts + (foreign ? 30 : 0)) * s;
+    const box = Math.max((g.height ?? 0) * s, content + room);
+    // Centred, GNOME gives it no more than the screen's height, the margin included.
+    const given = Math.min(placed + box, m.height);
+    const top = gnome === '51.0' ? Math.floor(mid - 275) + placed
+        : Math.floor(mid - given / 2) + (gnome === '51.1' ? 50 : 0) + placed;
+    const set = (a, y, height) => Object.assign(a, {y, height});
+    // The field's row. GNOME 51's theme makes it 4em tall whatever is in it and keeps the
+    // field in its middle: half an em of the row (7 px at the usual text size) above the
+    // field and half an em under it, as seen on a real GNOME 51.0 login screen (the row 59 px,
+    // the field 45, the back button 42). On GNOME 50 the row is as tall as the field. The
+    // back button is shorter than the field and stands in the row's middle too.
+    const half = gnome === '50' ? 0 : Math.round(7 * ts) * s;
+    const fieldTop = top + content - field;
+    prompt.margin_top = M;
+    set(prompt, top, gnome === '51.0' ? box : given - placed);
+    set(prompt._userWell, top, content - field - 16 * s);
+    set(prompt._userWell.get_first_child(), top, avatar);
+    set(prompt._inputWell, fieldTop - half, half + field + room);
+    set(prompt._mainBox, fieldTop - half, half + field + half);
+    for (const a of [prompt._entryArea, prompt._entry].filter(x => x))
+        set(a, fieldTop, field);
+    set(prompt.cancelButton, fieldTop + 4 * s, field - 8 * s);
+    set(prompt._message, top + content + half + 8 * s, 40 * s);
+    prompt.needsLayout = false;
+    prompt.emit('notify::allocation');
 }
 
 /** Ours: the actors named fedora-glass-* anywhere under the stage. */

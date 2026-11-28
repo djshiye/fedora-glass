@@ -516,6 +516,62 @@ def test_a_failing_compile_on_a_change_puts_the_earlier_look_back(tmp_path):
     assert Path(paths.state).read_bytes() == st_before
 
 
+def undo_cannot_write_the_db(monkeypatch, paths: lg.Paths, after_compile=None) -> None:
+    """`on` gets past the compile of the login screen's db, then fails; its undo cannot write
+    the old db back (the disk filled up meanwhile)."""
+    def bad_post(p, w):
+        if after_compile:
+            after_compile()
+        raise lg.Failed("the check could not write its probe")
+    monkeypatch.setattr(lg, "post_check", bad_post)
+    real_wa, real_rb = lg.write_atomic, lg.Txn.rollback
+    rolling = []
+
+    def wa(path, data, mode=0o644):
+        if rolling and path == os.path.join(paths.db_dir, "gdm"):
+            raise OSError(28, "No space left on device")
+        return real_wa(path, data, mode)
+
+    def rb(self):
+        rolling.append(1)
+        try:
+            return real_rb(self)
+        finally:
+            rolling.clear()
+    monkeypatch.setattr(lg, "write_atomic", wa)
+    monkeypatch.setattr(lg.Txn, "rollback", rb)
+
+
+@needs_dconf
+def test_an_undo_that_cannot_put_the_db_back_still_leaves_the_normal_login_screen(fedora, monkeypatch):
+    undo_cannot_write_the_db(monkeypatch, fedora)
+    code, msg = on(fedora)
+    assert code == 4 and "could not undo" in msg
+    assert UUID not in effective(fedora)
+    assert effective(fedora, lg.DUE_KEY) == ""
+    assert lg.switch_gone(fedora) == []
+    assert not os.path.lexists(fedora.leaving) and not os.path.exists(fedora.state)
+    assert lg.status(fedora)["state"] == "off"
+
+
+@needs_dconf
+def test_an_undo_that_fails_on_a_full_disk_leaves_an_off_the_guard_finishes(fedora, monkeypatch):
+    root = Path(fedora.root)
+    broken = root / "etc/dconf/db/gdm.d/50-broken"
+    # The db can no longer be compiled either, so the off cannot finish at once.
+    undo_cannot_write_the_db(monkeypatch, fedora, lambda: broken.write_text("not a keyfile\n"))
+    assert on(fedora)[0] == 4
+    assert UUID in effective(fedora)
+    assert os.path.lexists(fedora.leaving)        # the guard's unit runs at the next boot
+    assert "gdm" in lg._leaving_dbs(fedora)
+    assert lg.status(fedora)["leaving"]
+    broken.unlink()
+    monkeypatch.undo()
+    assert guard(fedora) == "off: leaving"
+    assert UUID not in effective(fedora)
+    assert not os.path.lexists(fedora.leaving) and not os.path.exists(fedora.state)
+
+
 @needs_dconf
 def test_not_available_reasons(tmp_path):
     def fresh(name, **kw):
@@ -1857,6 +1913,38 @@ def test_an_off_that_cannot_finish_says_what_is_left_and_how_to_finish(main_root
     assert capsys.readouterr().err == ""
 
 
+@needs_dconf
+def test_an_off_that_worked_says_so_at_a_text_console(main_root, monkeypatch, capsys):
+    if os.geteuid() != 0:
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+    assert on(main_root)[0] == 0
+    capsys.readouterr()
+    assert lg.main(["x", "off"]) == 0
+    out = capsys.readouterr()
+    assert out.out.startswith("The glass login screen is off.") and out.err == ""
+    broken = Path(main_root.root) / "etc/dconf/db/gdm.d/50-broken"
+    assert on(main_root)[0] == 0
+    broken.write_text("not a keyfile\n")
+    capsys.readouterr()
+    assert lg.main(["x", "off"]) == 4
+    assert capsys.readouterr().out == ""          # only the problems, on stderr
+
+
+@needs_dconf
+def test_status_after_an_off_that_did_not_finish_says_not_fully_off(main_root, monkeypatch, capsys):
+    from fedoraglass import __main__ as cli
+    assert on(main_root)[0] == 0
+    (Path(main_root.root) / "etc/dconf/db/gdm.d/50-broken").write_text("not a keyfile\n")
+    assert any(p.startswith("still there") for p in lg.turn_off(main_root))
+    assert os.path.exists(main_root.state) and os.path.lexists(main_root.leaving)
+    capsys.readouterr()
+    assert cli.main(["login-screen", "status"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("Glass login screen: not fully off yet")
+    assert "trial" not in out and "To turn it off" not in out
+    assert "To finish it: sudo fedora-glass login-screen off" in out
+
+
 def test_finishing_by_hand_names_our_own_db_and_the_profile_line(tmp_path):
     paths = lg.Paths(str(tmp_path))
     own = tmp_path / "etc/dconf/db" / (lg.OWN_DB + ".d")
@@ -1907,6 +1995,7 @@ def test_the_cli_login_screen_off_needs_root_and_runs_the_helper(monkeypatch, ca
     ({"available": True, "why": "", "state": "trial", "stopped": "", "values": {}}, "trial"),
     ({"available": True, "why": "", "state": "on", "stopped": "", "values": {}}, "on"),
     ({"available": False, "why": "not-gdm", "state": "off", "stopped": "crash", "values": None}, "did not start"),
+    ({"available": True, "why": "", "state": "trial", "stopped": "", "values": {}, "leaving": True}, "not fully off"),
 ])
 def test_the_cli_login_screen_status_summary(monkeypatch, capsys, st, words):
     from fedoraglass import __main__ as cli

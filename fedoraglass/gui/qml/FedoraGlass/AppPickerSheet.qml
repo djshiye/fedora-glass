@@ -77,6 +77,7 @@ Sheet {
                 wrapMode: Text.WordWrap
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsBody
+                textFormat: Text.PlainText
                 text: !Backend.installedAppsReady ? qsTr("Looking for your apps…")
                     : sheet.query !== "" ? qsTr("No app matches “%1”.").arg(field.text.trim())
                     : qsTr("No apps were found.")
@@ -132,6 +133,7 @@ Sheet {
                             width: parent.width - x - mark.width - 20
                             anchors.verticalCenter: parent.verticalCenter
                             elide: Text.ElideRight
+                            textFormat: Text.PlainText
                             text: item.modelData.name
                             color: item.builtIn ? Theme.textFaint : Theme.text
                             font.pixelSize: Theme.fsBody

@@ -147,7 +147,7 @@ class Ptyxis(Target):
         env = ctx.env
         acts: list[Action] = [WriteFile(self.flatpak_palette(env, app_id), palette)]
         kf = self.flatpak_keyfile(env, app_id)
-        text = _read_exact(kf)
+        text = _read_exact(kf, env.home)
         cp = _keyfile(text) if text else None
         if text is None or (text and cp is None):
             return acts          # a link or not text: left alone (live_notes says so)
@@ -180,7 +180,7 @@ class Ptyxis(Target):
             out.append(_("Ptyxis from Flatpak keeps its settings in its own file, which Fedora Glass changes. "
                          "Restart Ptyxis to see it."))
             kf = self.flatpak_keyfile(ctx.env, fp)
-            text = _read_exact(kf)
+            text = _read_exact(kf, ctx.env.home)
             if text is None or (text and _keyfile(text) is None):
                 out.insert(0, _("The Flatpak Ptyxis settings file is a link or can't be read, so its profiles were not changed."))
         return out
@@ -313,6 +313,10 @@ class IncludeTerminal(Target):
         """The user's settings with our block in; None when they can't take it."""
         return rt.with_block(text, self.block_body(own), self.where)
 
+    def why_not(self, text: str) -> str:
+        """Why edit() gave None for the user's settings: the kind manual_text has words for."""
+        return "own"
+
     def manual_line(self, own: Path) -> str:
         return "\n".join(self.block_body(own))
 
@@ -348,7 +352,7 @@ class IncludeTerminal(Target):
         if text is None:
             return None, "link"
         if self.edit(text, self.own_path(env)) is None:
-            return None, "own"
+            return None, self.why_not(text)
         return None, None
 
     def plan(self, ctx: Context) -> list[Action]:
@@ -379,6 +383,9 @@ class IncludeTerminal(Target):
                 return None
         except OSError:
             pass
+        return self.manual_text(blocked, own)
+
+    def manual_text(self, blocked: str, own: Path) -> str | None:
         if blocked == "link":
             return _("Your {name} settings file is a link or can't be read, so Fedora Glass did not change it. "
                      "Add this to it yourself:\n{line}").format(name=self.name, line=self.manual_line(own))
@@ -499,6 +506,17 @@ class Alacritty(IncludeTerminal):
 
     def edit(self, text, own):
         return rt.alacritty_with_import(text, str(own))
+
+    def why_not(self, text):
+        # Left alone for an import list of the user's own, or because the line cannot go in
+        # without the risk of breaking the file (a general table written in one line, say).
+        return "own" if rt.alacritty_has_import(text) else "table"
+
+    def manual_text(self, blocked, own):
+        if blocked == "table":
+            return _("Fedora Glass could not add its line to your {name} settings safely, so it did not change them. "
+                     "Add this to the general table yourself:\n{line}").format(name=self.name, line=self.manual_line(own))
+        return super().manual_text(blocked, own)
 
 
 @dataclass

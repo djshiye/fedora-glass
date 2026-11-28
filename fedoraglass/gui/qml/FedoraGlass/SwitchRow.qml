@@ -16,10 +16,11 @@ Item {
         width: parent.width - sw.width - 16
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
-        Text { width: parent.width; text: root.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; wrapMode: Text.WordWrap }
+        Text { width: parent.width; textFormat: Text.PlainText; text: root.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; wrapMode: Text.WordWrap }
         Text {
             visible: root.caption.length > 0
             width: parent.width
+            textFormat: Text.PlainText
             text: root.caption
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall

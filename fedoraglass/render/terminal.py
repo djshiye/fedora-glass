@@ -12,6 +12,7 @@ import colorsys
 import functools
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from ..color import Color, ensure_contrast, from_hsl as _from_hsl, hsl as _hsl
 from ..palette import Tokens
@@ -325,41 +326,103 @@ def with_block(text: str, body: list[str], where: str = "top") -> str:
     return rest + block
 
 
-_GENERAL = re.compile(r"^\s*\[general\]\s*(#.*)?$")
-_IMPORT = re.compile(r"^\s*(?:general\.)?import\s*=")
-_GENERAL_DOTTED = re.compile(r"^\s*general\s*\.")
-_GENERAL_INLINE = re.compile(r"^\s*general\s*=")
+# The general table and its import key, in every way TOML lets a name be written: general,
+# "general" and 'general' are the same name, with spaces allowed around it and around a dot.
+# A second table, or a second import, would be an error, and Alacritty then drops the whole file.
+_G = r"""(?:general|"general"|'general')"""
+_I = r"""(?:import|"import"|'import')"""
+_GENERAL = re.compile(rf"^\s*\[\s*{_G}\s*\]\s*(#.*)?$")
+_IMPORT = re.compile(rf"^\s*(?:{_G}\s*\.\s*)?{_I}\s*=")
+_GENERAL_DOTTED = re.compile(rf"^\s*{_G}\s*\.")
+_GENERAL_INLINE = re.compile(rf"^\s*{_G}\s*=")
 
 
 def toml_string(s: str) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _toml(text: str) -> dict | None:
+    """`text` as TOML says it, or None when it is not valid TOML."""
+    import tomllib
+    try:
+        return tomllib.loads(text.removeprefix("\ufeff"))
+    except (ValueError, RecursionError):
+        return None
+
+
+def _same_toml(a: Any, b: Any) -> bool:
+    import json
+    return json.dumps(a, sort_keys=True, default=repr) == json.dumps(b, sort_keys=True, default=repr)
+
+
+def alacritty_has_import(text: str) -> bool:
+    """The user's Alacritty settings (our own block aside) have an import list of their own,
+    however it is written. alacritty_with_import leaves such a file alone; it also leaves one
+    alone that has none, when the line cannot be added safely."""
+    from .apps import without_block
+    rest = without_block(text, BLOCK_BEGIN, BLOCK_END)
+    if any(_IMPORT.match(ln) for ln in rest.removeprefix("\ufeff").splitlines()):
+        return True
+    said = _toml(rest)
+    if said is None:
+        return False
+    general = said.get("general")
+    return "import" in said or (isinstance(general, dict) and "import" in general)
+
+
 def alacritty_with_import(text: str, path: str) -> str | None:
     """Alacritty's settings with `import = [path]` in the [general] table (made at the end when
     there is none). None when the user already has an import list of their own: two of
-    them would be an error, so that file is left alone."""
+    them would be an error, so that file is left alone. None too when the line cannot be
+    added without breaking the file.
+
+    The place for the line is found by reading the text line by line, and that can be fooled
+    (a header inside a string, a name spelled in a way nobody thought of). So when the user's
+    file is valid TOML the result is read back: it has to be valid too, and say what the
+    user's file said plus the import. A place that fails that is not used."""
     from .apps import without_block
     rest = without_block(text, BLOCK_BEGIN, BLOCK_END)
-    if any(_IMPORT.match(ln) for ln in rest.splitlines()):
+    if any(_IMPORT.match(ln) for ln in rest.removeprefix("\ufeff").splitlines()):
         return None
+    before = _toml(rest)
+    want: dict | None = None
+    if before is not None:
+        general = before.get("general", {})
+        if "import" in before or not isinstance(general, dict) or "import" in general:
+            return None     # an import of their own however it is written, or no table to add to
+        want = {**before, "general": {**general, "import": [path]}}
+
+    def good(out: str) -> bool:
+        return before is None or _same_toml(_toml(out), want)
+
     nl = "\r\n" if "\r\n" in rest else "\n"
     imp = f"import = [{toml_string(path)}]"
     lines = rest.splitlines(keepends=True)
+    # What each line says: without its line ending, and without a byte order mark before the first.
+    says = [ln.rstrip("\r\n") for ln in lines]
+    if says:
+        says[0] = says[0].removeprefix("\ufeff")
     for i, ln in enumerate(lines):
-        if _GENERAL.match(ln.rstrip("\r\n")):
+        if _GENERAL.match(says[i]):
+            new = list(lines)
             if not ln.endswith(("\n", "\r")):
-                lines[i] += nl
+                new[i] += nl
             block = nl.join([f"# {BLOCK_BEGIN}{_BLOCK_NOTE}", imp, f"# {BLOCK_END}"]) + nl
-            lines.insert(i + 1, block)
-            return "".join(lines)
+            new.insert(i + 1, block)
+            if good(out := "".join(new)):
+                return out
+            # else: not the table's header after all (it stands inside a string): look further
     # General keys written without a [general] header (dotted, or one inline table) already make
     # the table: a second [general] would be an error and Alacritty would drop the whole file.
-    for ln in lines:
+    dotted = False
+    for ln in says:
         if ln.lstrip().startswith("["):
             break
         if _GENERAL_INLINE.match(ln):
             return None
         if _GENERAL_DOTTED.match(ln):
-            return with_block(rest, [f"general.{imp}"], "top")
-    return with_block(rest, ["[general]", imp], "end")
+            dotted = True
+            break
+    at_top = with_block(rest, [f"general.{imp}"], "top")
+    at_end = with_block(rest, ["[general]", imp], "end")
+    return next((out for out in ((at_top, at_end) if dotted else (at_end, at_top)) if good(out)), None)

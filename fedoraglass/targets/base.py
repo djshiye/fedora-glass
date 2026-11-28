@@ -41,6 +41,8 @@ class GSet:
     optional: bool = True      # skip silently if the key doesn't exist on this version
     # Another app's own setting: if the user changes it after us, undoing leaves their choice.
     keep_user_change: bool = False
+    # The user's own pick in Fedora Glass: a new pick is set even after a change made elsewhere.
+    picked: bool = False
 
     def describe(self) -> str:
         where = f"{self.schema}:{self.path}" if self.path else self.schema
@@ -81,6 +83,10 @@ class ListEdit:
     add: tuple[str, ...] = ()
     remove: tuple[str, ...] = ()
     path: str | None = None
+    # The list in the same schema that holds the items the user switched off (for
+    # enabled-extensions, disabled-extensions): an Apply Fedora Glass makes by itself
+    # never adds those back.
+    off_key: str | None = None
 
     def describe(self) -> str:
         parts = [f"add {', '.join(self.add)}" if self.add else "", f"remove {', '.join(self.remove)}" if self.remove else ""]

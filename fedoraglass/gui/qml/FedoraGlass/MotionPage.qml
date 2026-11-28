@@ -86,6 +86,7 @@ SettingsPage {
                             Text {
                                 width: tile.width
                                 horizontalAlignment: Text.AlignHCenter
+                                textFormat: Text.PlainText
                                 text: tile.modelData.label
                                 color: tile.selected ? Theme.text : Theme.textDim
                                 font.pixelSize: 13
@@ -97,10 +98,16 @@ SettingsPage {
             }
             Rectangle { width: parent.width; height: 1; color: Theme.divider }
             Item {
+                id: speedRow
                 objectName: "motionSpeed"
                 width: parent.width
                 height: 32
-                enabled: Backend.motionStyle !== "off"
+                readonly property bool gnomeDraws: ["open", "minimize", "close", "launch", "hover"].some((ev) => (Backend.motion[ev] || {}).preset === "gnome")
+                // GNOME's own animations keep their own timing, so only a preset we draw takes a speed.
+                enabled: ["open", "minimize", "close", "launch", "hover"].some((ev) => {
+                    const p = (Backend.motion[ev] || {}).preset
+                    return p && p !== "off" && p !== "gnome"
+                })
                 opacity: enabled ? 1 : 0.5
                 Text { id: speedLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Speed"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                 Text { id: slower; x: 90; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Slower"); color: Theme.textFaint; font.pixelSize: Theme.fsSmall }
@@ -116,6 +123,18 @@ SettingsPage {
                     onPressedChanged: if (!pressed) page.play()
                     Accessible.name: qsTr("Animation speed")
                 }
+            }
+            // Why Speed is greyed when GNOME draws the animations.
+            Text {
+                objectName: "motionSpeedNote"
+                visible: !speedRow.enabled && speedRow.gnomeDraws
+                width: parent.width
+                topPadding: -6
+                textFormat: Text.PlainText
+                text: qsTr("GNOME's own animations keep GNOME's speed")
+                color: Theme.textFaint
+                font.pixelSize: Theme.fsSmall
+                wrapMode: Text.WordWrap
             }
         }
     }
@@ -138,7 +157,8 @@ SettingsPage {
             SwitchRow {
                 objectName: "liquidMotion"
                 label: qsTr("Liquid motion")
-                caption: qsTr("Glass gives a little when pressed and settles as menus open")
+                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on")
+                                                    : qsTr("Glass gives a little when pressed and settles as menus open")
                 tip: qsTr("Makes the glass respond to your touch with a soft spring. It stays off when Reduce animation is on in Settings.")
                 checked: Backend.liquidMotion
                 onToggled: (on) => { Backend.liquidMotion = on; if (Theme.preview) Theme.preview.showPopup() }
@@ -160,7 +180,8 @@ SettingsPage {
             SwitchRow {
                 objectName: "menuGrow"
                 label: qsTr("Menus grow from their button")
-                caption: ""
+                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on")
+                                                    : !Backend.liquidMotion ? qsTr("Needs Liquid motion to be on") : ""
                 tip: Backend.hasStartMenu ? qsTr("The start menu, quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                                           : qsTr("Quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                 enabled: Backend.liquidMotion

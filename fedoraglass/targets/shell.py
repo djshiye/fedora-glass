@@ -102,7 +102,7 @@ class GnomeShell(Target):
             unchanged = False
         acts: list[Action] = [WriteFile(path, css)]
 
-        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(USER_THEME,)))
+        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(USER_THEME,), off_key="disabled-extensions"))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(USER_THEME,)))
 
         schema = "org.gnome.shell.extensions.user-theme"
@@ -158,7 +158,7 @@ class GlassEffects(Target):
                        if f[0] in ("extension.js", "metadata.json") else 0)
         acts: list[Action] = [WriteFile(d / name, text) for name, text in files]
         acts.append(WriteFile(self.config_path(env), rg.render_config(self.resolved(ctx), ctx.tokens)))
-        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,)))
+        acts.append(ListEdit("org.gnome.shell", "enabled-extensions", add=(rg.UUID,), off_key="disabled-extensions"))
         acts.append(ListEdit("org.gnome.shell", "disabled-extensions", remove=(rg.UUID,)))
         # Blur my Shell keeps blurring until our glass is there to take over.
         if ctx.glass_running and env.extension_path(BLUR) is not None:
@@ -430,13 +430,17 @@ class DashToPanel(Target):
         # Its own hover animation and ours would both move the icons. Only switched off when
         # the user asks in the Motion card; Restore original (or turning that back) brings theirs back.
         s = ctx.settings
+        # Both stand in for something of Dash to Panel's own, and both are drawn by the glass
+        # extension. With the "Fedora Glass effects" part off nothing draws them, so Dash to
+        # Panel keeps its own hover tile and its own hover animation.
+        ours = s.target_enabled("glass")
         # The gliding highlight (glide.js) stands in for Dash to Panel's own one, so its
         # hover colour is clear. Pressing an icon still shows Dash to Panel's pressed colour.
-        if s.hover_glide:
+        if s.hover_glide and ours:
             for i, a in enumerate(acts):
                 if isinstance(a, GSet) and a.key == "highlight-appicon-hover-background-color":
                     acts[i] = GSet(self.SCHEMA, a.key, "'rgba(0,0,0,0)'")
-        if s.motion_dtp_hover_off and s.motion_for("hover")["preset"] != "off":
+        if ours and s.motion_dtp_hover_off and s.motion_for("hover")["preset"] != "off":
             acts.append(GSet(self.SCHEMA, "animate-appicon-hover", "false", keep_user_change=True))
         else:
             acts.append(GReset(self.SCHEMA, "animate-appicon-hover"))

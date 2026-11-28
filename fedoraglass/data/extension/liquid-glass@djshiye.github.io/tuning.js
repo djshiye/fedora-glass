@@ -63,6 +63,24 @@ export function deepestFor(check) {
     return best < 0 ? LEVELS.length - 1 : Math.min(LEVELS.length - 1, best + 1);
 }
 
+// The mark a speed check result carries: 2 = each level starts clean and only what changed
+// is redrawn (since 1.7.7). Results of the check before carry no mark.
+export const CHECK_METHOD = 2;
+
+/**
+ * Whether a speed result kept from an earlier run still tells the truth. The check of
+ * 1.7.6 and before could only make a level look slower than it is, never faster: a smooth
+ * level in it still stands (and limits auto), but a result with none may be nothing but
+ * that check's doing, so it is not used.
+ */
+export function checkStands(check) {
+    if (!check)
+        return false;
+    if (typeof check.method === 'number' && check.method >= CHECK_METHOD)
+        return true;
+    return (check.phases ?? []).some(p => p?.verdict === 'smooth');
+}
+
 export class Tuner {
     constructor() {
         this.deepest = LEVELS.length - 1;   // see deepestFor

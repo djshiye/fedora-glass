@@ -110,6 +110,7 @@ Card {
                 spacing: 1
                 Text {
                     width: parent.width
+                    textFormat: Text.PlainText
                     text: tile.modelData.name
                     elide: Text.ElideRight
                     color: tile.selected ? Theme.accentText : Theme.text
@@ -118,6 +119,7 @@ Card {
                 }
                 Text {
                     width: parent.width
+                    textFormat: Text.PlainText
                     text: tile.usable ? tile.modelData.blurb : qsTr("Not installed")
                     elide: Text.ElideRight
                     color: Theme.textFaint

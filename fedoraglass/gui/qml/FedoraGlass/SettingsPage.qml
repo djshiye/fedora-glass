@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic as C
+import QtQuick.Window
 
 // One page of the app: its cards in a scrolling column on the left and, when the page
 // has one, a fixed column on the right (the shared live preview sits in `previewSlot`).
@@ -66,6 +67,29 @@ Item {
         }
     }
 
+    // The same under the bottom edge while there is more below, so a column cut by a small window reads as
+    // "scroll for more" and not as a broken layout. Not while the focused control sits under it.
+    readonly property Item _focused: Window.window ? Window.window.activeFocusItem : null
+    function _focusUnder(view, fade) {
+        const f = _focused
+        if (!f || !isInside(f, view.contentItem))
+            return false
+        const y = f.mapToItem(page, 0, 0).y
+        return y + f.height + 4 > fade.y && y - 4 < fade.y + fade.height
+    }
+    Rectangle {
+        id: moreBelow
+        objectName: page.pageId + "MoreBelow"
+        x: flick.x; y: flick.y + flick.height - height; width: flick.width - 12; height: 18
+        readonly property bool more: flick.contentY + flick.height < flick.contentHeight - 2
+        // contentY is read so it is asked again as the column scrolls
+        visible: more && !(flick.contentY, page._focusUnder(flick, moreBelow))
+        gradient: Gradient {
+            GradientStop { position: 0; color: "transparent" }
+            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0.55) }
+        }
+    }
+
     // The side column stays put, but scrolls when a small window (or a notice at the
     // bottom of the window) leaves it less room than its cards need, so nothing spills
     // under the notice. Clipped only then, so card shadows show in the usual case.
@@ -88,6 +112,18 @@ Item {
             id: sideCol
             width: sideFlick.width
             spacing: page.stacked ? 8 : 12
+        }
+    }
+
+    Rectangle {
+        id: sideMoreBelow
+        objectName: page.pageId + "SideMoreBelow"
+        x: sideFlick.x; y: sideFlick.y + sideFlick.height - height; width: sideFlick.width; height: 18
+        visible: sideFlick.overflows && sideFlick.contentY + sideFlick.height < sideFlick.contentHeight - 2
+                 && !(sideFlick.contentY, page._focusUnder(sideFlick, sideMoreBelow))
+        gradient: Gradient {
+            GradientStop { position: 0; color: "transparent" }
+            GradientStop { position: 1; color: Theme.alpha(Theme.base, 0.55) }
         }
     }
 

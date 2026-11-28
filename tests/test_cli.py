@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from fedoraglass import __main__ as cli
 from fedoraglass import settings as settings_mod
 from fedoraglass.engine import Engine
@@ -51,3 +53,111 @@ def test_apply_only_does_not_save_the_settings(fake_env, monkeypatch):
     assert cli.main(["apply", "--frost", "0.9"]) == 0
     assert settings_mod.load().frost == 0.9
 
+
+# ---- `fedora-glass plan` ---------------------------------------------------------------------
+def _plan(capsys, home) -> tuple[int, list[str]]:
+    code = cli.main(["plan"])
+    return code, capsys.readouterr().out.replace(str(home), "~").splitlines()
+
+
+def test_plan_says_unchanged_for_files_apply_would_leave_alone(fake_env, monkeypatch, capsys):
+    eng = _use(monkeypatch, fake_env)
+    before = _plan(capsys, fake_env.home)
+    assert before == (0, ["[gtk3]", "  write ~/.config/gtk-3.0/gtk.css",
+                          "[gtk4]", "  write ~/.config/gtk-4.0/gtk.css", "  write ~/.config/gtk-4.0/gtk-dark.css"])
+    eng.apply(Settings())
+    assert _plan(capsys, fake_env.home) == (0, ["[gtk3]", "  unchanged ~/.config/gtk-3.0/gtk.css",
+                                                "[gtk4]", "  unchanged ~/.config/gtk-4.0/gtk.css",
+                                                "  unchanged ~/.config/gtk-4.0/gtk-dark.css"])
+    # Changed by hand, or more open than Apply leaves it: Apply writes it again.
+    (fake_env.config / "gtk-4.0/gtk.css").write_text("/* mine */")
+    (fake_env.config / "gtk-3.0/gtk.css").chmod(0o666)
+    assert _plan(capsys, fake_env.home) == (0, ["[gtk3]", "  write ~/.config/gtk-3.0/gtk.css",
+                                                "[gtk4]", "  write ~/.config/gtk-4.0/gtk.css",
+                                                "  unchanged ~/.config/gtk-4.0/gtk-dark.css"])
+
+
+def test_plan_says_unchanged_for_a_setting_that_already_holds_its_value(fake_env, monkeypatch, capsys):
+    from fedoraglass.targets import shell as ts
+    from tests.test_shell import install
+    install(fake_env, ts.USER_THEME)
+    fake_env.gs[("org.gnome.shell.extensions.user-theme", None)] = {"name": "'FedoraGlass'"}
+    monkeypatch.setattr(cli, "_engine", lambda: Engine(fake_env, [ts.GnomeShell()]))
+    code, lines = _plan(capsys, fake_env.home)
+    assert code == 0
+    # The theme file is new, so User Themes is bounced to read it: a real change, said as one.
+    assert "  set org.gnome.shell.extensions.user-theme name = ''" in lines
+    assert "  set org.gnome.shell.extensions.user-theme name = 'FedoraGlass'" in lines
+    fake_env.gs[("org.gnome.shell.extensions.user-theme", None)]["name"] = "''"
+    _code, lines = _plan(capsys, fake_env.home)
+    assert "  set org.gnome.shell.extensions.user-theme name = 'FedoraGlass'" in lines
+    cli.main(["apply"])
+    capsys.readouterr()
+    _code, lines = _plan(capsys, fake_env.home)
+    assert "  unchanged org.gnome.shell.extensions.user-theme name" in lines
+    assert not any("user-theme name = " in line for line in lines)
+
+
+def test_plan_says_unchanged_for_a_list_that_already_has_the_item(fake_env, monkeypatch, capsys):
+    from fedoraglass.targets import shell as ts
+    from tests.test_shell import install
+    install(fake_env, ts.USER_THEME)
+    shell = fake_env.gs[("org.gnome.shell", None)] = {"enabled-extensions": "['other@example.org']",
+                                                       "disabled-extensions": "@as []"}
+    monkeypatch.setattr(cli, "_engine", lambda: Engine(fake_env, [ts.GnomeShell()]))
+    add = f"  org.gnome.shell enabled-extensions: add {ts.USER_THEME}"
+    _code, lines = _plan(capsys, fake_env.home)
+    assert add in lines and "  unchanged org.gnome.shell disabled-extensions" in lines
+    cli.main(["apply"])
+    capsys.readouterr()
+    assert ts.USER_THEME in shell["enabled-extensions"]
+    _code, lines = _plan(capsys, fake_env.home)
+    assert "  unchanged org.gnome.shell enabled-extensions" in lines
+    assert "  unchanged org.gnome.shell disabled-extensions" in lines
+    assert not any("extensions: " in line for line in lines), lines
+    # Switched off in GNOME's Extensions: the user's own Apply would switch it on again, and plan says so.
+    shell["enabled-extensions"], shell["disabled-extensions"] = "['other@example.org']", f"['{ts.USER_THEME}']"
+    _code, lines = _plan(capsys, fake_env.home)
+    assert add in lines
+    assert f"  org.gnome.shell disabled-extensions: remove {ts.USER_THEME}" in lines
+
+
+def test_plan_says_unchanged_for_a_number_that_reads_back_in_another_form(fake_env, monkeypatch, capsys):
+    pytest.importorskip("gi")
+    from fedoraglass.targets.base import GSet
+
+    class Planned:
+        env = fake_env
+
+        def plan(self, _settings):
+            return {"panel": [GSet("org.example.panel", "opacity", "0.301"), GSet("org.example.panel", "size", "5"),
+                              GSet("org.example.panel", "name", "'a'")]}
+
+    monkeypatch.setattr(cli, "_engine", Planned)
+    panel = fake_env.gs[("org.example.panel", None)] = {"opacity": "0.30099999999999999", "size": "uint32 5", "name": "'b'"}
+    assert _plan(capsys, fake_env.home) == (0, ["[panel]", "  unchanged org.example.panel opacity",
+                                                "  unchanged org.example.panel size",
+                                                "  set org.example.panel name = 'a'"])
+    panel["opacity"], panel["size"] = "0.3", "uint32 6"
+    assert _plan(capsys, fake_env.home)[1][1:3] == ["  set org.example.panel opacity = 0.301",
+                                                     "  set org.example.panel size = 5"]
+    # Text that is no setting's value is never taken for the same.
+    assert not cli._same_setting(None, "5") and not cli._same_setting("nonsense(", "5")
+    assert not cli._same_setting("'5'", "5")
+
+
+def test_plan_says_why_apply_leaves_a_file_behind_a_link_in_an_apps_folder(fake_env, monkeypatch, capsys):
+    from fedoraglass.targets import apps as ta
+    from tests.test_links_in_app_folders import NOT_FOLLOWED, vencord
+    v = vencord(fake_env.home)
+    (v / "themes").rmdir()
+    elsewhere = fake_env.home / "elsewhere"
+    elsewhere.mkdir()
+    (v / "themes").symlink_to(elsewhere)
+    monkeypatch.setattr(cli, "_engine", lambda: Engine(fake_env, [ta.Discord()]))
+    code, lines = _plan(capsys, fake_env.home)
+    assert code == 0
+    theme = [line for line in lines if "/themes/" in line]
+    assert len(theme) == 1 and NOT_FOLLOWED in theme[0], lines
+    assert "~/.var/app/com.discordapp.Discord/config/Vencord/themes is a link" in theme[0]
+    assert not any(elsewhere.iterdir())

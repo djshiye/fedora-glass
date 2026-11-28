@@ -117,6 +117,56 @@ test('Dash to Panel: the panel is lifted to pausedAlpha, new panels too, and put
     assert.equal(a.alpha, 0.29);
 });
 
+// A panel Dash to Panel took down while the glass was paused (a screen re-plugged, a setting
+// changed): putting its colour back would only call a destroyed widget.
+test('Dash to Panel rebuilt its panels while paused: the destroyed ones are not touched when the glass comes back', () => {
+    const DEAD = Symbol.for('fake-disposed');
+    const touched = [];
+    const panelWith = opacity => {
+        const panel = {};
+        const dt = new FakeTransparency(opacity);
+        const set = dt._updateAlphaAndSet;
+        dt._updateAlphaAndSet = function () {
+            if (panel[DEAD])
+                touched.push(this.alpha);
+            return set.call(this);
+        };
+        panel.dynamicTransparency = dt;
+        return panel;
+    };
+    const old = panelWith(0.29);
+    const dtp = new FakeDtp([old]);
+    global.dashToPanel = dtp;
+    const p = new PausedStyle({pausedCss: DARK, pausedAlpha: 0.96});
+    old[DEAD] = true;
+    const fresh = panelWith(0.29);
+    dtp.panels = [fresh];
+    dtp.emit('panels-created');
+    assert.equal(p._lifted.size, 1, 'nothing dead is kept for the rest of the pause');
+    assert.equal(fresh.dynamicTransparency.alpha, 0.96);
+    p.destroy();
+    assert.equal(fresh.dynamicTransparency.alpha, 0.29);
+    assert.deepEqual(touched, []);
+});
+
+test('Dash to Panel: a panel taken down while paused is not touched when the glass comes back, even if the list still holds it', () => {
+    const DEAD = Symbol.for('fake-disposed');
+    const touched = [];
+    const dt = new FakeTransparency(0.29);
+    const set = dt._updateAlphaAndSet;
+    const panel = {dynamicTransparency: dt};
+    dt._updateAlphaAndSet = function () {
+        if (panel[DEAD])
+            touched.push(this.alpha);
+        return set.call(this);
+    };
+    global.dashToPanel = new FakeDtp([panel]);
+    const p = new PausedStyle({pausedCss: DARK, pausedAlpha: 0.96});
+    panel[DEAD] = true;
+    p.destroy();
+    assert.deepEqual(touched, []);
+});
+
 test('Dash to Panel: unknown shapes are left alone, a wrap on top of ours is kept', () => {
     assert.equal(liftPanel({}, 0.96), null);
     assert.equal(liftPanel(null, 0.96), null);

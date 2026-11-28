@@ -140,6 +140,33 @@ def test_holding_a_look_worked_out_once_says_what_same_look_says(editor, look):
         assert looks.holds(looks.look_values(look, has), editor) is want
 
 
+def test_a_look_that_follows_the_wallpaper_is_held_whatever_colour_the_picture_gives_now():
+    look = {"frost": 0.3, "tint": "#8a2be2", "tint_from_wallpaper": True,
+            "accent": "#aa44ff", "accent_from_wallpaper": True}
+    values = looks.look_values(look)
+    assert "tint" not in values and "accent" not in values
+    assert values["tint_from_wallpaper"] and values["accent_from_wallpaper"]
+    now = Settings(frost=0.3, tint="#2e8b57", accent="#33aa66", tint_from_wallpaper=True,
+                   accent_from_wallpaper=True)
+    assert looks.holds(values, now)
+    # Not when the editor does not follow the wallpaper, or something else differs.
+    assert not looks.holds(values, Settings(frost=0.3, tint="#2e8b57", accent="#33aa66"))
+    assert not looks.holds(values, Settings(frost=0.4, tint="#2e8b57", accent="#33aa66",
+                                            tint_from_wallpaper=True, accent_from_wallpaper=True))
+
+
+def test_each_colour_of_a_look_is_held_by_its_own_wallpaper_switch():
+    look = {"tint": "#8a2be2", "tint_from_wallpaper": True, "accent": "#aa44ff"}
+    values = looks.look_values(look)
+    assert "tint" not in values and values["accent"] == "#aa44ff"
+    assert looks.holds(values, Settings(tint="#2e8b57", accent="#aa44ff", tint_from_wallpaper=True))
+    assert not looks.holds(values, Settings(tint="#2e8b57", accent="#33aa66", tint_from_wallpaper=True))
+    # A look that keeps its own tint still needs that same tint.
+    fixed = looks.look_values({"tint": "#8a2be2"})
+    assert not looks.holds(fixed, Settings(tint="#2e8b57"))
+    assert looks.holds(fixed, Settings(tint="#8a2be2"))
+
+
 def test_each_own_colour_is_kept_by_its_own_wallpaper_switch():
     mine = Settings(accent_from_wallpaper=True, accent_own="teal", tint_from_wallpaper=False, tint_own="#112233")
     s = looks.apply_look(mine, {"frost": 0.3})
@@ -230,6 +257,135 @@ def test_previous_look_is_its_own_private_file_and_leaves_the_backup_alone(tmp_p
     p.write_text(json.dumps({"settings": {"frost": "x"}, "applied_at": "soon", "forward": "yes"}))
     prev = sm.load_previous(path)
     assert prev.settings.frost == Settings.frost and prev.applied_at == 0 and prev.forward is False
+
+
+def _aged(path: Path, days: float = 3) -> float:
+    """settings.json as if its look had been applied `days` ago."""
+    import time
+    t = float(int(time.time() - days * 86400))
+    os.utime(path, (t, t))
+    return t
+
+
+def test_a_save_that_is_no_apply_keeps_the_time_the_look_was_applied(tmp_path):
+    path = tmp_path / "liquid-glass/settings.json"
+    note = tmp_path / "liquid-glass/settings.applied.json"
+    assert sm.applied_at(path) == 0.0                       # no file: nothing was applied
+    sm.save(Settings(frost=0.3), path)
+    assert not note.exists()
+    applied = _aged(path)
+    assert sm.applied_at(path) == applied                   # an Apply's save: the file's own time
+    # "Remove only" and the like: the file is written now, its look was applied three days ago.
+    sm.save(Settings(frost=0.3, undo_on_remove=False), path, applied_at=sm.applied_at(path))
+    assert path.stat().st_mtime > applied + 86400
+    assert sm.applied_at(path) == applied
+    assert _mode(note) == 0o600 and sm.applied_path(path) == note
+    assert set(json.loads(note.read_text())) == {"version", "applied_at", "for_mtime_ns"}
+    sm.save(Settings(frost=0.3, look_for_dark="evening"), path, applied_at=sm.applied_at(path))
+    assert sm.applied_at(path) == applied                   # and a second one after it
+    # The next Apply's save takes the note away: the file's time counts again.
+    sm.save(Settings(frost=0.6), path)
+    assert not note.exists() and sm.applied_at(path) == path.stat().st_mtime > applied + 86400
+
+
+def test_a_note_for_another_save_of_the_file_does_not_count(tmp_path):
+    """A version that knows nothing of the note (the old watcher during an update, the app
+    after a downgrade) saves settings.json and leaves the note: it is for the file before."""
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save(Settings(frost=0.3), path)
+    applied = _aged(path, 9)
+    sm.save(Settings(frost=0.3), path, applied_at=applied)
+    assert sm.applied_at(path) == applied
+    raw = path.read_bytes()
+    later = _aged(path, 2)                                  # written again, by someone else
+    assert sm.applied_path(path).exists() and sm.applied_at(path) == later
+    path.write_bytes(raw)
+    assert sm.applied_at(path) == path.stat().st_mtime
+
+
+def test_a_look_that_was_never_applied_stays_never_applied(tmp_path):
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save(Settings(undo_on_remove=False), path, applied_at=0.0)       # a first start's switch
+    assert path.exists() and sm.applied_at(path) == 0.0
+    sm.save(Settings(undo_on_remove=False, frost=0.4), path)            # the first Apply
+    assert sm.applied_at(path) == path.stat().st_mtime > 0
+
+
+def test_put_back_keeps_the_time_too_and_no_file_has_no_note(tmp_path):
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save(Settings(frost=0.3), path)
+    applied = _aged(path)
+    before = sm.read_raw(path)
+    sm.save(Settings(frost=0.9), path)                      # an Apply saves first, then stops
+    sm.put_back(before, path, applied_at=applied)
+    assert sm.load(path).frost == 0.3 and sm.applied_at(path) == applied
+    sm.put_back(before, path)                               # nobody says when: the file's time
+    assert not sm.applied_path(path).exists() and sm.applied_at(path) == path.stat().st_mtime
+    sm.save(Settings(frost=0.3), path, applied_at=applied)
+    sm.put_back(None, path)                                 # no file before: none after, and no note
+    assert not path.exists() and not sm.applied_path(path).exists() and sm.applied_at(path) == 0.0
+
+
+@pytest.mark.parametrize("note", [
+    "{", "[]", '"soon"', "{}",
+    '{"applied_at": "soon", "for_mtime_ns": NS}', '{"applied_at": true, "for_mtime_ns": NS}',
+    '{"applied_at": NaN, "for_mtime_ns": NS}', '{"applied_at": Infinity, "for_mtime_ns": NS}',
+    '{"applied_at": -5, "for_mtime_ns": NS}', '{"applied_at": 1' + "0" * 400 + ', "for_mtime_ns": NS}',
+    '{"applied_at": 1e18, "for_mtime_ns": NS}', '{"applied_at": 253402300800, "for_mtime_ns": NS}',
+    '{"applied_at": 1700000000.0}', '{"applied_at": 1700000000.0, "for_mtime_ns": "NS"}',
+    '{"applied_at": 1700000000.0, "for_mtime_ns": NS.0}', '{"applied_at": 1700000000.0, "for_mtime_ns": true}',
+    '{"applied_at": 1700000000.0, "for_mtime_ns": NS, "pad": "' + "x" * 5000 + '"}',
+    "[" * 100_000,
+])
+def test_a_note_that_is_damaged_or_odd_is_no_time(tmp_path, note):
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save(Settings(frost=0.3), path)
+    mtime = _aged(path)
+    sm.applied_path(path).write_text(note.replace("NS", str(path.stat().st_mtime_ns)))
+    assert sm.applied_at(path) == mtime                     # the file's own time, and no crash
+
+
+@pytest.mark.parametrize("when", ["1e18", "1e17", "253402300800", "NaN", "-1"])
+def test_a_time_no_clock_can_show_is_no_time_in_the_kept_look_either(tmp_path, when):
+    """time.localtime raises beyond the year 2 billion or so: About would show nothing at all."""
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save_previous(Settings(frost=0.3), 1_700_000_000.0, path=path)
+    p = sm.previous_path(path)
+    p.write_text(p.read_text().replace("1700000000.0", when))
+    prev = sm.load_previous(path)
+    assert prev is not None and prev.applied_at == 0.0 and prev.settings.frost == 0.3
+    p.write_text(p.read_text().replace(when, "253402300799"))       # the last second of 9999 still is one
+    assert sm.load_previous(path).applied_at == 253402300799.0
+
+
+def test_the_note_is_never_read_or_written_through_a_link(tmp_path):
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save(Settings(frost=0.3), path)
+    mtime = _aged(path)
+    elsewhere = tmp_path / "elsewhere.json"
+    elsewhere.write_text(json.dumps({"version": 1, "applied_at": 1_700_000_000.0, "for_mtime_ns": path.stat().st_mtime_ns}))
+    kept = elsewhere.read_bytes()
+    note = sm.applied_path(path)
+    note.symlink_to(elsewhere)
+    assert sm.applied_at(path) == mtime                     # not what the link points at
+    sm.save(Settings(frost=0.3), path, applied_at=mtime)    # the note takes the link's place
+    assert not note.is_symlink() and sm.applied_at(path) == mtime and elsewhere.read_bytes() == kept
+    note.unlink()
+    note.symlink_to(elsewhere)
+    sm.save(Settings(frost=0.5), path)                      # an Apply: the link goes, not its target
+    assert not note.is_symlink() and not note.exists() and elsewhere.read_bytes() == kept
+
+
+def test_a_note_that_cannot_be_written_never_fails_the_save(tmp_path):
+    path = tmp_path / "liquid-glass/settings.json"
+    sm.save(Settings(frost=0.3), path)
+    applied = _aged(path)
+    sm.applied_path(path).mkdir()                           # in the note's way
+    sm.save(Settings(frost=0.3, undo_on_remove=False), path, applied_at=applied)
+    assert sm.load(path).undo_on_remove is False            # saved all the same
+    assert sm.applied_at(path) == path.stat().st_mtime      # only the time is the file's own
+    sm.save(Settings(frost=0.6), path)                      # and an Apply's save is not held up either
+    assert sm.load(path).frost == 0.6
 
 
 # ---------------------------------------------------------------- 4. colour from the wallpaper

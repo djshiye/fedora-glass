@@ -376,7 +376,7 @@ def config(s: Settings, t: Tokens) -> dict:
         # While the glass is paused (Quick Settings) or in safe mode: the panel, menus and
         # pop-ups nearly solid in the theme's colours, as nothing blurs what is under them
         # (paused.js). pausedAlpha is how solid Dash to Panel's panel gets then.
-        "pausedCss": shell.render_paused_css(t),
+        "pausedCss": shell.render_paused_css(t, s.target_enabled("dash-to-panel")),
         "pausedAlpha": shell.PAUSED_ALPHA,
     }
 

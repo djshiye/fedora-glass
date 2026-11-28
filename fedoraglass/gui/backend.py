@@ -333,6 +333,7 @@ class Backend(QObject):
     restorableChanged = Signal()
     headerNoteChanged = Signal()
     loginGlassChanged = Signal()
+    loginLookChanged = Signal()         # the login preview's values: an edit or GNOME's accent
     safeModeChanged = Signal()
     glassPausedChanged = Signal()
     speedChanged = Signal()
@@ -342,6 +343,7 @@ class Backend(QObject):
     restartNeededChanged = Signal()
     partialChanged = Signal()
     installedAppsChanged = Signal()     # the app picker's list (apps without glass)
+    changeListChanged = Signal()        # the unapplied changes in words: the settings changed, or the apps' names arrived
     noGlassAppsChanged = Signal()       # the rows of apps without glass
     # Feature stream "looks": saved looks, the look before the last Apply, wallpaper colours.
     looksChanged = Signal()
@@ -360,8 +362,12 @@ class Backend(QObject):
         self._memo_inputs: tuple = ()
         for sig in (self.settingsChanged, self.savedChanged, self.targetsChanged, self.targetStatesChanged,
                     self.looksChanged, self.partialChanged, self.tokensChanged, self.previewChanged,
-                    self.uiChanged, self.systemAccentChanged):
+                    self.uiChanged, self.systemAccentChanged, self.installedAppsChanged):
             sig.connect(self._forget)
+        # The rows of See changes name apps, so they are worked out again when the settings change and
+        # when the installed apps arrive (connected after _forget, which drops the rows kept so far).
+        self.settingsChanged.connect(self.changeListChanged)
+        self.installedAppsChanged.connect(self.changeListChanged)
         self._env = env or Env()
         self._engine_factory = engine_factory or self._default_engine
         self._engine: Any = None
@@ -493,6 +499,8 @@ class Backend(QObject):
         self._apps_state = "idle"           # idle, loading or ready
         self._apps_task: _Task | None = None
         self.settingsChanged.connect(self.noGlassAppsChanged)
+        self.settingsChanged.connect(self.loginLookChanged)
+        self.systemAccentChanged.connect(self.loginLookChanged)
         self.settingsChanged.connect(self._forget_discarded)     # any change (or Apply) ends "Put back"
         self.settingsChanged.connect(self.weatherFrostChanged)    # the preview's frost follows the sliders
         self.installedAppsChanged.connect(self.noGlassAppsChanged)
@@ -673,10 +681,9 @@ class Backend(QObject):
         self._saved = new
         if self._good is old:
             self._good = new
-        try:
-            self._saved_at = self._settings_file().stat().st_mtime
-        except OSError:
-            pass
+        at = settings_mod.applied_at(self._path)
+        if at > 0:
+            self._saved_at = at
         if clean:
             self._replace_editor(replace(new, targets=dict(new.targets)))
         self.savedChanged.emit()
@@ -939,6 +946,7 @@ class Backend(QObject):
             return
         self._system_accent = accent
         self.systemAccentChanged.emit()
+        self.loginGlassChanged.emit()   # a login screen that has the old accent is behind now
         self._rebuild_tokens()      # the preview and this window, when they use the system accent
         if self._looks is not None:
             self.looksChanged.emit()    # a saved look's tile can show the system accent
@@ -1196,6 +1204,16 @@ class Backend(QObject):
         c = status.get("check")
         return c if isinstance(c, dict) else {}
 
+    @staticmethod
+    def _check_stands(check: dict) -> bool:
+        """Whether a result kept in the status file still tells the truth (tuning.js checkStands).
+        The check before 1.7.7 could only make a level look slower than it is: a smooth level in
+        it stands, but a result with none may be nothing but its doing."""
+        method = check.get("method")
+        if isinstance(method, int) and not isinstance(method, bool) and method >= 2:
+            return True
+        return any(isinstance(p, dict) and p.get("verdict") == "smooth" for p in check["phases"])
+
     def _start_speed_watch(self) -> None:
         self._speed_status = self._read_speed_status()
         # The last finished check shows again when the app opens, also when a later
@@ -1203,7 +1221,8 @@ class Backend(QObject):
         c = self._check_of(self._speed_status)
         if c.get("state") != "done" and isinstance(self._speed_status.get("lastDone"), dict):
             c = self._speed_status["lastDone"]
-        if c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]:
+        if (c.get("state") == "done" and isinstance(c.get("phases"), list) and c["phases"]
+                and self._check_stands(c)):
             self._speed_result = c
             self._speed_state = "done"
         self._rewatch_speed()
@@ -2435,11 +2454,13 @@ class Backend(QObject):
                 # Not a save: that would make .bak the look that just failed. While the
                 # file was damaged (_usable False) it goes back to exactly what it was, so the
                 # defaults never land in it.
+                # Either way the file is written now, and the look in it is not applied now:
+                # it keeps the time it was applied (see settings.applied_at).
                 try:
                     if self._usable:
-                        settings_mod.save(self._saved, self._path, backup=False)
+                        settings_mod.save(self._saved, self._path, backup=False, applied_at=self._saved_at)
                     elif before is not False:
-                        settings_mod.put_back(before, self._path)
+                        settings_mod.put_back(before, self._path, applied_at=self._saved_at)
                 except OSError:
                     pass
                 self._refresh_damage()
@@ -2814,6 +2835,10 @@ class Backend(QObject):
         elif code == 3:
             word = (out.split() or [""])[-1]
             reason = loginlook.why_text(word if word in loginlook.WHY else "error")
+        elif code == 4 and update and "could not undo" in f"{out}\n{err}":
+            # The undo failed too (a full disk): the helper turned the glass off instead.
+            return _("The new look could not be set up and the one before could not be put back, "
+                     "so the glass login screen is now off. You can turn it on again.")
         elif code == 4 and update:
             # The helper rolled back to the glass that was on: that one stays, not GNOME's.
             reason = _("the new look could not be set up, so the login screen keeps the look it had")
@@ -3025,7 +3050,7 @@ class Backend(QObject):
         """The wallpaper the login screen copies (and its preview shows): the dark style's."""
         return self._wallpaper_for(True)
 
-    @Property("QVariantMap", notify=settingsChanged)
+    @Property("QVariantMap", notify=loginLookChanged)
     def glassLoginLook(self) -> dict:
         """The editor's login screen values, for the preview (it follows the sliders)."""
         return self.glass_login_values(self._s)
@@ -3335,9 +3360,12 @@ class Backend(QObject):
         # While Apply runs, settings.json holds the look it applies: keep that one, and keep
         # .bak the look applied before it (the Apply may still fail).
         on_disk = replace(self._applying, **values) if self._applying is not None else saved
+        # No Apply: the applied look keeps the time it was applied (see settings.applied_at).
+        # Not while an Apply runs: the file then holds the look that Apply gives its time.
+        at = self._saved_at if self._applying is None else None
         try:
             if self._usable or self._applying is not None:
-                settings_mod.save(on_disk, self._path, backup=self._applying is None)
+                settings_mod.save(on_disk, self._path, backup=self._applying is None, applied_at=at)
             if not self._usable and "undo_on_remove" in values:
                 # Damaged settings.json: only Apply writes it (see _usable). The choice is
                 # kept beside it, where removing the package reads it.
@@ -3638,11 +3666,9 @@ class Backend(QObject):
         self._looks: list[dict] | None = None       # read when first asked for, then kept
         self._look_values: dict[str, dict] = {}     # each look's values, normalized once
         self._cursors_here: dict[str, bool] = {}    # pointer style -> installed here
-        # When the look applied last was applied: settings.json's time, or 0 for none yet.
-        try:
-            self._saved_at = self._settings_file().stat().st_mtime
-        except OSError:
-            self._saved_at = 0.0
+        # When the look applied last was applied, or 0 for none yet. Not simply settings.json's
+        # time: the "Remove only" switch and a day or night look save that file with no Apply.
+        self._saved_at = settings_mod.applied_at(self._path)
         self._previous = settings_mod.load_previous(self._path)
         self._shut_down = False
         self._apply_step = ""          # "back" or "forward" while that Apply is on its way
@@ -3921,10 +3947,24 @@ class Backend(QObject):
     # ---- unapplied changes in plain words -------------------------------------------------
     def _change_rows(self) -> list[dict]:
         names = {t["id"]: t["name"] for t in self._targets}
-        return changes_mod.change_rows(self._s, self._saved, has_dash_to_panel=self.hasDashToPanel,
-                                       target_names=names, system_accent=self._system_accent or "blue")
+        index = self._app_of()
+        named: list[str] = []
 
-    @Property("QVariantList", notify=settingsChanged)
+        def app_of(i: str) -> tuple[str, str]:
+            named.append(i)
+            a = index.get(i.casefold())     # an id no installed app has stands as itself
+            return (a["id"], a["name"]) if a else (i.casefold(), i)
+        rows = changes_mod.change_rows(self._s, self._saved, has_dash_to_panel=self.hasDashToPanel,
+                                       target_names=names, system_accent=self._system_accent or "blue",
+                                       app_of=app_of)
+        # The installed apps are only read once the Panel and windows page shows. A change to the
+        # apps' glass made another way (a saved look, a look file) would name them by their ids
+        # until then: read them now, and the rows are worked out again when they arrive.
+        if named and self._apps_state == "idle":
+            QTimer.singleShot(0, self, self.refreshInstalledApps)     # dropped if this object goes first
+        return rows
+
+    @Property("QVariantList", notify=changeListChanged)
     def changeList(self) -> list[dict]:
         """Every unapplied change: {"page", "name", "label", "before", "after", "key"}, in
         page order. "name" is the control to go to on that page ("" for none)."""
@@ -4045,6 +4085,7 @@ class Backend(QObject):
         c = self._known_colours(path)
         if c is not None:
             self._use_colours(c)
+            self.wallpaperMatchChanged.emit()   # the note follows, even when nothing new is worked out
             return
         if path in self._wall_tasks:
             return
@@ -4126,6 +4167,8 @@ class Backend(QObject):
             s = replace(self._s, **{flag: False, own: "", what: back})
         self._replace_editor(s.normalized())
         self._match_wallpaper()
+        if not on:
+            self.wallpaperMatchChanged.emit()   # the note goes away with the switch
 
     tintFromWallpaper = Property(bool, _get_tint_from_wallpaper, _set_tint_from_wallpaper, notify=settingsChanged)
     accentFromWallpaper = Property(bool, _get_accent_from_wallpaper, _set_accent_from_wallpaper, notify=settingsChanged)

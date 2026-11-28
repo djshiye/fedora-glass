@@ -172,3 +172,15 @@ test('a new speed check that finds full glass smooth brings the lightest glass b
     assert.equal(t.limit(1, at), null);   // already there
     assert.ok(t.retryAt > at);            // and it still tries full glass again later
 });
+
+test('a stored speed result stands if it has the mark of the fair check, or a smooth level', () => {
+    const check = (method, ...verdicts) => ({state: 'done', method, phases: T.LEVELS.map((level, i) => ({level, verdict: verdicts[i]}))});
+    assert.equal(T.CHECK_METHOD, 2);
+    assert.equal(T.checkStands(null), false);
+    assert.equal(T.checkStands(check(undefined, 'slow', 'slow', 'slow')), false, 'the old check with nothing smooth: Dino\'s PC on 1.7.6');
+    assert.equal(T.checkStands(check(undefined, 'ok', 'ok', 'slow')), false);
+    assert.equal(T.checkStands(check(undefined, 'ok', 'smooth', 'smooth')), true, 'the old check could only look slower than it is');
+    assert.equal(T.checkStands(check(2, 'slow', 'slow', 'slow')), true, 'the fair check says what it found');
+    assert.equal(T.checkStands(check('2', 'slow', 'slow', 'slow')), false, 'a mark that is no number is none');
+    assert.equal(T.checkStands({state: 'done'}), false, 'no levels at all');
+});

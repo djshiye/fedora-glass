@@ -31,6 +31,7 @@ C.ToolTip {
         Text {
             id: label
             width: parent.width
+            textFormat: Text.PlainText
             text: tip.text
             color: Theme.text
             font.pixelSize: 13

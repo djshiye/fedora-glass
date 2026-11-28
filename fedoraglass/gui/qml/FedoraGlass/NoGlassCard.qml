@@ -128,6 +128,7 @@ Card {
                             width: parent.width - x - removeBtn.width - 24
                             anchors.verticalCenter: removeBtn.verticalCenter
                             elide: Text.ElideRight
+                            textFormat: Text.PlainText
                             text: row.modelData.name
                             color: Theme.text
                             font.pixelSize: Theme.fsBody
@@ -183,6 +184,7 @@ Card {
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsSmall
                 lineHeight: 1.1
+                textFormat: Text.PlainText
                 text: qsTr("Always without glass: %1").arg(Backend.noGlassBuiltIn)
             }
         }

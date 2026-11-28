@@ -34,10 +34,12 @@ const STUBS = {
         ActorBox: class { constructor(b) { Object.assign(this, b); } },
         Actor: globalThis.fake?.Actor ?? class {}, ShaderEffect: class {},
         BindCoordinate: {X: 0, Y: 1, WIDTH: 2, HEIGHT: 3, ALL: 4}, RotateAxis: {Z_AXIS: 2},
-        Clone: globalThis.fake?.Actor ?? class {}, Effect: class {},
+        Clone: globalThis.fake?.Clone ?? globalThis.fake?.Actor ?? class {}, Effect: class {},
+        Timeline: globalThis.fake?.Timeline ?? class {}, PropertyTransition: globalThis.fake?.PropertyTransition ?? class {},
         BindConstraint: class { constructor(p = {}) { Object.assign(this, {offset: 0}, p); } }};`,
     'gi/Shell': `export default {
         AppSystem: {get_default: () => globalThis.fake.appSystem},
+        AppState: {STOPPED: 0, STARTING: 1, RUNNING: 2},
         WindowTracker: {get_default: () => globalThis.fake.windowTracker},
     };`,
     'gi/GObject': `export default {

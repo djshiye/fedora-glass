@@ -185,6 +185,7 @@ Sheet {
                                     x: 32
                                     width: parent.width - x - foldChevron.width - 12
                                     anchors.verticalCenter: parent.verticalCenter
+                                    textFormat: Text.PlainText
                                     text: qsTr("%1 parts not installed here, skipped").arg(sheet.skippedRows.length)
                                     color: Theme.textDim
                                     font.pixelSize: Theme.fsBody
@@ -210,7 +211,7 @@ Sheet {
                             x: row.underFold ? 44 : 32; y: 9
                             width: parent.width - x - status.width - 8
                             spacing: 2
-                            Text { text: row.modelData.name || ""; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; width: parent.width; elide: Text.ElideRight }
+                            Text { textFormat: Text.PlainText; text: row.modelData.name || ""; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium; width: parent.width; elide: Text.ElideRight }
                             TextEdit {
                                 visible: (row.modelData.message || "").length > 0
                                 width: parent.width
@@ -228,6 +229,7 @@ Sheet {
                             visible: !row.isFold
                             anchors.right: parent.right
                             y: 11
+                            textFormat: Text.PlainText
                             text: row.m.label
                             color: row.m.color
                             font.pixelSize: 12

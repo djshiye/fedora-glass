@@ -756,16 +756,18 @@ def read_raw(path: Path | None = None) -> bytes | None:
         return None
 
 
-def put_back(before: bytes | None, path: Path | None = None) -> None:
+def put_back(before: bytes | None, path: Path | None = None, *, applied_at: float | None = None) -> None:
     """settings.json as read_raw() found it (none: no file), after an Apply that stopped.
     Unlike save(), the last good copy (.bak) is left alone: it must never become the look
-    that failed."""
+    that failed. `applied_at`: when the look in that file was applied, as for save()."""
     path = path or settings_path()
     with _locked(path):
         if before is None:
             path.unlink(missing_ok=True)
+            _note_applied(path, None)
         else:
             _write(path, before)
+            _note_applied(path, applied_at)
 
 
 def _kept(damaged: Path) -> str:
@@ -905,10 +907,12 @@ def _write(path: Path, data: bytes) -> None:
         os.close(dfd)
 
 
-def save(s: Settings, path: Path | None = None, *, backup: bool = True) -> Path:
+def save(s: Settings, path: Path | None = None, *, backup: bool = True, applied_at: float | None = None) -> Path:
     """`backup`: keep the file as it was as settings.json.bak. False while an Apply runs or
     after it stopped: the file then holds a look that isn't applied yet (or failed), and
-    .bak must stay the last one that was."""
+    .bak must stay the last one that was.
+    `applied_at`: this save is no Apply. The look in the file was applied then (seconds
+    since the epoch, 0 for never), and that stays its time; see applied_at()."""
     path = path or settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with _locked(path):
@@ -922,7 +926,73 @@ def save(s: Settings, path: Path | None = None, *, backup: bool = True) -> Path:
             # The file as it was, good, kept for the day settings.json itself is found damaged.
             _write(_sibling(path, ".bak"), before)
         _write(path, json.dumps(out, indent=2).encode("utf-8") + b"\n")
+        _note_applied(path, applied_at)
     return path
+
+
+# ---- when the look in settings.json was applied -----------------------------------------
+# The app says when a look was applied, and settings.json's own time is that time: every
+# Apply saves the file (the app's, `fedora-glass apply`, the watcher's). A few saves are no
+# Apply: the "Remove only" switch, a day or night look picked, an Apply that stopped and put
+# the look before it back. Those note beside the file, as settings.applied.json, when its
+# look was really applied, together with the time of the file the note is for. The next
+# save of any kind gives the file a new time, so the note stops counting by itself, also
+# after a save by a version that knows nothing of the note.
+APPLIED_MAX = 4096
+TIME_MAX = 253_402_300_799.0    # the last second of the year 9999: later is no time the app can show
+
+
+def applied_path(path: Path | None = None) -> Path:
+    return (path or settings_path()).with_name("settings.applied.json")
+
+
+def _a_time(v: object) -> float | None:
+    """A time out of one of our files (seconds since the epoch, from 0 to TIME_MAX), or None
+    when it is no time: the app hands it to the clock functions, which raise beyond that."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    try:
+        t = float(v)
+    except OverflowError:       # a whole number too big for a float
+        return None
+    return t if 0 <= t <= TIME_MAX else None    # (not a number is neither)
+
+
+def _note_applied(path: Path, when: float | None) -> None:
+    """Right after settings.json was written (or taken away), still under its lock. `when`
+    None: an Apply's save, whose own time counts, so any note goes. Else the note for the
+    file as it is now."""
+    note = applied_path(path)
+    try:
+        if when is None:
+            note.unlink(missing_ok=True)
+            return
+        data = {"version": 1, "applied_at": _a_time(when) or 0.0, "for_mtime_ns": path.stat().st_mtime_ns}
+        _write(note, json.dumps(data).encode("utf-8") + b"\n")
+    except OSError:
+        pass        # the time shown for a look is a nicety: never a reason for a save to fail
+
+
+def applied_at(path: Path | None = None) -> float:
+    """When the look in settings.json was applied, in seconds since the epoch: the time of
+    the file, or the time noted by a save that was no Apply (see save). 0 when there is no
+    file, or its look was never applied."""
+    path = path or settings_path()
+    try:
+        st = path.stat()
+    except OSError:
+        return 0.0
+    note = applied_path(path)
+    try:
+        if not note.is_symlink() and note.is_file() and note.stat().st_size <= APPLIED_MAX:
+            data = _parse(note.read_bytes())
+            for_ns, when = data.get("for_mtime_ns"), _a_time(data.get("applied_at"))
+            if isinstance(for_ns, int) and not isinstance(for_ns, bool) and for_ns == st.st_mtime_ns \
+                    and when is not None:
+                return when
+    except (OSError, ValueError):
+        pass
+    return st.st_mtime
 
 
 # ---- feature stream "looks": the look before the last Apply ---------------------------
@@ -964,10 +1034,4 @@ def load_previous(path: Path | None = None) -> Previous | None:
     raw = data.get("settings")
     if not isinstance(raw, dict):
         return None
-    when = data.get("applied_at")
-    try:
-        when = float(when) if isinstance(when, (int, float)) and not isinstance(when, bool) and \
-            math.isfinite(float(when)) and when > 0 else 0.0
-    except OverflowError:       # a whole number too big for a float: not a time
-        when = 0.0
-    return Previous(_from_dict(raw), when, data.get("forward") is True)
+    return Previous(_from_dict(raw), _a_time(data.get("applied_at")) or 0.0, data.get("forward") is True)

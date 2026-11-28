@@ -42,6 +42,10 @@ if [ "${1:-}" = --removed ]; then
     if grep -qsx 'system-db:fedora-glass-login' /etc/dconf/profile/gdm; then left="$left /etc/dconf/profile/gdm(profile line)"; fi
     [ -z "$left" ] || { echo "the glass login screen left behind:$left"; exit 1; }
     echo "nothing of the glass login screen is left"
+    # The app's own folder too: byte code made for this PC's Python is no package's file.
+    if [ -e /usr/share/fedora-glass ] || [ -L /usr/share/fedora-glass ]; then
+        echo "/usr/share/fedora-glass is left behind"; find /usr/share/fedora-glass | head -20; exit 1
+    fi
     exit 0
 fi
 app="${1:-fedora-glass}"
@@ -52,9 +56,28 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME
 mkdir -p "$home/.config/gtk-4.0"
 printf '/* my own look */\n' > "$home/.config/gtk-4.0/gtk.css"
 
+# Byte code: the package's own, and where this PC's Python is another one, hash-checked
+# files made for it at the install (rpm and .deb; Arch makes none, so this fails there by
+# design should the build's Python and the PC's ever differ); nothing else. Runs of the app (as root here) add nothing
+# below the code folder (checked at the end).
+code=/usr/share/fedora-glass
+/usr/bin/python3 -I -c 'import pathlib, sys
+code = pathlib.Path(sys.argv[1])
+mine = sys.implementation.cache_tag
+shipped = (code / "bytecode-tag").read_text().strip()
+assert (code / f"fedoraglass/__pycache__/__main__.{mine}.pyc").is_file(), f"no byte code for this Python ({mine})"
+for p in code.rglob("*.pyc"):
+    tag = p.name.split(".")[-2] if ".opt-" not in p.name else p.name.split(".")[-3]
+    assert tag in (shipped, mine), f"{p}: neither shipped nor made for this Python"
+    if tag != shipped:
+        assert int.from_bytes(p.read_bytes()[4:8], "little") == 3, f"{p}: not hash-checked"' "$code" ||
+    { echo "the byte code below $code is not what the package and its install step make"; exit 1; }
+files_before="$(find "$code" | LC_ALL=C sort)"
+
 # gsettings wants a session bus; a bare container has none.
 run() { if command -v dbus-run-session >/dev/null; then dbus-run-session -- "$@"; else "$@"; fi; }
 
+$app --version >/dev/null
 run $app status >/dev/null
 run $app apply >/dev/null
 grep -q 'Fedora Glass' "$home/.config/gtk-4.0/gtk.css" || { echo "Apply did not write the GTK 4 look"; exit 1; }
@@ -102,4 +125,10 @@ assert isinstance(d.get("available"), bool), d' "$helper" || { echo "fedora-glas
 # The window opens and draws (offscreen): the Qt parts the package depends on are all there.
 run $app gui --screenshot "$home/window.png" >/dev/null
 [ -s "$home/window.png" ] || { echo "The window did not open"; exit 1; }
+files_after="$(find "$code" | LC_ALL=C sort)"
+[ "$files_before" = "$files_after" ] || {
+    echo "running the app added or removed files below $code:"
+    diff <(printf '%s\n' "$files_before") <(printf '%s\n' "$files_after") | head -20
+    exit 1
+}
 echo "package smoke check passed"

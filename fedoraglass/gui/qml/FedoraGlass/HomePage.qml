@@ -28,8 +28,9 @@ SettingsPage {
     // ---- left: the preview and the presets ------------------------------------------
     Item {
         width: parent.width
-        // As big as the room under the title allows, keeping the Look card in view.
-        readonly property real maxH: Math.max(220, page.height - lookCard.implicitHeight - 14 - 6)
+        // As big as the room under the title allows, keeping the Look card in view (a lower strip
+        // when the looks sit in two rows).
+        readonly property real maxH: Math.max(presetRow.narrow ? 170 : 220, page.height - lookCard.implicitHeight - 14 - 6)
         height: Math.round(Math.min(width * 0.75, maxH))
         Item {
             id: slot
@@ -103,18 +104,33 @@ SettingsPage {
                     }
                 }
             }
-            Row {
+            Grid {
                 id: presetRow
                 objectName: "presetRow"
                 width: parent.width
                 spacing: 10
-                readonly property real tileW: (width - spacing * (Backend.presets.length - 1)) / Math.max(1, Backend.presets.length)
+                // All the looks side by side while every name fits its tile (a tile's label shrinks to 10 px
+                // before it is cut); otherwise 3 and 2, so the longest names (Ausgewogen, Equilibrato) are whole.
+                readonly property int count: Math.max(1, Backend.presets.length)
+                readonly property real rowTileW: (width - spacing * (count - 1)) / count
+                FontMetrics { id: nameFont; font.pixelSize: 10; font.weight: Font.DemiBold }
+                readonly property real widestName: {
+                    let w = 0
+                    for (let i = 0; i < Backend.presets.length; i++)
+                        w = Math.max(w, nameFont.advanceWidth(Theme.presetLabel(Backend.presets[i])))
+                    return Math.ceil(w)
+                }
+                // 12 px of the tile is the label's side room (LookTile), 2 more are for safety.
+                readonly property bool narrow: rowTileW - 14 < widestName
+                columns: narrow ? Math.min(3, count) : count
+                readonly property real tileW: (width - spacing * (columns - 1)) / columns
                 Repeater {
                     model: Backend.presets
                     delegate: LookTile {
                         required property string modelData
                         required property int index
                         width: presetRow.tileW
+                        thumbHeight: presetRow.narrow ? 40 : 60      // two rows then, so a little lower
                         name: modelData
                         frost: page.presetFrost[modelData] !== undefined ? page.presetFrost[modelData] : 0.45
                         selected: Backend.activePreset === modelData
@@ -128,7 +144,7 @@ SettingsPage {
             SavedLooks {
                 id: savedLooks
                 width: parent.width
-                tileW: presetRow.tileW
+                tileW: presetRow.rowTileW
             }
         }
     }
@@ -205,6 +221,9 @@ SettingsPage {
                 columns: 2
                 spacing: 10
                 readonly property real tileW: (width - spacing) / 2
+                // Reduce transparency draws no glass at all, so these two tiles lead to its switch.
+                readonly property string reduceTip: qsTr("Reduce transparency is on, so no glass is drawn. Click to go to that switch.")
+                function openReduce() { Window.window.goTo("advanced", "reduceTransparency") }
                 readonly property var pointerName: {
                     if (Backend.cursorTheme === "keep" || Backend.cursorTheme === "")
                         return qsTr("Your own")
@@ -220,10 +239,11 @@ SettingsPage {
                     width: tiles.tileW
                     iconName: "window"
                     title: qsTr("Windows")
-                    state_: Backend.blurAppWindows ? qsTr("On") : qsTr("Off")
-                    on: Backend.blurAppWindows
-                    tip: qsTr("Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass.")
-                    onActivated: Backend.blurAppWindows = !Backend.blurAppWindows
+                    state_: Backend.blurAppWindows && !Backend.reduceTransparency ? qsTr("On") : qsTr("Off")
+                    on: Backend.blurAppWindows && !Backend.reduceTransparency
+                    tip: Backend.reduceTransparency ? tiles.reduceTip
+                         : qsTr("Frosted wallpaper behind see-through app windows. Click to switch it; the arrow opens Glass.")
+                    onActivated: Backend.reduceTransparency ? tiles.openReduce() : Backend.blurAppWindows = !Backend.blurAppWindows
                     onMore: Window.window.goTo("glass", "glassAppWindows")
                 }
                 QuickTile {
@@ -242,10 +262,11 @@ SettingsPage {
                     width: tiles.tileW
                     iconName: "lock"
                     title: qsTr("Glass lock")
-                    state_: Backend.lockGlass ? qsTr("On") : qsTr("Off")
-                    on: Backend.lockGlass
-                    tip: qsTr("A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login.")
-                    onActivated: Backend.lockGlass = !Backend.lockGlass
+                    state_: Backend.lockGlass && !Backend.reduceTransparency ? qsTr("On") : qsTr("Off")
+                    on: Backend.lockGlass && !Backend.reduceTransparency
+                    tip: Backend.reduceTransparency ? tiles.reduceTip
+                         : qsTr("A sheet of frosted glass on the lock screen. Click to switch it; the arrow opens Lock and login.")
+                    onActivated: Backend.reduceTransparency ? tiles.openReduce() : Backend.lockGlass = !Backend.lockGlass
                     onMore: Window.window.goTo("lock", "lockGlass")
                 }
                 QuickTile {
@@ -304,6 +325,7 @@ SettingsPage {
                 anchors.right: parent.right
                 anchors.rightMargin: 8
                 anchors.verticalCenter: ic.verticalCenter
+                textFormat: Text.PlainText
                 text: qt.title
                 elide: Text.ElideRight
                 fontSizeMode: Text.HorizontalFit
@@ -316,6 +338,7 @@ SettingsPage {
                 x: 12
                 y: ic.y + ic.height + 7
                 width: parent.width - 12 - moreBtn.width - 4
+                textFormat: Text.PlainText
                 text: qt.state_
                 elide: Text.ElideRight
                 color: qt.on ? Theme.accentText : Theme.textFaint

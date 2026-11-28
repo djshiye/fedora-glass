@@ -115,6 +115,58 @@ def test_last_finished_check_shows_after_an_aborted_one(make_backend, home):
     assert b.property("speedResult")["id"] == "a" * 16
 
 
+def _phases(*verdicts):
+    return [{"level": lv, "fps": 30.0, "late": 0.5, "verdict": v}
+            for lv, v in zip(("full", "lighter", "lightest"), verdicts)]
+
+
+def test_old_unfair_check_with_nothing_smooth_is_not_shown_again(make_backend, home):
+    """1.7.6's check could only make a level look slower than it is: its all-slow answer (Dino's PC
+    drew a drag at 8.3 ms a frame) says nothing, so the card offers the button and no verdict."""
+    old = {"id": "796e1b326b47ff5e", "state": "done", "error": "", "refresh": 120, "pick": "full",
+           "phases": [{"level": "full", "fps": 34.2, "late": 0.691, "verdict": "slow"},
+                      {"level": "lighter", "fps": 14.5, "late": 0.954, "verdict": "slow"},
+                      {"level": "lightest", "fps": 9, "late": 0.966, "verdict": "slow"}]}
+    status(home, check=old, lastDone=old)
+    b = make_backend()
+    b._start_speed_watch()
+    assert b.property("speedState") == "idle"
+    assert dict(b.property("speedResult")) == {}
+
+
+def test_old_check_with_a_smooth_level_still_shows(make_backend, home):
+    old = {"id": "a" * 16, "state": "done", "error": "", "refresh": 60.0, "pick": "full",
+           "phases": _phases("ok", "smooth", "smooth")}
+    status(home, check=old, lastDone=old)
+    b = make_backend()
+    b._start_speed_watch()
+    assert b.property("speedState") == "done"
+    assert b.property("speedResult")["id"] == "a" * 16
+
+
+def test_marked_check_shows_whatever_it_found(make_backend, home):
+    done = {"id": "c" * 16, "state": "done", "error": "", "refresh": 60.0, "pick": "full", "method": 2,
+            "phases": _phases("slow", "slow", "slow")}
+    status(home, check=done, lastDone=done)
+    b = make_backend()
+    b._start_speed_watch()
+    assert b.property("speedState") == "done"
+    assert b.property("speedResult")["id"] == "c" * 16
+
+
+def test_answer_to_a_check_asked_for_now_shows_even_without_the_mark(make_backend, home):
+    """The Shell may still run the extension from before an update, which writes no mark."""
+    b = make_backend()
+    b._glass_live = True
+    b.checkSpeed()
+    rid = json.loads((home / "config/liquid-glass/speed-check.json").read_text())["id"]
+    status(home, check={"id": rid, "state": "done", "error": "", "refresh": 60.0, "pick": "full",
+                        "phases": _phases("slow", "slow", "slow")})
+    b._poll_speed()
+    assert b.property("speedState") == "done"
+    assert b.property("speedResult")["id"] == rid
+
+
 def test_last_drag_in_words(make_backend, home):
     """speed.js times each window drag (its `drag` object); the Speed card says how it went."""
     b = make_backend()

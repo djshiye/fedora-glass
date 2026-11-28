@@ -168,6 +168,7 @@ SettingsPage {
                             spacing: 2
                             Text { text: qsTr("Tint"); color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
                             Text {
+                                textFormat: Text.PlainText
                                 text: partsCard.own.tint !== undefined ? qsTr("Its own colour") : qsTr("Same as everywhere")
                                 color: Theme.textFaint; font.pixelSize: Theme.fsSmall
                             }
@@ -376,6 +377,7 @@ SettingsPage {
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: Backend.canResetAll
                           ? qsTr("Every look setting back to its default. The apps you picked stay. Applied after Apply, and Undo takes it back until then.")
                           : qsTr("Every look setting is at its default.")

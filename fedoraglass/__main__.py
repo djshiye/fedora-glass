@@ -97,11 +97,68 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 def cmd_plan(args: argparse.Namespace) -> int:
     # Commands that only look move and write nothing, not even a damaged settings file.
-    for tid, actions in _engine().plan(settings_mod.load(fix=False)).items():
+    eng = _engine()
+    for tid, actions in eng.plan(settings_mod.load(fix=False)).items():
         print(f"[{tid}]")
+        touched: set[tuple] = set()
         for a in actions:
-            print(f"  {a.describe()}")
+            print(f"  {_plan_line(eng.env, a, touched)}")
     return 0
+
+
+def _plan_line(env, a, touched: set[tuple]) -> str:
+    """One step of `fedora-glass plan`, said as Apply would take it: a file, setting or list that
+    already holds what Apply would put there is left alone (write_if_changed), and a file
+    behind a link in an app's own folder is not written at all. Read only, through the
+    same reader as Apply. Each step on its own: when Apply skips a whole part for such a
+    link (or a linked config folder), the part's other files still show here."""
+    from .engine import PLAIN, parse_strv
+    from .safefs import Box, LinkInside, box_root
+    from .targets.base import GReset, GSet, ListEdit, WriteFile
+    if isinstance(a, WriteFile):
+        root = box_root(a.path, env.home)
+        fs = PLAIN if root is None else Box(root, env.home)
+        if fs is not PLAIN:
+            try:
+                fs.lstat(a.path)
+            except LinkInside as e:
+                return f"{a.path}: {e}"
+            except OSError:
+                pass            # anything else in the way: Apply's write says what
+        data = a.content.encode() if isinstance(a.content, str) else a.content
+        if fs.same_file(a.path, data, fs.kept_mode(a.path, a.mode)):
+            return f"unchanged {a.path}"
+    elif isinstance(a, (GSet, GReset)):
+        key = (a.schema, a.path, a.key)
+        # A key set twice (User Themes is bounced to read a new theme file) changes either way.
+        again = key in touched
+        touched.add(key)
+        if isinstance(a, GSet) and not again and a.key in env.gsettings_keys(a.schema, a.path) \
+                and _same_setting(env.gsettings_get(a.schema, a.key, a.path), a.value):
+            where = f"{a.schema}:{a.path}" if a.path else a.schema
+            return f"unchanged {where} {a.key}"
+    elif isinstance(a, ListEdit) and a.key in env.gsettings_keys(a.schema, a.path):
+        # Already on the list (or already off it): the list stays as it is.
+        items = parse_strv(env.gsettings_get(a.schema, a.key, a.path))
+        if all(i in items for i in a.add) and not any(i in items for i in a.remove):
+            where = f"{a.schema}:{a.path}" if a.path else a.schema
+            return f"unchanged {where} {a.key}"
+    return a.describe()
+
+
+def _same_setting(now: str | None, want: str) -> bool:
+    """Whether a setting that reads `now` already holds `want` (both GVariant text): the same
+    text, or the same value written another way (0.301 reads back as 0.30099999999999999)."""
+    if now is None or now == want:
+        return now is not None
+    try:
+        import gi
+        gi.require_version("GLib", "2.0")
+        from gi.repository import GLib
+        held = GLib.Variant.parse(None, now, None, None)
+        return bool(held.equal(GLib.Variant.parse(held.get_type(), want, None, None)))
+    except Exception:       # no GLib here, or not GVariant text: said as a change, as before
+        return False
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -376,9 +433,25 @@ def update_glass_before_login(eng) -> bool:
 
 def cmd_before_login(args: argparse.Namespace) -> int:
     """`fedora-glass before-login`: see update_glass_before_login. Never fails the login."""
+    if _copy_in_charge():
+        return 0
     _guarded("taking an old source install out of the way", drop_source_install)
     _guarded("updating the glass before login", lambda: update_glass_before_login(_engine()))
     return 0
+
+
+def _copy_in_charge() -> bool:
+    """A copy installed next to the package on purpose (`./install.sh --alongside-package`)
+    runs the desktop: its own watcher keeps its own glass up to date. This step always runs
+    as the package, and would put the package's glass back over the copy's at every login.
+    Only while that copy's command and watcher are really in place (leftovers.in_charge):
+    a mark left behind without them must not switch this step off."""
+    from . import leftovers
+    from .env import Env
+    try:
+        return leftovers.from_package() and leftovers.in_charge(Env())
+    except Exception:  # noqa: BLE001 (never a reason to hold up the login)
+        return False
 
 
 def drop_source_install() -> list[str]:
@@ -554,7 +627,10 @@ class Watcher:
                     self.changed(got, _tries - 1)
                 return
             what = "saving the look for this style" if looked is not None else "saving the wallpaper's colours"
-            if _guarded(what, self._save, new) is None:
+            # With nothing to apply after it (the new picture gave the colours the look has,
+            # or none), this save only notes the picture: the look keeps the time it was applied.
+            kept = None if scheme or contrast or accent else settings_mod.applied_at()
+            if _guarded(what, self._save, new, kept) is None:
                 return      # not saved: applying a look settings.json doesn't hold would be lost
             s = new
         if scheme or contrast or accent:
@@ -562,6 +638,10 @@ class Watcher:
             _guarded("Apply", self.eng.apply, s, only=None if contrast or accent or looked is not None else self.only,
                      if_applied=True, applied_only=True)
         if scheme:
+            if not runs_installed_version():
+                # The update landed while this switch was handled, so its Apply was refused:
+                # not noted, the new watcher's catch-up puts this style's look on.
+                return
             # The look now on is this style's: the next login has nothing to catch up on.
             from .engine import note_applied_style
             note_applied_style(self._env())
@@ -600,9 +680,10 @@ class Watcher:
         return wallcolour.rematch(s, wallcolour.wallpaper_path(env, dark), dark, read)
 
     @staticmethod
-    def _save(s) -> bool:
-        """Into settings.json, as the app saves a look it applies; the app shows it from there."""
-        settings_mod.save(s)
+    def _save(s, applied_at: float | None = None) -> bool:
+        """Into settings.json, as the app saves a look it applies; the app shows it from there.
+        `applied_at`: no Apply follows, and the look keeps that time (see settings.applied_at)."""
+        settings_mod.save(s, applied_at=applied_at)
         return True
 
     def poll(self) -> int | None:
@@ -817,6 +898,11 @@ def cmd_login_screen(args: argparse.Namespace) -> int:
     s = login_glass.status(login_glass.Paths("/"))
     state = {"on": "on", "trial": "on trial (it turns itself off again if nobody logs in through it)",
              "off": "off"}.get(s.get("state"), "off")
+    if s.get("leaving"):
+        # Whatever state.json still says: an off was asked for, and only finishing it is left.
+        print("Glass login screen: not fully off yet (an earlier off did not finish)")
+        print("To finish it: sudo fedora-glass login-screen off (it says what is in the way)")
+        return 0
     print(f"Glass login screen: {state}")
     if s.get("stopped") in LOGIN_STOPPED and s.get("state") == "off":
         print(f"It turned itself off because {LOGIN_STOPPED[s['stopped']]}.")

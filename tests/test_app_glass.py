@@ -113,6 +113,76 @@ def test_see_changes_says_it_in_words_and_reset_all_keeps_it():
     assert (row["before"], row["after"]) == ("More solid: gimp", "Clearer: gimp")
 
 
+def _gimp(i):
+    """What the backend hands in: GIMP's two window ids are one app."""
+    return ("org.gimp.GIMP.desktop", "GIMP") if i.casefold() in ("org.gimp.gimp", "gimp") else (i.casefold(), i)
+
+
+def test_see_changes_counts_apps_not_window_ids():
+    from fedoraglass.gui import changes
+    now = Settings(no_glass_apps=["org.gimp.GIMP", "gimp"])
+    row = next(r for r in changes.change_rows(now, Settings(), app_of=_gimp) if r["key"] == "no_glass_apps")
+    assert row["before"] == "None" and row["after"] == "1 app"
+    # Ids that differ only in case are one app, with or without a name for it.
+    row = next(r for r in changes.change_rows(Settings(no_glass_apps=["Steam", "steam"]), Settings())
+               if r["key"] == "no_glass_apps")
+    assert row["after"] == "1 app"
+
+
+def test_see_changes_names_a_swapped_app_instead_of_showing_a_list():
+    from fedoraglass.gui import changes
+    rows = changes.change_rows(Settings(no_glass_apps=["org.gimp.GIMP", "gimp"]), Settings(no_glass_apps=["steam"]),
+                               app_of=_gimp)
+    row = next(r for r in rows if r["key"] == "no_glass_apps")
+    assert (row["before"], row["after"]) == ("steam", "GIMP")
+
+
+def test_see_changes_never_shows_python_text_for_apps_that_read_the_same():
+    from fedoraglass.gui import changes
+    was = Settings(app_glass={"a": "solid", "b": "solid", "c": "solid", "d": "solid"})
+    now = Settings(app_glass={"a": "solid", "b": "solid", "c": "solid", "e": "solid"})
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "app_glass")
+    for text in (row["before"], row["after"]):
+        assert not any(ch in text for ch in "[]{}'")
+    assert row["before"] != row["after"] and "d" in row["before"] and "e" in row["after"]
+
+
+def test_see_changes_shows_only_the_app_that_was_swapped_in_a_long_list():
+    from fedoraglass.gui import changes
+    was = Settings(no_glass_apps=["steam", "code", "firefox"])
+    now = Settings(no_glass_apps=["steam", "code", "gimp"])
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "no_glass_apps")
+    assert (row["before"], row["after"]) == ("firefox", "gimp")
+    was = Settings(app_glass={"steam": "solid", "code": "solid", "firefox": "solid"})
+    now = Settings(app_glass={"steam": "solid", "code": "solid", "gimp": "solid"})
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "app_glass")
+    assert (row["before"], row["after"]) == ("More solid: firefox", "More solid: gimp")
+
+
+def test_see_changes_shows_at_most_three_of_the_apps_that_differ():
+    from fedoraglass.gui import changes
+    was = Settings(no_glass_apps=["a", "b", "c", "d", "e"])
+    now = Settings(no_glass_apps=["f", "g", "h", "i", "j"])
+    row = next(r for r in changes.change_rows(now, was) if r["key"] == "no_glass_apps")
+    assert (row["before"], row["after"]) == ("a, b, c …", "f, g, h …")
+
+
+def test_see_changes_falls_back_to_the_ids_when_the_same_apps_have_other_ids():
+    from fedoraglass.gui import changes
+    for key, was, now in (("no_glass_apps", ["gimp"], ["gimp", "org.gimp.GIMP"]),
+                          ("app_glass", {"gimp": "solid"}, {"gimp": "solid", "org.gimp.GIMP": "solid"})):
+        row = next(r for r in changes.change_rows(Settings(**{key: now}), Settings(**{key: was}), app_of=_gimp)
+                   if r["key"] == key)
+        assert row["before"] != row["after"], key
+
+
+def test_see_changes_shows_app_names_three_at_a_time():
+    from fedoraglass.gui import changes
+    now = Settings(app_glass={"gimp": "solid", "org.gimp.GIMP": "solid", "a": "solid", "b": "solid", "c": "solid"})
+    row = next(r for r in changes.change_rows(now, Settings(), app_of=_gimp) if r["key"] == "app_glass")
+    assert row["after"] == "More solid: GIMP, a, b …"
+
+
 def test_saved_looks_do_not_carry_it():
     """Like the no-glass list, the apps picked are this PC's own: a look exported and
     imported elsewhere never brings them along."""

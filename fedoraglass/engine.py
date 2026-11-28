@@ -38,6 +38,7 @@ from .render.glass import UUID as GLASS_UUID
 from .targets.shell import USER_THEME, GlassEffects, extension_info, park_arcmenu, unpark_arcmenu
 from .targets.base import Action, Command, Context, FlatpakOverride, GReset, GSet, ListEdit, Target, WriteFile
 from .render.apps import ini_set
+from .safefs import LINK_INSIDE, Box, LinkInside, box_root
 from .unmerge import _ini_section, ini_del, ini_get, unmerge
 
 
@@ -94,19 +95,36 @@ def read_upto(path: Path, limit: int) -> bytes:
     return raw
 
 
-def read_pending() -> set[str]:
+def _read_pending_file() -> list:
     try:
         # A few part ids: anything near this size is not one of ours.
         data = json.loads(read_upto(pending_path(), 64 * 1024).decode("utf-8"))
     except (OSError, ValueError, RecursionError):   # nested thousands deep: damaged
-        return set()
-    return {x for x in data if isinstance(x, str)} if isinstance(data, list) else set()
+        return []
+    return data if isinstance(data, list) else []
 
 
-def _write_pending(ids: set[str]) -> None:
+def read_pending() -> set[str]:
+    return {x for x in _read_pending_file() if isinstance(x, str)}
+
+
+def read_pending_asked() -> set[str]:
+    """The waiting parts the user's own Apply left waiting (not the watcher's): finished at
+    login with the user's own rules, so an extension they asked for comes on then."""
+    data, asked = _read_pending_file(), set()
+    for x in data:
+        if isinstance(x, dict) and isinstance(x.get("asked"), list):
+            asked |= {i for i in x["asked"] if isinstance(i, str)}
+    return asked & {x for x in data if isinstance(x, str)}
+
+
+def _write_pending(ids: set[str], asked: set[str] | None = None) -> None:
     path = pending_path()
     if ids:
-        atomic_write(path, json.dumps(sorted(ids)).encode())
+        # The marks ride along in the same list: older versions keep only its strings,
+        # and drop the marks whenever they write it, as they drop the parts they finish.
+        marks = [{"asked": sorted(m)}] if (m := (asked or set()) & ids) else []
+        atomic_write(path, json.dumps(sorted(ids) + marks).encode())
     else:
         with contextlib.suppress(OSError):
             path.unlink()
@@ -295,37 +313,125 @@ def _tilde(path: Path, home: Path) -> str:
     return "~/" + str(path.relative_to(home)) if path.is_relative_to(home) else str(path)
 
 
-def sweep_temps(paths: Iterable[str]) -> None:
+def _temp_of(n: str, names: set[str]) -> bool:
+    """Whether `n` is the shape of a temp file atomic_write makes for one of `names`."""
+    if not (n.endswith(".lg-tmp") and n.startswith(".")):
+        return False
+    stem, _dot, tail = n[1:-len(".lg-tmp")].rpartition(".")
+    return stem in names and len(tail) == 8 and bool(re.fullmatch(r"[A-Za-z0-9_]+", tail))
+
+
+def sweep_temps(paths: Iterable[str], home: Path | None = None) -> None:
     """Delete the temp files atomic_write leaves when the process is killed between creating
     one and the rename: `.{name}.XXXXXXXX.lg-tmp` next to each of `paths`. Only plain files
     with exactly that shape for one of these names (never a link, never another name), or
     they would keep the folders Apply made from going on Restore. Only ones a minute old or
     more: the app writes a few of these files outside an Apply, and a write that is under way
-    right now must keep its temp file."""
+    right now must keep its temp file. `home`: folders below an app's own folder there are
+    looked into without following a link (see safefs)."""
     old = time.time() - 60
     by_dir: dict[str, set[str]] = {}
     for p in paths:
         by_dir.setdefault(os.path.dirname(p), set()).add(os.path.basename(p))
     for folder, names in by_dir.items():
+        root = box_root(Path(folder, next(iter(names))), home) if home is not None else None
+        if root is not None:
+            Box(root, home).sweep(Path(folder), lambda n, st: _temp_of(n, names) and st.st_mtime <= old)
+            continue
         try:
             with os.scandir(folder) as it:
-                found = [e.name for e in it if e.name.endswith(".lg-tmp") and e.name.startswith(".")]
+                found = [e.name for e in it if _temp_of(e.name, names)]
         except OSError:
             continue
         for n in found:
-            stem, _dot, tail = n[1:-len(".lg-tmp")].rpartition(".")
-            if stem in names and len(tail) == 8 and re.fullmatch(r"[A-Za-z0-9_]+", tail):
-                with contextlib.suppress(OSError):
-                    st = os.lstat(os.path.join(folder, n))
-                    if stat.S_ISREG(st.st_mode) and st.st_mtime <= old:
-                        os.unlink(os.path.join(folder, n))
+            with contextlib.suppress(OSError):
+                st = os.lstat(os.path.join(folder, n))
+                if stat.S_ISREG(st.st_mode) and st.st_mtime <= old:
+                    os.unlink(os.path.join(folder, n))
 
 
-def _remove_empty(dirs: set[str]) -> None:
-    """Take away folders an Apply created, deepest first, and only while empty."""
+def _remove_empty(dirs: set[str], home: Path | None = None) -> None:
+    """Take away folders an Apply created, deepest first, and only while empty. `home`:
+    one below an app's own folder there goes without following a link on the way."""
     for d in sorted(dirs, key=len, reverse=True):
         with contextlib.suppress(OSError):
-            os.rmdir(d)
+            root = box_root(Path(d), home) if home is not None else None
+            if root is None:
+                os.rmdir(d)
+            else:
+                Box(root, home).rmdir(Path(d))
+
+
+class _Plain:
+    """Files in the person's own folders: the calls as they always were (links followed as
+    the person set them up). Below an app's own folder a safefs.Box takes its place, with
+    the same methods, so every decision about a file is made in one place for both."""
+
+    is_dir = staticmethod(Path.is_dir)
+    is_file = staticmethod(Path.is_file)
+    is_symlink = staticmethod(Path.is_symlink)
+    exists = staticmethod(Path.exists)
+
+    @staticmethod
+    def read_bytes(path: Path) -> bytes:
+        return path.read_bytes()
+
+    @staticmethod
+    def read_text(path: Path) -> str:
+        with open(path, encoding="utf-8", newline="") as f:     # a CRLF file keeps its CRLF
+            return f.read()
+
+    @staticmethod
+    def head(path: Path, n: int) -> bytes:
+        with open(path, "rb") as f:
+            return f.read(n)
+
+    @staticmethod
+    def mode(path: Path) -> int:
+        return path.stat().st_mode & 0o777
+
+    @staticmethod
+    def kept_mode(path: Path, mode: int) -> int:
+        return _kept_mode(path, mode)
+
+    @staticmethod
+    def readlink(path: Path) -> str:
+        return os.readlink(path)
+
+    @staticmethod
+    def copy(path: Path, dest: Path) -> int:
+        shutil.copy2(path, dest)
+        return path.stat().st_mode & 0o777
+
+    @staticmethod
+    def missing_dirs(path: Path) -> list[str]:
+        new_dirs, d = [], path.parent
+        while d != d.parent and not d.exists():
+            new_dirs.append(str(d))
+            d = d.parent
+        return new_dirs
+
+    @staticmethod
+    def write(path: Path, data: bytes, mode: int = 0o644) -> None:
+        atomic_write(path, data, mode)
+
+    @staticmethod
+    def write_if_changed(path: Path, data: bytes, mode: int = 0o644) -> None:
+        write_if_changed(path, data, mode)
+
+    same_file = staticmethod(same_file)
+
+    @staticmethod
+    def unlink(path: Path) -> None:
+        path.unlink()
+
+    @staticmethod
+    def symlink(link: str, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(link)
+
+
+PLAIN = _Plain()
 
 
 # Items of a shared list (enabled-extensions) and the target that put them there, for
@@ -499,6 +605,13 @@ class Backup:
         self._on_disk_compact = compact
 
     # ---- recording ----------------------------------------------------------
+    def files(self, path: Path) -> _Plain | Box:
+        """How to read and change `path`: through safefs below an app's own folder (a
+        Flatpak's, a Snap's, a vault), where the app can swap any folder for a link at
+        any moment; as always everywhere else."""
+        root = box_root(path, self.env.home)
+        return PLAIN if root is None else Box(root, self.env.home)
+
     def linked_folder(self, path: Path) -> Path | None:
         """The first folder above `path` that is a symlink, looking only below the user's
         config, data and state folders (those roots may be links on purpose: dotfiles,
@@ -575,14 +688,14 @@ class Backup:
         problems = []
         for k in [k for k in self.data["files"] if Path(k).is_relative_to(folder)]:
             e = self.data["files"][k]
-            if self.is_ours(Path(k), e):
+            if self.is_ours(Path(k), e, self.files(Path(k))):
                 if (problem := self._restore_file(k, e, new_dirs)):
                     problems.append(problem)
             else:
                 # The theme has replaced that file since (an update, say): a repair would put
                 # an old copy over a newer one, so the record goes and the theme's file stays.
                 self._forget_file(k, e)
-        _remove_empty(new_dirs)
+        _remove_empty(new_dirs, self.env.home)
         if problems:
             raise OSError("; ".join(problems))
         link = os.readlink(folder)
@@ -608,11 +721,11 @@ class Backup:
             raise
 
     @staticmethod
-    def is_ours(path: Path, e: dict) -> bool:
+    def is_ours(path: Path, e: dict, fs: _Plain | Box = PLAIN) -> bool:
         """Whether `path` still holds what Apply wrote there: the same bytes, or (for
         records older than that check) one of our generated files."""
         try:
-            data = path.read_bytes() if path.is_file() else None
+            data = fs.read_bytes(path) if fs.is_file(path) else None
         except OSError:
             return False
         if data is None:
@@ -622,14 +735,13 @@ class Backup:
         return _marked(data[:512])
 
     @staticmethod
-    def _has_header(path: Path) -> bool:
+    def _has_header(path: Path, fs: _Plain | Box = PLAIN) -> bool:
         """A regular file (not a link) that one of our Applies wrote: covers an Apply killed
         after the write but before the manifest was saved, so its file never looks foreign."""
         try:
-            if path.is_symlink() or not path.is_file():
+            if fs.is_symlink(path) or not fs.is_file(path):
                 return False
-            with open(path, "rb") as f:
-                return _marked(f.read(512))
+            return _marked(fs.head(path, 512))
         except OSError:
             return False
 
@@ -645,7 +757,7 @@ class Backup:
         folder it stands in for (new theme files get a link, removed ones lose theirs)."""
         if self.env.dry_run:
             return
-        sweep_temps(self.data["files"])
+        sweep_temps(self.data["files"], self.env.home)
         for parent in {self.env.config} | {Path(k).parent for k in self.data["dirlinks"]}:
             if not parent.is_dir():
                 continue
@@ -689,9 +801,9 @@ class Backup:
         new_dirs: set[str] = set()
         for p in paths:
             e = self.data["files"].get(str(p))
-            if e and e["target"] == target and e.get("kind") == "missing" and self.is_ours(p, e):
+            if e and e["target"] == target and e.get("kind") == "missing" and self.is_ours(p, e, self.files(p)):
                 self._restore_file(str(p), e, new_dirs)
-        _remove_empty(new_dirs)
+        _remove_empty(new_dirs, self.env.home)
         # A folder that file's write made, which other files of the part still share, stays
         # and goes with them on Restore original.
         for d in sorted(x for x in new_dirs if os.path.isdir(x)):
@@ -710,11 +822,11 @@ class Backup:
         for key, e in list(self.data["files"].items()):
             if e["target"] != target or key in written or not is_legacy(Path(key)):
                 continue
-            if self.is_ours(Path(key), e):
+            if self.is_ours(Path(key), e, self.files(Path(key))):
                 self._restore_file(key, e, new_dirs)
             else:
                 self._forget_file(key, e)
-        _remove_empty(new_dirs)
+        _remove_empty(new_dirs, self.env.home)
         # A folder an old write created that the new files now share (~/.local/share/themes,
         # say) stays, and goes with the new files on Restore original.
         for d in sorted(x for x in new_dirs if os.path.isdir(x)):
@@ -731,7 +843,8 @@ class Backup:
         for key, e in self.data["files"].items():
             # A file of ours with other settings in it (the live preview rewrites the glass
             # config while a slider moves) is not "replaced by something else".
-            if e.get("wrote") and not self.is_ours(Path(key), e) and not self._has_header(Path(key)):
+            fs = self.files(Path(key))
+            if e.get("wrote") and not self.is_ours(Path(key), e, fs) and not self._has_header(Path(key), fs):
                 lost.add(e["target"])
         return sorted(lost)
 
@@ -746,20 +859,21 @@ class Backup:
         key = str(path)
         if self.env.dry_run:
             return
+        fs = self.files(path)
         if (old := self.data["files"].get(key)) is not None:
             if old.get("edits") and old.get("wrote") and old["kind"] in ("file", "missing") and \
-                    path.is_file() and not path.is_symlink():
+                    fs.is_file(path) and not fs.is_symlink(path):
                 # Another app's own settings file, where we only set a few keys. The app
                 # rewrites it (qBittorrent on every exit, btop, VS Code): that is not a new
                 # look to keep, and the copy from before the first Apply must stay the
                 # original. Restore then takes only our keys out, so what changed in
                 # between stays too.
-                if not self.is_ours(path, old):
+                if not self.is_ours(path, old, fs):
                     old["changed"] = True
                 return
-            if not old.get("wrote") or self.is_ours(path, old) or self._has_header(path):
+            if not old.get("wrote") or self.is_ours(path, old, fs) or self._has_header(path, fs):
                 return
-            if not path.exists() and not path.is_symlink():
+            if not fs.exists(path) and not fs.is_symlink(path):
                 # Gone (the user deleted our file): nothing else wrote there, so there is no
                 # new look to keep. The stored original stays the one Restore puts back.
                 return
@@ -767,37 +881,33 @@ class Backup:
             # that is the user's look now, so Revert should bring that back, not the old one.
             # The old copy goes only once the new original is safely stored (below).
         entry: dict = {"target": target}
-        if path.is_dir() and not path.is_symlink():
+        if fs.is_dir(path) and not fs.is_symlink(path):
             # A folder is never ours to replace (and revert must never delete it).
             raise IsADirectoryError(_("{path} is a folder").format(path=path))
-        if path.is_symlink():
-            entry.update(kind="symlink", link=os.readlink(path))
-        elif old is None and (orphan := self._orphan_copy(key, path)) is not None:
+        if fs.is_symlink(path):
+            entry.update(kind="symlink", link=fs.readlink(path))
+        elif old is None and (orphan := self._orphan_copy(key, path, fs)) is not None:
             # A stored original with no record: an Apply was stopped after storing it (by an
             # older version, or before a save the last-good manifest doesn't have). The file
             # holds our look now, so that copy is the user's original, not this file.
             entry.update(kind="file", copy=str(orphan), mode=orphan.stat().st_mode & 0o777)
-        elif generated and self._has_header(path):
+        elif generated and self._has_header(path, fs):
             # Already one of our generated files, with no record of it: the backup was lost
             # (the state folder wiped, a home folder moved to a new PC). It is not the
             # user's look, so Restore takes it away instead of putting the glass back.
             new_dirs: list[str] = []
             entry.update(kind="missing", new_dirs=new_dirs)
-        elif path.is_file():
+        elif fs.is_file(path):
             copy = self._copy_path(key, path)
             copy.parent.mkdir(parents=True, exist_ok=True)
             os.chmod(self.root, 0o700)
             fresh = copy.with_name(copy.name + ".new")
-            shutil.copy2(path, fresh)
+            mode = fs.copy(path, fresh)
             os.replace(fresh, copy)       # never a moment without a stored original
-            entry.update(kind="file", copy=str(copy), mode=path.stat().st_mode & 0o777)
+            entry.update(kind="file", copy=str(copy), mode=mode)
         else:
             # Folders this write will create, so revert can take them away again.
-            new_dirs, d = [], path.parent
-            while d != d.parent and not d.exists():
-                new_dirs.append(str(d))
-                d = d.parent
-            entry.update(kind="missing", new_dirs=new_dirs)
+            entry.update(kind="missing", new_dirs=fs.missing_dirs(path))
         if old is not None and old.get("copy") and old["copy"] != entry.get("copy"):
             self._forget_file(key, old)
         self.data["files"][key] = entry
@@ -806,11 +916,11 @@ class Backup:
         digest = hashlib.sha256(key.encode()).hexdigest()[:16]
         return self.root / "files" / f"{digest}-{path.name}"
 
-    def _orphan_copy(self, key: str, path: Path) -> Path | None:
+    def _orphan_copy(self, key: str, path: Path, fs: _Plain | Box = PLAIN) -> Path | None:
         """A stored original for `path` that the manifest doesn't point at, when `path` now
         holds one of our files (and the copy doesn't)."""
         copy = self._copy_path(key, path)
-        if not self._has_header(path) or copy.is_symlink() or not copy.is_file():
+        if not self._has_header(path, fs) or copy.is_symlink() or not copy.is_file():
             return None
         try:
             with open(copy, "rb") as f:
@@ -866,11 +976,11 @@ class Backup:
         mine = lambda e: not target or e["target"] == target  # noqa: E731
         new_dirs: set[str] = set()
         if not self.env.dry_run:
-            sweep_temps(k for k, e in self.data["files"].items() if mine(e))
+            sweep_temps((k for k, e in self.data["files"].items() if mine(e)), self.env.home)
         for key, e in list(self.data["files"].items()):
             if mine(e) and (problem := self._restore_file(key, e, new_dirs)):
                 problems.append(problem)
-        _remove_empty(new_dirs)
+        _remove_empty(new_dirs, self.env.home)
         # A folder this part's write made that another part's files still share (two apps'
         # files in ~/.local/share/liquid-glass) stays, and goes with those files when they
         # go: without this, Restore original would leave it behind, empty, for good.
@@ -949,14 +1059,22 @@ class Backup:
                 del self.data["commands"][key]
             else:
                 problems.append(f"{' '.join(e['undo'])}: {r.err.strip()}")
-        self.save()
+        try:
+            self.save()
+        except OSError as err:
+            # A full disk: what was put back stays so, and the stored originals stay too
+            # (only a saved manifest lets them go), so the next Restore can finish.
+            problems.append(f"{self.manifest_path}: {err}")
         return problems
 
     def _restore_file(self, key: str, e: dict, new_dirs: set[str]) -> str | None:
-        """Put one recorded file back. Returns a problem, or None."""
+        """Put one recorded file back. Returns a problem, or None. A link in the way below
+        an app's own folder writes nothing and keeps the record and the stored original:
+        once the link is gone, the next Restore finishes the job."""
         p = Path(key)
+        fs = self.files(p)
         try:
-            if p.is_dir() and not p.is_symlink():
+            if fs.is_dir(p) and not fs.is_symlink(p):
                 # Not something we wrote: never delete a folder the user made there.
                 if e["kind"] != "missing":
                     raise IsADirectoryError(_("is now a folder, left as it is"))
@@ -973,13 +1091,13 @@ class Backup:
                 return _("{path}: the saved copy of your original was lost, so this file was left "
                          "as it is (it may still have the Fedora Glass look)").format(path=p)
             if e.get("edits") and e.get("wrote") and e["kind"] in ("file", "missing") and \
-                    p.is_file() and not p.is_symlink() and \
-                    (e.get("changed") or not self.is_ours(p, e)):
+                    fs.is_file(p) and not fs.is_symlink(p) and \
+                    (e.get("changed") or not self.is_ours(p, e, fs)):
                 # Another app's settings, changed since the first Apply: take only our
                 # keys out.
-                return self._unmerge_file(key, p, e, original)
-            if e.get("wrote") and (p.exists() or p.is_symlink()) and \
-                    not self.is_ours(p, e) and not self._has_header(p):
+                return self._unmerge_file(key, p, e, original, fs)
+            if e.get("wrote") and (fs.exists(p) or fs.is_symlink(p)) and \
+                    not self.is_ours(p, e, fs) and not self._has_header(p, fs):
                 # Something else replaced what we wrote since Apply (a theme installer
                 # writing its own gtk.css, a link to its folder): that is the user's look
                 # now, as at the next Apply (see record_file). Deleting it, or putting the
@@ -990,7 +1108,7 @@ class Backup:
                 del self.data["files"][key]
                 return None
             if e.get("wrote") and e.get("edits") and e["kind"] in ("file", "symlink") \
-                    and not (p.exists() or p.is_symlink()):
+                    and not (fs.exists(p) or fs.is_symlink(p)):
                 # The app is gone, and its settings with it (the user removed it after Apply):
                 # a file of an app's own, where we only set a few keys, is not ours to bring
                 # back. (A whole file of ours that replaced the user's still goes back.)
@@ -998,31 +1116,38 @@ class Backup:
                     self._used_copies.append(e["copy"])
                 del self.data["files"][key]
                 return None
-            if p.is_symlink() or (p.exists() and original is None):
+            if fs.is_symlink(p) or (fs.exists(p) and original is None):
                 # A stored copy is written over the file in one step (atomic_write), so a kill
                 # in between never leaves the user's file missing; only a link, or a file
                 # that was not there before, has to go first.
-                p.unlink()
+                fs.unlink(p)
             if e["kind"] == "symlink":
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.symlink_to(e["link"])
+                fs.symlink(e["link"], p)
             elif original is not None:
-                atomic_write(p, original, e.get("mode", 0o644))
+                fs.write(p, original, e.get("mode", 0o644))
                 self._used_copies.append(e["copy"])
             new_dirs.update(e.get("new_dirs", []))
             del self.data["files"][key]
+        except LinkInside as err:
+            return str(err)
         except OSError as err:
             return f"{p}: {err}"
         return None
 
-    def _unmerge_file(self, key: str, p: Path, e: dict, original: bytes | None) -> str | None:
+    def _unmerge_file(self, key: str, p: Path, e: dict, original: bytes | None,
+                      fs: _Plain | Box = PLAIN) -> str | None:
         try:
-            with open(p, encoding="utf-8", newline="") as f:     # a CRLF file keeps its CRLF
-                current = f.read()
+            current = fs.read_text(p)       # a CRLF file keeps its CRLF
             before = original.decode("utf-8") if original is not None else None
+        except LinkInside:
+            raise                           # nothing read through it: the record stays
         except (OSError, UnicodeDecodeError):
             current = before = None
         out = unmerge(current, before, e["edits"]) if current is not None else None
+        if out is not None and out != current:
+            # Written before the record goes: a write that fails (a full disk) keeps the
+            # record and the stored original, so the next Restore can finish the job.
+            fs.write(p, out.encode("utf-8"), fs.mode(p))
         if e.get("copy"):
             self._used_copies.append(e["copy"])
         del self.data["files"][key]
@@ -1030,8 +1155,6 @@ class Backup:
             # Can't read it any more (VS Code allows comments): leave the user's file as
             # it is rather than wipe what they changed since.
             return _("{path}: changed since Apply and can't be read, so it was left as it is").format(path=p)
-        if out != current:
-            atomic_write(p, out.encode("utf-8"), p.stat().st_mode & 0o777)
         return None
 
     def _restore_folder(self, key: str, e: dict) -> str | None:
@@ -1384,10 +1507,13 @@ class Engine:
             if not if_applied and not self.env.dry_run:
                 _clear_restored(self.env)
                 note_applied_style(self.env)
-            return self._apply(settings, only, full=full, progress=progress)
+            return self._apply(settings, only, full=full, progress=progress, auto=if_applied)
 
     def _apply(self, settings: Settings, only: set[str] | None, full: bool = False,
-               progress: Progress | None = None) -> list[Result]:
+               progress: Progress | None = None, auto: bool = False) -> list[Result]:
+        """`auto`: Fedora Glass applies by itself (the watcher, the update steps), so an
+        extension the user switched off since stays off (see _run_actions), except in a
+        part the user's own Apply left waiting for the glass (read_pending_asked)."""
         try:
             ctx = self.context(settings, check_glass=True)
             backup = Backup(self.env)
@@ -1397,8 +1523,8 @@ class Engine:
             # it would end the watcher, and its user service would start it again and again.
             return [Result("apply", _("Apply"), "failed", _("Couldn't start: {error}").format(error=e))]
         results: list[Result] = []
-        pending = read_pending()
-        waiting = set(pending)
+        pending, asked = read_pending(), read_pending_asked()
+        waiting, held = set(pending), set()
         todo = [t for t in self.targets if not only or t.id in only]
         for i, t in enumerate(todo):
             if progress is not None:
@@ -1429,6 +1555,7 @@ class Engine:
             # (`fedora-glass watch`) finishes them then.
             if t.waits_for_glass and not ctx.glass_running:
                 waiting.add(t.id)
+                held.add(t.id)
                 results.append(Result(t.id, tr(t.name), "info", tr(WAITING)))
                 continue
             waiting.discard(t.id)
@@ -1436,16 +1563,28 @@ class Engine:
             try:
                 backup.give_back(t.id, t.gives_back(self.env))
                 actions = t.plan(ctx)
-                if (left := self._unsafe_links(actions, backup)):
+                left = self._unsafe_links(actions, backup)
+                inside = self._links_inside(actions, backup)
+                if left or inside:
                     results.append(Result(t.id, tr(t.name), "skipped", " ".join(
-                        tr(LINK_LEFT).format(folder=_tilde(f, self.env.home)) for f in left)))
+                        [tr(LINK_LEFT).format(folder=_tilde(f, self.env.home)) for f in left]
+                        + [str(LinkInside(f, self.env.home)) for f in inside])))
                     continue
-                errs = self._run(t.id, actions, backup)
+                # A part the user's own Apply left waiting is finished as they asked.
+                errs = self._run(t.id, actions, backup, auto and t.id not in asked)
                 if not errs:
                     backup.retire(t.id, {str(a.path) for a in actions if isinstance(a, WriteFile)})
+            except LinkInside as e:
+                # The app put a link in its own folder after the plan: nothing went through it.
+                errs = [str(e)]
             except Exception as e:  # a broken target must not stop the others
                 errs = [f"{type(e).__name__}: {e}"]
-            backup.save()
+            try:
+                backup.save()
+            except OSError as e:
+                # A full disk: this part failed, said once (its own save above may have said it).
+                if (msg := f"{type(e).__name__}: {e}") not in errs:
+                    errs.append(msg)
             if errs:
                 results.append(Result(t.id, tr(t.name), "failed", "; ".join(errs)))
             elif not actions:
@@ -1456,8 +1595,9 @@ class Engine:
             else:
                 results.append(Result(t.id, tr(t.name), "applied"))
         try:
-            if waiting != pending and not self.env.dry_run:
-                _write_pending(waiting)
+            marked = (asked if auto else asked | held) & waiting
+            if (waiting != pending or marked != asked) and not self.env.dry_run:
+                _write_pending(waiting, marked)
             self._write_tokens(ctx)
         except OSError as e:
             results.append(Result("tokens", _("Colours for other apps"), "failed", str(e)))
@@ -1465,9 +1605,10 @@ class Engine:
         # turning "Fedora Glass effects" off and on): GNOME Shell already knows it and starts
         # it right away, so the parts that wait for the glass are finished now, not after a
         # restart. A brand-new extension still waits for the next login.
-        glass_on = any(r.target == GlassEffects.id and r.status == "applied" for r in results)
+        glass_on = any(r.target == GlassEffects.id and r.status == "applied" for r in results) \
+            and (not auto or self.env.extension_on(GLASS_UUID))     # left off: it won't start
         if waiting and glass_on and not ctx.glass_running and not self.env.dry_run and self._glass_starts():
-            later = self._apply(settings, set(waiting))
+            later = self._apply(settings, set(waiting), auto=auto)
             done = {r.target for r in later}
             results = [r for r in results if r.target not in done] + later
         if full and not self.env.dry_run:
@@ -1526,7 +1667,7 @@ class Engine:
                 if parked:
                     unpark_arcmenu(self.env)
             if not self.env.dry_run:
-                _write_pending(set() if target is None else read_pending() - {target})
+                _write_pending(set() if target is None else read_pending() - {target}, read_pending_asked())
                 if target is None:
                     with contextlib.suppress(OSError):
                         atomic_write(restored_path(self.env), b"", 0o600)
@@ -1550,6 +1691,24 @@ class Engine:
         paths += [p for a in actions if isinstance(a, Command) for p in a.touches]
         return sorted({f for p in paths if (f := backup.unsafe_link(p)) is not None})
 
+    @staticmethod
+    def _links_inside(actions: list[Action], backup: Backup) -> list[Path]:
+        """The links on the way to these actions' files below an app's own folder: the part
+        is left alone, and says why (the writes would refuse them anyway, see safefs)."""
+        paths = [a.path for a in actions if isinstance(a, WriteFile)]
+        paths += [p for a in actions if isinstance(a, Command) for p in a.touches]
+        found = set()
+        for p in paths:
+            if (fs := backup.files(p)) is PLAIN:
+                continue
+            try:
+                fs.lstat(p)
+            except LinkInside as e:
+                found.add(e.folder)
+            except OSError:
+                pass                # anything else in the way: the write says what
+        return sorted(found)
+
     def _record_originals(self, tid: str, actions: list[Action], backup: Backup) -> None:
         """Record what every file and setting of this target holds now, and save that,
         before the first change. An Apply stopped half way (the app killed, the PC off)
@@ -1567,20 +1726,21 @@ class Engine:
                 backup.record_command(tid, a)
         backup.save()
 
-    def _run(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+    def _run(self, tid: str, actions: list[Action], backup: Backup, auto: bool = False) -> list[str]:
         # This part's settings go out together at its end, one change per schema, written
         # in this process (see Env.gsettings_batch).
         with self.env.gsettings_batch():
-            return self._run_actions(tid, actions, backup)
+            return self._run_actions(tid, actions, backup, auto)
 
-    def _run_actions(self, tid: str, actions: list[Action], backup: Backup) -> list[str]:
+    def _run_actions(self, tid: str, actions: list[Action], backup: Backup, auto: bool = False) -> list[str]:
         errs: list[str] = []
         self._record_originals(tid, actions, backup)
         for a in actions:
             if isinstance(a, WriteFile):
                 if not self.env.dry_run:
                     data = a.content.encode() if isinstance(a.content, str) else a.content
-                    write_if_changed(a.path, data, _kept_mode(a.path, a.mode))
+                    fs = backup.files(a.path)
+                    fs.write_if_changed(a.path, data, fs.kept_mode(a.path, a.mode))
                     if (rec := backup.data["files"].get(str(a.path))) is not None:
                         rec["wrote"] = hashlib.sha256(data).hexdigest()
                         if a.edits:
@@ -1598,8 +1758,15 @@ class Engine:
                     continue
                 if fresh:
                     backup.save()   # recorded only now (a GReset before it took the record)
-                if a.keep_user_change and backup.changed_since(self.env, gkey, backup.data["gsettings"][gkey]):
-                    continue    # the user picked their own value after ours: it stays, as on Restore
+                rec = backup.data["gsettings"][gkey]
+                if a.keep_user_change and backup.changed_since(self.env, gkey, rec):
+                    if not a.picked or a.value == rec["ours"]:
+                        continue    # the user picked their own value after ours: it stays, as on Restore
+                    # A new pick in Fedora Glass after one made elsewhere (a pointer from
+                    # Tweaks): it is set, and Restore gives back that latest choice of theirs.
+                    if not self.env.dry_run and (now := self.env.gsettings_get(a.schema, a.key, a.path)) is not None:
+                        rec["value"] = now
+                        backup.save()
                 if self.env.gsettings_get(a.schema, a.key, a.path) == a.value:
                     # Already so: setting it again would still tell every listener (Dash to
                     # Panel rebuilds its panels for some keys) on each Apply and dark/light switch.
@@ -1609,7 +1776,7 @@ class Engine:
                 if not r.ok:
                     errs.append(f"{a.schema} {a.key}: {r.err.strip()}")
                 elif a.keep_user_change and not self.env.dry_run:
-                    backup.data["gsettings"][gkey]["ours"] = a.value
+                    rec["ours"] = a.value
             elif isinstance(a, GReset):
                 if (err := backup.reset_gsetting(tid, self.env, a)):
                     errs.append(err)
@@ -1621,15 +1788,25 @@ class Engine:
                 rec = backup.data["lists"].get(key, {"target": tid, "added": [], "removed": []})
                 # Each item remembers its own target, so turning one target off undoes only its items.
                 by = {i: list_owner(rec, i) for i in rec["added"] + rec["removed"]}
+                add, remove = a.add, a.remove
+                if auto:
+                    # Applied by itself (the watcher, an update): what the user switched off
+                    # since stays off, in GNOME's Extensions app say. Switched off is gone
+                    # after we added it, or on the list of switched-off ones. That list counts
+                    # for one that was on before the first Apply, so never added by us. Only
+                    # the user's own Apply switches it on again.
+                    off = parse_strv(self.env.gsettings_get(a.schema, a.off_key, a.path)) if a.off_key else []
+                    add = tuple(i for i in add if i in items or (i not in rec["added"] and i not in off))
+                    remove = ()
                 changed = False
-                for i in a.add:
+                for i in add:
                     if i not in items:
                         items.append(i)
                         changed = True
                         if i not in rec["added"]:
                             rec["added"].append(i)
                             by[i] = tid
-                for i in a.remove:
+                for i in remove:
                     if i in items:
                         items.remove(i)
                         changed = True

@@ -100,7 +100,9 @@ def ensure_contrast(c: Color, bg: Color, ratio: float) -> Color:
     if c.contrast(bg) >= ratio:
         return c
     h, s, l = hsl(c)
-    step = 0.02 if bg.luminance() < 0.4 else -0.02
+    # Towards whichever of white and black reads better on it (they read the same at a
+    # luminance of about 0.18): a mid grey gets darker text, not paler.
+    step = 0.02 if WHITE.contrast(bg) > BLACK.contrast(bg) else -0.02
     for _ in range(50):
         l += step
         c = from_hsl(h, s, l)

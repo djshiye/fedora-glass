@@ -58,6 +58,31 @@ CONFIRM_LOOK_UNTIL = 60
 # must be inactive this many seconds later.
 WATCHER_STOPS_WITHIN = 10
 
+# The login add-on looks once at where GNOME really put its password prompt and says so in the
+# journal (see prompt_places). At that first look the prompt may stand this many px from where
+# the glass card wants it. More means this GNOME, or its login theme, places the prompt in a way
+# the add-on does not know: it then sets the place right by itself, but a user sees the card and
+# the clock move once. That shows up here, not on a user's PC. (A font that makes what the prompt
+# shows a little taller or shorter than the add-on reckons shows up here as half of that
+# difference, or not at all.) These VMs have GNOME's own login theme and a screen that has
+# room for the card: here the add-on must also never give the prompt GNOME's own place back.
+PROMPT_FIRST_OFF_AT_MOST = 8
+# ...and this many px once the add-on has set it right. Where it wants the prompt is the add-on's
+# own word: this only says that it got the prompt there.
+PROMPT_OFF_AT_MOST = 4
+
+# Fedora Glass's two background helpers for a person's own session: the watcher that follows
+# dark and light, and the step that brings the glass up to date before GNOME Shell starts.
+# They have nothing to do in the login screen's own session, which has a service manager of
+# its own (GDM 49 and later run it as a throwaway user, gdm-greeter, that is no system user:
+# the login screen then waited for the step at every boot). systemd names a unit in its journal
+# lines by its file name, its description, or both, as the Linux is set.
+HELPERS = {"liquid-glass-watch.service": "Fedora Glass: follow GNOME dark and light style",
+           "fedora-glass-before-login.service": "Fedora Glass: bring the glass up to date before GNOME Shell starts"}
+# After a login both must have run for the person: looked for this many seconds more, once
+# the login's other checks are done.
+HELPERS_WITHIN = 30
+
 # How different two screen pictures are (mean difference per colour channel, 0..255, of the
 # pictures shrunk to 160 px wide). The glass login screen over the bright test picture must be
 # far from GNOME's plain grey one; two plain ones differ only by the clock. TO CONFIRM ON
@@ -96,6 +121,24 @@ def check(ok, msg: str) -> None:
     log(f"  {'ok  ' if ok else 'FAIL'} {msg}")
     if not ok:
         raise StepFailed(msg)
+
+
+def all_of(*parts) -> None:
+    """Every part of a step is run whatever the others say; then the step fails with all that
+    went wrong. A part is something to call, or an (ok, msg) pair for check()."""
+    problems = []
+    for part in parts:
+        try:
+            if callable(part):
+                part()
+            else:
+                check(*part)
+        except StepFailed as e:
+            problems.append(str(e))
+        except Exception as e:                          # the lane's own trouble: said with its kind
+            problems.append(f"{type(e).__name__}: {e}")
+    if problems:
+        raise StepFailed("; ".join(problems))
 
 
 # ===== Distributions and their cloud images =====================================================
@@ -1004,19 +1047,32 @@ class Lane:
         r = self.vm.sh("date +%s", check=False, quiet=True, timeout=30)
         return int(r.out) if r.returncode == 0 and r.out.strip().isdigit() else None
 
+    def shell_journal(self) -> str:
+        """GNOME Shell's journal of this boot since the step began, as plain text; all of this
+        boot's where the guest's clock could not be read when the step began (the steps before
+        it have judged the rest). A read that fails fails the step: a journal nobody read
+        must not pass for a clean one."""
+        since = f' --since "@{self.step_epoch}"' if self.step_epoch is not None else ""
+        if not since:
+            log("  (no guest clock when the step began: all of this boot's journal of GNOME Shell is read)")
+        r = self.vm.sh(f"sudo journalctl -b _COMM=gnome-shell{since} --no-pager -o cat",
+                       check=False, quiet=True, timeout=120)
+        if r.returncode != 0:
+            log(f"    {(r.err or r.out)[:300]}")
+            check(False, f"GNOME Shell's journal could be read (journalctl exited {r.returncode})")
+        return r.out
+
+    def addon_errors_in(self, journal: str) -> list[str]:
+        errs = addon_errors(journal)
+        log(f"  gnome-shell journal since the step began: {len(journal.splitlines())} lines, {len(errs)} of them errors of the add-on")
+        for line in errs[:20]:
+            log(f"    {line[:300]}")
+        return errs
+
     def no_addon_errors(self) -> None:
         """The glass is showing: the add-on must not have logged errors of its own to GNOME
         Shell's journal since the step began."""
-        if self.step_epoch is None:
-            log("  (no guest clock: the journal check for add-on errors is skipped)")
-            return
-        r = self.vm.sh(f'sudo journalctl -b _COMM=gnome-shell --since "@{self.step_epoch}" --no-pager -o cat',
-                       check=False, quiet=True, timeout=120)
-        errs = addon_errors(r.out)
-        log(f"  gnome-shell journal since the step began: {len(r.out.splitlines())} lines, {len(errs)} of them errors of the add-on")
-        for line in errs[:20]:
-            log(f"    {line[:300]}")
-        check(not errs, "no error of the add-on in the login screen's journal")
+        check(not self.addon_errors_in(self.shell_journal()), "no error of the add-on in the login screen's journal")
 
     def collect_gdm_retries(self) -> None:
         """Counts this boot's "Session never registered" lines of GDM since the step began, and
@@ -1075,6 +1131,52 @@ class Lane:
         return self.vm.sh(f"sudo {HELPER} on '{arg}'", check=False, input=data)
 
     # --- the login screen ---
+    def manager_journal(self, uid: int, whose: str, since: int | None = None) -> str:
+        """This boot's journal of one user's own service manager (systemd --user), as plain
+        text; with `since` (the guest's clock, in seconds) only what it said from then on. A
+        read that fails or finds no line at all fails the step, as for GNOME Shell's journal:
+        every such manager says something when it starts, and when a session starts."""
+        frm = f' --since "@{int(since)}"' if since is not None else ""
+        r = self.vm.sh(f"sudo journalctl -b _UID={int(uid)} _COMM=systemd{frm} --no-pager -o cat",
+                       check=False, quiet=True, timeout=120)
+        lines = [l for l in r.out.splitlines() if l.strip() and not l.startswith("-- ")]
+        if r.returncode != 0 or not lines:
+            log(f"    {(r.err or r.out)[:300]}")
+            check(False, f"the journal of {whose} service manager could be read "
+                         f"(journalctl exited {r.returncode}, {len(lines)} lines)")
+        return "\n".join(lines)
+
+    def helpers_stay_out(self, g: dict) -> None:
+        """At the login screen neither of Fedora Glass's helpers may have run for the login
+        screen's own user (see HELPERS), at any time in this boot: its session began before
+        the step did."""
+        journal = self.manager_journal(g["uid"], f"the login screen's own ({g['user']})")
+        ran = helpers_run(journal, tried=True)
+        said = [l for l in journal.splitlines() if any(u in l or d in l for u, d in HELPERS.items())]
+        log(f"  {g['user']}'s service manager: {len(journal.splitlines())} lines this boot, {len(said)} on Fedora Glass's helpers")
+        for line in said[:12]:
+            log(f"    {line[:300]}")
+        check(not ran, f"Fedora Glass's helpers stay out of the login screen's own session "
+                       f"({' and '.join(ran) + ' ran' if ran else 'none ran'} as {g['user']})")
+
+    def helpers_run_for_the_user(self) -> None:
+        """The other half: for a person who logs in, both helpers do run. What keeps them out
+        of the login screen must never keep them from anyone else. Read since the step began,
+        so a run at an earlier login of this boot does not count for this one (all of this
+        boot where the guest's clock could not be read then)."""
+        mine = user_sessions(self.vm.probe("sessions"))
+        if not mine:
+            check(False, f"{USER} has a session on the screen to look at the helpers of")
+        start, ran = time.monotonic(), []
+        while True:
+            ran = helpers_run(self.manager_journal(mine[0]["uid"], f"{USER}'s", since=self.step_epoch))
+            if len(ran) == len(HELPERS) or time.monotonic() - start >= HELPERS_WITHIN:
+                break
+            time.sleep(2)
+        missing = [u for u in HELPERS if u not in ran]
+        check(not missing, f"both of Fedora Glass's helpers ran for {USER} at this login "
+                           f"({'both ran' if not missing else ' and '.join(missing) + ' did not'})")
+
     def wait_greeter(self, timeout: int = 180) -> dict:
         log("  waiting for the login screen (a greeter session with its gnome-shell)")
         start, seen = time.monotonic(), None
@@ -1106,15 +1208,20 @@ class Lane:
                 break
             time.sleep(2)
 
-    def login(self) -> dict:
-        """Logs in for real: Enter picks the user in GDM's list, then the password and Enter."""
+    def login(self, show: bool = False) -> dict:
+        """Logs in for real: Enter picks the user in GDM's list, then the password and Enter.
+        show: the password prompt's picture goes into the log too, small. The pictures are
+        named after the step, so a later step's login does not write over an earlier one's."""
+        step = self.cur_step or "login"
         for attempt in (1, 2):
             log(f"  logging in through the login screen (try {attempt})")
             wait = 2 if attempt == 1 else 5
             self.vm.wake_screen()
             self.vm.qmp.send_keys(["ret"])
             time.sleep(wait + 1)
-            self.vm.picture(f"login-prompt-{attempt}")
+            pic = self.vm.picture(f"{step}-prompt-{attempt}")
+            if show:
+                self.show(pic, f"{step}-prompt-{attempt}")
             self.vm.type_text(PASSWORD)
             time.sleep(0.5)
             self.vm.qmp.send_keys(["ret"])
@@ -1126,7 +1233,7 @@ class Lane:
                         f"after {int(time.monotonic() - start)} s")
                     return mine[0]
                 time.sleep(2)
-            self.vm.picture(f"login-failed-{attempt}")
+            self.vm.picture(f"{step}-failed-{attempt}")
             if attempt == 1:
                 log("  no session yet; Escape twice and try once more")
                 self.vm.qmp.send_keys(["esc"])
@@ -1188,6 +1295,8 @@ class Lane:
         log(f"  /etc/dconf: {len(self.baseline['etc'])} entries")
         self.baseline_denials = set(self.denials()["lines"])
         (self.out / "baseline-dconf.json").write_text(json.dumps(self.baseline, indent=1))
+        # Last, so the login screen's session has had the time to start all it starts.
+        self.helpers_stay_out(g)
 
     def step_on(self):
         r = self.turn_on({"picture": "wallpaper"}, picture=True)
@@ -1213,7 +1322,7 @@ class Lane:
         return route_text(route, db)
 
     def step_glass(self):
-        self.restart_gdm()
+        g = self.restart_gdm()
         note = self.wait_phase(("ok",), self.token)
         check(note.get("phase") == "ok", f"the add-on's health note says ok (it says {note.get('phase')})")
         self.vm.wake_screen()
@@ -1231,10 +1340,87 @@ class Lane:
             check(den["selinux"] == "Enforcing", f"SELinux is enforcing (it is {den['selinux'] or 'missing'})")
         check(not ours, f"no SELinux or AppArmor denial for gnome-shell, dconf or fedora-glass ({len(ours)} new)")
         self.no_addon_errors()
+        self.helpers_stay_out(g)
 
     def step_login(self):
-        self.login()
-        self.wait_trial_confirmed()
+        self.login_and_judge()
+
+    def login_and_judge(self) -> None:
+        """A real login through the glass login screen, and what must hold with it: the trial
+        ends in time, the password prompt stood where the glass card wants it, and Fedora
+        Glass's two helpers ran for the person. Each is judged whatever the others say: a late
+        trial must not hide where the prompt stood, and where it stood is read even when the
+        login did not work."""
+        logged_in = False
+
+        def login():
+            nonlocal logged_in
+            self.login(show=True)
+            logged_in = True
+
+        def confirmed():
+            if logged_in:                               # no session: no trial that could end
+                self.wait_trial_confirmed()
+
+        def helpers():
+            if logged_in:                               # no session: nobody they could run for
+                self.helpers_run_for_the_user()
+        all_of(login, confirmed, self.prompt_place, helpers)
+
+    def prompt_place(self) -> None:
+        """Where GNOME's password prompt stood under the glass card at this login, in the
+        add-on's own words from the greeter's journal: it looks once each time the login
+        screen is built, when the field shows, and a user who logged in has seen the field.
+        The step fails when the add-on said nothing, or something this cannot read; when it
+        gave the prompt GNOME's own place back; when the prompt stood more than
+        PROMPT_FIRST_OFF_AT_MOST px off at a first look; when it stands more than
+        PROMPT_OFF_AT_MOST px off after the add-on set it right; and for an error of the
+        add-on in the journal. On a pass the Note column says how often it was set again."""
+        step = self.cur_step or "login"
+        journal = self.shell_journal()
+        errs = self.addon_errors_in(journal)
+        places, unread = prompt_places(journal)
+        for line in unread:
+            log(f"  the add-on says, and this cannot read it: {line[:300]}")
+        for p in places:
+            if p["own"]:
+                log(f"  the password prompt: GNOME's own place. {p['said'][:300]}")
+                continue
+            log(f"  the password prompt: {p['top']} px down the screen, wanted {p['wanted']} ({p['off']:+d} px), "
+                f"{p['tall']} px tall, its middle {p['middle']:+g} px from the screen's middle; margin {p['margin']}, "
+                f"set again {p['again']}×, at first {p['first']:+d} px off, GNOME's way {p['way']}, "
+                f"screen {p['screen']} px, scale {p['scale']:g}, text {p['text']:g}"
+                + ("" if p["follows"] else "; GNOME took no notice of the margin"))
+            log(f"    the add-on aims at {aim_text(p)}")
+        own = [p for p in places if p["own"]]
+        stood = [p for p in places if not p["own"]]
+        checks = [(not errs, "no error of the add-on in the login screen's journal"),
+                  (not unread, f"every line of the add-on on the prompt's place can be read ({len(unread)} cannot)"),
+                  (bool(places or unread), "the add-on said where the password prompt stands"),
+                  (not own, "the password prompt keeps the glass card's place" + (
+                      f" (the add-on gave it GNOME's own back {len(own)}×: with the card's it would end below the screen)"
+                      if own else ""))]
+        if stood:
+            # Every time the login screen was built in this step counts for the first look;
+            # where the prompt stands now is the last word, if that is a place of the card's.
+            worst = max(stood, key=lambda p: abs(p["first"]))
+            checks.append((abs(worst["first"]) <= PROMPT_FIRST_OFF_AT_MOST,
+                           f"GNOME places the password prompt as the add-on expects (at the first look {worst['first']:+d} px "
+                           f"from where the glass card wants it, at most {PROMPT_FIRST_OFF_AT_MOST})"))
+        last = places[-1] if places else None
+        if last is None:
+            self.notes[step] = "prompt place: said, but not read" if unread else "prompt place: not said"
+        elif last["own"]:
+            self.notes[step] = "prompt has GNOME's own place"
+        else:
+            self.notes[step] = (
+                f"prompt {last['off']:+d} px from its place "
+                + (f"after {last['again']}× set again (at first {last['first']:+d} px)" if last["again"]
+                   else "at the first look")
+                + ("" if last["follows"] else ", margin not followed"))
+            checks.append((abs(last["off"]) <= PROMPT_OFF_AT_MOST,
+                           f"the password prompt stands where the glass card wants it ({last['off']:+d} px, at most {PROMPT_OFF_AT_MOST})"))
+        all_of(*checks)
 
     def wait_trial_confirmed(self) -> None:
         """After a real login: the trial must end (state on) within CONFIRM_WITHIN s, and the
@@ -1273,22 +1459,14 @@ class Lane:
         units = parse_show_blocks(r.out)
         self.vm.sh(f"sudo journalctl -b -u {CHECK_PATH} -u {CHECK_SERVICE} --no-pager -n 40", check=False)
         path_state = units.get(CHECK_PATH, {}).get("ActiveState", "")
-        problems = []
-        for ok, msg in (
-                (seen_on is not None and seen_on <= CONFIRM_WITHIN,
-                 f"within {CONFIRM_WITHIN} s of the login the trial was confirmed (state {st.get('state')})"),
-                (path_state != "failed",
-                 f"{CHECK_PATH} is not failed (ActiveState {path_state or 'unknown'}, "
-                 f"Result {units.get(CHECK_PATH, {}).get('Result', '-')})"),
-                (seen_on is None or path_state == "inactive",
-                 f"the watcher stopped once the trial ended (ActiveState {path_state or 'unknown'}, "
-                 f"Result {units.get(CHECK_PATH, {}).get('Result', '-')})")):
-            try:
-                check(ok, msg)
-            except StepFailed as e:
-                problems.append(str(e))
-        if problems:
-            raise StepFailed("; ".join(problems))
+        all_of((seen_on is not None and seen_on <= CONFIRM_WITHIN,
+                f"within {CONFIRM_WITHIN} s of the login the trial was confirmed (state {st.get('state')})"),
+               (path_state != "failed",
+                f"{CHECK_PATH} is not failed (ActiveState {path_state or 'unknown'}, "
+                f"Result {units.get(CHECK_PATH, {}).get('Result', '-')})"),
+               (seen_on is None or path_state == "inactive",
+                f"the watcher stopped once the trial ended (ActiveState {path_state or 'unknown'}, "
+                f"Result {units.get(CHECK_PATH, {}).get('Result', '-')})"))
 
     def step_update(self):
         r = self.turn_on({"picture": "glow", "clock": "thin"}, picture=False)
@@ -1381,8 +1559,7 @@ class Lane:
             self.no_addon_errors()
             self.vm.sh(f"systemctl show -p Id,ActiveState,SubState,Result {CHECK_PATH} {GUARD}", check=False)
             self.vm.sh(f"sudo journalctl -b -u {GUARD} -u {CHECK_PATH} -u {CHECK_SERVICE} --no-pager -n 40", check=False)
-            self.login()
-            self.wait_trial_confirmed()
+            self.login_and_judge()
         finally:
             self.vm.sh(f"sudo cp -a {saved} {ext} && sudo rm -f {saved}", check=False)
 
@@ -1595,12 +1772,87 @@ def addon_errors(journal: str) -> list[str]:
     return found
 
 
+def helpers_run(journal: str, tried: bool = False) -> list[str]:
+    """Which of Fedora Glass's two helpers ran, from the journal of a user's own service
+    manager (plain `-o cat` text), in systemd's own words: "Started ..." for the watcher,
+    "Finished ..." for the step before login. "Starting ..." alone is no run: a unit that is
+    skipped by its ExecCondition says that too, and then "Skipped". tried=True also counts a
+    run that failed or ran into its time limit ("Failed to start ..."): at the login screen
+    that held the screen up as well."""
+    ran = []
+    for line in journal.splitlines():
+        m = re.match(r"\s*(?:Started|Finished|Failed to start) (.+)" if tried else r"\s*(?:Started|Finished) (.+)", line)
+        if not m:
+            continue
+        for unit, description in HELPERS.items():
+            if unit not in ran and (unit in m[1] or description in m[1]):
+                ran.append(unit)
+    return ran
+
+
 def gdm_retries(journal: str) -> tuple[list[str], list[str]]:
     """From gdm's journal: the "Session never registered" lines, and the greeter users seen
     (`session opened for user gdm-greeter...`)."""
     lines = [l for l in journal.splitlines() if "never registered" in l]
     users = re.findall(r"session opened for user (gdm-greeter[\w.-]*?)\(", journal)
     return lines, users
+
+
+# What the login add-on says about the prompt's place, as login.js writes it (keep the two
+# alike). Every such line begins like this:
+_PROMPT_SAID = "Fedora Glass login: the prompt "
+# The line of _notePlace, once for each time the login screen was built and a prompt looked at:
+_PROMPT_PLACE = re.compile(
+    r"Fedora Glass login: the prompt stands (?P<top>-?\d+) px down the screen, wanted (?P<wanted>-?\d+)"
+    r"(?P<stuck>, and does not follow the margin)? \((?P<tall>\d+) px tall, margin (?P<margin>\d+), "
+    r"set again: (?P<again>\d+), at first: (?P<first>-?\d+) px off, way: (?P<way>\w+), "
+    r"screen: (?P<screen>\d+) px, scale: (?P<scale>\d+(?:\.\d+)?), text: (?P<text>\d+(?:\.\d+)?)\)")
+# The line of _givePromptRoom: the prompt has GNOME's own place again, so the line before it
+# no longer holds. What the add-on had tried follows in brackets, and is only shown.
+_PROMPT_OWN = "Fedora Glass login: the prompt has GNOME's own place"
+
+
+def prompt_places(journal: str) -> tuple[list[dict], list[str]]:
+    """From GNOME Shell's journal: what the login add-on said about where GNOME's password
+    prompt came to stand, oldest first, and the lines of it that this cannot read (the add-on
+    and this have drifted apart: never to be taken for an add-on that said nothing).
+
+    A place: top and wanted, where what the prompt shows begins and where the glass card wants
+    it, px down the screen; off: top less wanted; first: the same at the add-on's first look,
+    before it set anything again; middle and aim: how far the middle of what the prompt shows,
+    and of what was wanted, is under the screen's middle (px, negative above it); follows:
+    False when GNOME took no notice of the margin the add-on asked for; own: False.
+    {"own": True, "said": the line} stands for the line that says the prompt got GNOME's own
+    place back."""
+    places, unread = [], []
+    for line in journal.splitlines():
+        if _PROMPT_SAID not in line:
+            continue
+        m = _PROMPT_PLACE.search(line)
+        if m:
+            d = {k: int(m[k]) for k in ("top", "wanted", "tall", "margin", "again", "first", "screen")}
+            d.update(way=m["way"], scale=float(m["scale"]), text=float(m["text"]), follows=m["stuck"] is None, own=False)
+            d["off"] = d["top"] - d["wanted"]
+            half = d["tall"] * d["scale"] / 2 - d["screen"] / 2
+            d["middle"], d["aim"] = round(d["top"] + half, 1), round(d["wanted"] + half, 1)
+            places.append(d)
+        elif _PROMPT_OWN in line:
+            places.append({"own": True, "said": line[line.index(_PROMPT_OWN):]})
+        else:
+            unread.append(line)
+    return places, unread
+
+
+def aim_text(place: dict) -> str:
+    """In words, where the add-on wanted what the prompt shows: the screen's middle, or lower
+    (the lane's own sum from the add-on's numbers, 2 px for their rounding)."""
+    aim = place["aim"]
+    if abs(aim) <= 2:
+        return "the screen's middle"
+    if aim < 0:
+        return f"{-aim:g} px above the screen's middle (it never means to)"
+    why = "room for the big clock above it" if place["margin"] > 0 else "no margin of the add-on's can lift it higher"
+    return f"{aim:g} px under the screen's middle ({why})"
 
 
 def retry_summary(retries: dict) -> str:

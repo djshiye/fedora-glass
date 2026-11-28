@@ -42,6 +42,7 @@ Card {
             wrapMode: Text.WordWrap
             color: Theme.textDim
             font.pixelSize: Theme.fsSmall + 1
+            textFormat: Text.PlainText
             text: root.state_ === "on" && Backend.loginGlassStale
                   ? qsTr("The login screen still has an older look. Apply brings it up to date; it asks for your password.")
                 : root.state_ === "on" ? qsTr("Glass is on the login screen, in your tint and accent colours. Apply keeps it up to date.")
@@ -90,6 +91,7 @@ Card {
             wrapMode: Text.WordWrap
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
+            textFormat: Text.PlainText
             text: Backend.loginGlassNote
         }
         Text {
@@ -100,6 +102,7 @@ Card {
             wrapMode: Text.WordWrap
             color: Theme.textFaint
             font.pixelSize: Theme.fsSmall
+            textFormat: Text.PlainText
             text: Backend.glassLoginWhy
         }
     }

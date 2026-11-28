@@ -9,12 +9,14 @@ from __future__ import annotations
 import configparser
 import json
 import os
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..i18n import _, N_
 from ..env import Env
 from ..render import apps as ra
+from ..safefs import Box, box_root, read_app_text
 from .base import Action, Command, Context, Detection, Target, WriteFile
 
 APPIMAGE_DIRS = ("AppImages", "Applications", ".local/bin", "Downloads")
@@ -80,9 +82,10 @@ class AppTarget(Target):
         return list(self.notes)
 
 
-def _json_edit(path: Path, updates: dict) -> Action | None:
-    """WriteFile of `path` with keys merged in; None if it holds something that isn't plain JSON."""
-    text = ra.read_text(path) if path.exists() else None
+def _json_edit(path: Path, updates: dict, home: Path | None = None) -> Action | None:
+    """WriteFile of `path` with keys merged in; None if it holds something that isn't plain JSON.
+    `home`: see render.apps.read_text."""
+    text = ra.read_text(path, home) if path.exists() else None
     if path.exists() and text is None:
         return None
     merged = ra.merge_json_text(text, updates)
@@ -126,7 +129,7 @@ class Discord(AppTarget):
             sp = d / "settings/settings.json"
             if not sp.is_file():
                 continue
-            text = ra.read_text(sp)
+            text = ra.read_text(sp, ctx.env.home)
             try:
                 data = json.loads(text) if text else None
             except (ValueError, RecursionError):    # nested thousands deep: not readable
@@ -202,7 +205,10 @@ class VSCode(AppTarget):
             acts.append(WriteFile(vsix, data))
             try:
                 have = any(ext_dir.glob(f"{ra.VSCODE_ID}-*"))
-                same = vsix.is_file() and vsix.read_bytes() == data
+                if (box := box_root(vsix, env.home)) is None:
+                    same = vsix.is_file() and vsix.read_bytes() == data
+                else:
+                    same = Box(box, env.home).read_bytes(vsix, len(data)) == data
             except OSError:
                 have = same = False
             if not (have and same):
@@ -216,7 +222,7 @@ class VSCode(AppTarget):
                              "window.autoDetectColorScheme": ctx.settings.scheme == "auto",
                              "workbench.preferredDarkColorTheme": ra.VSCODE_LABELS[True],
                              "workbench.preferredLightColorTheme": ra.VSCODE_LABELS[False]}
-            edit = _json_edit(settings, updates)
+            edit = _json_edit(settings, updates, env.home)
             if edit is not None:
                 acts.append(edit)
         return acts
@@ -224,7 +230,7 @@ class VSCode(AppTarget):
     def live_notes(self, ctx: Context) -> list[str]:
         out = list(self.notes)
         for settings, *_rest in self.installs(ctx.env):
-            if settings.exists() and ra.merge_json_text(ra.read_text(settings), {}) is None:
+            if settings.exists() and ra.merge_json_text(ra.read_text(settings, ctx.env.home), {}) is None:
                 out.insert(0, _("settings.json has comments, so it was not changed: select the theme manually."))
                 break
         return out
@@ -271,17 +277,31 @@ class Obsidian(AppTarget):
     def vaults(self, env: Env) -> list[Path]:
         out: list[Path] = []
         for d in self.config_dirs(env):
-            text = ra.read_text(d / "obsidian.json")
+            text = ra.read_text(d / "obsidian.json", env.home)
             try:
                 vaults = json.loads(text or "")["vaults"]
             except (ValueError, KeyError, TypeError, RecursionError):
                 continue
+            # The Flatpak's list is written by the sandboxed app: a folder it names is a vault
+            # only once Obsidian made its .obsidian folder there (the app can't, outside its
+            # sandbox), so it can't have us make files in any folder it likes.
+            boxed = box_root(d / "obsidian.json", env.home) is not None
             if isinstance(vaults, dict):
                 for v in vaults.values():
                     p = v.get("path") if isinstance(v, dict) else None
-                    if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out:
+                    if isinstance(p, str) and Path(p).is_absolute() and Path(p).is_dir() and Path(p) not in out \
+                            and (not boxed or self._made_by_obsidian(Path(p), env.home)):
                         out.append(Path(p))
         return out
+
+    @staticmethod
+    def _made_by_obsidian(vault: Path, home: Path) -> bool:
+        base = vault / ".obsidian"
+        # Below ~ it is guarded by the path alone (~/.var/app/<id> is seen as the app's own).
+        # Named any other way (/proc/self/root/..., a second name for home) it must hold no
+        # link at all: one could lead into the app's folder, where the app can repoint it.
+        plain = vault.is_relative_to(home) or os.path.realpath(vault) == str(vault)
+        return plain and ".." not in vault.parts and base.is_dir() and not base.is_symlink()
 
     def plan(self, ctx: Context) -> list[Action]:
         acts: list[Action] = []
@@ -294,7 +314,7 @@ class Obsidian(AppTarget):
                 continue
             acts.append(WriteFile(theme / "manifest.json", ra.obsidian_manifest()))
             acts.append(WriteFile(theme / "theme.css", css))
-            edit = _json_edit(base / "appearance.json", {"cssTheme": "Fedora Glass"})
+            edit = _json_edit(base / "appearance.json", {"cssTheme": "Fedora Glass"}, ctx.env.home)
             if edit is not None:
                 acts.append(edit)
         return acts
@@ -344,7 +364,7 @@ class QBittorrent(AppTarget):
         env = ctx.env
         acts: list[Action] = []
         for conf, d in self.installs(env):
-            text = ra.read_text(conf) if conf.exists() else ""
+            text = ra.read_text(conf, env.home) if conf.exists() else ""
             acts += [
                 # Both blocks from the scheme in use: qBittorrent picks its block by its own
                 # idea of dark mode, which need not match the style sheet's (a white side list).
@@ -374,11 +394,14 @@ class Prism(AppTarget):
     notes: list[str] = field(default_factory=lambda: [
         N_("Close Prism Launcher before applying so it doesn't overwrite its settings.")])
 
-    def data_dir(self, env: Env) -> Path:
-        fp = env.home / ".var/app" / PRISM_FLATPAK / "data/PrismLauncher"
-        if fp.is_dir() or env.flatpak_installed(PRISM_FLATPAK):
-            return fp
-        return env.data / "PrismLauncher"
+    def installs(self, env: Env) -> list[Path]:
+        """Each install to theme, by its data folder (themes/ and prismlauncher.cfg are in it):
+        the native one and the Flatpak's, both when both are there. The folder a removed Flatpak
+        left behind used to count as the only install, so the Prism in use got no theme."""
+        fp = flatpak_home(env, PRISM_FLATPAK) / "data/PrismLauncher"
+        native = bool(env.which("prismlauncher")) or (env.data / "PrismLauncher").exists()
+        use_native, use_fp = which_installs(env, native, PRISM_FLATPAK, fp)
+        return [d for use, d in ((use_native, env.data / "PrismLauncher"), (use_fp, fp)) if use]
 
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("prismlauncher",), flatpak=PRISM_FLATPAK, dirs=(env.data / "PrismLauncher",)):
@@ -386,17 +409,18 @@ class Prism(AppTarget):
         return Detection(False, _("{name} is not installed").format(name="Prism Launcher"))
 
     def plan(self, ctx: Context) -> list[Action]:
-        d = self.data_dir(ctx.env)
-        theme = d / "themes" / ra.PRISM_THEME_ID
-        acts: list[Action] = [
-            WriteFile(theme / "theme.json", ra.prism_theme_json(ctx.tokens)),
-            WriteFile(theme / "themeStyle.css", ra.qt_qss(ctx.tokens)),
-        ]
-        cfg = d / "prismlauncher.cfg"
-        text = ra.read_text(cfg) if cfg.exists() else None
-        if text is not None:
-            acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID}),
-                                  edits=("ini", "General", ("ApplicationTheme",))))
+        acts: list[Action] = []
+        for d in self.installs(ctx.env):
+            theme = d / "themes" / ra.PRISM_THEME_ID
+            acts += [
+                WriteFile(theme / "theme.json", ra.prism_theme_json(ctx.tokens)),
+                WriteFile(theme / "themeStyle.css", ra.qt_qss(ctx.tokens)),
+            ]
+            cfg = d / "prismlauncher.cfg"
+            text = ra.read_text(cfg, ctx.env.home) if cfg.exists() else None
+            if text is not None:
+                acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID}),
+                                      edits=("ini", "General", ("ApplicationTheme",))))
         return acts
 
 
@@ -423,8 +447,8 @@ class Browsers(AppTarget):
 
     def live_notes(self, ctx: Context) -> list[str]:
         return [
-            "One-time step per browser: open chrome://extensions, turn on Developer mode, choose "
-            f"Load unpacked and pick {self.theme_dir(ctx.env)}.",
+            _("One-time step per browser: open chrome://extensions, turn on Developer mode, choose "
+              "Load unpacked and pick {folder}.").format(folder=self.theme_dir(ctx.env)),
             _("Later changes need Reload on that extension's card. Chromium themes follow the scheme in use "
             "when you apply, and browser windows stay opaque."),
             _("Fedora Glass never edits browser profiles."),
@@ -451,9 +475,12 @@ def firefox_profiles(env: Env) -> list[Path]:
     out: list[Path] = []
     seen: set[Path] = set()
     for root in firefox_roots(env):
-        text = ra.read_text(root / "profiles.ini")
+        text = ra.read_text(root / "profiles.ini", env.home)
         if not text:
             continue
+        # The Flatpak's or the Snap's own list, which the sandboxed Firefox writes: only
+        # profiles inside its own folder count, never one it points at elsewhere.
+        box = box_root(root / "profiles.ini", env.home)
         cp = configparser.RawConfigParser(strict=False, interpolation=None)
         try:
             cp.read_string(text)
@@ -463,8 +490,10 @@ def firefox_profiles(env: Env) -> list[Path]:
             if not sec.startswith("Profile") or not cp.has_option(sec, "Path"):
                 continue
             rel = cp.get(sec, "IsRelative", fallback="1").strip() != "0"
-            p = Path(cp.get(sec, "Path").strip())
-            p = root / p if rel else p
+            raw = Path(cp.get(sec, "Path").strip())
+            p = root / raw if rel else raw
+            if box is not None and (not rel or raw.is_absolute() or ".." in raw.parts or not p.is_relative_to(box)):
+                continue
             if not p.is_absolute() or not p.is_dir() or p.is_symlink():
                 continue
             key = p.resolve()
@@ -474,9 +503,18 @@ def firefox_profiles(env: Env) -> list[Path]:
     return out
 
 
-def _read_exact(path: Path) -> str | None:
+def _read_exact(path: Path, home: Path | None = None) -> str | None:
     """A file's text with its own line endings ("" when there is none); None when it isn't
-    UTF-8 text or is a link. read_text would turn the user's CRLF lines into LF ones."""
+    UTF-8 text or is a link. read_text would turn the user's CRLF lines into LF ones.
+    `home`: see render.apps.read_text."""
+    if home is not None and (box := box_root(path, home)) is not None:
+        try:
+            st = Box(box, home).lstat(path)
+        except OSError:         # a link on the way
+            return None
+        if st is None:
+            return ""
+        return None if stat.S_ISLNK(st.st_mode) else read_app_text(path, home)
     try:
         if path.is_symlink():
             return None
@@ -534,13 +572,13 @@ class Firefox(AppTarget):
             for user_file, ours in (("userChrome.css", ra.FIREFOX_CHROME_FILE),
                                     ("userContent.css", ra.FIREFOX_CONTENT_FILE)):
                 path = chrome / user_file
-                text = _read_exact(path)
+                text = _read_exact(path, ctx.env.home)
                 if text is None:
                     break           # not text we can read: leave this profile alone
                 edits.append(WriteFile(path, ra.css_import_block(text, ours), edits=block))
             else:
                 ujs = prof / "user.js"
-                text = _read_exact(ujs)
+                text = _read_exact(ujs, ctx.env.home)
                 if text is None:
                     continue
                 acts += [WriteFile(chrome / ra.FIREFOX_CHROME_FILE, chrome_css),
@@ -590,15 +628,16 @@ class Slack(NotesOnly):
 
 TARGETS: list[Target] = [
     Discord(), VSCode(), VSCodium(), Obsidian(), QBittorrent(), Prism(), Browsers(),
-    Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",),
+    Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",), flatpak="com.slack.Slack",
           summary=N_("No theme file; a ready-made sidebar theme string is shown to paste."),
           plain=N_("Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead."),
           scheme_dependent=True),
     NotesOnly(id="steam", name="Steam", group="Apps", cmds=("steam",), dirs=(".local/share/Steam",),
+              flatpak="com.valvesoftware.Steam",
               summary=N_("Not themed: Steam draws its own UI."), scheme_dependent=False,
               plain=N_("Changes nothing: Steam draws its own look."),
               notes=[N_("Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone.")]),
-    NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",),
+    NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",), flatpak="us.zoom.Zoom",
               summary=N_("Not themed; follows the system dark mode."), scheme_dependent=False,
               plain=N_("Changes nothing: Zoom follows your light or dark setting by itself."),
               notes=[N_("In Zoom: Settings > General > Theme > Use system setting.")]),

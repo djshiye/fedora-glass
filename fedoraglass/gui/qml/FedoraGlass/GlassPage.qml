@@ -72,7 +72,10 @@ SettingsPage {
                             wrapMode: Text.WordWrap
                             color: Theme.textFaint
                             font.pixelSize: Theme.fsSmall
-                            text: Backend.glassLive && Backend.glassPaused
+                            textFormat: Text.PlainText
+                            text: Backend.reduceTransparency
+                                  ? qsTr("Reduce transparency is on, so no glass is drawn. Turn it off under Advanced to see these.")
+                                  : Backend.glassLive && Backend.glassPaused
                                   ? qsTr("The preview shows these as you change them. Your desktop shows them once you resume the glass.")
                                   : Backend.glassLive
                                   ? qsTr("The preview shows these as you change them.")
@@ -162,6 +165,16 @@ SettingsPage {
                 caption: qsTr("Each one costs some graphics power. Turn it off where you don't need it.")
                 resetKeys: ["glass_panel", "glass_menus", "blur_app_windows", "glass_overview", "glass_see_windows", "quick_toggle"]
             }
+            Text {
+                objectName: "glassReduceNote"
+                visible: Backend.reduceTransparency
+                width: parent.width
+                wrapMode: Text.WordWrap
+                color: Theme.textFaint
+                font.pixelSize: Theme.fsSmall
+                textFormat: Text.PlainText
+                text: qsTr("Reduce transparency is on, so no glass is drawn. Turn it off under Advanced to see these.")
+            }
             Flow {
                 width: parent.width
                 spacing: 8
@@ -205,7 +218,7 @@ SettingsPage {
             }
             Rectangle { width: parent.width; height: 1; color: Theme.divider }
             // The Glass tile in GNOME's Quick Settings, drawn as GNOME draws it (an accent pill
-            // when on), next to the switch that puts it there.
+            // when on), next to the switch that puts it there. Clicking it works the switch too.
             Item {
                 width: parent.width
                 height: Math.max(tile.height, qsRow.implicitHeight)
@@ -219,6 +232,9 @@ SettingsPage {
                     opacity: Backend.quickToggle ? 1 : 0.35
                     Behavior on opacity { NumberAnimation { duration: Theme.fast } }
                     Accessible.ignored: true
+                    // It looks like a button, so it acts as one for the switch beside it.
+                    TapHandler { onTapped: Backend.quickToggle = !Backend.quickToggle }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                     Row {
                         x: 16
                         anchors.verticalCenter: parent.verticalCenter

@@ -29,6 +29,7 @@ Item {
         anchors.verticalCenter: root.inline ? parent.verticalCenter : undefined
         width: root.inline ? root.labelWidth - 12 : implicitWidth
         elide: Text.ElideRight
+        textFormat: Text.PlainText
         text: root.label
         color: root.enabled ? Theme.text : Theme.textFaint
         font.pixelSize: Theme.fsBody

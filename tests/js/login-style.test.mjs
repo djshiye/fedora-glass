@@ -198,6 +198,42 @@ test('the room above GNOME\'s prompt brings what it shows to the middle of the s
     assert.equal(S.promptPlace({fixedTop: true, textScale: 3, scale: 4}).margin, 0, 'never under 0');
 });
 
+test('GNOME 51.1 centres a prompt of the fixed height its theme gives, 50 px lower: the margin brings it to the middle', () => {
+    // As GNOME 51.1 lays it out: the 550 px box and the margin centred (rounded down), 50 px lower.
+    const gnome511 = (screen, margin, scale = 1) => Math.floor(screen / 2 - (550 + margin) * scale / 2) + 50 + margin * scale;
+    for (const screen of [1080, 1152, 1440]) {
+        const p = S.promptPlace({fixedTop: false, height: 550, screen});
+        assert.deepEqual([p.margin, p.content], [201, 249], `${screen}`);
+        assert.equal(p.top, gnome511(screen, p.margin));
+        assert.ok(Math.abs(p.top + p.content / 2 - screen / 2) <= 1, `${screen}: in the middle`);
+    }
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 1152}), {margin: 201, content: 249, top: 451});
+    // Large text: the name and the field grow, the box does not.
+    const large = S.promptPlace({fixedTop: false, height: 550, textScale: 1.25});
+    assert.deepEqual(large, {margin: 177, content: 273, top: 403});
+    assert.equal(large.top, gnome511(1080, large.margin));
+    // A scale factor of 2: the 50 px are stage px, a stylesheet's px are doubled.
+    const two = S.promptPlace({fixedTop: false, height: 550, scale: 2, screen: 2160});
+    assert.equal(two.top, gnome511(2160, two.margin, 2));
+    assert.ok(Math.abs(two.top + two.content - 1080) <= 2);
+    // GNOME's own place there: the box alone, centred and 50 px lower.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, own: true}), {margin: null, content: 249, top: 315});
+    // GNOME 51.0 (a fixed top) and 50 (no fixed height) are as they were.
+    assert.deepEqual(S.promptPlace({height: 550}), {margin: 155, content: 240, top: 420});
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 0}), {margin: 67, content: 236, top: 422});
+    assert.throws(() => S.promptPlace({fixedTop: false, height: '550'}));
+});
+
+test('what the prompt was seen to show sets where it goes, instead of the usual sizes', () => {
+    // 200 px seen instead of 240: it begins 20 px lower, and 20 px more margin put it there.
+    assert.deepEqual(S.promptPlace({content: 200}), {margin: 175, content: 200, top: 440});
+    // Centred, GNOME 50 brings a taller prompt to the middle by itself: the same margin.
+    assert.deepEqual(S.promptPlace({fixedTop: false, content: 260}), {margin: 67, content: 260, top: 410});
+    // GNOME 51.1's box keeps its height: 30 px more to show begin 15 px higher, with 30 px less margin.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, content: 279}), {margin: 171, content: 279, top: 400});
+    assert.throws(() => S.promptPlace({content: NaN}));
+});
+
 test('on a short screen the prompt stands under the big clock, while GNOME\'s messages still fit', () => {
     // 330 px for the clock: more than the middle leaves on 864 and 768 px.
     for (const fixedTop of [true, false]) {
@@ -217,6 +253,26 @@ test('on a short screen the prompt stands under the big clock, while GNOME\'s me
     }
     assert.deepEqual(S.promptPlace({screen: 864, above: 330}), {margin: 173, content: 240, top: 330});
     assert.deepEqual(S.promptPlace({fixedTop: false, screen: 864, above: 330}), {margin: 99, content: 236, top: 330});
+});
+
+test('GNOME 51.1 on a short screen: under the big clock when GNOME\'s messages fit, not its theme\'s empty box', () => {
+    // 864 px: what it shows and its room for messages fit under the clock, its 550 px box does not.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 864, above: 330}), {margin: 246, content: 249, top: 330});
+    assert.equal(S.promptPlace({fixedTop: false, height: 550, screen: 1080, above: 330}).top, 415, 'room enough: in the middle');
+});
+
+test('GNOME 51.1 cuts its prompt\'s box to the screen\'s height, the margin included: then it begins OFFSET under the top', () => {
+    // 768 px under the clock: 342 px of margin and the 550 px box would be 892 px; cut, 280 px do it.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 768, above: 330}), {margin: 280, content: 249, top: 330});
+    // 720 px, in the middle: 201 px would be cut; 186 px.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 720}), {margin: 186, content: 249, top: 236});
+    // Just not cut: 751 px is the box and 201 px of margin.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 752}), {margin: 201, content: 249, top: 251});
+    // A scale factor of 2 and 1600 px: 251 px of margin would be 2 px too tall.
+    const two = S.promptPlace({fixedTop: false, height: 550, scale: 2, screen: 1600});
+    assert.ok(Math.abs(two.top + two.content - 800) <= 2, JSON.stringify(two));
+    // GNOME's own place on a screen shorter than the box.
+    assert.deepEqual(S.promptPlace({fixedTop: false, height: 550, screen: 500, own: true}), {margin: null, content: 249, top: 50});
 });
 
 test('GNOME\'s own place for the prompt: no margin of ours, and a guess of where it then begins', () => {

@@ -36,10 +36,11 @@ Item {
             width: root._row ? root.labelWidth - 12 : parent.width - autoChip.width - valueText.width - 24
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
-            Text { text: root.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
+            Text { textFormat: Text.PlainText; text: root.label; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium }
             Text {
                 visible: root.caption.length > 0
                 width: parent.width
+                textFormat: Text.PlainText
                 text: root.caption
                 color: Theme.textFaint
                 font.pixelSize: Theme.fsSmall

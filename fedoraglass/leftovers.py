@@ -8,6 +8,12 @@ the dark/light watcher, and re-applies its older look at every login.
 
 Only those exact files are ever touched, and only when their content says they are
 install.sh's and point at its copy. Nothing else in the home folder is.
+
+A copy put next to the package on purpose (`./install.sh --alongside-package`, for working
+on Fedora Glass itself) is no leftover: install.sh marks it, and it stays until
+./uninstall.sh. The mark alone says nothing: it counts only while the copy and its own
+command are still there (kept_on_purpose), and the copy runs the desktop only while its
+own watcher is too (in_charge).
 """
 from __future__ import annotations
 
@@ -22,6 +28,7 @@ UNIT = "liquid-glass-watch.service"
 DESKTOP = "io.github.djshiye.LiquidGlass.desktop"
 NAMES = ("Fedora Glass", "Liquid Glass")     # the app was called Liquid Glass up to 1.4.4
 MAX_BYTES = 8 * 1024
+ALONGSIDE = "alongside-package"              # install.sh's mark, in the copy's own folder
 
 
 def from_package() -> bool:
@@ -30,6 +37,28 @@ def from_package() -> bool:
         return Path(__file__).resolve().is_relative_to(APP_DIR)
     except OSError:
         return False
+
+
+def kept_on_purpose(env: Env) -> bool:
+    """The copy in the home folder was installed next to the package on purpose
+    (`./install.sh --alongside-package`): its command, menu entry and watcher are meant to
+    win. Only while the copy and its own command are still there. With the copy deleted by
+    hand, or its command gone (the packages up to 1.7.10 took it away at the next login,
+    mark or not), what is left runs nothing: it is an old install's again."""
+    base = env.data / "liquid-glass"
+    mark = base / ALONGSIDE
+    try:
+        return not mark.is_symlink() and mark.is_file() and (base / "fedoraglass/__main__.py").is_file() \
+            and _launcher_is_ours(env, _launchers(env)[0])
+    except OSError:
+        return False
+
+
+def in_charge(env: Env) -> bool:
+    """That copy also runs the desktop: its own watcher unit is in place, and a unit in the
+    home folder wins over the package's of the same name. Without it the package's watcher
+    runs, and the package's step before login belongs to that."""
+    return kept_on_purpose(env) and _unit_is_ours(env, env.config / "systemd/user" / UNIT)
 
 
 def _launchers(env: Env) -> tuple[Path, Path]:
@@ -89,8 +118,9 @@ def _desktop_is_ours(env: Env, p: Path) -> bool:
 
 def find(env: Env) -> list[Path]:
     """The leftover files that make the old copy run instead of the package, in the order
-    they are taken away. Empty when this app isn't the package, or nothing is left."""
-    if not from_package():
+    they are taken away. Empty when this app isn't the package, when the copy is there on
+    purpose, or when nothing is left."""
+    if not from_package() or kept_on_purpose(env):
         return []
     out: list[Path] = []
     units = env.config / "systemd/user"

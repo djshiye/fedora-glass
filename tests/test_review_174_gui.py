@@ -197,6 +197,36 @@ def test_footer_status_stays_left_of_the_buttons_in_german(qml, german):
         win.close()
 
 
+def test_footer_sentence_goes_on_two_lines_before_any_of_it_is_cut(qml, german):
+    """German at the smallest window: "1 Änderung noch nicht angewendet" lost its last letters
+    ("angewe…") while Undo showed. It goes on a second line, inside the footer and left of the
+    buttons; where it fits it stays on one line."""
+    from test_gui_polish import _find, _spin
+    b = _backend_of(qml)
+    win = _qml_window(qml, 1000)
+    try:
+        b.discardChanges()
+        b.setProperty("radius", 3 if b.property("radius") != 3 else 4)
+        _spin(400)
+        status, button = _find(win, "statusText"), _find(win, "showChanges")
+        assert status.property("text") == "1 Änderung noch nicht angewendet"
+        assert _find(win, "discardButton").isVisible()
+        assert status.property("truncated") is False, "the sentence is cut"
+        assert status.property("lineCount") == 2
+        footer = status.parentItem().parentItem()
+        top = status.mapToItem(footer, 0, 0).y()
+        assert 0 <= top and top + status.height() <= footer.height(), "the two lines leave the footer"
+        assert status.mapToItem(None, status.width(), 0).x() <= button.mapToItem(None, 0, 0).x()
+        m = win.property("margin")
+        win.setWidth(1280 + 2 * m)
+        _spin(400)
+        assert status.property("truncated") is False
+        assert status.property("lineCount") == 1
+    finally:
+        b.discardChanges()
+        win.close()
+
+
 @pytest.mark.parametrize("lang", ["en", "de"])
 def test_safe_mode_banner_is_not_cut(qml, app, lang):
     from fedoraglass import i18n

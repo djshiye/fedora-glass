@@ -11,11 +11,17 @@
 //   see-through panel colour). An inline style wins over every stylesheet, so instead the
 //   opacity Dash to Panel works out is lifted to pausedAlpha, and put back afterwards.
 //
+// And the gliding taskbar highlight (glide.js) carries on. It is no glass, it stands in for
+// Dash to Panel's own hover highlight (the app sets that one's colour to clear while the
+// glide is switched on), and it goes down with the animations when the glass stops: up to
+// 1.7.10 a taskbar icon under the pointer showed nothing at all while the glass was paused.
+//
 // The glass's own pop-up sheet and this one are never loaded together (extension.js).
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {dtpPanels} from './common.js';
+import {disposed, dtpPanels} from './common.js';
+import {HoverGlide} from './glide.js';
 import {PopupStyle} from './popupstyle.js';
 
 const DASH_TO_PANEL = 'dash-to-panel@jderose9.github.com';
@@ -55,10 +61,15 @@ export function liftPanel(dt, alpha, warn = () => {}) {
     };
 }
 
+// A destroyed panel still answers, and every call on it only fills the log.
+function deadPanel(panel) {
+    return disposed(panel) || disposed(panel.panelBox ?? panel);
+}
+
 export class PausedStyle {
     constructor(cfg) {
         this._alpha = cfg?.pausedAlpha ?? 0.96;
-        this._lifted = new Map();   // DynamicTransparency -> undo
+        this._lifted = new Map();   // DynamicTransparency -> [its panel, undo]
         this._dtp = null;
         this._dtpId = 0;
         // Dash to Panel switched off and on again is a new object with new panels, which
@@ -75,6 +86,8 @@ export class PausedStyle {
         }
         this._sheet = new PopupStyle(cfg, {key: 'pausedCss', file: 'paused.css', settleMs: 0});
         this._liftPanels();
+        this._glide = null;
+        this._syncGlide(cfg);
     }
 
     update(cfg) {
@@ -85,6 +98,34 @@ export class PausedStyle {
             this._alpha = alpha;
         }
         this._liftPanels();
+        this._syncGlide(cfg);
+    }
+
+    // The gliding highlight while the glass is down, when the user has it switched on. On its
+    // own: without it the rest of the paused look still stands.
+    _syncGlide(cfg) {
+        const look = cfg?.glide;
+        try {
+            if (look?.enabled) {
+                this._glide ??= new HoverGlide();
+                this._glide.update(look);
+            } else {
+                this._dropGlide();
+            }
+        } catch (e) {
+            console.error(`Fedora Glass: no gliding highlight while paused: ${e}`);
+            this._dropGlide();
+        }
+    }
+
+    _dropGlide() {
+        const glide = this._glide;
+        this._glide = null;
+        try {
+            glide?.destroy();
+        } catch (e) {
+            console.error(`Fedora Glass: removing the gliding highlight: ${e}`);
+        }
     }
 
     _liftPanels() {
@@ -101,6 +142,11 @@ export class PausedStyle {
                 }
             }
         }
+        // Panels Dash to Panel took down since: nothing to put back, and nothing to keep.
+        for (const [dt, [panel]] of [...this._lifted]) {
+            if (deadPanel(panel))
+                this._lifted.delete(dt);
+        }
         for (const p of dtpPanels()) {   // never the ones Dash to Panel already destroyed
             const dt = p?.dynamicTransparency;
             if (!dt || this._lifted.has(dt))
@@ -108,7 +154,7 @@ export class PausedStyle {
             try {
                 const undo = liftPanel(dt, this._alpha, m => console.warn(`Fedora Glass: ${m}`));
                 if (undo)
-                    this._lifted.set(dt, undo);
+                    this._lifted.set(dt, [p, undo]);
             } catch (e) {
                 console.error(`Fedora Glass: no solid Dash to Panel panel: ${e}`);
             }
@@ -116,7 +162,11 @@ export class PausedStyle {
     }
 
     _dropPanels() {
-        for (const undo of this._lifted.values()) {
+        for (const [panel, undo] of this._lifted.values()) {
+            // A panel Dash to Panel took down meanwhile (a screen re-plugged, its settings
+            // changed): touching it only fills the log.
+            if (deadPanel(panel))
+                continue;
             try {
                 undo();
             } catch {}   // that panel is gone
@@ -145,6 +195,7 @@ export class PausedStyle {
 
     // Locking: as PopupStyle.destroyLater. The panel is hidden by the lock screen already.
     destroyLater(done) {
+        this._dropGlide();
         this._disconnectManager();
         this._disconnectDtp();
         this._dropPanels();
@@ -152,6 +203,7 @@ export class PausedStyle {
     }
 
     destroy() {
+        this._dropGlide();
         this._disconnectManager();
         this._disconnectDtp();
         this._dropPanels();
