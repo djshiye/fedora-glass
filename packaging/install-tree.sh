@@ -96,7 +96,7 @@ install -Dm755 "$src/packaging/undo-for-users.sh" "$dest/usr/libexec/fedora-glas
 # And this: stops the dark/light watcher in running sessions (the rpm's macros do it there).
 install -Dm755 "$src/packaging/stop-watchers.sh" "$dest/usr/libexec/fedora-glass-stop-watchers"
 # And this, run after an install or an update and before a removal: byte code for this PC's
-# own Python, and none left that the package does not own.
+# own Python (the .deb; Arch makes none on the PC), and none left that the package does not own.
 install -Dm755 "$src/packaging/bytecode.sh" "$dest/usr/libexec/fedora-glass-bytecode"
 
 install -d "$dest/usr/lib/systemd/user"

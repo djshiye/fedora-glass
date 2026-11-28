@@ -6,6 +6,7 @@
 #                                pacman refuses to write over files no package owns, so byte
 #                                code made here would block the next Arch upgrade)
 #   fedora-glass-bytecode drop   on a removal, before the package manager takes the files
+#                                (on Arch after every install and update too)
 #
 # The package ships the byte code of the Python it was built with and names that Python's
 # cache tag (cpython-314) in bytecode-tag. A PC with another Python (one rpm serves two

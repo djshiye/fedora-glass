@@ -79,7 +79,8 @@ PROMPT_OFF_AT_MOST = 4
 # lines by its file name, its description, or both, as the Linux is set.
 HELPERS = {"liquid-glass-watch.service": "Fedora Glass: follow GNOME dark and light style",
            "fedora-glass-before-login.service": "Fedora Glass: bring the glass up to date before GNOME Shell starts"}
-# After a login both must have run for the person within this many seconds.
+# After a login both must have run for the person: looked for this many seconds more, once
+# the login's other checks are done.
 HELPERS_WITHIN = 30
 
 # How different two screen pictures are (mean difference per colour channel, 0..255, of the
@@ -1150,7 +1151,7 @@ class Lane:
         screen's own user (see HELPERS), at any time in this boot: its session began before
         the step did."""
         journal = self.manager_journal(g["uid"], f"the login screen's own ({g['user']})")
-        ran = helpers_run(journal)
+        ran = helpers_run(journal, tried=True)
         said = [l for l in journal.splitlines() if any(u in l or d in l for u, d in HELPERS.items())]
         log(f"  {g['user']}'s service manager: {len(journal.splitlines())} lines this boot, {len(said)} on Fedora Glass's helpers")
         for line in said[:12]:
@@ -1173,7 +1174,7 @@ class Lane:
                 break
             time.sleep(2)
         missing = [u for u in HELPERS if u not in ran]
-        check(not missing, f"both of Fedora Glass's helpers ran for {USER} within {HELPERS_WITHIN} s of the login "
+        check(not missing, f"both of Fedora Glass's helpers ran for {USER} at this login "
                            f"({'both ran' if not missing else ' and '.join(missing) + ' did not'})")
 
     def wait_greeter(self, timeout: int = 180) -> dict:
@@ -1771,14 +1772,16 @@ def addon_errors(journal: str) -> list[str]:
     return found
 
 
-def helpers_run(journal: str) -> list[str]:
+def helpers_run(journal: str, tried: bool = False) -> list[str]:
     """Which of Fedora Glass's two helpers ran, from the journal of a user's own service
     manager (plain `-o cat` text), in systemd's own words: "Started ..." for the watcher,
     "Finished ..." for the step before login. "Starting ..." alone is no run: a unit that is
-    skipped by its ExecCondition says that too, and then "Skipped"."""
+    skipped by its ExecCondition says that too, and then "Skipped". tried=True also counts a
+    run that failed or ran into its time limit ("Failed to start ..."): at the login screen
+    that held the screen up as well."""
     ran = []
     for line in journal.splitlines():
-        m = re.match(r"\s*(?:Started|Finished) (.+)", line)
+        m = re.match(r"\s*(?:Started|Finished|Failed to start) (.+)" if tried else r"\s*(?:Started|Finished) (.+)", line)
         if not m:
             continue
         for unit, description in HELPERS.items():

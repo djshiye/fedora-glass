@@ -57,7 +57,8 @@ mkdir -p "$home/.config/gtk-4.0"
 printf '/* my own look */\n' > "$home/.config/gtk-4.0/gtk.css"
 
 # Byte code: the package's own, and where this PC's Python is another one, hash-checked
-# files made for it at the install; nothing else. Runs of the app (as root here) add nothing
+# files made for it at the install (rpm and .deb; Arch makes none, so this fails there by
+# design should the build's Python and the PC's ever differ); nothing else. Runs of the app (as root here) add nothing
 # below the code folder (checked at the end).
 code=/usr/share/fedora-glass
 /usr/bin/python3 -I -c 'import pathlib, sys

@@ -417,6 +417,9 @@ def _unit_lines(unit: str, description: str) -> dict[str, list[str]]:
     done = "Started" if "watch" in unit else "Finished"
     return {"ran": [f"Starting {unit} - {description}...", f"{done} {unit} - {description}."],
             "ran-described": [f"Starting {description}...", f"{done} {description}."],
+            # It ran, and failed or ran into its time limit.
+            "failed": [f"Starting {unit} - {description}...", f"{unit}: start operation timed out. Terminating.",
+                       f"{unit}: Failed with result 'timeout'.", f"Failed to start {unit} - {description}."],
             "skipped": [f"Starting {unit} - {description}...", f"{unit}: Skipped due to 'exec-condition'.",
                         f"Condition check resulted in {unit} - {description} being skipped."]}
 
@@ -637,6 +640,7 @@ class _FakeGuest:
             if self.greeter_helpers == "silent" or since is not None:   # it started before the step did
                 return "-- No entries --"
             said = {"skipped": before["skipped"] + watch["skipped"], "ran": before["ran"] + watch["ran"],
+                    "failed": before["failed"] + watch["skipped"],
                     "ran-described": before["ran-described"] + watch["ran-described"]}[self.greeter_helpers]
             return "\n".join(["Queued start job for default target default.target.", *said, "Startup finished in 150ms."])
         lines = []
@@ -1441,6 +1445,10 @@ def test_which_helpers_ran_is_read_from_systemds_own_words():
     assert lb.helpers_run("\n".join(lines[before]["skipped"] + lines[watch]["skipped"])) == []
     assert lb.helpers_run("Started Tracker Miner.\nFinished Something else.\nReached target Main User Target.") == []
     assert lb.helpers_run("") == []
+    # A run that failed is no run for the person, and one that held the login screen up.
+    failed = "\n".join(lines[before]["failed"])
+    assert lb.helpers_run(failed) == [] and lb.helpers_run(failed, tried=True) == [before]
+    assert lb.helpers_run("\n".join(lines[before]["skipped"]), tried=True) == []
 
 
 def test_the_helpers_named_here_are_the_units_the_packages_ship():
@@ -1460,6 +1468,9 @@ def test_helpers_that_run_for_the_login_screens_own_user_fail_the_first_step(mon
         out = capsys.readouterr().out
         assert "FAIL Fedora Glass's helpers stay out of the login screen's own session" in out
         assert "fedora-glass-before-login.service and liquid-glass-watch.service ran as gdm-greeter" in out
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(greeter_helpers="failed"))      # it ran into its time limit there
+    assert not lane.run(["baseline"])
+    assert "(fedora-glass-before-login.service ran as gdm-greeter)" in capsys.readouterr().out
 
 
 def test_the_glass_step_looks_at_the_helpers_of_the_login_screen_built_again(monkeypatch, tmp_path, capsys):
@@ -1495,7 +1506,7 @@ def test_helpers_that_do_not_run_for_the_person_who_logged_in_fail_the_login_ste
 def test_helpers_that_start_a_little_after_the_login_are_waited_for(monkeypatch, tmp_path, capsys):
     lane = _lane(monkeypatch, tmp_path, _FakeGuest(helpers_after=lb.HELPERS_WITHIN - 4))
     assert lane.run(lb.plan(["login"]))
-    assert f"ok   both of Fedora Glass's helpers ran for {lb.USER} within {lb.HELPERS_WITHIN} s of the login (both ran)" in capsys.readouterr().out
+    assert f"ok   both of Fedora Glass's helpers ran for {lb.USER} at this login (both ran)" in capsys.readouterr().out
     lane = _lane(monkeypatch, tmp_path, _FakeGuest(helpers_after=lb.HELPERS_WITHIN + 60))
     assert not lane.run(lb.plan(["login"]))
 
