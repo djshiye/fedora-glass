@@ -147,6 +147,10 @@ Item {
         const p = t.parts ? t.parts[name] : undefined
         return p && p[key] !== undefined ? p[key] : fallback
     }
+    // How much of its frost each part blurs on the desktop (render/glass.py FROST_SCALE): a thin
+    // bar shows the lens best with a light blur, menus hold text and want more.
+    readonly property var frostScale: ({ panel: 0.35, arcmenu: 1.2, quicksettings: 1.2, calendar: 1.2, overview: 1.0 })
+    function partBlur(name) { return Math.round(part(name, "blur", t.blur_radius || 0) * (frostScale[name] ?? 1)) }
     readonly property real bleedGlobal: t.bleed !== undefined ? t.bleed : 0.6
     // Window header bars: their height (47 px is GNOME's) and, when set, their own see-through glass.
     readonly property real headH: u((gtkThemed ? (Backend.headerHeight || 47) : 47) + 3)
@@ -320,7 +324,7 @@ Item {
         // Off (the Glass effects switches, the glass app switch, Reduce transparency): the
         // theme's own surface with a plain edge, and nothing blurred or bent behind it.
         property bool glass: true
-        blurRadius: (!glass ? 0 : part ? root.part(part, "blur", t.blur_radius || 0) * root.s : root.blurPx)
+        blurRadius: (!glass ? 0 : part ? root.partBlur(part) * root.s : root.blurPx)
                     + (glass ? root.iceBlur * root.s : 0)
         brightness: glass ? root.brightness : 0
         frost: glass ? root.ice.frost || 0 : 0
@@ -1585,7 +1589,7 @@ Item {
                 y: bar ? closeUpBox.height * 0.5 - root.panelH / 2 : closeUpBox.height * 0.36
                 width: closeUpBox.width; height: bar ? root.panelH : closeUpBox.height
                 radius: bar ? (root.floating ? Math.min(height / 2, root.lad(root.rPanel, "l")) : 0) : root.lad(root.part(pn, "radius", root.r), "m")
-                blurRadius: root.glassOn ? root.part(pn, "blur", t.blur_radius || 0) + root.iceBlur : 0
+                blurRadius: root.glassOn ? root.partBlur(pn) + root.iceBlur : 0
                 brightness: root.glassOn ? root.brightness : 0
                 frost: root.glassOn ? root.ice.frost || 0 : 0
                 flakes: root.glassOn ? root.ice.flakes || 0 : 0

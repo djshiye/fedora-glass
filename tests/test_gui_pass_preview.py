@@ -242,3 +242,38 @@ def test_both_previews_show_the_same_time(qml, speaking):
         desk = re.search(r"\d{1,2}:\d\d", _texts(qml, "PreviewDesktop")[-1]).group()
         lock = [t for t in _texts(qml, "LockPreview") if re.fullmatch(r"\d{1,2}:\d\d", t)]
         assert lock == [desk], (session, desk, lock)
+
+
+# ---- blur per part --------------------------------------------------------------------------
+
+def test_the_preview_blurs_each_part_as_much_as_the_desktop_does(preview):
+    """The extension blurs behind the panel with 0.35 of the part's frost and behind the menus
+    with 1.2 of it (render/glass.py FROST_SCALE): at Frosted the preview showed a milky panel
+    that Apply then made much clearer."""
+    from fedoraglass.render import glass
+    b = preview.property("be")
+    frost = b.property("frost")
+    try:
+        b.setProperty("frost", 1.0)
+        _settle(50)
+        parts = b.property("tokens")["parts"]
+        s = preview.property("s")
+        shown = {}
+        for it in _items(preview):
+            name = it.property("part")
+            if isinstance(name, str) and name in glass.FROST_SCALE and it.property("blurRadius") is not None:
+                shown.setdefault(name, it.property("blurRadius") / s)
+        assert set(shown) == set(glass.FROST_SCALE), shown
+        for name, got in shown.items():
+            want = round(parts[name]["blur"] * glass.FROST_SCALE[name])
+            assert got == pytest.approx(want), (name, got, want)
+        assert shown["panel"] < shown["quicksettings"] / 2
+    finally:
+        b.setProperty("frost", frost)
+
+
+def test_the_previews_blur_factors_are_the_desktops(preview):
+    from fedoraglass.render import glass
+    scale = preview.property("frostScale")
+    scale = scale.toVariant() if hasattr(scale, "toVariant") else scale
+    assert scale == glass.FROST_SCALE
