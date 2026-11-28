@@ -28,8 +28,9 @@ SettingsPage {
     // ---- left: the preview and the presets ------------------------------------------
     Item {
         width: parent.width
-        // As big as the room under the title allows, keeping the Look card in view.
-        readonly property real maxH: Math.max(220, page.height - lookCard.implicitHeight - 14 - 6)
+        // As big as the room under the title allows, keeping the Look card in view (a lower strip
+        // when the looks sit in two rows).
+        readonly property real maxH: Math.max(presetRow.narrow ? 170 : 220, page.height - lookCard.implicitHeight - 14 - 6)
         height: Math.round(Math.min(width * 0.75, maxH))
         Item {
             id: slot
@@ -103,18 +104,33 @@ SettingsPage {
                     }
                 }
             }
-            Row {
+            Grid {
                 id: presetRow
                 objectName: "presetRow"
                 width: parent.width
                 spacing: 10
-                readonly property real tileW: (width - spacing * (Backend.presets.length - 1)) / Math.max(1, Backend.presets.length)
+                // All the looks side by side while every name fits its tile (a tile's label shrinks to 10 px
+                // before it is cut); otherwise 3 and 2, so the longest names (Ausgewogen, Equilibrato) are whole.
+                readonly property int count: Math.max(1, Backend.presets.length)
+                readonly property real rowTileW: (width - spacing * (count - 1)) / count
+                FontMetrics { id: nameFont; font.pixelSize: 10; font.weight: Font.DemiBold }
+                readonly property real widestName: {
+                    let w = 0
+                    for (let i = 0; i < Backend.presets.length; i++)
+                        w = Math.max(w, nameFont.advanceWidth(Theme.presetLabel(Backend.presets[i])))
+                    return Math.ceil(w)
+                }
+                // 12 px of the tile is the label's side room (LookTile), 2 more are for safety.
+                readonly property bool narrow: rowTileW - 14 < widestName
+                columns: narrow ? Math.min(3, count) : count
+                readonly property real tileW: (width - spacing * (columns - 1)) / columns
                 Repeater {
                     model: Backend.presets
                     delegate: LookTile {
                         required property string modelData
                         required property int index
                         width: presetRow.tileW
+                        thumbHeight: presetRow.narrow ? 40 : 60      // two rows then, so a little lower
                         name: modelData
                         frost: page.presetFrost[modelData] !== undefined ? page.presetFrost[modelData] : 0.45
                         selected: Backend.activePreset === modelData
@@ -128,7 +144,7 @@ SettingsPage {
             SavedLooks {
                 id: savedLooks
                 width: parent.width
-                tileW: presetRow.tileW
+                tileW: presetRow.rowTileW
             }
         }
     }

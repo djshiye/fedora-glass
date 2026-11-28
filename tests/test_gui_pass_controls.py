@@ -312,3 +312,47 @@ def test_motion_page_says_why_menus_grow_is_greyed_without_liquid_motion(qml):
     finally:
         b.discardChanges()
         _close(win)
+
+
+# --- Home: every look's name is shown whole, even in the smallest window ---------------------
+
+def _walk(item):
+    yield item
+    for k in item.childItems():
+        yield from _walk(k)
+
+
+def _tiles(win):
+    row = _find(win, "presetRow")
+    return row, [k for k in row.childItems() if k.property("shownName") is not None]
+
+
+@pytest.mark.parametrize("lang", ["", "de", "es", "fr", "it", "pt_BR"])
+def test_home_look_names_are_not_cut_in_the_smallest_window(qml, lang):
+    from PySide6.QtGui import QGuiApplication
+
+    from fedoraglass import i18n
+    app = QGuiApplication.instance()
+    i18n.reset(lang)
+    i18n.install_qt(app)
+    win = None
+    try:
+        b = _backend(qml)
+        b.discardChanges()
+        win = _window(qml)
+        win.resize(1036, 636)
+        _spin(600)
+        _goto(win, "home", 600)
+        row, tiles = _tiles(win)
+        assert len(tiles) == 5
+        for t in tiles:
+            labels = [o for o in _walk(t.property("contentItem")) if o.property("truncated") is not None
+                      and o.property("text") == t.property("shownName")]
+            assert len(labels) == 1, t.property("shownName")
+            assert not labels[0].property("truncated"), f"{lang or 'en'}: {t.property('shownName')} is cut"
+    finally:
+        if win is not None:
+            _close(win)
+        for tr in list(getattr(app, "_fg_translators", [])):
+            app.removeTranslator(tr)
+        i18n.reset("")
