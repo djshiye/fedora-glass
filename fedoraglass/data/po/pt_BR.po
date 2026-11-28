@@ -3679,7 +3679,7 @@ msgstr "Salvar este visual"
 
 #: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:149
 msgid "It joins the looks on Home, to pick again or share. A look keeps the colours, the glass, motion, the lock screen's look and the pointer. Your choice of apps and this PC's own settings stay out of it."
-msgstr "Ele entra nos visuais da Página inicial, para escolher de novo ou compartilhar. Um visual guarda as cores, o vidro, o movimento, o visual da tela de bloqueio e o ponteiro. Sua escolha de apps e as configurações deste computador ficam de fora."
+msgstr "Ele entra nos visuais do Início, para escolher de novo ou compartilhar. Um visual guarda as cores, o vidro, o movimento, o visual da tela de bloqueio e o ponteiro. Sua escolha de apps e as configurações deste computador ficam de fora."
 
 #: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:184
 msgid "Rename"
@@ -5476,7 +5476,7 @@ msgstr "O backend GTK 3 do LibreOffice pega o tema de vidro adw-gtk3. Se parecer
 
 #: fedoraglass/targets/cursor.py:16
 msgid "The pointer style and size picked on the Pointer and desktop page. Restore original brings your own pointer back."
-msgstr "O estilo e o tamanho do ponteiro escolhidos na página Ponteiro e área de trabalho. Restaurar original traz seu próprio ponteiro de volta."
+msgstr "O estilo e o tamanho do ponteiro escolhidos na página Ponteiro e desktop. Restaurar original traz seu próprio ponteiro de volta."
 
 #: fedoraglass/targets/cursor.py:18
 msgid "Sets the mouse pointer style and size you picked. Restore original brings your own pointer back."

@@ -240,7 +240,7 @@ msgstr "Der Neustart-Dialog konnte nicht geöffnet werden. Starten Sie den PC st
 
 #: fedoraglass/gui/backend.py:2031
 msgid "GNOME's own top bar"
-msgstr "Die Kopfleiste von GNOME"
+msgstr "Die obere Leiste von GNOME"
 
 #: fedoraglass/gui/backend.py:2033
 msgid "Found on this PC: {list}."
@@ -1244,7 +1244,7 @@ msgstr "Jede Look-Einstellung steht auf dem Standard."
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:39
 msgid "Look of the top bar or Dash to Panel, a dock and the dash in Activities only"
-msgstr "Look nur der Kopfleiste oder von Dash to Panel, eines Docks und des Docks in den Aktivitäten"
+msgstr "Look nur der oberen Leiste oder von Dash to Panel, eines Docks und des Docks in den Aktivitäten"
 
 #: fedoraglass/gui/qml/FedoraGlass/AdvancedPage.qml:39
 #: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:183
@@ -1794,7 +1794,7 @@ msgstr "Jedes kostet etwas Grafikleistung. Schalten Sie es aus, wo Sie es nicht 
 
 #: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:185
 msgid "Real glass behind the top bar or Dash to Panel, a dock and the dash in Activities. Off leaves plain tinted bars."
-msgstr "Echtes Glas hinter der Kopfleiste oder Dash to Panel, einem Dock und dem Dock in den Aktivitäten. Aus lässt schlichte getönte Leisten."
+msgstr "Echtes Glas hinter der oberen Leiste oder Dash to Panel, einem Dock und dem Dock in den Aktivitäten. Aus lässt schlichte getönte Leisten."
 
 #: fedoraglass/gui/qml/FedoraGlass/GlassPage.qml:190
 msgid "Menus"
@@ -5476,7 +5476,7 @@ msgstr "Das GTK-3-Backend von LibreOffice übernimmt das Glas-Theme adw-gtk3. Wi
 
 #: fedoraglass/targets/cursor.py:16
 msgid "The pointer style and size picked on the Pointer and desktop page. Restore original brings your own pointer back."
-msgstr "Mauszeigerstil und -größe, wie auf der Seite „Mauszeiger und Desktop“ gewählt. „Original wiederherstellen“ bringt Ihren eigenen Mauszeiger zurück."
+msgstr "Mauszeigerstil und -größe, wie auf der Seite „Zeiger und Desktop“ gewählt. „Original wiederherstellen“ bringt Ihren eigenen Mauszeiger zurück."
 
 #: fedoraglass/targets/cursor.py:18
 msgid "Sets the mouse pointer style and size you picked. Restore original brings your own pointer back."
