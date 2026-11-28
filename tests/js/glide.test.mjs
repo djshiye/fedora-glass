@@ -444,3 +444,89 @@ test('the shared Dash to Panel list leaves out disposed panels, and plain object
     assert.deepEqual(dtpPanels(), []);
     global.dashToPanel = was;
 });
+
+// Dash to Panel fills a taskbar after its panel is there (the icons come as deferred work):
+// a panel whose taskbar is still empty, as the glide finds it right after login.
+function lateScene() {
+    const panel = new Actor({pos: [100, 850], width: 1400, height: 44});
+    const icons = [];
+    const box = new Actor();
+    panel.taskbar = {_getAppIcons: () => icons, _box: box};
+    dtp.panels = [panel];
+    return {panel, icons, box};
+}
+
+// Dash to Panel adds the taskbar's i-th icon; the idle that looks again runs.
+function arrive({icons, box}, i = icons.length) {
+    const container = new Actor({pos: [100 + 4 + i * 52, 852], width: 48, height: 40});
+    const icon = new Actor({_container: container, hover: false});
+    icons.push(icon);
+    box.emit('child-added', icon);
+    fake.timeouts.fireAll();
+    return icon;
+}
+
+test('an icon Dash to Panel adds after the start gets the highlight', () => {
+    const s = lateScene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    assert.equal(s.box.handlerCount(), 1, 'the taskbar is followed');
+    // Until 1.7.10 nothing told the glide: a pinned icon had no highlight until a window
+    // opened or closed, and Dash to Panel's own highlight is clear while the glide is on.
+    const icon = arrive(s);
+    hover(icon, true);
+    frames(20);
+    const tile = tileOf(s.panel);
+    assert.equal(tile.opacity, 255, 'lit under the icon that came later');
+    assert.equal(tile.translation_x, 4);
+    // a second one: glides there
+    const next = arrive(s);
+    hover(icon, false);
+    hover(next, true);
+    frames(60);
+    assert.equal(tile.translation_x, 56);
+    g.destroy();
+    assert.equal(s.box.handlerCount(), 0, 'nothing stays connected to the taskbar');
+    assert.ok([icon, next].every(i => i.handlerCount() === 0));
+});
+
+test('after Dash to Panel builds a new panel its taskbar is followed and the old one let go', () => {
+    const old = lateScene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    const fresh = lateScene();          // dtp.panels is now the new panel alone
+    dtp.emit('panels-created');
+    fake.timeouts.fireAll();
+    assert.equal(old.box.handlerCount(), 0, 'the old taskbar is let go');
+    assert.equal(fresh.box.handlerCount(), 1);
+    const icon = arrive(fresh);
+    hover(icon, true);
+    frames(20);
+    assert.equal(tileOf(fresh.panel).opacity, 255);
+    g.destroy();
+    assert.equal(fresh.box.handlerCount(), 0);
+});
+
+test('a taskbar that was destroyed is never touched, and the glide switched off follows none', () => {
+    fake.warnings.length = 0;
+    const s = lateScene();
+    const g = new HoverGlide();
+    g.update(LOOK);
+    // Dash to Panel took the taskbar down behind our back: from now on every call on its
+    // box would only fill the log.
+    s.box[Symbol.for('fake-disposed')] = true;
+    s.box.connect = s.box.disconnect = () => fake.warnings.push('touched a disposed taskbar');
+    fake.windowTracker.emit('tracked-windows-changed');
+    fake.timeouts.fireAll();
+    g.update({...LOOK, enabled: false});
+    assert.deepEqual(fake.warnings, []);
+    const off = lateScene();
+    g.update({...LOOK, enabled: false});
+    assert.equal(off.box.handlerCount(), 0, 'off: no taskbar is followed');
+    arrive(off);
+    assert.equal(tileOf(off.panel), undefined, 'and an icon arriving makes no tile');
+    g.update(LOOK);
+    assert.equal(off.box.handlerCount(), 1);
+    g.destroy();
+    assert.equal(off.box.handlerCount(), 0);
+});

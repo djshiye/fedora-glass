@@ -204,6 +204,49 @@ export class Signals {
     }
 }
 
+/**
+ * Follows the icon boxes of Dash to Panel's taskbars. Dash to Panel fills a taskbar after
+ * its panel is there (the icons come as deferred work), so a first look at a new taskbar
+ * finds no icons, and nothing else says when they arrive: until 1.7.10 a pinned icon got
+ * no lift and no gliding highlight until a window opened or closed. `onAdded` runs each
+ * time one of the followed boxes gets a child.
+ */
+export class TaskbarBoxes {
+    constructor(onAdded) {
+        this._onAdded = onAdded;
+        this._boxes = new Map();   // a taskbar's icon box -> its Signals
+    }
+
+    /** Follow the taskbars of exactly these panels; a box of any other panel is let go. */
+    follow(panels) {
+        const boxes = new Set();
+        for (const p of panels) {
+            const box = p?.taskbar?._box;
+            if (box && typeof box.connect === 'function' && !disposed(box))
+                boxes.add(box);
+        }
+        for (const [box, signals] of [...this._boxes]) {
+            if (boxes.has(box))
+                continue;
+            this._boxes.delete(box);
+            signals.clear();
+        }
+        for (const box of boxes) {
+            if (this._boxes.has(box))
+                continue;
+            const signals = new Signals();
+            signals.on(box, 'child-added', () => this._onAdded());
+            this._boxes.set(box, signals);
+        }
+    }
+
+    clear() {
+        for (const signals of this._boxes.values())
+            signals.clear();
+        this._boxes.clear();
+    }
+}
+
 // What to copy for the content's light: the anchor, or, when it is an empty
 // wrapper (quick settings sits in a 0×0 widget), its child that holds the target.
 export function glowSource(anchor, target) {

@@ -28,7 +28,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import * as C from './curves.js';
-import {Signals, disposed, dtpPanels} from './common.js';
+import {Signals, TaskbarBoxes, dtpPanels} from './common.js';
 import {GrabHover, hovered} from './grabhover.js';
 import {report} from './safety.js';
 import {Shader, ShaderBase, textureFrame, withShader} from './glsl.js';
@@ -1110,26 +1110,8 @@ class PanelAnimations {
     // Dash to Panel fills a taskbar after we first look at it (its icons come as deferred
     // work): look again whenever it adds one. Only the panels that exist now are followed.
     _followTaskbars() {
-        const boxes = new Set();
-        for (const p of panels()) {
-            const box = p.taskbar?._box;
-            if (box && typeof box.connect === 'function' && !disposed(box))
-                boxes.add(box);
-        }
-        this._taskbarBoxes ??= new Map();
-        for (const [box, signals] of [...this._taskbarBoxes]) {
-            if (boxes.has(box))
-                continue;
-            this._taskbarBoxes.delete(box);
-            signals.clear();
-        }
-        for (const box of boxes) {
-            if (this._taskbarBoxes.has(box))
-                continue;
-            const signals = new Signals();
-            signals.on(box, 'child-added', () => this._queueRefresh());
-            this._taskbarBoxes.set(box, signals);
-        }
+        this._taskbarBoxes ??= new TaskbarBoxes(() => this._queueRefresh());
+        this._taskbarBoxes.follow(panels());
     }
 
     _unwatch(item) {
@@ -1150,8 +1132,7 @@ class PanelAnimations {
             this._unwatch(item);
         this._taskbarIds?.clear();
         this._taskbarIds = null;
-        for (const signals of this._taskbarBoxes?.values() ?? [])
-            signals.clear();
+        this._taskbarBoxes?.clear();
         this._taskbarBoxes = null;
     }
 
