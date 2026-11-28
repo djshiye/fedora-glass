@@ -28,14 +28,17 @@ console.warn = (...a) => logged.push(a.join(' '));
 // What the add-on says once it has looked at the prompt's place (one line for each build).
 const said = [];
 console.log = (...a) => said.push(a.join(' '));
-const SAID = /^Fedora Glass login: the prompt stands (-?\d+) px down the screen, wanted (-?\d+)(, and does not follow the margin)? \((\d+) px tall, margin (\d+), set again: (\d+), way: (\w+), screen: (\d+) px, scale: ([\d.]+), text: ([\d.]+)\)$/;
+const SAID = /^Fedora Glass login: the prompt stands (-?\d+) px down the screen, wanted (-?\d+)(, and does not follow the margin)? \((\d+) px tall, margin (\d+), set again: (\d+), at first: (-?\d+) px off, way: (\w+), screen: (\d+) px, scale: ([\d.]+), text: ([\d.]+)\)$/;
+// ...and what it says when it gives the place back to GNOME, with what it had tried (the
+// real-boot check reads both).
+const OWN_PLACE = /^Fedora Glass login: the prompt has GNOME's own place: with ours it would end below the screen \(margin (\d+), set again: (\d+), at first: (-?\d+ px off|not looked at), screen: (\d+) px\)$/;
 /** The one line said about the prompt's place, as numbers. */
 const place = () => {
     assert.equal(said.length, 1, `one line about the prompt's place: ${JSON.stringify(said)}`);
     const m = SAID.exec(said[0]);
     assert.ok(m, said[0]);
-    return {top: +m[1], wanted: +m[2], follows: !m[3], tall: +m[4], margin: +m[5], again: +m[6], way: m[7],
-        screen: +m[8], scale: +m[9], text: +m[10]};
+    return {top: +m[1], wanted: +m[2], follows: !m[3], tall: +m[4], margin: +m[5], again: +m[6], first: +m[7], way: m[8],
+        screen: +m[9], scale: +m[10], text: +m[11]};
 };
 
 const settle = async () => {
@@ -117,8 +120,8 @@ test('GNOME 51.1: the card stands in the middle of the screen, and the clock sta
         assert.deepEqual(logged, []);
         // Said once, for the journal: where it stands, and that nothing had to be set again.
         const p = place();
-        assert.deepEqual([p.top - p.wanted, p.follows, p.again, p.way, p.screen, p.scale, p.text],
-            [0, true, 0, 'offset', screen, 1, textScale], `${what}: ${said[0]}`);
+        assert.deepEqual([p.top - p.wanted, p.follows, p.again, p.first, p.way, p.screen, p.scale, p.text],
+            [0, true, 0, 0, 'offset', screen, 1, textScale], `${what}: ${said[0]}`);
         assert.equal(String(p.margin), margin(g.fake), `${what}: the margin said is the one in the stylesheet`);
         assert.ok(Math.abs(p.top + p.tall / 2 - screen / 2) <= 1, `${what}: what it shows is in the middle (${said[0]})`);
         g.ext.disable();
@@ -127,7 +130,7 @@ test('GNOME 51.1: the card stands in the middle of the screen, and the clock sta
     const g = await started({gnome: '51.1'});
     g.pick();
     assert.equal(said[0], 'Fedora Glass login: the prompt stands 415 px down the screen, wanted 415 ' +
-        '(249 px tall, margin 201, set again: 0, way: offset, screen: 1080 px, scale: 1, text: 1)');
+        '(249 px tall, margin 201, set again: 0, at first: 0 px off, way: offset, screen: 1080 px, scale: 1, text: 1)');
     g.ext.disable();
 });
 
@@ -149,6 +152,9 @@ test('a theme of someone else\'s: what is seen sets the place, the card is in th
             assert.deepEqual([p.follows, p.again, p.way], [true, 1, {'51.1': 'offset', '51.0': 'fixedTop', '50': 'centred'}[gnome]],
                 `${what}: ${said[0]}`);
             assert.ok(Math.abs(p.top - p.wanted) <= 1, `${what}: ${said[0]}`);
+            // ...and how far off it stood at the first look: that tells a theme's own sizes (a
+            // few px) from a GNOME that places the prompt in a new way (far more).
+            assert.ok(Math.abs(p.first) >= 2, `${what}: ${said[0]}`);
             assert.equal(String(p.margin), margin(g.fake), `${what}: the margin said is the one in the stylesheet`);
             g.ext.disable();
         }
@@ -191,7 +197,7 @@ test('the field comes a moment after the prompt, when GDM asks its question: loo
             assert.ok(Math.abs(seen.clock - listClock) <= 1, `${what}: the clock stays`);
             assert.ok(Math.abs(g.back() - listClock) <= 1, `${what}: and stays going back`);
             assert.deepEqual(logged, []);
-            assert.equal(place().again, 0, `${what}: ${said[0]}`);
+            assert.deepEqual([place().again, Math.abs(place().first) <= 1], [0, true], `${what}: ${said[0]}`);
             g.ext.disable();
         }
     }
@@ -235,6 +241,9 @@ test('a layout that takes no notice of the margin: a few tries, the first place 
     assert.equal(p.follows, false, said[0]);
     assert.ok(Math.abs(p.top - p.wanted) >= 2, said[0]);
     assert.equal(String(p.margin), first, said[0]);
+    // The line itself, as the real-boot check reads it (tests/test_login_boot_lane.py has the same one).
+    assert.equal(said[0], 'Fedora Glass login: the prompt stands 315 px down the screen, wanted 415, and does not follow the margin ' +
+        '(249 px tall, margin 201, set again: 2, at first: -100 px off, way: offset, screen: 1080 px, scale: 1, text: 1)');
     g.ext.disable();
 });
 
@@ -267,6 +276,11 @@ test('GNOME 51.1 on a screen too short for what it shows: the prompt still gets 
     g.pick();
     assert.equal(g.loads(), 2, 'given back once');
     assert.deepEqual(logged, []);
+    // Said once, and nothing about a place of ours: the prompt was never looked at with it.
+    assert.equal(said.length, 1, JSON.stringify(said));
+    assert.match(said[0], OWN_PLACE);
+    assert.equal(said[0], 'Fedora Glass login: the prompt has GNOME\'s own place: with ours it would end below the screen ' +
+        '(margin 26, set again: 0, at first: not looked at, screen: 400 px)');
     g.ext.disable();
 });
 
@@ -300,6 +314,31 @@ test('GNOME 51.1 at 864 px: a long message under the field still gives the promp
     g.back();
     g.pick();
     assert.equal(g.loads(), 2, 'given back once');
+    assert.deepEqual(logged, []);
+    // The place of ours was said first; that it was given back is the last word, said once.
+    assert.equal(said.length, 2, JSON.stringify(said));
+    assert.match(said[0], SAID);
+    // The line itself, as the real-boot check reads it (tests/test_login_boot_lane.py has the same one).
+    assert.equal(said[1], 'Fedora Glass login: the prompt has GNOME\'s own place: with ours it would end below the screen ' +
+        '(margin 201, set again: 0, at first: 0 px off, screen: 864 px)');
+    g.ext.disable();
+});
+
+test('the login screen built again (Large Text switched on at the prompt): looked at again, and the line says what this build\'s first look saw', async () => {
+    // GNOME 50 with a theme of someone else's: at the first look its prompt stands 15 px off
+    // at the usual text size, and 16 px with Large Text.
+    const g = await started({gnome: '50', foreign: true});
+    g.pick();
+    assert.deepEqual([place().again, place().first, place().text], [1, -15, 1], said[0]);
+    said.length = 0;
+    g.fake.gsettings['org.gnome.desktop.interface']['text-scaling-factor'] = 1.25;
+    [...g.fake.settingsLive].forEach(s => s.emit('changed::text-scaling-factor'));
+    g.fake.laters.run();
+    await settle();
+    g.pick();
+    // One line for the new build, with its own numbers: not the first build's 15 px.
+    assert.deepEqual([place().again, place().first, place().text], [1, -16, 1.25], said[0]);
+    assert.ok(Math.abs(place().top - place().wanted) <= 1, said[0]);
     assert.deepEqual(logged, []);
     g.ext.disable();
 });

@@ -361,6 +361,7 @@ export class LoginGlass {
         this._place = this._promptPlace();
         this._placeTries = 0;      // until GNOME has laid its prompt out with this style (_checkPromptPlace)
         this._placeBest = null;
+        this._placeFirst = null;   // how far off the prompt stood at the first look, px
         this._placeChecked = false;
         this._listMargin = 0;      // until GNOME has laid its user list out with this style (_giveListPlace)
         this._listTries = 0;
@@ -913,8 +914,15 @@ export class LoginGlass {
         const f = prompt.has_allocation() ? LoginGlass.frame(prompt) : null;
         if (!m || !f || this._shownBottom(prompt, f) <= m.y + m.height - PROMPT_SPARE)
             return;
+        const margin = this._place.margin;
         this._place = this._promptPlace(true);
         this._restyle();
+        // For the journal, next to the line on the prompt's place (_notePlace): from here on
+        // that line no longer holds. With what was tried, for a report from a PC nobody can
+        // look at (the real-boot check reads this one too).
+        const first = this._placeFirst === null ? 'not looked at' : `${this._placeFirst} px off`;
+        console.log('Fedora Glass login: the prompt has GNOME\'s own place: with ours it would end below the screen ' +
+            `(margin ${margin}, set again: ${this._placeTries}, at first: ${first}, screen: ${m.height} px)`);
     }
 
     /**
@@ -965,9 +973,11 @@ export class LoginGlass {
         const top = Math.round(begin - m.y);
         const want = this._promptPlace(false, (end - begin) / scale);
         const off = top - want.top;
-        if (!this._placeBest || Math.abs(off) < Math.abs(this._placeBest.off))
-            this._placeBest = {margin: this._place.margin, top, off};
         const tall = Math.round((end - begin) / scale);
+        if (this._placeFirst === null)
+            this._placeFirst = off;
+        if (!this._placeBest || Math.abs(off) < Math.abs(this._placeBest.off))
+            this._placeBest = {margin: this._place.margin, top, off, tall};
         if (Math.abs(off) < PLACE_SLACK) {
             this._placeChecked = true;
             if (this._placeTries)
@@ -988,7 +998,7 @@ export class LoginGlass {
             this._place = {...this._place, margin: best.margin, top: best.top};
             if (again)
                 this._restyle();
-            this._notePlace(best.top, best.top - best.off, tall, false);
+            this._notePlace(best.top, best.top - best.off, best.tall, false);
             return;
         }
         this._placeTries++;
@@ -998,16 +1008,20 @@ export class LoginGlass {
 
     /**
      * One line for the journal once the prompt's place was looked at: where what it shows
-     * begins (px down the screen), where it was wanted, how tall it is, and how GNOME places
-     * it here. It tells a GNOME or a login theme nobody tried this on from one that was, and
-     * the real-boot check reads it (prompt_places in qa/vm/login_boot.py: keep the two alike).
+     * begins (px down the screen), where it was wanted, how tall it is, how often the margin
+     * was set again, how far off the prompt stood at the first look and how GNOME places it
+     * here. "set again: 0" means GNOME and its login theme place the prompt as this add-on
+     * expects. Set again from a few px off is a font or a theme that sizes the prompt
+     * otherwise; from far off it is a GNOME or a theme that places it in a way nobody tried
+     * this on. The real-boot check reads the line (prompt_places in qa/vm/login_boot.py:
+     * keep the two alike).
      */
     _notePlace(top, wanted, tall, follows) {
         const way = this._fixedTop ? 'fixedTop' : this._boxHeight ? 'offset' : 'centred';
         const screen = Main.layoutManager.primaryMonitor?.height ?? 0;
         console.log(`Fedora Glass login: the prompt stands ${top} px down the screen, wanted ${wanted}` +
             `${follows ? '' : ', and does not follow the margin'} (${tall} px tall, margin ${this._place.margin}, ` +
-            `set again: ${this._placeTries}, way: ${way}, screen: ${screen} px, ` +
+            `set again: ${this._placeTries}, at first: ${this._placeFirst} px off, way: ${way}, screen: ${screen} px, ` +
             `scale: ${this._context.scale_factor}, text: ${this._textScale})`);
     }
 
