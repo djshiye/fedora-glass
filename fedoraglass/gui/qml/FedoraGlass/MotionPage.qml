@@ -98,9 +98,11 @@ SettingsPage {
             }
             Rectangle { width: parent.width; height: 1; color: Theme.divider }
             Item {
+                id: speedRow
                 objectName: "motionSpeed"
                 width: parent.width
                 height: 32
+                readonly property bool gnomeDraws: ["open", "minimize", "close", "launch", "hover"].some((ev) => (Backend.motion[ev] || {}).preset === "gnome")
                 // GNOME's own animations keep their own timing, so only a preset we draw takes a speed.
                 enabled: ["open", "minimize", "close", "launch", "hover"].some((ev) => {
                     const p = (Backend.motion[ev] || {}).preset
@@ -121,6 +123,18 @@ SettingsPage {
                     onPressedChanged: if (!pressed) page.play()
                     Accessible.name: qsTr("Animation speed")
                 }
+            }
+            // Why Speed is greyed when GNOME draws the animations.
+            Text {
+                objectName: "motionSpeedNote"
+                visible: !speedRow.enabled && speedRow.gnomeDraws
+                width: parent.width
+                topPadding: -6
+                textFormat: Text.PlainText
+                text: qsTr("GNOME's own animations keep GNOME's speed")
+                color: Theme.textFaint
+                font.pixelSize: Theme.fsSmall
+                wrapMode: Text.WordWrap
             }
         }
     }
@@ -166,7 +180,8 @@ SettingsPage {
             SwitchRow {
                 objectName: "menuGrow"
                 label: qsTr("Menus grow from their button")
-                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on") : ""
+                caption: Backend.reduceTransparency ? qsTr("Off while Reduce transparency is on")
+                                                    : !Backend.liquidMotion ? qsTr("Needs Liquid motion to be on") : ""
                 tip: Backend.hasStartMenu ? qsTr("The start menu, quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                                           : qsTr("Quick settings and the calendar pour out of the button you clicked, and flow back into it when they close. Off, menus open in place. It stays off when Reduce animation is on in Settings.")
                 enabled: Backend.liquidMotion

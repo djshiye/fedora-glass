@@ -267,3 +267,48 @@ def test_quick_settings_tile_picture_toggles_the_switch_beside_it(qml):
     _spin(300)
     assert b.property("quickToggle") == before
     _close(win)
+
+
+# --- the Motion page says why Speed and "Menus grow" are greyed ---------------------------------
+
+def test_motion_page_says_why_speed_is_greyed_for_gnomes_own_animations(qml):
+    b = _backend(qml)
+    b.discardChanges()
+    win = _window(qml)
+    try:
+        _goto(win, "motion", 600)
+        note = _find(win, "motionSpeedNote")
+        assert note is not None
+        b.setMotionStyle("lively")
+        _spin(150)
+        assert not note.property("visible")
+        b.setMotionStyle("gnome")
+        _spin(150)
+        assert not _find(win, "motionSpeed").property("enabled")
+        assert note.property("visible") and "GNOME" in note.property("text")
+        # everything off: nothing to explain, GNOME is not drawing anything either
+        b.setMotionStyle("off")
+        _spin(150)
+        assert not note.property("visible")
+    finally:
+        b.discardChanges()
+        _close(win)
+
+
+def test_motion_page_says_why_menus_grow_is_greyed_without_liquid_motion(qml):
+    b = _backend(qml)
+    b.discardChanges()
+    win = _window(qml)
+    try:
+        _goto(win, "motion", 600)
+        row = _find(win, "menuGrow")
+        b.setProperty("liquidMotion", True)
+        _spin(150)
+        assert row.property("caption") == ""
+        b.setProperty("liquidMotion", False)
+        _spin(150)
+        assert not row.property("enabled")
+        assert row.property("caption") != ""
+    finally:
+        b.discardChanges()
+        _close(win)
