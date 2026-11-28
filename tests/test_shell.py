@@ -168,6 +168,51 @@ def test_paused_stylesheet_makes_the_theme_surfaces_solid_in_its_own_colours(fro
             assert float(m.group(1)) >= rs.PAUSED_ALPHA
 
 
+_PREVIEW_RULE = (r"#uiGroup #preview-menu #dashtopanelPreviewScrollview \{\s*background-color: ([^;]+);"
+                 r"\s*border-radius: (\d+)px; \}")
+
+
+@pytest.mark.parametrize("frost,dark", GRID)
+@pytest.mark.parametrize("panel", ({"panel_style": "floating"}, {"panel_style": "docked"},
+                                   {"panel_style": "floating", "radius": 0}, {"panel_style": "floating", "radius": 40}))
+def test_paused_stylesheet_makes_dash_to_panels_window_previews_solid(frost, dark, panel):
+    """Dash to Panel paints the box of its window previews itself, as an inline style no sheet
+    can beat, in the panel's colour and as see-through as a menu. While the glass is paused
+    nothing blurs the windows under it, and they showed sharp through the previews. The scroll
+    view that fills the box has no style of its own: it takes the solid fill, with the box's
+    corners."""
+    t = palette.build(Settings(frost=frost, **panel), dark=dark)
+    m = re.search(_PREVIEW_RULE, rs.render_paused_css(t))
+    assert m, "no rule for the window previews"
+    chrome = rs.surfaces(t)["chrome"]
+    assert m[1] == (chrome if chrome.a >= rs.PAUSED_ALPHA else chrome.with_alpha(rs.PAUSED_ALPHA)).css
+    # It is the colour Dash to Panel paints there, which Apply sets as see-through as a menu.
+    values = rs.dtp_values(t)
+    assert values["trans-bg-color"] == f"'{chrome.hex6}'" and values["preview-use-custom-opacity"] == "true"
+    if frost == 0.5:
+        assert int(values["preview-custom-opacity"]) < 90, "the previews are see-through, which is the point"
+    # The corners of the box. With a radius set for the whole panel, Dash to Panel's own sheet
+    # rounds the box by it (#uiGroup.br20 #preview-menu: steps of 4 px, !important); with none,
+    # the theme's rule for the box does.
+    step = int(values["global-border-radius"])
+    theme = re.search(r"#preview-menu \{\s*border-radius: (\d+)px", rs.render_css(t))
+    assert int(m[2]) == (step * 4 if step else int(theme[1]))
+    if panel == {"panel_style": "docked"}:
+        assert step == 0
+    if panel == {"panel_style": "floating"}:
+        assert step > 0
+
+
+def test_paused_stylesheet_leaves_the_previews_alone_when_dash_to_panels_part_is_off():
+    """With the Dash to Panel part off, Apply never made the previews see-through, and their
+    colour is the user's own: no fill of ours goes over it."""
+    s = Settings(targets={"dash-to-panel": False})
+    t = palette.build(s, dark=True)
+    assert not re.search(_PREVIEW_RULE, rs.render_paused_css(t, dash_to_panel=False))
+    assert not re.search(_PREVIEW_RULE, rg.config(s, t)["pausedCss"])
+    assert re.search(_PREVIEW_RULE, rg.config(Settings(), palette.build(Settings(), dark=True))["pausedCss"])
+
+
 def test_paused_stylesheet_follows_light_and_dark():
     dark, light = rs.render_paused_css(tokens(0.5, True)), rs.render_paused_css(tokens(0.5, False))
     assert dark != light

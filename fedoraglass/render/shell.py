@@ -221,9 +221,10 @@ def render_extension_css(t: Tokens) -> str:
 PAUSED_ALPHA = 0.96
 
 
-def render_paused_css(t: Tokens) -> str:
+def render_paused_css(t: Tokens, dash_to_panel: bool = True) -> str:
     """The stylesheet the glass extension loads while the glass is paused or in safe mode
-    (sent in shell-glass.json as pausedCss).
+    (sent in shell-glass.json as pausedCss). `dash_to_panel`: whether Apply sets Dash to
+    Panel's look (the part is on); its window previews are only see-through because of that.
 
     The theme paints the panel, menus, Quick Settings, Alt+Tab and OSDs see-through
     (about 30 %), because the glass blurs what is under them. With the glass off they
@@ -256,6 +257,13 @@ def render_paused_css(t: Tokens) -> str:
     for sels, color, important in groups:
         out.append(",\n".join("#uiGroup " + s for s in sels)
                    + f" {{\n  background-color: {solid(color).css}{important}; }}\n")
+    # Dash to Panel's window previews. It paints their box itself, as an inline style no sheet
+    # can beat, in the panel's colour and as see-through as a menu (dtp_values): over windows
+    # that nothing blurs now. The scroll view that fills that box has no style of its own, so
+    # it takes the solid fill, with the box's corners.
+    if dash_to_panel:
+        out.append("#uiGroup #preview-menu #dashtopanelPreviewScrollview"
+                   f" {{\n  background-color: {solid(surf['chrome']).css};\n  border-radius: {preview_radius(t)}px; }}\n")
     # The snap preview: no glass behind it now, so a tinted box (half see-through, as GNOME's
     # own) that shows where the window will go without hiding what is under it.
     out.append("#uiGroup .tile-preview,\n#uiGroup .tile-preview.fedora-glass-tile"
@@ -316,6 +324,14 @@ def _dtp_radius(t: Tokens) -> int:
     """Dash to Panel stores the radius in steps of 4 px (0..5), not pixels. The floating panel
     is a large surface, so it takes the ladder's large step."""
     return min(5, round(scale(t.panel_radius)["l"] / 4))
+
+
+def preview_radius(t: Tokens) -> int:
+    """The corners of Dash to Panel's window preview box, in px. With a radius set for the whole
+    panel (ours: only when it floats), Dash to Panel's own sheet rounds the box by that, in its
+    4 px steps and !important; without one the theme's #preview-menu rule does."""
+    step = _dtp_radius(t) if t.panel_floating else 0
+    return step * 4 if step else radii(t)["r_m"]
 
 
 # ---- ArcMenu -----------------------------------------------------------------------------------
