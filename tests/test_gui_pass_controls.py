@@ -107,6 +107,103 @@ def test_long_dropdown_list_scrolls_inside_the_window(qml):
         b.discardChanges()
 
 
+def _long_list(qml, ids_out):
+    """A window with 24 saved looks and the long Day and night list open at its scrolled-down page."""
+    b = _backend(qml)
+    b.discardChanges()
+    ids_out.extend(b.saveLook(f"Look number {i}") for i in range(24))
+    b.setProperty("scheme", "auto")
+    win = _window(qml)
+    win.resize(1036, 636)
+    _spin(600)
+    _goto(win, "home", 600)
+    dd = _find(win, "dayNightDark")
+    flick = dd.parentItem()
+    while flick.property("contentY") is None:
+        flick = flick.parentItem()
+    flick.setProperty("contentY", max(0, flick.property("contentHeight") - flick.property("height")))
+    _spin(800)
+    pop = _popup(dd)
+    dd.metaObject().invokeMethod(dd, "open")
+    _spin(600)
+    return b, win, dd, pop
+
+
+def _rest_pointer_on(win, pop, index):
+    from PySide6.QtCore import QPoint, QPointF
+    from PySide6.QtTest import QTest
+    r = _row(pop, index)
+    p = r.mapToItem(win.contentItem(), QPointF(r.width() / 2, r.height() / 2))
+    # off the window's corner first: a pointer already on that spot makes no move
+    QTest.mouseMove(win, QPoint(2, 2))
+    _spin(100)
+    QTest.mouseMove(win, p.toPoint())
+    # a busy machine may be slow to deliver the hover
+    for _ in range(40):
+        _spin(100)
+        if pop.property("cur") == index:
+            break
+
+
+def test_long_dropdown_keys_ignore_a_pointer_resting_on_a_row(qml):
+    from PySide6.QtCore import Qt
+    ids = []
+    b = None
+    try:
+        b, win, dd, pop = _long_list(qml, ids)
+        count = len(dd.property("model").toVariant())
+        _rest_pointer_on(win, pop, 2)
+        assert pop.property("cur") == 2
+        # the list scrolls under the still pointer: the keys keep their row
+        _key(win, Qt.Key_End)
+        _spin(400)
+        assert pop.property("cur") == count - 1
+        _key(win, Qt.Key_Home)
+        _spin(400)
+        assert pop.property("cur") == 0
+        for _ in range(12):
+            _key(win, Qt.Key_Down)
+            _spin(150)
+        assert pop.property("cur") == 12
+        # Enter takes the row the keys are on
+        chosen = []
+        dd.activated.connect(chosen.append)
+        _key(win, Qt.Key_End)
+        _spin(400)
+        _key(win, Qt.Key_Return)
+        _spin(300)
+        assert chosen == [dd.property("model").toVariant()[count - 1]["value"]]
+        _close(win)
+    finally:
+        for i in ids:
+            b.deleteLook(i)
+        b.discardChanges()
+
+
+def test_long_dropdown_pointer_takes_the_row_again_after_keys(qml):
+    from PySide6.QtCore import Qt, QPoint, QPointF
+    from PySide6.QtTest import QTest
+    ids = []
+    b = None
+    try:
+        b, win, dd, pop = _long_list(qml, ids)
+        _rest_pointer_on(win, pop, 2)
+        _key(win, Qt.Key_Down)
+        _spin(300)
+        assert pop.property("cur") == 3
+        # a real move of the pointer to another row hands the row back to it
+        r = _row(pop, 5)
+        p = r.mapToItem(win.contentItem(), QPointF(r.width() / 2, r.height() / 2))
+        QTest.mouseMove(win, p.toPoint() + QPoint(3, 0))
+        _spin(300)
+        assert pop.property("cur") == 5
+        _close(win)
+    finally:
+        for i in ids:
+            b.deleteLook(i)
+        b.discardChanges()
+
+
 def _row(pop, index):
     """The list row with this index (the rows are the items that carry `modelData`)."""
     todo = [pop.property("contentItem")]

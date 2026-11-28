@@ -123,6 +123,9 @@ FocusScope {
         id: popup
         property int cur: 0
         property bool kbd: false
+        // Where the pointer last was: the list moving under a resting pointer is not the pointer moving.
+        property real lastX: -1
+        property real lastY: -1
         readonly property real itemH: 36
         parent: root
         x: root.width - width
@@ -269,7 +272,15 @@ FocusScope {
                     HoverHandler {
                         id: rowHover
                         cursorShape: Qt.PointingHandCursor
-                        onHoveredChanged: if (hovered) { popup.kbd = false; popup.cur = row.index }
+                        onHoveredChanged: if (hovered && !popup.kbd) popup.cur = row.index
+                        onPointChanged: {
+                            const p = point.scenePosition
+                            if (p.x === popup.lastX && p.y === popup.lastY) return
+                            popup.lastX = p.x
+                            popup.lastY = p.y
+                            popup.kbd = false
+                            if (hovered) popup.cur = row.index
+                        }
                     }
                     LgToolTip {
                         shown: popup.visible && (rowHover.hovered || (keys.activeFocus && row.lit && !rowHover.hovered && popup.kbd))
