@@ -162,3 +162,83 @@ def test_app_windows_in_the_preview_get_no_colour_bleed(preview):
     assert len(windows) == 2                    # Files and the terminal
     assert [w.property("bleed") for w in windows] == [0, 0]
     assert any(g.property("bleed") > 0.3 for g in glass if not g.property("rimOnTop"))
+
+
+# ---- dates and times ------------------------------------------------------------------------
+
+@pytest.fixture
+def speaking(qml):
+    """Run a test with a session locale and the app's language, as app.py sets them."""
+    from PySide6.QtCore import QLocale
+    before = QLocale()
+
+    def set_(session: str, app_language: str):
+        QLocale.setDefault(QLocale(session))
+        qml.setUiLanguage(app_language)
+    yield set_
+    QLocale.setDefault(before)
+    qml.setUiLanguage("")
+
+
+def _texts(qml, kind: str, **props) -> list[str]:
+    """The visible texts of a preview at Saturday 28 November 2026, 14:06."""
+    extra = "".join(f"; {k}: {v!r}".replace("'", '"') for k, v in props.items())
+    obj = _component(qml, f"""
+import QtQuick
+import FedoraGlass
+import FedoraGlass.Core
+{kind} {{ width: 960; height: 540; now: new Date(2026, 10, 28, 14, 6){extra} }}
+""".encode(), f"{kind}-test.qml")
+    try:
+        texts = [it.property("text") for it in _items(obj) if it.isVisible() and _is_text(it)]
+        if kind == "PreviewDesktop":
+            texts.append(obj.property("clock"))
+        return [t for t in texts if t]
+    finally:
+        obj.deleteLater()
+
+
+def _is_text(item) -> bool:
+    mo = item.metaObject()
+    while mo is not None:
+        if mo.className() == "QQuickText":
+            return True
+        mo = mo.superClass()
+    return False
+
+
+@pytest.mark.parametrize("kind", ["PreviewDesktop", "LockPreview"])
+def test_the_previews_speak_german_with_a_24_hour_clock(qml, speaking, kind):
+    speaking("de_DE", "de")
+    texts = _texts(qml, kind, **({"scene": "calendar"} if kind == "PreviewDesktop" else {}))
+    joined = " | ".join(texts)
+    assert "Samstag" in joined and "November" in joined, joined
+    assert "14:06" in joined, joined
+    assert "Saturday" not in joined and "Nov 28" not in joined and "PM" not in joined, joined
+
+
+def test_the_preview_follows_the_apps_language_also_when_the_session_is_english(qml, speaking):
+    """--lang de (or a German LANGUAGE over an English LANG) shows German dates, with the
+    session's own 12- or 24-hour clock."""
+    speaking("en_US", "de")
+    texts = _texts(qml, "PreviewDesktop", scene="calendar")
+    joined = " | ".join(texts)
+    assert "Samstag" in joined and "28. November 2026" in joined, joined
+    assert texts[-1] == "28. Nov.  2:06 PM"
+
+
+def test_an_american_session_gets_the_12_hour_clock_in_both_previews(qml, speaking):
+    speaking("en_US", "en")
+    assert _texts(qml, "PreviewDesktop")[-1] == "Nov 28  2:06 PM"
+    lock = _texts(qml, "LockPreview")
+    assert "2:06" in lock and "14:06" not in lock, lock      # GNOME's lock clock: no AM/PM
+    assert "Saturday, November 28" in lock, lock
+
+
+def test_both_previews_show_the_same_time(qml, speaking):
+    import re
+    for session, lang in (("de_DE", "de"), ("en_US", "en"), ("fr_FR", "fr"), ("C", "en")):
+        speaking(session, lang)
+        desk = re.search(r"\d{1,2}:\d\d", _texts(qml, "PreviewDesktop")[-1]).group()
+        lock = [t for t in _texts(qml, "LockPreview") if re.fullmatch(r"\d{1,2}:\d\d", t)]
+        assert lock == [desk], (session, desk, lock)

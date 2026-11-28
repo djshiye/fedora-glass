@@ -55,6 +55,27 @@ Item {
     readonly property bool inView: visible && Window.window !== null && Window.window.visible
                                      && Window.window.visibility !== Window.Minimized
     Timer { id: tick; interval: 30000; running: root.inView; repeat: true; onTriggered: root.now = new Date() }
+    // Dates and times as GNOME shows them: in the app's language (in the session's own locale
+    // when that speaks it, so its order is kept) and with the session's 12- or 24-hour clock.
+    // The same in PreviewDesktop.qml and LockPreview.qml, so both previews tell one time.
+    readonly property var loc: {
+        const ui = Qt.uiLanguage.split("_")[0]
+        return !ui || Qt.locale().name.split("_")[0] === ui ? Qt.locale() : Qt.locale(Qt.uiLanguage)
+    }
+    readonly property bool h12: Qt.locale().timeFormat(Locale.ShortFormat).replace(/'[^']*'/g, "").search(/a/i) >= 0
+    // Without AM/PM, as on GNOME's lock screen ("h" alone counts to 23 in Qt).
+    function hm(d, ampm) {
+        return !h12 ? d.toLocaleString(loc, "HH:mm") : ampm ? d.toLocaleString(loc, "h:mm AP")
+             : (d.getHours() % 12 || 12) + d.toLocaleString(loc, ":mm")
+    }
+    // The locale's long date, with or without the weekday and the year, its month cut short or not.
+    function dateText(d, weekday, year, shortMonth) {
+        let f = loc.dateFormat(Locale.LongFormat)
+        if (!weekday) f = f.replace(/,?\s*dddd,?/, " ")
+        if (!year) f = f.replace(/,?\s*(?:'[^']*'\s*)?y+\.?/, " ")
+        if (shortMonth) f = f.replace("MMMM", "MMM")
+        return d.toLocaleString(loc, f.trim())
+    }
     function greeting() {
         const h = now.getHours()
         return h >= 5 && h < 12 ? qsTr("Good morning") : h >= 12 && h < 17 ? qsTr("Good afternoon")
@@ -133,7 +154,7 @@ Item {
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 topPadding: Backend.lockGreeting ? 0 : root.u(42)
-                text: Qt.formatTime(root.now, Qt.locale().timeFormat(Locale.ShortFormat).indexOf("AP") >= 0 ? "h:mm" : "HH:mm")
+                text: root.hm(root.now)
                 color: "white"
                 font.pixelSize: root.pt(root.clockLook.time)
                 font.weight: root.clockLook.timeW
@@ -141,7 +162,7 @@ Item {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDate(root.now, "dddd MMMM d")
+                text: root.dateText(root.now, true)
                 color: "white"
                 font.pixelSize: root.pt(root.clockLook.date)
                 font.weight: root.clockLook.dateW
@@ -376,7 +397,7 @@ Item {
             visible: login.clock === null
             anchors.horizontalCenter: parent.horizontalCenter
             y: root.u(8)
-            text: Qt.formatDateTime(root.now, "ddd d MMM  " + (Qt.locale().timeFormat(Locale.ShortFormat).indexOf("AP") >= 0 ? "h:mm AP" : "HH:mm"))
+            text: root.now.toLocaleString(root.loc, "ddd ") + root.dateText(root.now, false, false, true) + "  " + root.hm(root.now, true)
             color: "white"
             font.pixelSize: root.pt(11)
             font.weight: Font.Bold
@@ -393,7 +414,7 @@ Item {
             Text {
                 visible: login.clock !== null
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatTime(root.now, Qt.locale().timeFormat(Locale.ShortFormat).indexOf("AP") >= 0 ? "h:mm" : "HH:mm")
+                text: root.hm(root.now)
                 color: "white"
                 font.pixelSize: root.pt(login.clock ? login.clock.time : 64)
                 font.weight: login.clock ? login.clock.timeW : Font.ExtraBold
@@ -403,7 +424,7 @@ Item {
                 visible: login.clock !== null
                 anchors.horizontalCenter: parent.horizontalCenter
                 topPadding: -root.u(14)
-                text: Qt.formatDate(root.now, "dddd MMMM d")
+                text: root.dateText(root.now, true)
                 color: "white"
                 font.pixelSize: root.pt(16)
                 font.weight: login.clock ? login.clock.dateW : Font.Normal

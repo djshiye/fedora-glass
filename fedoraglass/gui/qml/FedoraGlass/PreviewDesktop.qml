@@ -101,7 +101,7 @@ Item {
     readonly property color fgDim: t.fg_dim || "white"
     readonly property color fgFaint: t.fg_faint || "white"
     readonly property color folderBlue: dark ? "#62a0ea" : "#438de6"
-    readonly property string clock: Qt.formatDate(now, "MMM d") + "  " + Qt.formatTime(now, "h:mm AP")
+    readonly property string clock: dateText(now, false, false, true) + "  " + hm(now, true)
     // The panel clock and the calendar keep time: a tick on each new minute, only while
     // the preview is on screen (no timer runs for a hidden or minimized window).
     property date now: new Date()
@@ -115,6 +115,28 @@ Item {
         interval: 60000 - (root.now.getSeconds() * 1000 + root.now.getMilliseconds()) + 50
         onRunningChanged: if (running) root.now = new Date()
         onTriggered: root.now = new Date()
+    }
+
+    // Dates and times as GNOME shows them: in the app's language (in the session's own locale
+    // when that speaks it, so its order is kept) and with the session's 12- or 24-hour clock.
+    // The same in PreviewDesktop.qml and LockPreview.qml, so both previews tell one time.
+    readonly property var loc: {
+        const ui = Qt.uiLanguage.split("_")[0]
+        return !ui || Qt.locale().name.split("_")[0] === ui ? Qt.locale() : Qt.locale(Qt.uiLanguage)
+    }
+    readonly property bool h12: Qt.locale().timeFormat(Locale.ShortFormat).replace(/'[^']*'/g, "").search(/a/i) >= 0
+    // Without AM/PM, as on GNOME's lock screen ("h" alone counts to 23 in Qt).
+    function hm(d, ampm) {
+        return !h12 ? d.toLocaleString(loc, "HH:mm") : ampm ? d.toLocaleString(loc, "h:mm AP")
+             : (d.getHours() % 12 || 12) + d.toLocaleString(loc, ":mm")
+    }
+    // The locale's long date, with or without the weekday and the year, its month cut short or not.
+    function dateText(d, weekday, year, shortMonth) {
+        let f = loc.dateFormat(Locale.LongFormat)
+        if (!weekday) f = f.replace(/,?\s*dddd,?/, " ")
+        if (!year) f = f.replace(/,?\s*(?:'[^']*'\s*)?y+\.?/, " ")
+        if (shortMonth) f = f.replace("MMMM", "MMM")
+        return d.toLocaleString(loc, f.trim())
     }
 
     function withAlpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -1248,8 +1270,8 @@ Item {
             x: cal.split + root.u(20); y: cal.pad
             width: cal.width - cal.split - root.u(20) - cal.pad
             spacing: root.u(10)
-            Label { text: Qt.formatDate(cal.today, "dddd"); color: cal.fgC; opacity: 0.7; font.pixelSize: root.u(14) }
-            Label { text: Qt.formatDate(cal.today, "MMMM d yyyy"); color: cal.fgC; font.weight: Font.Bold; font.pixelSize: root.u(20) }
+            Label { text: cal.today.toLocaleString(root.loc, "dddd"); color: cal.fgC; opacity: 0.7; font.pixelSize: root.u(14) }
+            Label { text: root.dateText(cal.today, false, true); color: cal.fgC; font.weight: Font.Bold; font.pixelSize: root.u(20) }
             Grid {
                 columns: 7
                 columnSpacing: 0; rowSpacing: root.u(4)
