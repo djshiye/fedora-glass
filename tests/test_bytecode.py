@@ -391,13 +391,14 @@ def _arch_calls(tmp_path, func):
 def test_arch_never_makes_byte_code_that_would_block_the_next_upgrade(tmp_path):
     # pacman refuses to write over a file no package owns: byte code made on the PC for a newer
     # Python would stop the next upgrade, whose package ships exactly those files. So Arch only
-    # drops what is not the package's own, on a removal.
-    assert _arch_calls(tmp_path, "post_install") == []
-    assert _arch_calls(tmp_path, "post_upgrade") == []
+    # drops what is not the package's own: on a removal, and after every install and update
+    # (what a root run of an older release left could run old code, or block a later upgrade).
+    assert _arch_calls(tmp_path, "post_install") == ["fedora-glass-bytecode drop"]
+    assert _arch_calls(tmp_path, "post_upgrade") == ["fedora-glass-bytecode drop"]
     assert _arch_calls(tmp_path, "pre_remove") == ["fedora-glass-login off", "fedora-glass-bytecode drop"]
     assert _arch_calls(tmp_path, "post_remove") == []
     text = (PKG / "arch/fedora-glass.install").read_text()
-    assert "bytecode fit" not in text and text.count(DROP) == 1
+    assert "bytecode fit" not in text and text.count(DROP) == 1      # one helper, called three times
 
 
 def test_the_script_passes_shellcheck():

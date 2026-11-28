@@ -1,8 +1,18 @@
+# Byte code in the code folder that this package did not ship: written by root runs of
+# releases up to 1.7.10 while the PC's Python was newer than the package's. Python trusts such
+# a file by date and size alone, so it could run old code after an update, and pacman would
+# refuse a later package that ships a file of that name. Taken away after every install and
+# update; the package's own byte code is never touched.
+fg_drop_stray_byte_code() {
+    /usr/libexec/fedora-glass-bytecode drop >/dev/null 2>&1 || :
+}
+
 post_install() {
     # Turn the dark/light watcher on for everyone's sessions.
     systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
     # Unlike the rpm and the .deb, no byte code is made here for this PC's Python: pacman refuses
     # to write over files no package owns, so byte code made on the PC would block the next upgrade.
+    fg_drop_stray_byte_code
 }
 
 post_upgrade() {
@@ -10,6 +20,7 @@ post_upgrade() {
     # rules with the colours of their last Apply, so no Apply or password is needed after an
     # update. Each user's own desktop parts follow at their next login (fedora-glass watch).
     /usr/libexec/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
+    fg_drop_stray_byte_code
 }
 
 pre_remove() {
@@ -33,9 +44,8 @@ pre_remove() {
         rm -f /var/lib/fedora-glass/login/.lock || :
         rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || :
     fi
-    # Byte code the package does not own (left by root runs of older releases), so pacman can
-    # take the folder away.
-    /usr/libexec/fedora-glass-bytecode drop >/dev/null 2>&1 || :
+    # The same before a removal, so pacman can take the folder away.
+    fg_drop_stray_byte_code
 }
 
 post_remove() {
