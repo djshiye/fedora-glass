@@ -127,16 +127,43 @@ FocusScope {
         parent: root
         x: root.width - width
         padding: 6
-        margins: 10
+        // Keeps clear of the window's transparent shadow edge as well as of the window.
+        readonly property real edge: 10 + (root.Window.window && root.Window.window.margin !== undefined ? root.Window.window.margin : 0)
+        margins: edge
         width: Math.max(root.width, 210, Math.min(root._listWants, root.listMax))
-        height: list.implicitHeight + 12
-        // Open under the button, or above it when there is no room below.
-        y: {
+        // As tall as the names need, or as tall as the room on the side it opens to: a long list scrolls.
+        // The rows are not made until the list shows, so their height is counted from the model.
+        readonly property real wanted: root.model.length * itemH + 12
+        property real room: 0
+        height: Math.min(wanted, room > 0 ? room : (C.Overlay.overlay ? Math.max(itemH, C.Overlay.overlay.height - 2 * edge) : 100000))
+        // Open under the button, or above it when there is no room below. Worked out each time it
+        // opens: a binding would not see the page scroll under it.
+        y: root.height + 6
+        function place() {
             const win = C.Overlay.overlay
-            if (!win) return root.height + 6
-            const below = root.mapToItem(win, 0, root.height + 6 + height).y
-            return below > win.height - 10 ? -height - 6 : root.height + 6
+            const want = wanted
+            room = 0
+            let up = false
+            if (win) {
+                const top = root.mapToItem(win, 0, 0).y
+                const below = win.height - edge - (top + root.height + 6)
+                const above = top - 6 - edge
+                if (want > below) {
+                    up = above > below
+                    const avail = Math.floor(up ? above : below)
+                    room = avail >= want ? 0 : Math.max(itemH, avail)
+                }
+            }
+            y = up ? -height - 6 : root.height + 6
         }
+        // Puts the row the keys are on inside the visible part of a long list.
+        function reveal() {
+            const view = height - 12
+            const top = cur * itemH
+            if (top < scroller.contentY) scroller.contentY = top
+            else if (top + itemH > scroller.contentY + view) scroller.contentY = top + itemH - view
+        }
+        onAboutToShow: { place(); scroller.contentY = 0; reveal() }
         closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutsideParent
         focus: true
         onOpened: { kbd = root.activeFocus && !root._byMouse; keys.forceActiveFocus() }
@@ -165,10 +192,10 @@ FocusScope {
             implicitHeight: list.implicitHeight
             Keys.onPressed: (e) => {
                 popup.kbd = true
-                if (e.key === Qt.Key_Down) { popup.cur = Math.min(root.model.length - 1, popup.cur + 1); e.accepted = true }
-                else if (e.key === Qt.Key_Up) { popup.cur = Math.max(0, popup.cur - 1); e.accepted = true }
-                else if (e.key === Qt.Key_Home) { popup.cur = 0; e.accepted = true }
-                else if (e.key === Qt.Key_End) { popup.cur = root.model.length - 1; e.accepted = true }
+                if (e.key === Qt.Key_Down) { popup.cur = Math.min(root.model.length - 1, popup.cur + 1); popup.reveal(); e.accepted = true }
+                else if (e.key === Qt.Key_Up) { popup.cur = Math.max(0, popup.cur - 1); popup.reveal(); e.accepted = true }
+                else if (e.key === Qt.Key_Home) { popup.cur = 0; popup.reveal(); e.accepted = true }
+                else if (e.key === Qt.Key_End) { popup.cur = root.model.length - 1; popup.reveal(); e.accepted = true }
                 else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
                     root.activated(root.model[popup.cur].value)
                     popup.close()
@@ -176,9 +203,19 @@ FocusScope {
                 }
             }
 
+            // A long list (many saved looks) scrolls inside the window.
+            Flickable {
+            id: scroller
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: root.model.length * popup.itemH
+            clip: contentHeight > height
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
+            C.ScrollBar.vertical: LgScrollBar {}
             Column {
             id: list
-            width: parent.width
+            width: scroller.width
             spacing: 0
             Repeater {
                 model: root.model
@@ -243,6 +280,7 @@ FocusScope {
                         onTapped: { root.activated(row.modelData.value); popup.close() }
                     }
                 }
+            }
             }
             }
         }
