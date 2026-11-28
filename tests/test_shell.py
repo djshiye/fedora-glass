@@ -15,7 +15,7 @@ from fedoraglass.render import glass as rg
 from fedoraglass.render import shell as rs
 from fedoraglass.settings import Settings
 from fedoraglass.targets import shell as ts
-from fedoraglass.targets.base import GSet, ListEdit, WriteFile
+from fedoraglass.targets.base import GReset, GSet, ListEdit, WriteFile
 
 GRID = [(f, d) for f in (0.0, 0.5, 1.0) for d in (True, False)]
 
@@ -389,6 +389,29 @@ def test_dash_to_panel_hover_colour_is_clear_while_the_highlight_glides(fake_env
         return found[0]
     assert hover(True) == "'rgba(0,0,0,0)'"
     assert hover(False) != "'rgba(0,0,0,0)'"
+
+
+def test_dash_to_panel_keeps_its_own_hover_when_the_glass_part_is_off(fake_env):
+    """The gliding highlight and the icons' hover motion are drawn by the glass extension.
+    With "Fedora Glass effects" switched off on the Apps page nothing draws them, but Dash to
+    Panel's hover colour was still made clear and its own hover animation still switched off:
+    a taskbar icon under the pointer showed nothing at all."""
+    install(fake_env, ts.DASH_TO_PANEL)
+    def plan(**kw):
+        acts = ts.DashToPanel().plan(context(fake_env, hover_glide=True, motion_dtp_hover_off=True,
+                                             motion={"hover": {"preset": "spring"}}, **kw))
+        colour = [a.value for a in acts if isinstance(a, GSet) and a.key == "highlight-appicon-hover-background-color"]
+        own = [a for a in acts if getattr(a, "key", "") == "animate-appicon-hover"]
+        assert len(colour) == 1 and len(own) == 1
+        return colour[0], own[0]
+    colour, own = plan(targets={"glass": False})
+    assert colour == f"'{context(fake_env).tokens.hover.css}'", "Dash to Panel's own hover tile, in the theme's colour"
+    assert isinstance(own, GReset), "Dash to Panel's own hover animation is left as the user has it"
+    # with the glass part on (said or not), as before
+    for kw in ({}, {"targets": {"glass": True}}, {"targets": {"dash-to-panel": True}}):
+        colour, own = plan(**kw)
+        assert colour == "'rgba(0,0,0,0)'"
+        assert isinstance(own, GSet) and own.value == "false" and own.keep_user_change
 
 
 def test_arcmenu_values_have_the_schema_types(fake_env):
