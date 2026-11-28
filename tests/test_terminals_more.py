@@ -245,6 +245,70 @@ def test_alacritty_general_table_is_found_however_its_header_is_written(header):
     assert rt.alacritty_with_import(out, "/home/u/.config/alacritty/fedora-glass.toml") == out
 
 
+ALA_PATH = "/home/u/.config/alacritty/fedora-glass.toml"
+# The user's file is valid TOML in every one of these, and says something about `general`
+# in a way a line-by-line look can miss.
+ALA_ODD = {
+    "quoted dotted": '"general".live_config_reload = true\n[font]\nsize = 12\n',
+    "single-quoted dotted": "'general'.live_config_reload = true\n[font]\nsize = 12\n",
+    "spaced dotted": "general . live_config_reload = true\n[font]\nsize = 12\n",
+    "dotted after a list that starts a line with a bracket":
+        "sizes = [\n  [1, 2],\n]\ngeneral.live_config_reload = true\n[font]\nsize = 12\n",
+    "a header inside a string": 'note = """\n[general]\n"""\n[font]\nsize = 12\n',
+    "a header inside a string, and the real one": 'note = """\n[general]\n"""\n[general]\nlive_config_reload = true\n',
+    "only a sub-table": "[general.extra]\nx = 1\n[font]\nsize = 12\n",
+    "with a byte order mark": "\ufeff[font]\nsize = 12\n\n[general]\nlive_config_reload = true\n",
+    "a byte order mark, then the header": "\ufeff[general]\nlive_config_reload = true\n[font]\nsize = 12\n",
+    "crlf, quoted dotted": '"general".live_config_reload = true\r\n[font]\r\nsize = 12\r\n',
+}
+
+
+@pytest.mark.parametrize("name", sorted(ALA_ODD))
+def test_alacritty_edit_never_breaks_a_valid_file(name):
+    """A second general table or a second import is an error, and Alacritty then drops the
+    whole file: the user's fonts and keys are gone while Fedora Glass is applied. Whatever way
+    the user's file is written, the edited file is valid and says what theirs said, plus the
+    import."""
+    text = ALA_ODD[name]
+    before = tomllib.loads(text.removeprefix("\ufeff"))
+    out = rt.alacritty_with_import(text, ALA_PATH)
+    assert out is not None, "this file can take the import"
+    after = tomllib.loads(out.removeprefix("\ufeff"))
+    assert after == {**before, "general": {**before.get("general", {}), "import": [ALA_PATH]}}
+    from fedoraglass.render.apps import without_block
+    assert without_block(out, rt.BLOCK_BEGIN, rt.BLOCK_END) == text         # Restore: byte for byte
+    assert rt.alacritty_with_import(out, ALA_PATH) == out                   # a second Apply: the same
+
+
+@pytest.mark.parametrize("text", [
+    '[general]\n"import" = ["/x.toml"]\n',                 # the user's own import, its name in quotes
+    "[general]\n'import' = ['/x.toml']\n",
+    'general . import = ["/x.toml"]\n',
+    '"general"."import" = ["/x.toml"]\n',
+    '"general" . import = ["/x.toml"]\n[font]\nsize = 12\n',
+    'import = ["/x.toml"]\n',                               # where Alacritty had it before 0.14
+    '\ufeffgeneral.import = ["/x.toml"]\n',
+    '"general" = { live_config_reload = true }\n',          # an inline table cannot be added to
+    "general = 5\n",                                        # not a table at all
+    "[[general]]\nx = 1\n",
+])
+def test_alacritty_file_that_cannot_take_the_import_is_left_alone(text):
+    tomllib.loads(text.removeprefix("\ufeff"))               # valid TOML, every one
+    assert rt.alacritty_with_import(text, ALA_PATH) is None
+
+
+def test_alacritty_file_python_cannot_read_is_still_edited_by_its_lines():
+    """The check reads the file as TOML. A file this Python cannot read (a newer TOML than it
+    knows, or a mistake of the user's) is edited as before, by its lines."""
+    text = "size = 1\nsize = 2\n\n[general]\nlive_config_reload = true\n"
+    with pytest.raises(tomllib.TOMLDecodeError):
+        tomllib.loads(text)
+    out = rt.alacritty_with_import(text, ALA_PATH)
+    lines = out.splitlines()
+    assert lines[lines.index("[general]") + 2] == f'import = ["{ALA_PATH}"]'
+    assert rt.alacritty_with_import(text.replace("[general]", '"general".x = 1\n[general]'), ALA_PATH) is not None
+
+
 def test_alacritty_with_its_own_import_is_not_edited_and_says_so(fake_env):
     main = fake_env.config / "alacritty/alacritty.toml"
     main.parent.mkdir(parents=True)

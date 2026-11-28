@@ -27,6 +27,8 @@ ALA_CASES = {
     "extra": "[general.extra]\nx = 1\n[font]\nsize = 12\n",
     "dotted": "general.live_config_reload = true\n[font]\nsize = 12\n",
     "dotted_crlf": "general.live_config_reload = true\r\n[font]\r\nsize = 12\r\n",
+    "dotted_quoted": '"general".live_config_reload = true\n[font]\nsize = 12\n',
+    "header_spaced": "[font]\nsize = 12\n\n[ general ]\nlive_config_reload = true\n",
     "empty": "",
 }
 
