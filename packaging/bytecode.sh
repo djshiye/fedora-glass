@@ -2,12 +2,14 @@
 # Keeps the byte code in Fedora Glass's code folder right for this PC's Python. Run as root
 # by the package scripts, installed as /usr/libexec/fedora-glass-bytecode:
 #
-#   fedora-glass-bytecode fit    at the end of an install or an update
+#   fedora-glass-bytecode fit    at the end of an install or an update (rpm and .deb only:
+#                                pacman refuses to write over files no package owns, so byte
+#                                code made here would block the next Arch upgrade)
 #   fedora-glass-bytecode drop   on a removal, before the package manager takes the files
 #
 # The package ships the byte code of the Python it was built with and names that Python's
 # cache tag (cpython-314) in bytecode-tag. A PC with another Python (one rpm serves two
-# Fedora releases, Arch after a Python update) cannot use it, and nobody can write next to
+# Fedora releases) cannot use it, and nobody can write next to
 # the code, so every start would compile the whole app again. `fit` compiles for this PC's
 # Python too, hash-checked: Python compares the source's content, never its date, as all
 # files of a release share one date. `drop` takes away all byte code the package did not

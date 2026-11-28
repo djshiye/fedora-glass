@@ -3,8 +3,8 @@ the packages as /usr/libexec/fedora-glass-bytecode).
 
 The packages ship the byte code of the Python they were built with and name its cache tag in
 /usr/share/fedora-glass/bytecode-tag. On a PC with another Python (the rpm built on Fedora 44
-also serves Fedora 45, Arch after a Python update) `fit` compiles for the PC's Python too,
-hash-checked; `drop` takes away what the package did not ship, so a removal leaves nothing.
+also serves Fedora 45) `fit` compiles for the PC's Python too, hash-checked (rpm and .deb only);
+`drop` takes away what the package did not ship, so a removal leaves nothing.
 A tree built by install-tree.sh stands in for the installed folder, and "another Python" is
 made by renaming what was shipped to cpython-399: no second Python is needed.
 """
@@ -386,13 +386,16 @@ def _arch_calls(tmp_path, func):
     return [x for x in (log.read_text().splitlines() if log.exists() else []) if "bytecode" in x or "off" in x]
 
 
-def test_arch_fits_after_an_install_and_an_upgrade_and_drops_on_removal(tmp_path):
-    assert _arch_calls(tmp_path, "post_install") == ["fedora-glass-bytecode fit"]
-    assert _arch_calls(tmp_path, "post_upgrade") == ["fedora-glass-bytecode fit"]
+def test_arch_never_makes_byte_code_that_would_block_the_next_upgrade(tmp_path):
+    # pacman refuses to write over a file no package owns: byte code made on the PC for a newer
+    # Python would stop the next upgrade, whose package ships exactly those files. So Arch only
+    # drops what is not the package's own, on a removal.
+    assert _arch_calls(tmp_path, "post_install") == []
+    assert _arch_calls(tmp_path, "post_upgrade") == []
     assert _arch_calls(tmp_path, "pre_remove") == ["fedora-glass-login off", "fedora-glass-bytecode drop"]
     assert _arch_calls(tmp_path, "post_remove") == []
     text = (PKG / "arch/fedora-glass.install").read_text()
-    assert text.count(FIT) == 2 and text.count(DROP) == 1
+    assert "bytecode fit" not in text and text.count(DROP) == 1
 
 
 def test_the_script_passes_shellcheck():

@@ -1,8 +1,8 @@
 post_install() {
     # Turn the dark/light watcher on for everyone's sessions.
     systemctl --global enable liquid-glass-watch.service >/dev/null 2>&1 || :
-    # Byte code for this PC's own Python when it is not the one the package was built with.
-    /usr/libexec/fedora-glass-bytecode fit >/dev/null 2>&1 || :
+    # Unlike the rpm and the .deb, no byte code is made here for this PC's Python: pacman refuses
+    # to write over files no package owns, so byte code made on the PC would block the next upgrade.
 }
 
 post_upgrade() {
@@ -10,8 +10,6 @@ post_upgrade() {
     # rules with the colours of their last Apply, so no Apply or password is needed after an
     # update. Each user's own desktop parts follow at their next login (fedora-glass watch).
     /usr/libexec/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
-    # Byte code for this PC's own Python when it is not the one the package was built with.
-    /usr/libexec/fedora-glass-bytecode fit >/dev/null 2>&1 || :
 }
 
 pre_remove() {
@@ -35,8 +33,8 @@ pre_remove() {
         rm -f /var/lib/fedora-glass/login/.lock || :
         rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || :
     fi
-    # Byte code the package does not own (made for this PC's Python), so pacman can take the
-    # folder away.
+    # Byte code the package does not own (left by root runs of older releases), so pacman can
+    # take the folder away.
     /usr/libexec/fedora-glass-bytecode drop >/dev/null 2>&1 || :
 }
 
