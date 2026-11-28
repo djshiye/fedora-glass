@@ -116,3 +116,26 @@ def _row(pop, index):
             return it
         todo.extend(it.childItems())
     raise AssertionError(index)
+
+
+# --- the segmented switch shows its ring for the keyboard only ------------------------------
+
+def test_segmented_switch_clicked_with_the_mouse_shows_no_focus_ring(qml):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+    b = _backend(qml)
+    b.discardChanges()
+    win = _window(qml)
+    _goto(win, "glass", 800)
+    seg = _find(win, "previewScene")
+    p = seg.mapToItem(win.contentItem(), QPointF(seg.width() * 0.375, seg.height() / 2))
+    QTest.mouseClick(win, Qt.LeftButton, Qt.NoModifier, p.toPoint())
+    _spin(500)
+    ring = seg.childItems()[-1]
+    assert seg.hasActiveFocus()
+    assert ring.property("opacity") == 0
+    # the keyboard brings it back
+    _key(win, Qt.Key_Right)
+    _spin(400)
+    assert ring.property("opacity") == 1
+    _close(win)
