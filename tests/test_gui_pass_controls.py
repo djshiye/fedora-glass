@@ -416,3 +416,74 @@ def test_arrow_keys_move_along_the_saved_looks(qml):
         for i in ids:
             b.deleteLook(i)
         b.discardChanges()
+
+
+# --- a column cut by a small window fades out at the bottom while there is more below ---------
+
+def test_columns_fade_at_the_bottom_while_there_is_more_below(qml):
+    b = _backend(qml)
+    b.discardChanges()
+    win = _window(qml)
+    try:
+        win.resize(1036, 636)
+        _spin(600)
+        _goto(win, "home", 600)
+        side = _find(win, "homeSideScroller")
+        fade = _find(win, "homeSideMoreBelow")
+        assert side.property("overflows"), "the small window cuts the side column"
+        side.setProperty("contentY", 0)
+        _spin(100)
+        assert fade.property("visible")
+        side.setProperty("contentY", side.property("contentHeight") - side.property("height"))
+        _spin(100)
+        assert not fade.property("visible")
+        _goto(win, "windows", 600)
+        main = _find(win, "windowsScroller")
+        fade = _find(win, "windowsMoreBelow")
+        assert main.property("contentHeight") > main.property("height") + 2
+        main.setProperty("contentY", 0)
+        _spin(100)
+        assert fade.property("visible")
+        main.setProperty("contentY", main.property("contentHeight") - main.property("height"))
+        _spin(100)
+        assert not fade.property("visible")
+    finally:
+        _close(win)
+
+
+def test_the_bottom_fade_stays_off_a_focused_control(qml):
+    from PySide6.QtCore import QPointF, Qt
+    b = _backend(qml)
+    b.discardChanges()
+    win = _window(qml)
+    try:
+        win.resize(1036, 636)
+        _spin(600)
+        _goto(win, "windows", 600)
+        main = _find(win, "windowsScroller")
+        fade = _find(win, "windowsMoreBelow")
+        page = fade.parentItem()
+        zone_top = fade.y()
+        # a focusable control that sits in the fade's strip once scrolled to the right place
+        target = None
+        for cy in range(0, int(main.property("contentHeight") - main.property("height")), 6):
+            main.setProperty("contentY", cy)
+            _spin(30)
+            for it in _walk(main.property("contentItem")):
+                if it.property("activeFocusOnTab") and it.isVisible() and it.width() > 0:
+                    y = it.mapToItem(page, QPointF(0, 0)).y()
+                    if y + it.height() > zone_top and y < zone_top + fade.height():
+                        target = it
+                        break
+            if target is not None:
+                break
+        assert target is not None
+        assert fade.property("visible")
+        target.forceActiveFocus(Qt.MouseFocusReason)      # a click does not scroll it away
+        _spin(100)
+        assert not fade.property("visible")
+        _find(win, "searchField").forceActiveFocus(Qt.TabFocusReason)      # focus moves off the page
+        _spin(100)
+        assert fade.property("visible")
+    finally:
+        _close(win)
