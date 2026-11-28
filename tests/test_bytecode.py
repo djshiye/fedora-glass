@@ -221,7 +221,7 @@ def test_drop_after_a_build_with_the_same_python_keeps_the_rpms_opt_files(tree):
 
 
 @pytest.mark.parametrize("tag", [None, "", "\n", "cpython/314", "..", "../x", "cpython 314", "3python",
-                                 "CPython-314", "cpython-314\nx", "-cpython", "link"])
+                                 "CPython-314", "cpython-314\nx", "-cpython", "link", "cpython-311"])
 def test_an_unusual_tag_makes_both_steps_do_nothing(tree, tmp_path, tag):
     code, script = tree
     _retag(code, OTHER)

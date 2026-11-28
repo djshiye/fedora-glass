@@ -34,6 +34,9 @@ case "$dir" in */|*/.|*/..) exit 0 ;; esac
 { [ -f "$dir/bytecode-tag" ] && ! [ -L "$dir/bytecode-tag" ]; } || exit 0
 tag="$(cat "$dir/bytecode-tag" 2>/dev/null)" || exit 0
 plain "$tag" || exit 0
+# The tag must name byte code the package really shipped, or every shipped file would go.
+{ [ -f "$dir/fedoraglass/__pycache__/__main__.$tag.pyc" ] &&
+    ! [ -L "$dir/fedoraglass/__pycache__/__main__.$tag.pyc" ]; } || exit 0
 
 # Byte code that is not the package's own: Python's cache folders only, real files only.
 find "$dir" -type f -path '*/__pycache__/*.pyc' ! -name "*.$tag.pyc" ! -name "*.$tag.opt-[0-9].pyc" \
