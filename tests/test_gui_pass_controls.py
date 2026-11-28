@@ -21,9 +21,14 @@ def _popup(dd):
 
 
 def _close(win):
+    """Close the window and really free it. A deleteLater outside a running event loop waits
+    for one that never comes in these tests: the hidden window would stay, rebuild its Home for
+    every look the next test saves, and pile up memory until the test run is killed."""
+    from PySide6.QtCore import QCoreApplication, QEvent
     win.setProperty("closeAnyway", True)
     win.close()
     win.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     _spin()
 
 

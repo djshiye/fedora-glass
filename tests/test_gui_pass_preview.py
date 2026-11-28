@@ -51,7 +51,8 @@ DRAW = r"""
 import sys
 from PySide6.QtCore import Property, QObject, QTimer, QUrl
 from PySide6.QtGui import QColor, QGuiApplication
-from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonInstance
+# A process of its own, so its one registration does not touch the test run's (test_qml_fixture.py).
+from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonInstance as register_singleton
 from PySide6.QtQuick import QSGRendererInterface
 
 
@@ -63,7 +64,7 @@ class Ui(QObject):     # what Theme reads from the app
 
 app = QGuiApplication([])
 ui = Ui()
-qmlRegisterSingletonInstance(Ui, "FedoraGlass.Core", 1, 0, "Backend", ui)
+register_singleton(Ui, "FedoraGlass.Core", 1, 0, "Backend", ui)
 engine = QQmlApplicationEngine()
 engine.addImportPath(sys.argv[1])
 engine.loadData(sys.argv[2].encode(), QUrl.fromLocalFile(sys.argv[1] + "/draw-test.qml"))
