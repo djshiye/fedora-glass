@@ -266,6 +266,10 @@ def test_the_rpm_install_makes_every_file_the_tree_makes():
                    "shared module missing", "bad name in shared-modules.txt", "lists nothing"):
         assert needle in tree
     assert 'install -Dm755 "$src/fedoraglass/login_glass.py" "$dest/usr/libexec/fedora-glass-login"' in tree
+    # The byte code step, at the same place in both.
+    assert "install -Dm755 packaging/bytecode.sh /usr/libexec/fedora-glass-bytecode" in inst
+    assert 'install -Dm755 "$src/packaging/bytecode.sh" "$dest/usr/libexec/fedora-glass-bytecode"' in tree
+    assert "/usr/share/fedora-glass/bytecode-tag" in inst and "/usr/share/fedora-glass/bytecode-tag" in tree
     code = lambda t: re.sub(r"(?m)^\s*#.*$", "", t)
     assert "systemctl enable" not in code(tree) and "systemctl enable" not in code(inst)
 
@@ -525,7 +529,7 @@ def test_both_preun_blocks_run_the_same_steps():
 
     def steps(header, guard):
         text = _section(spec, header)
-        m = re.search(rf"^{re.escape(guard)}\n(.*?)^fi$", text, re.M | re.S)
+        m = re.search(rf"^{re.escape(guard)}\n(.*)^fi$", text, re.M | re.S)     # to the last fi: the whole block
         assert m, header
         return m.group(1)
 
@@ -533,6 +537,7 @@ def test_both_preun_blocks_run_the_same_steps():
     bridge = steps("%preun -n liquid-glass",
                    "if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then")
     assert main == bridge and "fedora-glass-login off" in main and "undo-for-users" in main
+    assert "fedora-glass-bytecode drop" in main
     assert steps("%postun", "if [ $1 -eq 0 ]; then") == steps(
         "%postun -n liquid-glass", "if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then")
 
@@ -550,7 +555,8 @@ def test_the_old_name_package_undoes_only_when_it_is_removed_alone(tmp_path, arg
     libexec, var, mark = tmp_path / "libexec", tmp_path / "var", tmp_path / "usr-lib-fedora-glass/main-package"
     libexec.mkdir()
     (var / "liquid-glass").mkdir(parents=True)
-    for n in ("fedora-glass-undo-for-users", "liquid-glass-login-screen", "fedora-glass-login"):
+    for n in ("fedora-glass-undo-for-users", "liquid-glass-login-screen", "fedora-glass-login",
+              "fedora-glass-bytecode"):
         f = libexec / n
         f.write_text(f'#!/bin/sh\necho "{n} $*" >> {log}\n')
         f.chmod(0o755)
@@ -565,7 +571,8 @@ def test_the_old_name_package_undoes_only_when_it_is_removed_alone(tmp_path, arg
         assert r.returncode == 0 and r.stderr == "", r.stderr
     calls = [x.strip() for x in log.read_text().splitlines()] if log.exists() else []
     if runs:
-        assert calls == ["fedora-glass-undo-for-users", "liquid-glass-login-screen undo", "fedora-glass-login off"]
+        assert calls == ["fedora-glass-undo-for-users", "liquid-glass-login-screen undo", "fedora-glass-login off",
+                         "fedora-glass-bytecode drop"]
         assert not (var / "liquid-glass").exists()      # the empty folder goes as well
     else:
         assert calls == [] and (var / "liquid-glass").exists()

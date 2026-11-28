@@ -28,5 +28,8 @@ if [ "$1" = remove ]; then
         rm -f /var/lib/fedora-glass/login/.lock || :
         rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || :
     fi
+    # Byte code the package does not own (made for this PC's Python), so dpkg can take the
+    # folder away.
+    /usr/libexec/fedora-glass-bytecode drop >/dev/null 2>&1 || :
 fi
 exit 0

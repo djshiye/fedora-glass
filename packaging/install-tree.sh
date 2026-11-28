@@ -18,14 +18,17 @@ cp -r "$src/fedoraglass" "$dest/usr/share/fedora-glass/"
 # of it (the same bytes on every build) and the package never changes a .py behind its back.
 find "$dest/usr/share/fedora-glass" -name '__pycache__' -prune -exec rm -rf {} +
 python3 -I -m compileall -q --invalidation-mode unchecked-hash -d /usr/share/fedora-glass "$dest/usr/share/fedora-glass"
+# Which Python that byte code is for: fedora-glass-bytecode (below) compiles for another one.
+python3 -I -c 'import sys; print(sys.implementation.cache_tag)' > "$dest/usr/share/fedora-glass/bytecode-tag"
 find "$dest/usr/share/fedora-glass" -type d -exec chmod 755 {} +
 find "$dest/usr/share/fedora-glass" -type f -exec chmod 644 {} +
 
-# -I keeps Python from importing anything from the current folder or PYTHONPATH.
+# -I keeps Python from importing anything from the current folder or PYTHONPATH; -B keeps a
+# run as root from writing byte code next to the code that no package owns.
 install -d "$dest/usr/bin"
 cat > "$dest/usr/bin/fedora-glass" <<'LAUNCHER'
 #!/bin/sh
-exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from fedoraglass.__main__ import main; sys.exit(main())' "$@"
+exec /usr/bin/python3 -I -B -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from fedoraglass.__main__ import main; sys.exit(main())' "$@"
 LAUNCHER
 chmod 755 "$dest/usr/bin/fedora-glass"
 # The old command name keeps working (older copies of the Shell extension call it).
@@ -92,6 +95,9 @@ ln -sf ../fedora-glass-login-guard-check.path "$dest/usr/lib/systemd/system/grap
 install -Dm755 "$src/packaging/undo-for-users.sh" "$dest/usr/libexec/fedora-glass-undo-for-users"
 # And this: stops the dark/light watcher in running sessions (the rpm's macros do it there).
 install -Dm755 "$src/packaging/stop-watchers.sh" "$dest/usr/libexec/fedora-glass-stop-watchers"
+# And this, run after an install or an update and before a removal: byte code for this PC's
+# own Python, and none left that the package does not own.
+install -Dm755 "$src/packaging/bytecode.sh" "$dest/usr/libexec/fedora-glass-bytecode"
 
 install -d "$dest/usr/lib/systemd/user"
 cat > "$dest/usr/lib/systemd/user/liquid-glass-watch.service" <<'UNIT'

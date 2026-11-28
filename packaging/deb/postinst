@@ -50,6 +50,8 @@ if [ "$1" = configure ]; then
     # rules with the colours of their last Apply, so no Apply or password is needed after an
     # update. Each user's own desktop parts follow at their next login (fedora-glass watch).
     /usr/libexec/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
+    # Byte code for this PC's own Python when it is not the one the package was built with.
+    /usr/libexec/fedora-glass-bytecode fit >/dev/null 2>&1 || :
 fi
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || :
 exit 0

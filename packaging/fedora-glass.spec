@@ -16,6 +16,7 @@ else \
     rm -f /var/lib/fedora-glass/login/.lock || : \
     rmdir /var/lib/fedora-glass/login /var/lib/fedora-glass 2>/dev/null || : \
 fi \
+%{_libexecdir}/fedora-glass-bytecode drop >/dev/null 2>&1 || : \
 %{nil}
 # What %%postun tidies up after those steps.
 %define fg_remove_tidy \
@@ -115,12 +116,15 @@ cp -r fedoraglass %{buildroot}%{_datadir}/fedora-glass/
 # in memory. (Fedora byte-compiles only the system Python folders by itself.)
 find %{buildroot}%{_datadir}/fedora-glass -name '__pycache__' -prune -exec rm -rf {} +
 %py_byte_compile %{python3} %{buildroot}%{_datadir}/fedora-glass
+# Which Python that byte code is for: fedora-glass-bytecode (below) compiles for another one.
+%{python3} -I -c 'import sys; print(sys.implementation.cache_tag)' > %{buildroot}%{_datadir}/fedora-glass/bytecode-tag
 
-# -I keeps Python from importing anything from the current folder or PYTHONPATH.
+# -I keeps Python from importing anything from the current folder or PYTHONPATH; -B keeps a
+# run as root from writing byte code next to the code that no package owns.
 install -d %{buildroot}%{_bindir}
 cat > %{buildroot}%{_bindir}/fedora-glass <<'LAUNCHER'
 #!/bin/sh
-exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from fedoraglass.__main__ import main; sys.exit(main())' "$@"
+exec /usr/bin/python3 -I -B -c 'import sys; sys.path.insert(0, "/usr/share/fedora-glass"); from fedoraglass.__main__ import main; sys.exit(main())' "$@"
 LAUNCHER
 chmod 755 %{buildroot}%{_bindir}/fedora-glass
 # The old command name keeps working (older copies of the Shell extension call it).
@@ -179,6 +183,9 @@ ln -s ../fedora-glass-login-guard-check.path %{buildroot}%{_unitdir}/graphical.t
 
 # dnf remove runs this first: Restore original for each person with a look applied, as them.
 install -Dm755 packaging/undo-for-users.sh %{buildroot}%{_libexecdir}/fedora-glass-undo-for-users
+# Run after an install or an update and before a removal: byte code for this PC's own Python,
+# and none left that the package does not own.
+install -Dm755 packaging/bytecode.sh %{buildroot}%{_libexecdir}/fedora-glass-bytecode
 
 # Re-applies the parts that can't follow GNOME's dark/light switch by themselves.
 # The unit keeps its old file name, so an upgrade leaves it turned on as it was.
@@ -289,6 +296,8 @@ fi
 # rules with the colours of their last Apply, so no Apply or password is needed after an
 # update. Each user's own desktop parts follow at their next login (fedora-glass watch).
 %{_libexecdir}/liquid-glass-login-screen refresh >/dev/null 2>&1 || :
+# Byte code for this PC's own Python when it is not the one the package was built with.
+%{_libexecdir}/fedora-glass-bytecode fit >/dev/null 2>&1 || :
 :
 
 %triggerpostun -- liquid-glass < %{fg_evr}
@@ -312,6 +321,10 @@ if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then
 %{fg_remove_steps}
 fi
 
+%posttrans -n liquid-glass
+# Byte code for this PC's own Python when it is not the one the package was built with.
+%{_libexecdir}/fedora-glass-bytecode fit >/dev/null 2>&1 || :
+
 %postun -n liquid-glass
 if [ $1 -eq 0 ] && [ ! -e %{_prefix}/lib/fedora-glass/main-package ]; then
 %{fg_remove_tidy}
@@ -334,6 +347,7 @@ fi
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
+%{_libexecdir}/fedora-glass-bytecode
 %dir %{_prefix}/lib/fedora-glass
 %{_prefix}/lib/fedora-glass/main-package
 %{_libexecdir}/fedora-glass-login
@@ -368,6 +382,7 @@ fi
 %{_userpresetdir}/80-liquid-glass.preset
 %{_libexecdir}/liquid-glass-login-screen
 %{_libexecdir}/fedora-glass-undo-for-users
+%{_libexecdir}/fedora-glass-bytecode
 %{_libexecdir}/fedora-glass-login
 %dir %{_datadir}/gdm
 %dir %{_datadir}/gdm/greeter
