@@ -837,6 +837,10 @@ Window {
                         visible: !Backend.busy && footerStatus.fits
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.min(implicitWidth, Math.max(0, footerStatus.spare))
+                        // A sentence too long for its room (German at the smallest window) goes on
+                        // two lines before any of it is cut.
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
                         elide: Text.ElideRight
                         text: ({ dirty: Backend.changeCount === 1 ? qsTr("1 change not applied yet")
                                         : Backend.changeCount > 1 ? qsTr("%1 changes not applied yet").arg(Backend.changeCount)

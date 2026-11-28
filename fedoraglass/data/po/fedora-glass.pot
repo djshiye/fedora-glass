@@ -912,7 +912,7 @@ msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:25
 #: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:57
-#: fedoraglass/gui/qml/Main.qml:943
+#: fedoraglass/gui/qml/Main.qml:947
 msgid "Apply"
 msgstr ""
 
@@ -3505,7 +3505,7 @@ msgid "Remove Fedora Glass…"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:29
-#: fedoraglass/gui/qml/Main.qml:899
+#: fedoraglass/gui/qml/Main.qml:903
 msgid "Removing Fedora Glass…"
 msgstr ""
 
@@ -3742,7 +3742,7 @@ msgid "The look wasn't saved"
 msgstr ""
 
 #: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:298
-#: fedoraglass/gui/qml/Main.qml:1093
+#: fedoraglass/gui/qml/Main.qml:1097
 msgid "OK"
 msgstr ""
 
@@ -4882,79 +4882,79 @@ msgstr ""
 msgid "apps without windows no glass skip exclude games video steam list more solid clearer strength per app"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1013
+#: fedoraglass/gui/qml/Main.qml:1017
 msgid "Changes undone"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1013
+#: fedoraglass/gui/qml/Main.qml:1017
 msgid "Put back"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1033
+#: fedoraglass/gui/qml/Main.qml:1037
 msgid "Restore your original look?"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1034
+#: fedoraglass/gui/qml/Main.qml:1038
 msgid "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1053
+#: fedoraglass/gui/qml/Main.qml:1057
 msgid "Apply your changes before closing?"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1054
+#: fedoraglass/gui/qml/Main.qml:1058
 msgid "You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1061
+#: fedoraglass/gui/qml/Main.qml:1065
 msgid "Close without applying"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1068
+#: fedoraglass/gui/qml/Main.qml:1072
 msgid "Apply and close"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1084
+#: fedoraglass/gui/qml/Main.qml:1088
 msgid "Fedora Glass is being removed"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1084
+#: fedoraglass/gui/qml/Main.qml:1088
 msgid "Your look is being applied"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1085
+#: fedoraglass/gui/qml/Main.qml:1089
 msgid "The login screen is being updated"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1085
+#: fedoraglass/gui/qml/Main.qml:1089
 msgid "Your original look is coming back"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1086
+#: fedoraglass/gui/qml/Main.qml:1090
 msgid "Closing now could stop it half way. Fedora Glass tells you when it's done."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1087
+#: fedoraglass/gui/qml/Main.qml:1091
 msgid "It waits for your password. Closing now would stop it half way."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1088
+#: fedoraglass/gui/qml/Main.qml:1092
 msgid "Closing now would stop it half way. It only takes a moment."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1093
+#: fedoraglass/gui/qml/Main.qml:1097
 msgid "Keep open"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1100
+#: fedoraglass/gui/qml/Main.qml:1104
 msgid "Close when done"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1120
+#: fedoraglass/gui/qml/Main.qml:1124
 msgid "Some things could not be restored"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:1121
+#: fedoraglass/gui/qml/Main.qml:1125
 msgid "Everything else is back. These need a look:"
 msgstr ""
 
@@ -5044,7 +5044,7 @@ msgid "Maximize"
 msgstr ""
 
 #: fedoraglass/gui/qml/Main.qml:361
-#: fedoraglass/gui/qml/Main.qml:1041
+#: fedoraglass/gui/qml/Main.qml:1045
 msgid "Restore"
 msgstr ""
 
@@ -5096,107 +5096,107 @@ msgstr ""
 msgid "Write the Fedora Glass look again. Nothing else changes."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:841
+#: fedoraglass/gui/qml/Main.qml:845
 msgid "1 change not applied yet"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:842
+#: fedoraglass/gui/qml/Main.qml:846
 msgid "%1 changes not applied yet"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:843
+#: fedoraglass/gui/qml/Main.qml:847
 msgid "Unapplied changes"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:844
+#: fedoraglass/gui/qml/Main.qml:848
 msgid "1 part didn't change."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:845
+#: fedoraglass/gui/qml/Main.qml:849
 msgid "%1 parts didn't change."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:846
+#: fedoraglass/gui/qml/Main.qml:850
 msgid "Login screen needs Apply"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:846
+#: fedoraglass/gui/qml/Main.qml:850
 msgid "Needs re-apply"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:847
+#: fedoraglass/gui/qml/Main.qml:851
 msgid "Not applied yet"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:847
+#: fedoraglass/gui/qml/Main.qml:851
 msgid "Restart to finish"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:847
+#: fedoraglass/gui/qml/Main.qml:851
 msgid "Up to date"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:862
+#: fedoraglass/gui/qml/Main.qml:866
 msgid "Restart…"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:863
+#: fedoraglass/gui/qml/Main.qml:867
 msgid "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:875
+#: fedoraglass/gui/qml/Main.qml:879
 msgid "See what happened"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:876
+#: fedoraglass/gui/qml/Main.qml:880
 msgid "What applied, and what went wrong with the rest"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:888
+#: fedoraglass/gui/qml/Main.qml:892
 msgid "Undo"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:890
+#: fedoraglass/gui/qml/Main.qml:894
 msgid "Go back to the last look that applied fully (Ctrl+Z)"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:891
+#: fedoraglass/gui/qml/Main.qml:895
 msgid "Go back to the look you applied last (Ctrl+Z)"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:900
+#: fedoraglass/gui/qml/Main.qml:904
 msgid "Applying %1…"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:901
+#: fedoraglass/gui/qml/Main.qml:905
 msgid "Restoring your original look…"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:902
+#: fedoraglass/gui/qml/Main.qml:906
 msgid "Cleaning up the old copy…"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:903
+#: fedoraglass/gui/qml/Main.qml:907
 msgid "Working out the changes…"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:931
+#: fedoraglass/gui/qml/Main.qml:935
 msgid "See changes"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:935
+#: fedoraglass/gui/qml/Main.qml:939
 msgid "What you changed and haven't applied yet, and every file and setting Apply writes"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:949
+#: fedoraglass/gui/qml/Main.qml:953
 msgid "Save and apply the look everywhere (Ctrl+Enter)"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:975
+#: fedoraglass/gui/qml/Main.qml:979
 msgid "Closing once the login screen has your new look"
 msgstr ""
 
-#: fedoraglass/gui/qml/Main.qml:987
+#: fedoraglass/gui/qml/Main.qml:991
 msgid "Your original look is back"
 msgstr ""
 

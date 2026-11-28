@@ -912,7 +912,7 @@ msgstr "Zurück zum Look vor Ihrem letzten Anwenden"
 
 #: fedoraglass/gui/qml/FedoraGlass/AboutSheet.qml:25
 #: fedoraglass/gui/qml/FedoraGlass/ChangesSheet.qml:57
-#: fedoraglass/gui/qml/Main.qml:943
+#: fedoraglass/gui/qml/Main.qml:947
 msgid "Apply"
 msgstr "Anwenden"
 
@@ -3505,7 +3505,7 @@ msgid "Remove Fedora Glass…"
 msgstr "Fedora Glass entfernen …"
 
 #: fedoraglass/gui/qml/FedoraGlass/RemoveCard.qml:29
-#: fedoraglass/gui/qml/Main.qml:899
+#: fedoraglass/gui/qml/Main.qml:903
 msgid "Removing Fedora Glass…"
 msgstr "Fedora Glass wird entfernt …"
 
@@ -3742,7 +3742,7 @@ msgid "The look wasn't saved"
 msgstr "Der Look wurde nicht gespeichert"
 
 #: fedoraglass/gui/qml/FedoraGlass/SavedLooks.qml:298
-#: fedoraglass/gui/qml/Main.qml:1093
+#: fedoraglass/gui/qml/Main.qml:1097
 msgid "OK"
 msgstr "OK"
 
@@ -4882,79 +4882,79 @@ msgstr "akku energiesparmodus laptop energie leichter tempo qualität"
 msgid "apps without windows no glass skip exclude games video steam list more solid clearer strength per app"
 msgstr "apps ohne fenster kein glas überspringen ausschließen spiele video steam liste deckender klarer stärke pro app apps without windows no glass skip exclude games video steam list more solid clearer strength per app"
 
-#: fedoraglass/gui/qml/Main.qml:1013
+#: fedoraglass/gui/qml/Main.qml:1017
 msgid "Changes undone"
 msgstr "Änderungen rückgängig gemacht"
 
-#: fedoraglass/gui/qml/Main.qml:1013
+#: fedoraglass/gui/qml/Main.qml:1017
 msgid "Put back"
 msgstr "Zurückholen"
 
-#: fedoraglass/gui/qml/Main.qml:1033
+#: fedoraglass/gui/qml/Main.qml:1037
 msgid "Restore your original look?"
 msgstr "Ihren ursprünglichen Look wiederherstellen?"
 
-#: fedoraglass/gui/qml/Main.qml:1034
+#: fedoraglass/gui/qml/Main.qml:1038
 msgid "Every file and setting Fedora Glass changed goes back to how it was before your first Apply. Your Fedora Glass settings are kept, so you can apply them again later."
 msgstr "Jede Datei und Einstellung, die Fedora Glass geändert hat, kehrt in den Zustand vor Ihrem ersten Anwenden zurück. Ihre Fedora-Glass-Einstellungen bleiben erhalten, Sie können sie später erneut anwenden."
 
-#: fedoraglass/gui/qml/Main.qml:1053
+#: fedoraglass/gui/qml/Main.qml:1057
 msgid "Apply your changes before closing?"
 msgstr "Änderungen vor dem Schließen anwenden?"
 
-#: fedoraglass/gui/qml/Main.qml:1054
+#: fedoraglass/gui/qml/Main.qml:1058
 msgid "You changed the look but haven't applied it yet. If you close now, those changes are lost and your desktop keeps the look you applied last."
 msgstr "Sie haben den Look geändert, aber noch nicht angewendet. Wenn Sie jetzt schließen, gehen diese Änderungen verloren, und Ihr Desktop behält den zuletzt angewendeten Look."
 
-#: fedoraglass/gui/qml/Main.qml:1061
+#: fedoraglass/gui/qml/Main.qml:1065
 msgid "Close without applying"
 msgstr "Ohne Anwenden schließen"
 
-#: fedoraglass/gui/qml/Main.qml:1068
+#: fedoraglass/gui/qml/Main.qml:1072
 msgid "Apply and close"
 msgstr "Anwenden und schließen"
 
-#: fedoraglass/gui/qml/Main.qml:1084
+#: fedoraglass/gui/qml/Main.qml:1088
 msgid "Fedora Glass is being removed"
 msgstr "Fedora Glass wird entfernt"
 
-#: fedoraglass/gui/qml/Main.qml:1084
+#: fedoraglass/gui/qml/Main.qml:1088
 msgid "Your look is being applied"
 msgstr "Ihr Look wird angewendet"
 
-#: fedoraglass/gui/qml/Main.qml:1085
+#: fedoraglass/gui/qml/Main.qml:1089
 msgid "The login screen is being updated"
 msgstr "Der Anmeldebildschirm wird aktualisiert"
 
-#: fedoraglass/gui/qml/Main.qml:1085
+#: fedoraglass/gui/qml/Main.qml:1089
 msgid "Your original look is coming back"
 msgstr "Ihr ursprünglicher Look kommt zurück"
 
-#: fedoraglass/gui/qml/Main.qml:1086
+#: fedoraglass/gui/qml/Main.qml:1090
 msgid "Closing now could stop it half way. Fedora Glass tells you when it's done."
 msgstr "Schließen jetzt könnte es auf halbem Weg stoppen. Fedora Glass sagt Bescheid, wenn es fertig ist."
 
-#: fedoraglass/gui/qml/Main.qml:1087
+#: fedoraglass/gui/qml/Main.qml:1091
 msgid "It waits for your password. Closing now would stop it half way."
 msgstr "Es wartet auf Ihr Passwort. Schließen jetzt würde es auf halbem Weg stoppen."
 
-#: fedoraglass/gui/qml/Main.qml:1088
+#: fedoraglass/gui/qml/Main.qml:1092
 msgid "Closing now would stop it half way. It only takes a moment."
 msgstr "Schließen jetzt würde es auf halbem Weg stoppen. Es dauert nur einen Moment."
 
-#: fedoraglass/gui/qml/Main.qml:1093
+#: fedoraglass/gui/qml/Main.qml:1097
 msgid "Keep open"
 msgstr "Offen lassen"
 
-#: fedoraglass/gui/qml/Main.qml:1100
+#: fedoraglass/gui/qml/Main.qml:1104
 msgid "Close when done"
 msgstr "Danach schließen"
 
-#: fedoraglass/gui/qml/Main.qml:1120
+#: fedoraglass/gui/qml/Main.qml:1124
 msgid "Some things could not be restored"
 msgstr "Einiges konnte nicht wiederhergestellt werden"
 
-#: fedoraglass/gui/qml/Main.qml:1121
+#: fedoraglass/gui/qml/Main.qml:1125
 msgid "Everything else is back. These need a look:"
 msgstr "Alles andere ist zurück. Hier muss man genauer hinsehen:"
 
@@ -5044,7 +5044,7 @@ msgid "Maximize"
 msgstr "Maximieren"
 
 #: fedoraglass/gui/qml/Main.qml:361
-#: fedoraglass/gui/qml/Main.qml:1041
+#: fedoraglass/gui/qml/Main.qml:1045
 msgid "Restore"
 msgstr "Wiederherstellen"
 
@@ -5096,107 +5096,107 @@ msgstr "Erneut anwenden"
 msgid "Write the Fedora Glass look again. Nothing else changes."
 msgstr "Den Fedora-Glass-Look erneut schreiben. Sonst ändert sich nichts."
 
-#: fedoraglass/gui/qml/Main.qml:841
+#: fedoraglass/gui/qml/Main.qml:845
 msgid "1 change not applied yet"
 msgstr "1 Änderung noch nicht angewendet"
 
-#: fedoraglass/gui/qml/Main.qml:842
+#: fedoraglass/gui/qml/Main.qml:846
 msgid "%1 changes not applied yet"
 msgstr "%1 Änderungen noch nicht angewendet"
 
-#: fedoraglass/gui/qml/Main.qml:843
+#: fedoraglass/gui/qml/Main.qml:847
 msgid "Unapplied changes"
 msgstr "Nicht angewendete Änderungen"
 
-#: fedoraglass/gui/qml/Main.qml:844
+#: fedoraglass/gui/qml/Main.qml:848
 msgid "1 part didn't change."
 msgstr "1 Teil hat sich nicht geändert."
 
-#: fedoraglass/gui/qml/Main.qml:845
+#: fedoraglass/gui/qml/Main.qml:849
 msgid "%1 parts didn't change."
 msgstr "%1 Teile haben sich nicht geändert."
 
-#: fedoraglass/gui/qml/Main.qml:846
+#: fedoraglass/gui/qml/Main.qml:850
 msgid "Login screen needs Apply"
 msgstr "Anmeldebildschirm braucht „Anwenden“"
 
-#: fedoraglass/gui/qml/Main.qml:846
+#: fedoraglass/gui/qml/Main.qml:850
 msgid "Needs re-apply"
 msgstr "Erneutes Anwenden nötig"
 
-#: fedoraglass/gui/qml/Main.qml:847
+#: fedoraglass/gui/qml/Main.qml:851
 msgid "Not applied yet"
 msgstr "Noch nicht angewendet"
 
-#: fedoraglass/gui/qml/Main.qml:847
+#: fedoraglass/gui/qml/Main.qml:851
 msgid "Restart to finish"
 msgstr "Neustart zum Abschließen"
 
-#: fedoraglass/gui/qml/Main.qml:847
+#: fedoraglass/gui/qml/Main.qml:851
 msgid "Up to date"
 msgstr "Aktuell"
 
-#: fedoraglass/gui/qml/Main.qml:862
+#: fedoraglass/gui/qml/Main.qml:866
 msgid "Restart…"
 msgstr "Neu starten …"
 
-#: fedoraglass/gui/qml/Main.qml:863
+#: fedoraglass/gui/qml/Main.qml:867
 msgid "The glass on your panel and menus starts when your PC restarts. GNOME asks before it restarts."
 msgstr "Das Glas auf Leiste und Menüs startet beim Neustart des PCs. GNOME fragt vor dem Neustart nach."
 
-#: fedoraglass/gui/qml/Main.qml:875
+#: fedoraglass/gui/qml/Main.qml:879
 msgid "See what happened"
 msgstr "Ansehen, was passiert ist"
 
-#: fedoraglass/gui/qml/Main.qml:876
+#: fedoraglass/gui/qml/Main.qml:880
 msgid "What applied, and what went wrong with the rest"
 msgstr "Was angewendet wurde und was beim Rest schiefging"
 
-#: fedoraglass/gui/qml/Main.qml:888
+#: fedoraglass/gui/qml/Main.qml:892
 msgid "Undo"
 msgstr "Rückgängig"
 
-#: fedoraglass/gui/qml/Main.qml:890
+#: fedoraglass/gui/qml/Main.qml:894
 msgid "Go back to the last look that applied fully (Ctrl+Z)"
 msgstr "Zurück zum letzten vollständig angewendeten Look (Strg+Z)"
 
-#: fedoraglass/gui/qml/Main.qml:891
+#: fedoraglass/gui/qml/Main.qml:895
 msgid "Go back to the look you applied last (Ctrl+Z)"
 msgstr "Zurück zum zuletzt angewendeten Look (Strg+Z)"
 
-#: fedoraglass/gui/qml/Main.qml:900
+#: fedoraglass/gui/qml/Main.qml:904
 msgid "Applying %1…"
 msgstr "%1 wird angewendet …"
 
-#: fedoraglass/gui/qml/Main.qml:901
+#: fedoraglass/gui/qml/Main.qml:905
 msgid "Restoring your original look…"
 msgstr "Ihr ursprünglicher Look wird wiederhergestellt …"
 
-#: fedoraglass/gui/qml/Main.qml:902
+#: fedoraglass/gui/qml/Main.qml:906
 msgid "Cleaning up the old copy…"
 msgstr "Alte Kopie wird aufgeräumt …"
 
-#: fedoraglass/gui/qml/Main.qml:903
+#: fedoraglass/gui/qml/Main.qml:907
 msgid "Working out the changes…"
 msgstr "Änderungen werden ermittelt …"
 
-#: fedoraglass/gui/qml/Main.qml:931
+#: fedoraglass/gui/qml/Main.qml:935
 msgid "See changes"
 msgstr "Änderungen ansehen"
 
-#: fedoraglass/gui/qml/Main.qml:935
+#: fedoraglass/gui/qml/Main.qml:939
 msgid "What you changed and haven't applied yet, and every file and setting Apply writes"
 msgstr "Was Sie geändert, aber noch nicht angewendet haben, sowie jede Datei und Einstellung, die „Anwenden“ schreibt"
 
-#: fedoraglass/gui/qml/Main.qml:949
+#: fedoraglass/gui/qml/Main.qml:953
 msgid "Save and apply the look everywhere (Ctrl+Enter)"
 msgstr "Den Look speichern und überall anwenden (Strg+Eingabe)"
 
-#: fedoraglass/gui/qml/Main.qml:975
+#: fedoraglass/gui/qml/Main.qml:979
 msgid "Closing once the login screen has your new look"
 msgstr "Wird geschlossen, sobald der Anmeldebildschirm Ihren neuen Look hat"
 
-#: fedoraglass/gui/qml/Main.qml:987
+#: fedoraglass/gui/qml/Main.qml:991
 msgid "Your original look is back"
 msgstr "Ihr ursprünglicher Look ist zurück"
 
