@@ -5379,7 +5379,7 @@ msgstr "Etapa única por navegador: abra chrome://extensions, ative o Modo do de
 
 #: fedoraglass/targets/apps.py:452
 msgid "Later changes need Reload on that extension's card. Chromium themes follow the scheme in use when you apply, and browser windows stay opaque."
-msgstr "Alterações posteriores precisam de Reload no cartão dessa extensão. Temas do Chromium seguem o esquema em uso ao aplicar, e as janelas do navegador continuam opacas."
+msgstr "Alterações posteriores precisam de Recarregar no cartão dessa extensão. Temas do Chromium seguem o esquema em uso ao aplicar, e as janelas do navegador continuam opacas."
 
 #: fedoraglass/targets/apps.py:454
 msgid "Fedora Glass never edits browser profiles."
