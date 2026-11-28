@@ -345,6 +345,7 @@ Item {
         saturation: root.windowsBlur ? root.saturation : 0
         brightness: root.windowsBlur ? root.brightness : 0
         radius: root.rWin
+        bleed: 0            // no colour bleed behind app windows (render/glass.py _window_look)
         rimOnTop: true
         shadowBlur: root.u(64)
         shadowY: root.u(18)

@@ -171,16 +171,24 @@ Item {
         mode: root.rimOnTop ? 1 : 0
     }
 
+    // The light the content casts into the glass, under the content as on the desktop
+    // (glass.js draws it below the theme's veil and the menu's own items), so an accent
+    // button keeps its own colour.
+    Loader {
+        anchors.fill: parent
+        active: !root.rimOnTop && root._bleeds
+        sourceComponent: Pane { mode: 3 }
+    }
+
     Item {
         id: contentLayer
         anchors.fill: parent
     }
 
-    // Above the content: the edge (for panes whose content covers the body)
-    // and the light the content casts into the glass.
+    // Above the content: the edge, for panes whose content covers the body.
     Loader {
         anchors.fill: parent
-        active: root.rimOnTop || root._bleeds
-        sourceComponent: Pane { mode: root.rimOnTop ? 2 : 3 }
+        active: root.rimOnTop
+        sourceComponent: Pane { mode: 2 }
     }
 }
