@@ -355,6 +355,21 @@ def _same_toml(a: Any, b: Any) -> bool:
     return json.dumps(a, sort_keys=True, default=repr) == json.dumps(b, sort_keys=True, default=repr)
 
 
+def alacritty_has_import(text: str) -> bool:
+    """The user's Alacritty settings (our own block aside) have an import list of their own,
+    however it is written. alacritty_with_import leaves such a file alone; it also leaves one
+    alone that has none, when the line cannot be added safely."""
+    from .apps import without_block
+    rest = without_block(text, BLOCK_BEGIN, BLOCK_END)
+    if any(_IMPORT.match(ln) for ln in rest.removeprefix("\ufeff").splitlines()):
+        return True
+    said = _toml(rest)
+    if said is None:
+        return False
+    general = said.get("general")
+    return "import" in said or (isinstance(general, dict) and "import" in general)
+
+
 def alacritty_with_import(text: str, path: str) -> str | None:
     """Alacritty's settings with `import = [path]` in the [general] table (made at the end when
     there is none). None when the user already has an import list of their own: two of

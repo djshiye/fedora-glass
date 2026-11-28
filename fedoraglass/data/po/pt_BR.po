@@ -5764,11 +5764,11 @@ msgstr "Esquema de cores de vidro com fundo transparente."
 msgid "Needs a true-colour terminal (Ptyxis is one)."
 msgstr "Precisa de um terminal com true color (o Ptyxis é um)."
 
-#: fedoraglass/targets/terminal.py:337
+#: fedoraglass/targets/terminal.py:341
 msgid "{name}'s settings folder is a link, so Fedora Glass left it alone."
 msgstr "A pasta de configurações de {name} é um link, então o Fedora Glass a deixou como está."
 
-#: fedoraglass/targets/terminal.py:383
+#: fedoraglass/targets/terminal.py:390
 msgid ""
 "Your {name} settings file is a link or can't be read, so Fedora Glass did not change it. Add this to it yourself:\n"
 "{line}"
@@ -5776,77 +5776,85 @@ msgstr ""
 "Seu arquivo de configurações de {name} é um link ou não pode ser lido, então o Fedora Glass não o alterou. Adicione isto você mesmo:\n"
 "{line}"
 
-#: fedoraglass/targets/terminal.py:386
+#: fedoraglass/targets/terminal.py:393
 msgid "Your {name} settings already have an import list, so Fedora Glass did not change it. Add this file to it yourself: {path}"
 msgstr "Suas configurações de {name} já têm uma lista de importação, então o Fedora Glass não a alterou. Adicione este arquivo você mesmo: {path}"
 
-#: fedoraglass/targets/terminal.py:404
+#: fedoraglass/targets/terminal.py:411
 msgid "Glass colours and see-through background, in a file Kitty includes."
 msgstr "Cores do vidro e fundo transparente, em um arquivo que o Kitty inclui."
 
-#: fedoraglass/targets/terminal.py:405
+#: fedoraglass/targets/terminal.py:412
 msgid "Adds a Fedora Glass colour file for Kitty and one include line to kitty.conf. Restore original takes the line away."
 msgstr "Adiciona um arquivo de cores do Fedora Glass para o Kitty e uma linha de inclusão no kitty.conf. Restaurar original tira a linha."
 
-#: fedoraglass/targets/terminal.py:410
+#: fedoraglass/targets/terminal.py:417
 msgid "Open a new Kitty window, or press Ctrl+Shift+F5, to load it. Colours and opacity you set in kitty.conf yourself win."
 msgstr "Abra uma nova janela do Kitty, ou pressione Ctrl+Shift+F5, para carregar. As cores e a opacidade que você mesmo definir no kitty.conf têm prioridade."
 
-#: fedoraglass/targets/terminal.py:411
-#: fedoraglass/targets/terminal.py:432
-#: fedoraglass/targets/terminal.py:462
+#: fedoraglass/targets/terminal.py:418
+#: fedoraglass/targets/terminal.py:439
+#: fedoraglass/targets/terminal.py:469
 msgid "Follows the GNOME dark or light style in use when you Apply."
 msgstr "Segue o estilo claro ou escuro do GNOME em uso quando você Aplica."
 
-#: fedoraglass/targets/terminal.py:424
+#: fedoraglass/targets/terminal.py:431
 msgid "Glass colours and see-through background, in a file Ghostty includes."
 msgstr "Cores do vidro e fundo transparente, em um arquivo que o Ghostty inclui."
 
-#: fedoraglass/targets/terminal.py:425
+#: fedoraglass/targets/terminal.py:432
 msgid "Adds a Fedora Glass colour file for Ghostty and one config-file line to its config. Restore original takes the line away."
 msgstr "Adiciona um arquivo de cores do Fedora Glass para o Ghostty e uma linha de arquivo de configuração na configuração dele. Restaurar original tira a linha."
 
-#: fedoraglass/targets/terminal.py:431
+#: fedoraglass/targets/terminal.py:438
 msgid "Reload Ghostty's settings or restart it. Ghostty reads the Fedora Glass file after your own, so its colours and opacity win."
 msgstr "Recarregue as configurações do Ghostty ou reinicie-o. O Ghostty lê o arquivo do Fedora Glass depois do seu, então as cores e a opacidade dele têm prioridade."
 
-#: fedoraglass/targets/terminal.py:452
+#: fedoraglass/targets/terminal.py:459
 msgid "Glass colours and see-through background, in a file Alacritty imports."
 msgstr "Cores do vidro e fundo transparente, em um arquivo que o Alacritty importa."
 
-#: fedoraglass/targets/terminal.py:453
+#: fedoraglass/targets/terminal.py:460
 msgid "Adds a Fedora Glass colour file for Alacritty and one import line to alacritty.toml. Restore original takes the line away."
 msgstr "Adiciona um arquivo de cores do Fedora Glass para o Alacritty e uma linha de importação no alacritty.toml. Restaurar original tira a linha."
 
-#: fedoraglass/targets/terminal.py:461
+#: fedoraglass/targets/terminal.py:468
 msgid "Needs Alacritty 0.14 or newer. It reloads by itself. Colours and opacity you set in alacritty.toml yourself win."
 msgstr "Precisa do Alacritty 0.14 ou mais novo. Ele recarrega sozinho. As cores e a opacidade que você mesmo definir no alacritty.toml têm prioridade."
 
-#: fedoraglass/targets/terminal.py:491
+#: fedoraglass/targets/terminal.py:498
 msgid "{name} is using its old alacritty.yml file, so Fedora Glass left it alone."
 msgstr "{name} está usando o arquivo antigo alacritty.yml, então o Fedora Glass o deixou como está."
 
-#: fedoraglass/targets/terminal.py:508
+#: fedoraglass/targets/terminal.py:517
+msgid ""
+"Fedora Glass could not add its line to your {name} settings safely, so it did not change them. Add this to the general table yourself:\n"
+"{line}"
+msgstr ""
+"O Fedora Glass não conseguiu adicionar sua linha às suas configurações de {name} com segurança, então não as alterou. Adicione isto você mesmo à tabela general:\n"
+"{line}"
+
+#: fedoraglass/targets/terminal.py:526
 msgid "Glass colours and see-through background, in a file Foot includes."
 msgstr "Cores do vidro e fundo transparente, em um arquivo que o Foot inclui."
 
-#: fedoraglass/targets/terminal.py:509
+#: fedoraglass/targets/terminal.py:527
 msgid "Adds a Fedora Glass colour file for Foot and one include line to foot.ini. Restore original takes the line away."
 msgstr "Adiciona um arquivo de cores do Fedora Glass para o Foot e uma linha de inclusão no foot.ini. Restaurar original tira a linha."
 
-#: fedoraglass/targets/terminal.py:515
+#: fedoraglass/targets/terminal.py:533
 msgid "Open a new Foot window to see it. Colours and opacity you set in foot.ini yourself win."
 msgstr "Abra uma nova janela do Foot para ver. As cores e a opacidade que você mesmo definir no foot.ini têm prioridade."
 
-#: fedoraglass/targets/terminal.py:530
+#: fedoraglass/targets/terminal.py:548
 msgid "A Fedora Glass colour scheme for WezTerm; you choose it once yourself."
 msgstr "Um esquema de cores do Fedora Glass para o WezTerm; você o escolhe uma vez por conta própria."
 
-#: fedoraglass/targets/terminal.py:531
+#: fedoraglass/targets/terminal.py:549
 msgid "Adds a Fedora Glass colour scheme file for WezTerm. Your wezterm.lua is never changed; the note says what to add."
 msgstr "Adiciona um arquivo de esquema de cores do Fedora Glass para o WezTerm. Seu wezterm.lua nunca é alterado; a nota diz o que adicionar."
 
-#: fedoraglass/targets/terminal.py:537
+#: fedoraglass/targets/terminal.py:555
 msgid "WezTerm settings are a Lua program, so Fedora Glass never edits them. Add the two lines below to your wezterm.lua once; the colours then follow each Apply."
 msgstr "As configurações do WezTerm são um programa Lua, então o Fedora Glass nunca as edita. Adicione as duas linhas abaixo ao seu wezterm.lua uma vez; depois as cores acompanham cada Aplicar."
 

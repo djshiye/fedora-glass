@@ -321,6 +321,62 @@ def test_alacritty_with_its_own_import_is_not_edited_and_says_so(fake_env):
     assert main.read_text() == '[general]\nimport = ["~/themes/x.toml"]\n'
 
 
+@pytest.mark.parametrize("text", [
+    "general = { live_config_reload = true }\n[font]\nsize = 12\n",     # a general table in one line
+    '"general" = { live_config_reload = true }\n',
+    "[[general]]\nx = 1\n",
+    "general = 5\n",
+    "\ufeffgeneral.live_config_reload = true\n",
+])
+def test_alacritty_file_that_cannot_take_the_line_gets_the_line_to_add_by_hand(fake_env, text):
+    """It said "your settings already have an import list" for a file that has none, and gave
+    the path of a file instead of the line to add."""
+    main = fake_env.config / "alacritty/alacritty.toml"
+    main.parent.mkdir(parents=True)
+    main.write_text(text, encoding="utf-8")
+    own = fake_env.config / "alacritty/fedora-glass.toml"
+    assert rt.alacritty_with_import(text, str(own)) is None
+    note = tt.Alacritty().live_notes(ctx_for(fake_env))[0]
+    assert "import list" not in note and not rt.alacritty_has_import(text)
+    assert note == ("Fedora Glass could not add its line to your Alacritty settings safely, so it did not change them. "
+                    f'Add this to the general table yourself:\nimport = ["{own}"]')
+    r = Engine(fake_env, [tt.Alacritty()]).apply(Settings())[0]
+    assert (r.status, r.message) == ("info", note)
+    assert main.read_text(encoding="utf-8") == text and own.exists(), "the user's file is as it was; ours is written"
+
+
+def test_alacritty_whose_owner_added_the_line_to_a_one_line_table_is_applied(fake_env):
+    main = fake_env.config / "alacritty/alacritty.toml"
+    main.parent.mkdir(parents=True)
+    own = fake_env.config / "alacritty/fedora-glass.toml"
+    text = f'general = {{ live_config_reload = true, import = ["{own}"] }}\n'
+    main.write_text(text)
+    assert tomllib.loads(text)["general"]["import"] == [str(own)]
+    assert Engine(fake_env, [tt.Alacritty()]).apply(Settings())[0].status == "applied"
+    assert tt.Alacritty().manual_step(fake_env) is None and main.read_text() == text
+
+
+@pytest.mark.parametrize("text, own_import", [
+    ('[general]\n"import" = ["/x.toml"]\n', True),
+    ('"general"."import" = ["/x.toml"]\n', True),
+    ('import = ["/x.toml"]\n', True),
+    ('\ufeffgeneral.import = ["/x.toml"]\n', True),
+    ('general = { import = ["/x.toml"] }\n', True),          # only reading it as TOML finds this one
+    ('"general" = { live_config_reload = true }\n', False),
+    ("[[general]]\nx = 1\n", False),
+    ("size = 1\nsize = 2\n", False),                        # not valid TOML, and no import line
+    ("[general]\nlive_config_reload = true\n", False),
+    ("", False),
+])
+def test_an_import_list_of_the_users_own_is_told_from_a_file_that_cannot_take_the_line(text, own_import):
+    assert rt.alacritty_has_import(text) is own_import
+    if own_import:
+        assert rt.alacritty_with_import(text, ALA_PATH) is None, "a second import would be an error"
+    # Our own block is no import of the user's.
+    ours = rt.alacritty_with_import("[font]\nsize = 12\n", ALA_PATH)
+    assert ALA_PATH in ours and not rt.alacritty_has_import(ours)
+
+
 def test_alacritty_old_yaml_is_left_alone(fake_env):
     d = fake_env.config / "alacritty"
     d.mkdir(parents=True)
