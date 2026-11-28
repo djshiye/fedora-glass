@@ -227,6 +227,24 @@ def test_alacritty_without_general_table_appends_one(fake_env):
     assert tomllib.loads(rt.alacritty_with_import("", '/p/"x".toml'))["general"]["import"] == ['/p/"x".toml']
 
 
+@pytest.mark.parametrize("header", ["[general]", "[ general ]", '["general"]', "['general']", "  [\tgeneral ]  # mine"])
+def test_alacritty_general_table_is_found_however_its_header_is_written(header):
+    """TOML allows spaces and quotes in a table's header. Only the bare [general] was known, so
+    for the others a second [general] was added at the end: a table declared twice, and
+    Alacritty then drops the whole file, the user's fonts and keys with it."""
+    text = f'[font]\nsize = 12\n\n{header}\nlive_config_reload = true\n\n[window]\nopacity = 1.0\n'
+    assert tomllib.loads(text)["general"]["live_config_reload"] is True       # the user's file is fine
+    out = rt.alacritty_with_import(text, "/home/u/.config/alacritty/fedora-glass.toml")
+    data = tomllib.loads(out)
+    assert data["general"] == {"live_config_reload": True, "import": ["/home/u/.config/alacritty/fedora-glass.toml"]}
+    assert data["font"]["size"] == 12 and data["window"]["opacity"] == 1.0
+    assert out.count("general") == text.count("general"), "a second general table was added"
+    # Taking our block out again gives the user's file back, byte for byte.
+    from fedoraglass.render.apps import without_block
+    assert without_block(out, rt.BLOCK_BEGIN, rt.BLOCK_END) == text
+    assert rt.alacritty_with_import(out, "/home/u/.config/alacritty/fedora-glass.toml") == out
+
+
 def test_alacritty_with_its_own_import_is_not_edited_and_says_so(fake_env):
     main = fake_env.config / "alacritty/alacritty.toml"
     main.parent.mkdir(parents=True)

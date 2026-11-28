@@ -325,7 +325,9 @@ def with_block(text: str, body: list[str], where: str = "top") -> str:
     return rest + block
 
 
-_GENERAL = re.compile(r"^\s*\[general\]\s*(#.*)?$")
+# The header of the general table, in every way TOML lets it be written: [general], [ general ],
+# ["general"] and ['general'] are the same table, and a second one would be an error.
+_GENERAL = re.compile(r"""^\s*\[\s*(?:general|"general"|'general')\s*\]\s*(#.*)?$""")
 _IMPORT = re.compile(r"^\s*(?:general\.)?import\s*=")
 _GENERAL_DOTTED = re.compile(r"^\s*general\s*\.")
 _GENERAL_INLINE = re.compile(r"^\s*general\s*=")
