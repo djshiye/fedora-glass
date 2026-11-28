@@ -5375,7 +5375,7 @@ msgstr "Brave e Helium não estão instalados"
 
 #: fedoraglass/targets/apps.py:450
 msgid "One-time step per browser: open chrome://extensions, turn on Developer mode, choose Load unpacked and pick {folder}."
-msgstr "Etapa única por navegador: abra chrome://extensions, ative o Developer mode, escolha Load unpacked e selecione {folder}."
+msgstr "Etapa única por navegador: abra chrome://extensions, ative o Modo do desenvolvedor, escolha Carregar sem compactação e selecione {folder}."
 
 #: fedoraglass/targets/apps.py:452
 msgid "Later changes need Reload on that extension's card. Chromium themes follow the scheme in use when you apply, and browser windows stay opaque."
