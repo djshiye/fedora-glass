@@ -57,13 +57,30 @@ async function started({screen = 1080, textScale = 1, ...opts} = {}) {
         fake.now = (fake.now ?? 0) + 300000;
         fake.timeouts.run(16);
     };
-    // A user picked: GNOME hides its list and shows the prompt; and back again.
-    const pick = () => {
+    const seen = () => {
+        const [, y, , h] = placed.at(-1);
+        return {cardMiddle: y + h / 2, clock: top.y};
+    };
+    // A user picked: GNOME hides its list and shows the prompt; and back again. ask: false =
+    // as on a real login screen, where the prompt shows first, with the back button alone in
+    // the field's row, and the field comes when GDM asks its question (ask()).
+    const field = d._authPrompt._entryArea ?? d._authPrompt._entry;
+    const pick = ({ask = true} = {}) => {
+        field.visible = ask;
         d._userSelectionBox.hide();
         d._authPrompt.show();
         settleCard();
-        const [, y, , h] = placed.at(-1);
-        return {cardMiddle: y + h / 2, clock: top.y};
+        return seen();
+    };
+    // GNOME 51's row keeps its height, so nothing but the field's own box tells of it.
+    // GNOME 50 has its field there from the start in a password login; there this stands
+    // for the field coming back after a list of ways to log in, and its prompt is laid out again.
+    const ask = () => {
+        field.show();
+        if (opts.gnome === '50')
+            fake.relayout();
+        settleCard();
+        return seen();
     };
     const back = () => {
         d._authPrompt.hide();
@@ -71,7 +88,7 @@ async function started({screen = 1080, textScale = 1, ...opts} = {}) {
         settleCard();
         return top.y;
     };
-    return {fake, ext, d, top, pick, back, loads: () => fake.themeContext.theme.loads};
+    return {fake, ext, d, top, pick, ask, back, loads: () => fake.themeContext.theme.loads};
 }
 
 test('GNOME 51.1: the card stands in the middle of the screen, and the clock stays when a user is picked', async () => {
@@ -80,7 +97,7 @@ test('GNOME 51.1: the card stands in the middle of the screen, and the clock sta
         const g = await started({gnome: '51.1', screen, textScale});
         const listClock = g.top.y;
         const seen = g.pick();
-        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 4, `${what}: card middle ${seen.cardMiddle}`);
+        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 1, `${what}: card middle ${seen.cardMiddle}`);
         assert.equal(seen.clock, listClock, `${what}: the clock stays`);
         assert.equal(g.back(), listClock, `${what}: and stays going back`);
         assert.equal(g.loads(), 1, `${what}: GNOME's own theme: nothing to set again`);
@@ -95,8 +112,8 @@ test('a theme of someone else\'s: what is seen sets the place, the card is in th
             const what = `GNOME ${gnome}, ${screen} px, text ${textScale}`;
             const g = await started({gnome, screen, textScale, foreign: true});
             const seen = g.pick();
-            assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 4, `${what}: card middle ${seen.cardMiddle}`);
-            assert.ok(g.loads() > 1 && g.loads() <= 1 + 4, `${what}: set again a few times (${g.loads() - 1})`);
+            assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 1, `${what}: card middle ${seen.cardMiddle}`);
+            assert.equal(g.loads(), 2, `${what}: set again once`);
             const loads = g.loads();
             assert.equal(g.back(), seen.clock, `${what}: the clock stays going back to the list`);
             assert.equal(g.pick().clock, seen.clock, `${what}: and picking a user again`);
@@ -117,9 +134,50 @@ test('GNOME 50 and 51.0 with their own theme: today\'s margins, and nothing set 
         const seen = g.pick();
         assert.equal(margin(g.fake), want, `${what}: the same once laid out`);
         assert.equal(g.loads(), 1, `${what}: the stylesheet loaded once`);
-        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 4, `${what}: card middle ${seen.cardMiddle}`);
+        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 1, `${what}: card middle ${seen.cardMiddle}`);
         // As before: where GNOME 50 rounds down and promptPlace rounds, 1 px.
         assert.ok(Math.abs(seen.clock - listClock) <= 1, `${what}: the clock stays`);
+        g.ext.disable();
+    }
+});
+
+test('the field comes a moment after the prompt, when GDM asks its question: looked at only then, and nothing set again', async () => {
+    // On a real login screen the back button stands alone in the field's row at first, and it
+    // is shorter than the field; GNOME 51's row is taller than both. Neither sets the place.
+    for (const gnome of ['51.1', '51.0', '50']) {
+        for (const textScale of [1, 1.25]) {
+            const what = `GNOME ${gnome}, text ${textScale}`;
+            const g = await started({gnome, textScale});
+            const first = margin(g.fake), listClock = g.top.y;
+            g.pick({ask: false});
+            assert.equal(g.loads(), 1, `${what}: nothing set while the back button stands alone`);
+            const seen = g.ask();
+            assert.equal(margin(g.fake), first, `${what}: the same margin with the field there`);
+            assert.equal(g.loads(), 1, `${what}: the stylesheet loaded once`);
+            assert.ok(Math.abs(seen.cardMiddle - 540) <= 1, `${what}: card middle ${seen.cardMiddle}`);
+            // 1 px: where GNOME 50 rounds down and promptPlace rounds, as before.
+            assert.ok(Math.abs(seen.clock - listClock) <= 1, `${what}: the clock stays`);
+            assert.ok(Math.abs(g.back() - listClock) <= 1, `${what}: and stays going back`);
+            assert.deepEqual(logged, []);
+            g.ext.disable();
+        }
+    }
+});
+
+test('a theme of someone else\'s with the field coming later: the place is set once the field is there', async () => {
+    for (const gnome of ['51.1', '51.0', '50']) {
+        const what = `GNOME ${gnome}`;
+        const g = await started({gnome, foreign: true});
+        g.pick({ask: false});
+        assert.equal(g.loads(), 1, `${what}: nothing set before the field shows`);
+        const seen = g.ask();
+        assert.equal(g.loads(), 2, `${what}: set again once`);
+        assert.ok(Math.abs(seen.cardMiddle - 540) <= 1, `${what}: card middle ${seen.cardMiddle}`);
+        const loads = g.loads();
+        assert.equal(g.back(), seen.clock, `${what}: the clock stays going back to the list`);
+        assert.equal(g.pick().clock, seen.clock, `${what}: and picking a user again`);
+        assert.equal(g.loads(), loads, `${what}: looked at once`);
+        assert.deepEqual(logged, []);
         g.ext.disable();
     }
 });
@@ -151,7 +209,7 @@ test('GNOME 51.1 on a screen shorter than its theme\'s box and our margin: GNOME
         const seen = g.pick();
         assert.notEqual(margin(g.fake), null, `${what}: our place is kept`);
         assert.ok(g.d._authPrompt.height < 550, `${what}: cut`);
-        assert.ok(Math.abs(seen.cardMiddle - middle) <= 4, `${what}: card middle ${seen.cardMiddle}`);
+        assert.ok(Math.abs(seen.cardMiddle - middle) <= 1, `${what}: card middle ${seen.cardMiddle}`);
         if (screen === 600)
             assert.ok(g.top.y + g.top.height <= g.d._authPrompt._userWell.y, `${what}: the clock above the prompt`);
         assert.equal(seen.clock, listClock, `${what}: the clock stays`);
@@ -183,7 +241,7 @@ test('GNOME 51.1 on a screen 768 to 864 px tall: the prompt keeps our place, the
         const listClock = g.top.y;
         const seen = g.pick();
         assert.notEqual(margin(g.fake), null, `${what}: our place is kept`);
-        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 4, `${what}: card middle ${seen.cardMiddle}`);
+        assert.ok(Math.abs(seen.cardMiddle - screen / 2) <= 1, `${what}: card middle ${seen.cardMiddle}`);
         assert.equal(seen.clock, listClock, `${what}: the clock stays`);
         assert.equal(g.loads(), 1, `${what}: nothing to set again`);
         assert.deepEqual(logged, []);

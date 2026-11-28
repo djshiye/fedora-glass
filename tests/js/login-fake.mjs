@@ -364,7 +364,16 @@ export function makeGreeter({dialog = true, look = LOOK, note = null, highContra
         prompt._entry = new Entry({name: 'entry', x: 850, y: 540, width: 270, height: 40});
         prompt._message = new Label({name: 'message', x: 800, y: 600, width: 320, height: 40});
         prompt._mainBox.add_child(prompt.cancelButton);
-        prompt._mainBox.add_child(prompt._entry);
+        // GNOME 51 keeps the field in a box of its own, which it hides until GDM asks its
+        // question; GNOME 50 has the field itself in the row, and hides it only for a list
+        // of ways to log in.
+        if (gnome === '50') {
+            prompt._mainBox.add_child(prompt._entry);
+        } else {
+            prompt._entryArea = new Actor({name: 'entryArea', x: 850, y: 540, width: 270, height: 40});
+            prompt._entryArea.add_child(prompt._entry);
+            prompt._mainBox.add_child(prompt._entryArea);
+        }
         prompt._inputWell.add_child(prompt._mainBox);
         prompt._inputWell.add_child(prompt._message);
         prompt.add_child(prompt._userWell);
@@ -431,14 +440,23 @@ function layOut(fake, d, gnome, {foreign, ignoreMargin}) {
     const top = gnome === '51.0' ? Math.floor(mid - 275) + placed
         : Math.floor(mid - given / 2) + (gnome === '51.1' ? 50 : 0) + placed;
     const set = (a, y, height) => Object.assign(a, {y, height});
+    // The field's row. GNOME 51's theme makes it 4em tall whatever is in it and keeps the
+    // field in its middle: half an em of the row (7 px at the usual text size) above the
+    // field and half an em under it, as seen on a real GNOME 51.0 login screen (the row 59 px,
+    // the field 45, the back button 42). On GNOME 50 the row is as tall as the field. The
+    // back button is shorter than the field and stands in the row's middle too.
+    const half = gnome === '50' ? 0 : Math.round(7 * ts) * s;
+    const fieldTop = top + content - field;
     prompt.margin_top = M;
     set(prompt, top, gnome === '51.0' ? box : given - placed);
     set(prompt._userWell, top, content - field - 16 * s);
     set(prompt._userWell.get_first_child(), top, avatar);
-    set(prompt._inputWell, top + content - field, field + room);
-    for (const a of [prompt._mainBox, prompt.cancelButton, prompt._entry])
-        set(a, top + content - field, field);
-    set(prompt._message, top + content + 8 * s, 40 * s);
+    set(prompt._inputWell, fieldTop - half, half + field + room);
+    set(prompt._mainBox, fieldTop - half, half + field + half);
+    for (const a of [prompt._entryArea, prompt._entry].filter(x => x))
+        set(a, fieldTop, field);
+    set(prompt.cancelButton, fieldTop + 4 * s, field - 8 * s);
+    set(prompt._message, top + content + half + 8 * s, 40 * s);
     prompt.needsLayout = false;
     prompt.emit('notify::allocation');
 }

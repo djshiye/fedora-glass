@@ -814,7 +814,7 @@ export class LoginGlass {
         // ways to log in, a button showing.
         const parts = [prompt._userWell, prompt._inputWell, prompt._mainBox, prompt._message, prompt._authList,
             prompt._timedLoginIndicator, prompt._capsLockWarningLabel, prompt._webLoginDialog, prompt.cancelButton,
-            prompt._defaultButtonWell].filter(a => a instanceof Clutter.Actor);
+            prompt._entryArea, prompt._defaultButtonWell].filter(a => a instanceof Clutter.Actor);
         for (const a of parts) {
             for (const s of ['notify::visible', 'notify::opacity', 'notify::allocation'])
                 this._drawn.on(a, s, () => this._queue());
@@ -947,13 +947,23 @@ export class LoginGlass {
         // margin on the actor): until then it stands where an older style put it.
         if (!m || !prompt.has_allocation() || !(Math.abs(prompt.margin_top - this._place.margin * scale) < 1))
             return;
-        // A user's prompt, with the avatar and the field: what promptPlace means.
+        // A user's prompt, with the avatar and the field: what promptPlace means, and what
+        // the card goes around (contentRect). Not GNOME's own boxes: on GNOME 51 the field's
+        // row is taller than the field (4em, the field in its middle), and a card set by
+        // the row stood a few px too high. And only once the field is there: GNOME shows
+        // its prompt first and the field when GDM asks its question; until then the row
+        // holds the back button alone, which is shorter than the field.
         const box = LoginGlass.frame(prompt);
-        const user = LoginGlass.frame(prompt._userWell), field = LoginGlass.frame(prompt._mainBox);
+        const user = LoginGlass.contentRect(prompt, [prompt._userWell]);
+        const field = LoginGlass.frame(prompt._entry);
         if (!box || !user || !field)
             return;
-        const top = Math.round(user[1] - m.y);
-        const want = this._promptPlace(false, (field[1] + field[3] - user[1]) / scale);
+        // The field counts while GNOME still fades it in; whatever else shows in its row too.
+        const row = LoginGlass.contentRect(prompt, [prompt._mainBox]);
+        const begin = Math.min(user[1], field[1]);
+        const end = Math.max(user[3], field[1] + field[3], row ? row[3] : begin);
+        const top = Math.round(begin - m.y);
+        const want = this._promptPlace(false, (end - begin) / scale);
         const off = top - want.top;
         if (!this._placeBest || Math.abs(off) < Math.abs(this._placeBest.off))
             this._placeBest = {margin: this._place.margin, top, off};
@@ -1112,9 +1122,10 @@ export class LoginGlass {
      * The stage rectangle of what the prompt shows ([x0, y0, x1, y1]): the avatar, the
      * name, the entry and its buttons, a message only while it has text, and whatever
      * else is visible in it. GNOME keeps room under the entry for messages that may
-     * come; the card does not cover that room while it is empty.
+     * come; the card does not cover that room while it is empty. parts: the boxes of the
+     * prompt to look into (all of them, unless given: the avatar's well, or the field's row).
      */
-    static contentRect(prompt) {
+    static contentRect(prompt, parts = prompt.get_children()) {
         let r = null;
         const add = b => {
             if (!b)
@@ -1153,7 +1164,7 @@ export class LoginGlass {
                 add(LoginGlass.box(a));   // a picture drawn as a background (a user's avatar)
             }
         };
-        prompt.get_children().forEach(walk);
+        parts.filter(a => a).forEach(walk);
         return r;
     }
 
