@@ -302,6 +302,118 @@ def test_the_mark_counts_only_as_a_real_file_next_to_a_real_copy(fake_env, tmp_p
     assert set(_alongside_files(fake_env)) <= set(leftovers.find(fake_env))
 
 
-def test_uninstall_sh_takes_the_mark_with_the_copy():
-    text = (ROOT / "uninstall.sh").read_text()
-    assert 'rm -rf "$data/liquid-glass"' in text      # the mark lives in that folder
+def _before_login(env, monkeypatch):
+    """Run the package's step before login in the fake home; returns how often it went on
+    to bring the glass up to date."""
+    from fedoraglass import __main__ as cli
+    from fedoraglass import env as env_mod
+
+    monkeypatch.setattr(env_mod, "Env", lambda: env)
+    updated = []
+    monkeypatch.setattr(cli, "update_glass_before_login", lambda eng: updated.append(eng))
+    monkeypatch.setattr(cli, "_engine", lambda: None)
+    assert cli.main(["before-login"]) == 0
+    return len(updated)
+
+
+def test_a_mark_whose_copy_has_lost_its_command_does_not_switch_the_packages_login_step_off(fake_env, tmp_path, packaged,
+                                                                                         monkeypatch):
+    """The packages up to 1.7.10 took a marked copy's command, menu entry and watcher away
+    at the next login; the same comes from deleting them by hand to go back to the package.
+    The copy's folder and its mark stay. The package then runs the desktop, and its step
+    before login must run too: the mark alone kept it switched off at every login."""
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    wants = fake_env.config / "systemd/user/graphical-session.target.wants" / leftovers.UNIT
+    for path in [wants, *_alongside_files(fake_env)]:
+        path.unlink()
+    base = fake_env.data / "liquid-glass"
+    assert (base / leftovers.ALONGSIDE).is_file() and (base / "fedoraglass/__main__.py").is_file()
+    assert _before_login(fake_env, monkeypatch) == 1, "the package's step before login was skipped"
+    assert not leftovers.kept_on_purpose(fake_env) and not leftovers.in_charge(fake_env)
+    assert leftovers.find(fake_env) == [] and fake_env.commands == []      # nothing left to take away
+
+
+def test_a_marked_copy_without_its_command_is_cleaned_up_like_an_old_install(fake_env, tmp_path, packaged, monkeypatch):
+    """Its watcher and menu entry both run that command: without it the watcher in the home
+    folder fails again and again, and keeps the package's own from starting."""
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    unit, desktop, old_name, launcher = _alongside_files(fake_env)
+    launcher.unlink()
+    old_name.unlink()
+    wants = fake_env.config / "systemd/user/graphical-session.target.wants" / leftovers.UNIT
+    assert not leftovers.kept_on_purpose(fake_env) and not leftovers.in_charge(fake_env)
+    assert leftovers.find(fake_env) == [wants, unit, desktop]
+    assert _before_login(fake_env, monkeypatch) == 1
+    assert not any(os.path.lexists(p) for p in (wants, unit, desktop))
+    assert fake_env.commands == [["systemctl", "--user", "daemon-reload"]]
+
+
+def test_a_marked_copy_whose_watcher_is_gone_stays_but_the_package_runs_the_desktop(fake_env, tmp_path, packaged, monkeypatch):
+    """Without the copy's own unit the package's watcher is the one that runs, so the
+    package's step before login runs with it. The copy's command and menu entry are kept:
+    they were installed on purpose, and still work."""
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    unit, desktop, old_name, launcher = _alongside_files(fake_env)
+    (fake_env.config / "systemd/user/graphical-session.target.wants" / leftovers.UNIT).unlink()
+    unit.unlink()
+    assert leftovers.kept_on_purpose(fake_env) and not leftovers.in_charge(fake_env)
+    assert _before_login(fake_env, monkeypatch) == 1
+    assert all(os.path.lexists(p) for p in (desktop, old_name, launcher)) and fake_env.commands == []
+    # A unit there that is not install.sh's (the person's own, say) is not the copy's watcher either.
+    unit.write_text("[Unit]\nDescription=Mine\n[Service]\nExecStart=/usr/bin/true watch\n")
+    assert not leftovers.in_charge(fake_env) and _before_login(fake_env, monkeypatch) == 1
+    assert unit.exists()
+
+
+def test_the_mark_is_never_written_through_a_link(fake_env, tmp_path, packaged):
+    mark = fake_env.data / "liquid-glass" / leftovers.ALONGSIDE
+    outside = tmp_path / "outside.txt"
+    outside.write_text("not Fedora Glass's\n")
+    mark.parent.mkdir(parents=True)
+    mark.symlink_to(outside)
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    assert mark.is_file() and not mark.is_symlink() and leftovers.kept_on_purpose(fake_env)
+    assert outside.read_text() == "not Fedora Glass's\n"
+    # A folder at its place does not stop the install half way either.
+    mark.unlink()
+    mark.mkdir()
+    (mark / "something").write_text("x")
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))     # again, as for an update
+    assert mark.is_file() and leftovers.kept_on_purpose(fake_env)
+    # Without the package the mark goes, and what a link there points at stays.
+    mark.unlink()
+    mark.symlink_to(outside)
+    _source_install(fake_env, tmp_path, args=("--alongside-package",))
+    assert not os.path.lexists(mark) and outside.read_text() == "not Fedora Glass's\n"
+
+
+def test_the_refusal_says_what_the_flag_costs(fake_env, tmp_path, packaged):
+    """The hint is shown to everyone who runs install.sh next to the package, not only to
+    people working on Fedora Glass: it has to say that updates stop reaching the desktop."""
+    r = _source_install(fake_env, tmp_path, package=True)
+    said = " ".join(r.stdout.split())
+    assert "--alongside-package" in said and "the package's updates no longer reach your desktop" in said
+    assert "until you run ./uninstall.sh" in said
+
+
+def test_uninstall_sh_takes_the_mark_with_the_copy(fake_env, tmp_path, packaged):
+    """Run for real in the fake home: afterwards nothing of the copy is left that could
+    pass for one kept on purpose, or for an old install."""
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    assert leftovers.in_charge(fake_env)
+    if not Path("/usr/bin/python3").exists():
+        pytest.skip("the copy's own command runs /usr/bin/python3")
+    environ = {"HOME": str(fake_env.home), "PATH": f"{tmp_path / 'fakebin'}:/usr/bin:/bin",
+               "XDG_DATA_HOME": str(fake_env.data), "XDG_CONFIG_HOME": str(fake_env.config),
+               "XDG_STATE_HOME": str(fake_env.home / ".local/state")}
+    r = subprocess.run([shutil.which("bash"), str(tmp_path / "src/uninstall.sh")], env=environ, capture_output=True, text=True,
+                       timeout=120, stdin=subprocess.DEVNULL)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Fedora Glass is removed." in r.stdout
+    assert not (fake_env.data / "liquid-glass").exists(), "the copy and its mark are still there"
+    wants = fake_env.config / "systemd/user/graphical-session.target.wants" / leftovers.UNIT
+    assert not any(p.exists() for p in _alongside_files(fake_env))
+    assert not leftovers.kept_on_purpose(fake_env) and not leftovers.in_charge(fake_env)
+    # The fake systemctl did nothing, so the link `systemctl --user disable` takes away is
+    # still there, pointing at nothing: no file of the copy's is left for the app to offer.
+    assert wants.is_symlink() and leftovers.find(fake_env) == []

@@ -50,8 +50,9 @@ if [[ -n "$pkg" && $alongside -eq 0 ]]; then
   echo "Nothing was changed. The package updates itself with your system updates, so there is"
   echo "no need to install it from here: open Fedora Glass from the app grid."
   echo "To use this copy instead, remove the package first ($pkg), then run ./install.sh again."
-  echo "(Working on Fedora Glass itself? ./install.sh --alongside-package installs it anyway;"
-  echo " your copy then takes the package's place until you run ./uninstall.sh.)"
+  echo "(Working on Fedora Glass itself? ./install.sh --alongside-package installs it anyway."
+  echo " Your copy then takes the package's place, and the package's updates no longer reach"
+  echo " your desktop, until you run ./uninstall.sh.)"
   exit 1
 fi
 
@@ -98,10 +99,9 @@ rm -rf "$prefix/liquidglass"      # the code folder's name up to 1.5.10
 # Next to the package on purpose: the package takes an old source install's command, menu
 # entry and watcher away at every login (fedoraglass/leftovers.py), and this mark tells it
 # that this copy is meant to stay. ./uninstall.sh removes it with the folder.
+rm -rf "$prefix/alongside-package"      # first: the mark is never written through a link
 if [[ -n "$pkg" && $alongside -eq 1 ]]; then
   echo "Installed with ./install.sh --alongside-package: this copy stays next to the fedora-glass package until ./uninstall.sh." > "$prefix/alongside-package"
-else
-  rm -f "$prefix/alongside-package"
 fi
 
 cat > "$bin/fedora-glass" <<EOF

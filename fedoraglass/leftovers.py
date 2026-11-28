@@ -11,7 +11,9 @@ install.sh's and point at its copy. Nothing else in the home folder is.
 
 A copy put next to the package on purpose (`./install.sh --alongside-package`, for working
 on Fedora Glass itself) is no leftover: install.sh marks it, and it stays until
-./uninstall.sh.
+./uninstall.sh. The mark alone says nothing: it counts only while the copy and its own
+command are still there (kept_on_purpose), and the copy runs the desktop only while its
+own watcher is too (in_charge).
 """
 from __future__ import annotations
 
@@ -40,14 +42,23 @@ def from_package() -> bool:
 def kept_on_purpose(env: Env) -> bool:
     """The copy in the home folder was installed next to the package on purpose
     (`./install.sh --alongside-package`): its command, menu entry and watcher are meant to
-    win. Only while the copy itself is still there: with the copy deleted by hand, what it
-    left is an old install's again."""
+    win. Only while the copy and its own command are still there. With the copy deleted by
+    hand, or its command gone (the packages up to 1.7.10 took it away at the next login,
+    mark or not), what is left runs nothing: it is an old install's again."""
     base = env.data / "liquid-glass"
     mark = base / ALONGSIDE
     try:
-        return not mark.is_symlink() and mark.is_file() and (base / "fedoraglass/__main__.py").is_file()
+        return not mark.is_symlink() and mark.is_file() and (base / "fedoraglass/__main__.py").is_file() \
+            and _launcher_is_ours(env, _launchers(env)[0])
     except OSError:
         return False
+
+
+def in_charge(env: Env) -> bool:
+    """That copy also runs the desktop: its own watcher unit is in place, and a unit in the
+    home folder wins over the package's of the same name. Without it the package's watcher
+    runs, and the package's step before login belongs to that."""
+    return kept_on_purpose(env) and _unit_is_ours(env, env.config / "systemd/user" / UNIT)
 
 
 def _launchers(env: Env) -> tuple[Path, Path]:

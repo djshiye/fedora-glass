@@ -443,11 +443,13 @@ def cmd_before_login(args: argparse.Namespace) -> int:
 def _copy_in_charge() -> bool:
     """A copy installed next to the package on purpose (`./install.sh --alongside-package`)
     runs the desktop: its own watcher keeps its own glass up to date. This step always runs
-    as the package, and would put the package's glass back over the copy's at every login."""
+    as the package, and would put the package's glass back over the copy's at every login.
+    Only while that copy's command and watcher are really in place (leftovers.in_charge):
+    a mark left behind without them must not switch this step off."""
     from . import leftovers
     from .env import Env
     try:
-        return leftovers.from_package() and leftovers.kept_on_purpose(Env())
+        return leftovers.from_package() and leftovers.in_charge(Env())
     except Exception:  # noqa: BLE001 (never a reason to hold up the login)
         return False
 
