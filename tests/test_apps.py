@@ -257,6 +257,25 @@ def test_browsers_plan_and_note(fake_env):
     assert any("Load unpacked" in n for n in t.live_notes(c))
 
 
+def test_the_browsers_first_note_is_translated_like_the_other_two(fake_env):
+    """The one step the user does by hand for Brave and Helium was a plain string, so it showed in
+    English in every language, above two translated notes."""
+    from fedoraglass import i18n
+    t = next(t for t in ta.TARGETS if t.id == "browsers")
+    folder = str(t.theme_dir(fake_env))
+    english = t.live_notes(ctx_for(fake_env))
+    assert "Load unpacked" in english[0] and folder in english[0]
+    try:
+        for lang in ("de", "es", "fr", "it", "pt_BR"):
+            i18n.reset(lang)
+            notes = t.live_notes(ctx_for(fake_env))
+            assert len(notes) == len(english)
+            assert all(a != b for a, b in zip(notes, english)), lang
+            assert folder in notes[0] and "chrome://extensions" in notes[0], lang
+    finally:
+        i18n.reset("")
+
+
 def test_slack_theme_string_and_notes_only_targets(fake_env):
     s = ra.slack_theme(toks(True, 0.4))
     assert re.fullmatch(r"(#[0-9A-F]{6},){7}#[0-9A-F]{6}", s)
@@ -267,6 +286,19 @@ def test_slack_theme_string_and_notes_only_targets(fake_env):
             assert t.plan(c) == []
     slack = next(t for t in ta.TARGETS if t.id == "slack")
     assert s in slack.live_notes(c)
+
+
+@pytest.mark.parametrize("app,flatpak", [("slack", "com.slack.Slack"), ("steam", "com.valvesoftware.Steam"),
+                                         ("zoom", "us.zoom.Zoom")])
+def test_an_app_from_flathub_that_only_gets_a_note_is_found_too(fake_env, monkeypatch, app, flatpak):
+    """Slack from Flathub has no `slack` command and keeps its files under ~/.var/app, so it read
+    "Slack is not installed" and its ready-made theme string never showed."""
+    monkeypatch.setattr(type(fake_env), "which", lambda self, n: None)
+    target = next(t for t in ta.TARGETS if t.id == app)
+    assert not target.detect(fake_env).available
+    monkeypatch.setattr(type(fake_env), "flatpak_installed", lambda self, i: i == flatpak)
+    assert target.detect(fake_env).available
+    assert target.plan(ctx_for(fake_env)) == []
 
 
 def test_target_ids_unique_and_groups():

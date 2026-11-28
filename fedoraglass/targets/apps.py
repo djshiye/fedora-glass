@@ -443,8 +443,8 @@ class Browsers(AppTarget):
 
     def live_notes(self, ctx: Context) -> list[str]:
         return [
-            "One-time step per browser: open chrome://extensions, turn on Developer mode, choose "
-            f"Load unpacked and pick {self.theme_dir(ctx.env)}.",
+            _("One-time step per browser: open chrome://extensions, turn on Developer mode, choose "
+              "Load unpacked and pick {folder}.").format(folder=self.theme_dir(ctx.env)),
             _("Later changes need Reload on that extension's card. Chromium themes follow the scheme in use "
             "when you apply, and browser windows stay opaque."),
             _("Fedora Glass never edits browser profiles."),
@@ -624,15 +624,16 @@ class Slack(NotesOnly):
 
 TARGETS: list[Target] = [
     Discord(), VSCode(), VSCodium(), Obsidian(), QBittorrent(), Prism(), Browsers(),
-    Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",),
+    Slack(id="slack", name="Slack", group="Apps", cmds=("slack",), dirs=(".config/Slack",), flatpak="com.slack.Slack",
           summary=N_("No theme file; a ready-made sidebar theme string is shown to paste."),
           plain=N_("Changes nothing: Slack has no theme file. Paste the theme string from the Apps page instead."),
           scheme_dependent=True),
     NotesOnly(id="steam", name="Steam", group="Apps", cmds=("steam",), dirs=(".local/share/Steam",),
+              flatpak="com.valvesoftware.Steam",
               summary=N_("Not themed: Steam draws its own UI."), scheme_dependent=False,
               plain=N_("Changes nothing: Steam draws its own look."),
               notes=[N_("Steam has no supported theme hook; third-party skins break on updates, so Fedora Glass leaves it alone.")]),
-    NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",),
+    NotesOnly(id="zoom", name="Zoom", group="Apps", cmds=("zoom",), dirs=(".zoom",), flatpak="us.zoom.Zoom",
               summary=N_("Not themed; follows the system dark mode."), scheme_dependent=False,
               plain=N_("Changes nothing: Zoom follows your light or dark setting by itself."),
               notes=[N_("In Zoom: Settings > General > Theme > Use system setting.")]),
