@@ -266,8 +266,10 @@ def test_a_code_folder_that_is_a_link_is_left_alone(tree, tmp_path):
     link = tmp_path / "linked"
     link.symlink_to(code, target_is_directory=True)
     before = _snapshot(code)
+    # A slash or a dot at the end would make the link check look through the link.
     for step in ("fit", "drop"):
-        _run(script, step, str(link))
+        for path in (str(link), f"{link}/", f"{link}//", f"{link}/."):
+            _run(script, step, path)
     assert _snapshot(code) == before
 
 

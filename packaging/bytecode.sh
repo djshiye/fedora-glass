@@ -28,6 +28,8 @@ python=/usr/bin/python3
 plain() { case "$1" in ''|[!a-z]*|*[!a-z0-9_-]*) return 1 ;; esac; }
 
 case "${1:-}" in fit|drop) ;; *) exit 0 ;; esac
+# A slash or a dot at the end would let the link check look through a link.
+case "$dir" in */|*/.|*/..) exit 0 ;; esac
 { [ -d "$dir" ] && ! [ -L "$dir" ]; } || exit 0
 { [ -f "$dir/bytecode-tag" ] && ! [ -L "$dir/bytecode-tag" ]; } || exit 0
 tag="$(cat "$dir/bytecode-tag" 2>/dev/null)" || exit 0
