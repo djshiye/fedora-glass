@@ -145,13 +145,18 @@ def gtk4_css(s: Settings, dark: Tokens, light: Tokens | None = None) -> str:
     return "".join(out)
 
 
-def gtk3_css(s: Settings, t: Tokens) -> str:
+def gtk3_css(s: Settings, t: Tokens, least: float = 0.0) -> str:
+    """least: the bar's fill is never clearer than this. readable_alpha's sum is for glass
+    as dark or light as the sheet itself. A GTK 3 theme the user kept can be dark on a light
+    desktop or light on a dark one: there the caller passes the window's own fill, or the
+    title would stand in the sheet's text colour on the other kind of glass (1.4:1 to 1.7:1)."""
     if not active(s):
         return ""
     s = s.normalized()
     out = [COMMENT, _height_rules(s.header_height, gtk3=True)]
     c = header_color(s, t)
     if c is not None:
+        c = c.with_alpha(max(c.a, least))
         out.append(f"headerbar, .titlebar, headerbar:backdrop, .titlebar:backdrop {{ background-color: {c.css}; }}\n")
     return "".join(out)
 
