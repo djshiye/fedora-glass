@@ -8,6 +8,10 @@ the dark/light watcher, and re-applies its older look at every login.
 
 Only those exact files are ever touched, and only when their content says they are
 install.sh's and point at its copy. Nothing else in the home folder is.
+
+A copy put next to the package on purpose (`./install.sh --alongside-package`, for working
+on Fedora Glass itself) is no leftover: install.sh marks it, and it stays until
+./uninstall.sh.
 """
 from __future__ import annotations
 
@@ -22,12 +26,26 @@ UNIT = "liquid-glass-watch.service"
 DESKTOP = "io.github.djshiye.LiquidGlass.desktop"
 NAMES = ("Fedora Glass", "Liquid Glass")     # the app was called Liquid Glass up to 1.4.4
 MAX_BYTES = 8 * 1024
+ALONGSIDE = "alongside-package"              # install.sh's mark, in the copy's own folder
 
 
 def from_package() -> bool:
     """This app runs from the package, not from a source install or a checkout."""
     try:
         return Path(__file__).resolve().is_relative_to(APP_DIR)
+    except OSError:
+        return False
+
+
+def kept_on_purpose(env: Env) -> bool:
+    """The copy in the home folder was installed next to the package on purpose
+    (`./install.sh --alongside-package`): its command, menu entry and watcher are meant to
+    win. Only while the copy itself is still there: with the copy deleted by hand, what it
+    left is an old install's again."""
+    base = env.data / "liquid-glass"
+    mark = base / ALONGSIDE
+    try:
+        return not mark.is_symlink() and mark.is_file() and (base / "fedoraglass/__main__.py").is_file()
     except OSError:
         return False
 
@@ -89,8 +107,9 @@ def _desktop_is_ours(env: Env, p: Path) -> bool:
 
 def find(env: Env) -> list[Path]:
     """The leftover files that make the old copy run instead of the package, in the order
-    they are taken away. Empty when this app isn't the package, or nothing is left."""
-    if not from_package():
+    they are taken away. Empty when this app isn't the package, when the copy is there on
+    purpose, or when nothing is left."""
+    if not from_package() or kept_on_purpose(env):
         return []
     out: list[Path] = []
     units = env.config / "systemd/user"

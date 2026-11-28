@@ -95,6 +95,14 @@ find "$prefix/fedoraglass.new" -name '__pycache__' -prune -exec rm -rf {} +
 rm -rf "$prefix/fedoraglass"
 mv "$prefix/fedoraglass.new" "$prefix/fedoraglass"
 rm -rf "$prefix/liquidglass"      # the code folder's name up to 1.5.10
+# Next to the package on purpose: the package takes an old source install's command, menu
+# entry and watcher away at every login (fedoraglass/leftovers.py), and this mark tells it
+# that this copy is meant to stay. ./uninstall.sh removes it with the folder.
+if [[ -n "$pkg" && $alongside -eq 1 ]]; then
+  echo "Installed with ./install.sh --alongside-package: this copy stays next to the fedora-glass package until ./uninstall.sh." > "$prefix/alongside-package"
+else
+  rm -f "$prefix/alongside-package"
+fi
 
 cat > "$bin/fedora-glass" <<EOF
 #!/bin/sh

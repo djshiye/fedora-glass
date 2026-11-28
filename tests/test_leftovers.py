@@ -20,8 +20,9 @@ def packaged(monkeypatch):
     monkeypatch.setattr(leftovers, "from_package", lambda: True)
 
 
-def _source_install(env, tmp_path):
-    """Run the real install.sh's file-writing steps: copy it with the package steps cut out."""
+def _source_install(env, tmp_path, *, package: bool = False, args: tuple[str, ...] = ()):
+    """Run the real install.sh's file-writing steps: copy it with the package steps cut out.
+    package=True: a package manager says the fedora-glass package is installed on this PC."""
     bash = shutil.which("bash")
     if bash is None:
         pytest.skip("needs bash")
@@ -32,22 +33,31 @@ def _source_install(env, tmp_path):
     i, j = script.index("# ---- system packages"), script.index("# ---- the app")
     script = script[:i] + script[j:]
     fake_bin = tmp_path / "fakebin"
-    fake_bin.mkdir()
+    fake_bin.mkdir(exist_ok=True)
     for tool in ("systemctl", "gtk-update-icon-cache", "update-desktop-database"):
         (fake_bin / tool).write_text("#!/bin/sh\nexit 0\n")
         (fake_bin / tool).chmod(0o755)
+    # Every package manager install.sh asks answers the same: installed, or not.
+    for tool in ("rpm", "dpkg-query", "pacman"):
+        (fake_bin / tool).write_text(f"#!/bin/sh\nexit {0 if package else 1}\n")
+        (fake_bin / tool).chmod(0o755)
     copy = tmp_path / "src"
-    shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git", "__pycache__", "tests", "qa"))
+    if not copy.exists():
+        shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git", "__pycache__", "tests", "qa"))
     (copy / "install.sh").write_text(script)
     environ = {"HOME": str(env.home), "PATH": f"{fake_bin}:/usr/bin:/bin",
                "XDG_DATA_HOME": str(env.data), "XDG_CONFIG_HOME": str(env.config)}
-    r = subprocess.run([bash, str(copy / "install.sh"), "--no-gui"], env=environ, capture_output=True, text=True,
+    r = subprocess.run([bash, str(copy / "install.sh"), "--no-gui", *args], env=environ, capture_output=True, text=True,
                        timeout=120, stdin=subprocess.DEVNULL)
+    if package and "--alongside-package" not in args:
+        return r                                  # refused: the caller looks at what it said
     assert r.returncode == 0, r.stdout + r.stderr
     # `systemctl --user enable` links the unit from the target that starts it.
     wants = env.config / "systemd/user/graphical-session.target.wants"
     wants.mkdir(parents=True, exist_ok=True)
-    (wants / leftovers.UNIT).symlink_to(env.config / "systemd/user" / leftovers.UNIT)
+    if not (wants / leftovers.UNIT).is_symlink():
+        (wants / leftovers.UNIT).symlink_to(env.config / "systemd/user" / leftovers.UNIT)
+    return r
 
 
 def _theirs(env):
@@ -216,3 +226,82 @@ def test_a_source_install_or_checkout_never_cleans_up_at_login(fake_env, tmp_pat
     monkeypatch.setattr(env_mod, "Env", lambda: fake_env)
     assert cli.drop_source_install() == []
     assert (fake_env.config / "systemd/user" / leftovers.UNIT).exists()
+
+
+def _alongside_files(env):
+    return [env.config / "systemd/user" / leftovers.UNIT, env.data / "applications" / leftovers.DESKTOP,
+            env.home / ".local/bin/liquid-glass", env.home / ".local/bin/fedora-glass"]
+
+
+def test_a_copy_installed_next_to_the_package_on_purpose_stays_at_login(fake_env, tmp_path, packaged, monkeypatch, capsys):
+    """`./install.sh --alongside-package` (for working on Fedora Glass itself) says the copy
+    takes the package's place until ./uninstall.sh. The package's step at each login took its
+    command, menu entry and watcher away again, as if it were a forgotten old install. Such a
+    copy is in charge: the package's login step leaves it alone, and does not put the
+    package's own glass back over the copy's either."""
+    from fedoraglass import __main__ as cli
+    from fedoraglass import env as env_mod
+
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    files = _alongside_files(fake_env)
+    assert all(os.path.lexists(p) for p in files)
+    assert leftovers.kept_on_purpose(fake_env)
+    assert leftovers.find(fake_env) == []
+    monkeypatch.setattr(env_mod, "Env", lambda: fake_env)
+    updated = []
+    monkeypatch.setattr(cli, "update_glass_before_login", lambda eng: updated.append(eng))
+    monkeypatch.setattr(cli, "_engine", lambda: None)
+    assert cli.main(["before-login"]) == 0
+    assert all(os.path.lexists(p) for p in files), "the copy's own files were taken away"
+    assert updated == [], "the package put its own glass back over the copy's"
+    assert fake_env.commands == [] and capsys.readouterr().err == ""
+    # The app (the package's, opened by hand) offers no clean-up either.
+    assert leftovers.clean_up(fake_env) == [] and all(os.path.lexists(p) for p in files)
+
+
+def test_install_sh_refuses_next_to_a_package_without_being_asked(fake_env, tmp_path, packaged):
+    r = _source_install(fake_env, tmp_path, package=True)
+    assert r.returncode == 1 and "--alongside-package" in r.stdout
+    assert not (fake_env.data / "liquid-glass").exists()
+
+
+def test_a_plain_install_afterwards_is_an_ordinary_one_again(fake_env, tmp_path, packaged):
+    """The mark is only for a copy put next to a package on purpose. The same copy installed
+    again the plain way (no package then) loses it, so after a later switch to the package it
+    is cleaned up like any old source install."""
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    assert leftovers.find(fake_env) == []
+    _source_install(fake_env, tmp_path)
+    assert not leftovers.kept_on_purpose(fake_env)
+    assert set(_alongside_files(fake_env)) <= set(leftovers.find(fake_env))
+
+
+def test_the_flag_without_a_package_leaves_no_mark(fake_env, tmp_path, packaged):
+    _source_install(fake_env, tmp_path, args=("--alongside-package",))
+    assert not leftovers.kept_on_purpose(fake_env)
+    assert set(_alongside_files(fake_env)) <= set(leftovers.find(fake_env))
+
+
+def test_the_mark_counts_only_as_a_real_file_next_to_a_real_copy(fake_env, tmp_path, packaged):
+    _source_install(fake_env, tmp_path, package=True, args=("--alongside-package",))
+    base = fake_env.data / "liquid-glass"
+    mark = base / leftovers.ALONGSIDE
+    assert mark.is_file() and not mark.is_symlink()
+    # A link is not the mark install.sh writes.
+    text = mark.read_text()
+    mark.unlink()
+    (tmp_path / "elsewhere").write_text(text)
+    mark.symlink_to(tmp_path / "elsewhere")
+    assert not leftovers.kept_on_purpose(fake_env) and leftovers.find(fake_env)
+    mark.unlink()
+    mark.write_text(text)
+    assert leftovers.kept_on_purpose(fake_env)
+    # The copy was deleted by hand, its launcher and unit were forgotten: leftovers again.
+    shutil.rmtree(base / "fedoraglass")
+    assert not leftovers.kept_on_purpose(fake_env)
+    assert set(_alongside_files(fake_env)) <= set(leftovers.find(fake_env))
+
+
+def test_uninstall_sh_takes_the_mark_with_the_copy():
+    text = (ROOT / "uninstall.sh").read_text()
+    assert 'rm -rf "$data/liquid-glass"' in text      # the mark lives in that folder

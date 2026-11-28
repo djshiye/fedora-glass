@@ -433,9 +433,23 @@ def update_glass_before_login(eng) -> bool:
 
 def cmd_before_login(args: argparse.Namespace) -> int:
     """`fedora-glass before-login`: see update_glass_before_login. Never fails the login."""
+    if _copy_in_charge():
+        return 0
     _guarded("taking an old source install out of the way", drop_source_install)
     _guarded("updating the glass before login", lambda: update_glass_before_login(_engine()))
     return 0
+
+
+def _copy_in_charge() -> bool:
+    """A copy installed next to the package on purpose (`./install.sh --alongside-package`)
+    runs the desktop: its own watcher keeps its own glass up to date. This step always runs
+    as the package, and would put the package's glass back over the copy's at every login."""
+    from . import leftovers
+    from .env import Env
+    try:
+        return leftovers.from_package() and leftovers.kept_on_purpose(Env())
+    except Exception:  # noqa: BLE001 (never a reason to hold up the login)
+        return False
 
 
 def drop_source_install() -> list[str]:
