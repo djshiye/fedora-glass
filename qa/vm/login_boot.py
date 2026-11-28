@@ -71,6 +71,17 @@ PROMPT_FIRST_OFF_AT_MOST = 8
 # own word: this only says that it got the prompt there.
 PROMPT_OFF_AT_MOST = 4
 
+# Fedora Glass's two background helpers for a person's own session: the watcher that follows
+# dark and light, and the step that brings the glass up to date before GNOME Shell starts.
+# They have nothing to do in the login screen's own session, which has a service manager of
+# its own (GDM 49 and later run it as a throwaway user, gdm-greeter, that is no system user:
+# the login screen then waited for the step at every boot). systemd names a unit in its journal
+# lines by its file name, its description, or both, as the Linux is set.
+HELPERS = {"liquid-glass-watch.service": "Fedora Glass: follow GNOME dark and light style",
+           "fedora-glass-before-login.service": "Fedora Glass: bring the glass up to date before GNOME Shell starts"}
+# After a login both must have run for the person within this many seconds.
+HELPERS_WITHIN = 30
+
 # How different two screen pictures are (mean difference per colour channel, 0..255, of the
 # pictures shrunk to 160 px wide). The glass login screen over the bright test picture must be
 # far from GNOME's plain grey one; two plain ones differ only by the clock. TO CONFIRM ON
@@ -1119,6 +1130,52 @@ class Lane:
         return self.vm.sh(f"sudo {HELPER} on '{arg}'", check=False, input=data)
 
     # --- the login screen ---
+    def manager_journal(self, uid: int, whose: str, since: int | None = None) -> str:
+        """This boot's journal of one user's own service manager (systemd --user), as plain
+        text; with `since` (the guest's clock, in seconds) only what it said from then on. A
+        read that fails or finds no line at all fails the step, as for GNOME Shell's journal:
+        every such manager says something when it starts, and when a session starts."""
+        frm = f' --since "@{int(since)}"' if since is not None else ""
+        r = self.vm.sh(f"sudo journalctl -b _UID={int(uid)} _COMM=systemd{frm} --no-pager -o cat",
+                       check=False, quiet=True, timeout=120)
+        lines = [l for l in r.out.splitlines() if l.strip() and not l.startswith("-- ")]
+        if r.returncode != 0 or not lines:
+            log(f"    {(r.err or r.out)[:300]}")
+            check(False, f"the journal of {whose} service manager could be read "
+                         f"(journalctl exited {r.returncode}, {len(lines)} lines)")
+        return "\n".join(lines)
+
+    def helpers_stay_out(self, g: dict) -> None:
+        """At the login screen neither of Fedora Glass's helpers may have run for the login
+        screen's own user (see HELPERS), at any time in this boot: its session began before
+        the step did."""
+        journal = self.manager_journal(g["uid"], f"the login screen's own ({g['user']})")
+        ran = helpers_run(journal)
+        said = [l for l in journal.splitlines() if any(u in l or d in l for u, d in HELPERS.items())]
+        log(f"  {g['user']}'s service manager: {len(journal.splitlines())} lines this boot, {len(said)} on Fedora Glass's helpers")
+        for line in said[:12]:
+            log(f"    {line[:300]}")
+        check(not ran, f"Fedora Glass's helpers stay out of the login screen's own session "
+                       f"({' and '.join(ran) + ' ran' if ran else 'none ran'} as {g['user']})")
+
+    def helpers_run_for_the_user(self) -> None:
+        """The other half: for a person who logs in, both helpers do run. What keeps them out
+        of the login screen must never keep them from anyone else. Read since the step began,
+        so a run at an earlier login of this boot does not count for this one (all of this
+        boot where the guest's clock could not be read then)."""
+        mine = user_sessions(self.vm.probe("sessions"))
+        if not mine:
+            check(False, f"{USER} has a session on the screen to look at the helpers of")
+        start, ran = time.monotonic(), []
+        while True:
+            ran = helpers_run(self.manager_journal(mine[0]["uid"], f"{USER}'s", since=self.step_epoch))
+            if len(ran) == len(HELPERS) or time.monotonic() - start >= HELPERS_WITHIN:
+                break
+            time.sleep(2)
+        missing = [u for u in HELPERS if u not in ran]
+        check(not missing, f"both of Fedora Glass's helpers ran for {USER} within {HELPERS_WITHIN} s of the login "
+                           f"({'both ran' if not missing else ' and '.join(missing) + ' did not'})")
+
     def wait_greeter(self, timeout: int = 180) -> dict:
         log("  waiting for the login screen (a greeter session with its gnome-shell)")
         start, seen = time.monotonic(), None
@@ -1237,6 +1294,8 @@ class Lane:
         log(f"  /etc/dconf: {len(self.baseline['etc'])} entries")
         self.baseline_denials = set(self.denials()["lines"])
         (self.out / "baseline-dconf.json").write_text(json.dumps(self.baseline, indent=1))
+        # Last, so the login screen's session has had the time to start all it starts.
+        self.helpers_stay_out(g)
 
     def step_on(self):
         r = self.turn_on({"picture": "wallpaper"}, picture=True)
@@ -1262,7 +1321,7 @@ class Lane:
         return route_text(route, db)
 
     def step_glass(self):
-        self.restart_gdm()
+        g = self.restart_gdm()
         note = self.wait_phase(("ok",), self.token)
         check(note.get("phase") == "ok", f"the add-on's health note says ok (it says {note.get('phase')})")
         self.vm.wake_screen()
@@ -1280,15 +1339,17 @@ class Lane:
             check(den["selinux"] == "Enforcing", f"SELinux is enforcing (it is {den['selinux'] or 'missing'})")
         check(not ours, f"no SELinux or AppArmor denial for gnome-shell, dconf or fedora-glass ({len(ours)} new)")
         self.no_addon_errors()
+        self.helpers_stay_out(g)
 
     def step_login(self):
         self.login_and_judge()
 
     def login_and_judge(self) -> None:
         """A real login through the glass login screen, and what must hold with it: the trial
-        ends in time, and the password prompt stood where the glass card wants it. Each is
-        judged whatever the others say: a late trial must not hide where the prompt stood, and
-        where it stood is read even when the login did not work."""
+        ends in time, the password prompt stood where the glass card wants it, and Fedora
+        Glass's two helpers ran for the person. Each is judged whatever the others say: a late
+        trial must not hide where the prompt stood, and where it stood is read even when the
+        login did not work."""
         logged_in = False
 
         def login():
@@ -1299,7 +1360,11 @@ class Lane:
         def confirmed():
             if logged_in:                               # no session: no trial that could end
                 self.wait_trial_confirmed()
-        all_of(login, confirmed, self.prompt_place)
+
+        def helpers():
+            if logged_in:                               # no session: nobody they could run for
+                self.helpers_run_for_the_user()
+        all_of(login, confirmed, self.prompt_place, helpers)
 
     def prompt_place(self) -> None:
         """Where GNOME's password prompt stood under the glass card at this login, in the
@@ -1704,6 +1769,22 @@ def addon_errors(journal: str) -> list[str]:
                     found.append(line)
                     break
     return found
+
+
+def helpers_run(journal: str) -> list[str]:
+    """Which of Fedora Glass's two helpers ran, from the journal of a user's own service
+    manager (plain `-o cat` text), in systemd's own words: "Started ..." for the watcher,
+    "Finished ..." for the step before login. "Starting ..." alone is no run: a unit that is
+    skipped by its ExecCondition says that too, and then "Skipped"."""
+    ran = []
+    for line in journal.splitlines():
+        m = re.match(r"\s*(?:Started|Finished) (.+)", line)
+        if not m:
+            continue
+        for unit, description in HELPERS.items():
+            if unit not in ran and (unit in m[1] or description in m[1]):
+                ran.append(unit)
+    return ran
 
 
 def gdm_retries(journal: str) -> tuple[list[str], list[str]]:

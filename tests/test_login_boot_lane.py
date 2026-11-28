@@ -411,6 +411,19 @@ def test_workflow_steps_pin_actions_and_keep_evidence_three_days():
 # guest that behaves as the contract says: a typo in a step that rarely runs shows up here,
 # not after half an hour of booting.
 
+def _unit_lines(unit: str, description: str) -> dict[str, list[str]]:
+    """What a service manager says in the journal when the unit runs, and when its
+    ExecCondition skips it (copied from systemd 261 running the packaged units)."""
+    done = "Started" if "watch" in unit else "Finished"
+    return {"ran": [f"Starting {unit} - {description}...", f"{done} {unit} - {description}."],
+            "ran-described": [f"Starting {description}...", f"{done} {description}."],
+            "skipped": [f"Starting {unit} - {description}...", f"{unit}: Skipped due to 'exec-condition'.",
+                        f"Condition check resulted in {unit} - {description} being skipped."]}
+
+
+_HELPER_LINES = {unit: _unit_lines(unit, description) for unit, description in lb.HELPERS.items()}
+
+
 class _Clock:
     def __init__(self):
         self.now = 0.0
@@ -439,7 +452,17 @@ class _FakeGuest:
     def __init__(self, guard_works=True, glass_draws=True, guard_too_eager=False, confirm_after=0, path_state="active",
                  addon_confirm_after=0, update_keeps_token=False, watcher="stops", stop_after=2,
                  shell_journal=(), gdm_retries=0, leaves_a_lock=False, guard_condition="yes", prompt_says=None,
-                 journal_exit=0, clock=True):
+                 journal_exit=0, clock=True, greeter_helpers="skipped", user_helpers="both", helpers_after=0,
+                 manager_journal_exit=0, manager_journal_cut=False, helpers_ran_before=False):
+        # What each service manager (systemd --user) says about Fedora Glass's two helpers: the
+        # login screen's own ("skipped" by the units' ExecCondition, "ran" as before the fix,
+        # "silent": no line of its own at all), and the person's after a login ("both",
+        # "watch-only", "none"); the watcher starts helpers_after seconds after the login.
+        self.greeter_helpers, self.user_helpers, self.helpers_after = greeter_helpers, user_helpers, helpers_after
+        # manager_journal_cut: journalctl failed half way, after it had printed some lines.
+        self.manager_journal_exit, self.manager_journal_cut, self.logged_in_at = manager_journal_exit, manager_journal_cut, None
+        # helpers_ran_before: both ran for the person at an earlier login of this boot, before the step began.
+        self.helpers_ran_before = helpers_ran_before
         self.leaves_a_lock, self.guard_condition = leaves_a_lock, guard_condition
         self.shell_journal, self.gdm_pending = list(shell_journal), gdm_retries
         # What the add-on says in GNOME Shell's journal once a user is picked on the glass login
@@ -474,6 +497,7 @@ class _FakeGuest:
     def key(self, keys):
         if keys == ["ret"] and self.typed == lb.PASSWORD:
             self.logged_in, self.typed = True, ""
+            self.logged_in_at = lb.time.monotonic()
             if self.state == "trial" and self.note and self.note["phase"] == "ok":
                 delay = self.addon_confirm_after if self.guard_trial else self.confirm_after
                 self.confirm_at = lb.time.monotonic() + delay
@@ -557,6 +581,10 @@ class _FakeGuest:
             code = self.journal_exit
             if code:
                 out = ""
+        elif m := re.fullmatch(r'sudo journalctl -b _UID=(\d+) _COMM=systemd(?: --since "@(\d+)")? --no-pager -o cat', cmd):
+            out, code = self.manager_says(int(m[1]), int(m[2]) if m[2] else None), self.manager_journal_exit
+            if code and not self.manager_journal_cut:
+                out = ""
         elif cmd.startswith("sudo journalctl -b -u gdm.service -u gdm3.service --since"):
             n, self.gdm_pending = self.gdm_pending, 0
             out = "\n".join(
@@ -599,6 +627,29 @@ class _FakeGuest:
         r = subprocess.CompletedProcess(cmd, code, out.encode(), b"")
         r.out, r.err = out, "Failed to open the journal" if code else ""
         return r
+
+    def manager_says(self, uid: int, since: int | None = None) -> str:
+        """A user's own service manager in the journal, the way systemd words it (Fedora names
+        a unit by file name and description, Ubuntu by its description only). `since`: only
+        what it said since the step began."""
+        watch, before = _HELPER_LINES["liquid-glass-watch.service"], _HELPER_LINES["fedora-glass-before-login.service"]
+        if uid == 60578:
+            if self.greeter_helpers == "silent" or since is not None:   # it started before the step did
+                return "-- No entries --"
+            said = {"skipped": before["skipped"] + watch["skipped"], "ran": before["ran"] + watch["ran"],
+                    "ran-described": before["ran-described"] + watch["ran-described"]}[self.greeter_helpers]
+            return "\n".join(["Queued start job for default target default.target.", *said, "Startup finished in 150ms."])
+        lines = []
+        if since is None:                                   # at boot, and at an earlier login
+            lines += ["Queued start job for default target default.target.", "Startup finished in 96ms."]
+            lines += before["ran"] + watch["ran"] if self.helpers_ran_before else []
+        if self.logged_in:
+            lines.append("Created slice session.slice - User Core Session Slice.")
+        if self.logged_in and self.user_helpers == "both":
+            lines += before["ran"]                          # before GNOME Shell starts
+        if self.logged_in and self.user_helpers != "none" and lb.time.monotonic() - self.logged_in_at >= self.helpers_after:
+            lines += watch["ran"]                           # once the session is up
+        return "\n".join(lines)
 
     def probe(self, *args):
         if args == ("sessions",):
@@ -1376,3 +1427,96 @@ def test_retries_seen_with_the_glass_off_are_counted_as_off(monkeypatch, tmp_pat
     lane.collect_gdm_retries()                              # the glass is off now
     assert lane.retries["off"]["off"] == 1 and "with it off" in lb.retry_summary(lane.retries)
     assert lb.retry_summary({}) == ""
+
+
+
+# ---- Fedora Glass's two helpers and the login screen's own session -----------------------------
+def test_which_helpers_ran_is_read_from_systemds_own_words():
+    watch, before = "liquid-glass-watch.service", "fedora-glass-before-login.service"
+    lines = _HELPER_LINES
+    assert lb.helpers_run("\n".join(lines[before]["ran"] + lines[watch]["ran"])) == [before, watch]
+    assert lb.helpers_run("\n".join(lines[watch]["ran-described"])) == [watch], "a Linux that names units by description"
+    assert lb.helpers_run(f"Started {watch}.\nStarted {watch}.") == [watch], "by file name only, and named once"
+    # Skipped by the ExecCondition: "Starting ..." is said, the run is not.
+    assert lb.helpers_run("\n".join(lines[before]["skipped"] + lines[watch]["skipped"])) == []
+    assert lb.helpers_run("Started Tracker Miner.\nFinished Something else.\nReached target Main User Target.") == []
+    assert lb.helpers_run("") == []
+
+
+def test_the_helpers_named_here_are_the_units_the_packages_ship():
+    """A changed file name or description would blind the check without anyone seeing it."""
+    for script in ("packaging/install-tree.sh", "packaging/fedora-glass.spec"):
+        text = (ROOT / script).read_text()
+        for unit, description in lb.HELPERS.items():
+            assert f"/{unit}" in text and f"Description={description}\n" in text, (script, unit)
+
+
+def test_helpers_that_run_for_the_login_screens_own_user_fail_the_first_step(monkeypatch, tmp_path, capsys):
+    """As on a real PC before the fix: GDM 49's throwaway user is no system user."""
+    for said in ("ran", "ran-described"):
+        lane = _lane(monkeypatch, tmp_path, _FakeGuest(greeter_helpers=said))
+        assert not lane.run(["baseline"])
+        assert lane.results == {"baseline": "FAIL"}
+        out = capsys.readouterr().out
+        assert "FAIL Fedora Glass's helpers stay out of the login screen's own session" in out
+        assert "fedora-glass-before-login.service and liquid-glass-watch.service ran as gdm-greeter" in out
+
+
+def test_the_glass_step_looks_at_the_helpers_of_the_login_screen_built_again(monkeypatch, tmp_path, capsys):
+    guest = _FakeGuest()
+    lane = _lane(monkeypatch, tmp_path, guest)
+    assert lane.run(["baseline", "on", "glass"])
+    guest.greeter_helpers = "ran"
+    assert not lane.run(["glass"]) and lane.results["glass"] == "FAIL"
+    assert "ok   Fedora Glass's helpers stay out of the login screen's own session (none ran as gdm-greeter)" in capsys.readouterr().out
+
+
+def test_a_login_screen_whose_journal_says_nothing_or_cannot_be_read_does_not_pass_for_a_clean_one(monkeypatch, tmp_path, capsys):
+    for guest, said in ((_FakeGuest(greeter_helpers="silent"), "journalctl exited 0, 0 lines"),
+                        (_FakeGuest(manager_journal_exit=1), "journalctl exited 1, 0 lines"),
+                        # What it printed before it failed is not the whole journal.
+                        (_FakeGuest(manager_journal_exit=1, manager_journal_cut=True), "journalctl exited 1, 8 lines")):
+        lane = _lane(monkeypatch, tmp_path, guest)
+        assert not lane.run(["baseline"])
+        out = capsys.readouterr().out
+        assert f"FAIL the journal of the login screen's own (gdm-greeter) service manager could be read ({said})" in out
+        assert "Fedora Glass's helpers stay out" not in out, "no verdict from a journal that was not read"
+
+
+@pytest.mark.parametrize("ran, missing", [("watch-only", "fedora-glass-before-login.service did not"),
+                                          ("none", "liquid-glass-watch.service and fedora-glass-before-login.service did not")])
+def test_helpers_that_do_not_run_for_the_person_who_logged_in_fail_the_login_step(monkeypatch, tmp_path, capsys, ran, missing):
+    """What keeps the helpers out of the login screen must not keep them from anyone else."""
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(user_helpers=ran))
+    assert not lane.run(lb.plan(["login"]))
+    assert lane.results["login"] == "FAIL" and missing in capsys.readouterr().out
+
+
+def test_helpers_that_start_a_little_after_the_login_are_waited_for(monkeypatch, tmp_path, capsys):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(helpers_after=lb.HELPERS_WITHIN - 4))
+    assert lane.run(lb.plan(["login"]))
+    assert f"ok   both of Fedora Glass's helpers ran for {lb.USER} within {lb.HELPERS_WITHIN} s of the login (both ran)" in capsys.readouterr().out
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(helpers_after=lb.HELPERS_WITHIN + 60))
+    assert not lane.run(lb.plan(["login"]))
+
+
+def test_helpers_that_ran_at_an_earlier_login_of_this_boot_do_not_count_for_this_one(monkeypatch, tmp_path, capsys):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(user_helpers="none", helpers_ran_before=True))
+    assert not lane.run(lb.plan(["login"]))
+    assert "liquid-glass-watch.service and fedora-glass-before-login.service did not" in capsys.readouterr().out
+    # Without the guest's clock there is no "since the step began": all of this boot is read.
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(user_helpers="none", helpers_ran_before=True, clock=False))
+    assert lane.run(lb.plan(["login"]))
+    # The login screen's own session began before the step: its whole boot is read, always.
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(greeter_helpers="ran"))
+    assert not lane.run(["baseline"])
+    assert "ran as gdm-greeter" in capsys.readouterr().out
+
+
+def test_the_helpers_of_the_person_are_not_looked_at_when_the_login_did_not_work(monkeypatch, tmp_path, capsys):
+    guest = _FakeGuest(user_helpers="none")
+    guest.type_text = lambda text: None                    # the password never arrives: no session
+    lane = _lane(monkeypatch, tmp_path, guest)
+    assert not lane.run(LOGIN)
+    assert lane.notes["login"].startswith("the real login did not start a wayland session for tester")
+    assert "helpers" not in lane.notes["login"] and "both of Fedora Glass's helpers" not in capsys.readouterr().out
