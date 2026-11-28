@@ -2250,7 +2250,7 @@ msgid "A short line under the clock, such as how to return your laptop if it's l
 msgstr "Una breve riga sotto l'orologio, ad esempio come restituire il portatile se lo perdi. Chiunque veda il tuo schermo può leggerla."
 
 #: fedoraglass/gui/qml/FedoraGlass/LockPage.qml:18
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:29
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:30
 msgid "Turn on Location Services in Settings, or pick a place in GNOME Weather."
 msgstr "Attiva i servizi di posizione in Impostazioni oppure scegli un luogo in Meteo di GNOME."
 
@@ -3867,7 +3867,7 @@ msgid "Measure how smoothly each level draws here (about 20 seconds)"
 msgstr "Misura quanto fluidamente si disegna ogni livello qui (circa 20 secondi)"
 
 #: fedoraglass/gui/qml/FedoraGlass/SpeedCard.qml:135
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:40
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:41
 msgid "Apply, then restart your PC once to start the glass."
 msgstr "Premi Applica, poi riavvia il computer una volta per avviare il vetro."
 
@@ -4070,191 +4070,191 @@ msgstr "Pieno"
 msgid "Press Esc to close"
 msgstr "Premi Esc per chiudere"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:120
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:123
 msgid "Open GNOME Weather"
 msgstr "Apri Meteo di GNOME"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:140
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:143
 msgid "Try in the preview"
 msgstr "Prova nell’anteprima"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:152
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:155
 msgid "Now"
 msgstr "Ora"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:152
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:155
 msgid "The glass as the weather has it now"
 msgstr "Il vetro come lo rende il meteo adesso"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:153
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:156
 msgid "A light mist, below %1"
 msgstr "Un leggero appannamento, sotto %1"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:153
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:312
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:156
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:315
 msgid "Cool"
 msgstr "Fresco"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:154
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:311
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:157
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:314
 msgid "Cold"
 msgstr "Freddo"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:154
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:157
 msgid "Frosted glass, below %1"
 msgstr "Vetro brinato, sotto %1"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:155
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:310
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:158
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:313
 msgid "Freezing"
 msgstr "Gelo"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:155
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:158
 msgid "The glass freezes over, below %1"
 msgstr "Il vetro ghiaccia del tutto, sotto %1"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:157
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:160
 msgid "Try a step in the preview"
 msgstr "Prova un livello nell’anteprima"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:165
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:168
 msgid "Temperatures and frost"
 msgstr "Temperature e brina"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:179
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:182
 #: fedoraglass/gui/changes.py:159
 msgid "Cool below"
 msgstr "Fresco sotto"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:185
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:188
 msgid "Below this the glass starts to mist over. Outdoors, 18 to 23 °C is shirt-sleeve weather, so 18 °C is where most people start to feel cool."
 msgstr "Sotto questa soglia il vetro inizia ad appannarsi. All’aperto, da 18 a 23 °C si sta in maniche corte, quindi sotto i 18 °C la maggior parte delle persone sente fresco."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:190
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:193
 #: fedoraglass/gui/changes.py:160
 msgid "Cold below"
 msgstr "Freddo sotto"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:196
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:199
 msgid "Below this the glass is frosted, whiter at its edges. Below 10 °C outdoors most people want a heavy coat."
 msgstr "Sotto questa soglia il vetro è brinato, più bianco ai bordi. Sotto i 10 °C all’aperto quasi tutti vogliono un cappotto pesante."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:201
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:204
 #: fedoraglass/gui/changes.py:161
 msgid "Freezing below"
 msgstr "Gelo sotto"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:207
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:210
 msgid "Below this the glass freezes over, like a window on a winter morning: ice that glows from within, frost at its edges and cold vapour drifting off it while you use it. You see less through it and it gives less under a press. Text stays easy to read."
 msgstr "Sotto questo valore il vetro ghiaccia del tutto, come una finestra in una mattina d’inverno: ghiaccio che splende da dentro, brina ai bordi e un vapore freddo che se ne alza mentre lo usi. Ci si vede meno attraverso e cede meno sotto una pressione. Il testo resta facile da leggere."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:212
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:215
 #: fedoraglass/gui/changes.py:162
 msgid "How much frost"
 msgstr "Quanta brina"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:217
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:220
 msgid "How far the frost goes at its coldest. Left is a hint of frost; right is fully frosted glass."
 msgstr "Fin dove arriva la brina quando fa più freddo. A sinistra un velo di brina, a destra vetro completamente brinato."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:225
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:242
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:228
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:245
 msgid "Go by"
 msgstr "In base a"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:239
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:242
 #: fedoraglass/gui/changes.py:158
 msgid "Feels like"
 msgstr "Percepita"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:239
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:242
 msgid "How cold it feels, with the wind and humidity, as GNOME Weather shows it"
 msgstr "Il freddo percepito, con vento e umidità, come lo mostra Meteo di GNOME"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:240
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:243
 #: fedoraglass/gui/changes.py:158
 msgid "Air temperature"
 msgstr "Temperatura dell’aria"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:240
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:243
 msgid "The temperature of the air alone"
 msgstr "Solo la temperatura dell’aria"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:260
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:263
 msgid "Freezing below %1, cold below %2, cool below %3, just right above"
 msgstr "Gelo sotto %1, freddo sotto %2, fresco sotto %3, perfetto sopra"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:27
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:28
 msgid "Needs the GNOME Weather app. Install it from Software and pick your place, and the glass follows its weather."
 msgstr "Serve l’app Meteo di GNOME. Installala da Software e scegli il tuo luogo: il vetro seguirà il suo meteo."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:31
-msgid "Pick your place in GNOME Weather, and the glass follows its weather."
-msgstr "Scegli il tuo luogo in Meteo di GNOME e il vetro seguirà il suo meteo."
-
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:313
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:316
 msgid "Just right"
 msgstr "Perfetto"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:33
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:32
+msgid "Pick your place in GNOME Weather, and the glass follows its weather."
+msgstr "Scegli il tuo luogo in Meteo di GNOME e il vetro seguirà il suo meteo."
+
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:34
 msgid "GNOME's weather isn't available on this desktop yet."
 msgstr "Il meteo di GNOME non è ancora disponibile su questo desktop."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:35
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:36
 msgid "Waiting for GNOME's weather…"
 msgstr "In attesa del meteo di GNOME…"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:42
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:43
 msgid "Apply, and the glass starts following the weather."
 msgstr "Applica e il vetro inizierà a seguire il meteo."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:47
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:48
 msgid "It feels like %1 outside"
 msgstr "Fuori si percepiscono %1"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:48
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:49
 msgid "It is %1 outside"
 msgstr "Fuori ci sono %1"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:50
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:51
 msgid "%1: freezing, so the glass ices over."
 msgstr "%1: gelo, quindi il vetro ghiaccia."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:51
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:52
 msgid "%1: cold, so the glass is frosted."
 msgstr "%1: freddo, quindi il vetro è brinato."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:52
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:53
 msgid "%1: cool, so the glass mists over a little."
 msgstr "%1: fresco, quindi il vetro si appanna un po’."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:53
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:54
 msgid "%1: just right, so the glass looks as you set it."
 msgstr "%1: perfetto, quindi il vetro è come l’hai impostato."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:61
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:62
 #: fedoraglass/gui/qml/FedoraGlass/searchindex.js:27
 #: fedoraglass/gui/changes.py:156
 msgid "Weather frost"
 msgstr "Brina meteo"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:62
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:63
 msgid "The glass frosts over as it gets cold where you are. When it feels just right outside, it looks exactly as you set it."
 msgstr "Il vetro si brina quando fa freddo dove sei. Quando fuori si sta bene, è esattamente come l’hai impostato."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:67
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:68
 msgid "Frost with the weather"
 msgstr "Brina con il meteo"
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:68
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:71
 msgid "Uses the place in GNOME Weather. Once applied, the weather changes your glass by itself, like day and night looks."
 msgstr "Usa il luogo di Meteo di GNOME. Una volta applicato, il meteo cambia il vetro da solo, come gli stili giorno e notte."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:69
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:72
 msgid "Only GNOME's own weather is used, the one in its calendar menu: nothing new is told about where you are. Off, the glass never changes with the weather."
 msgstr "Si usa solo il meteo di GNOME, quello del suo menu del calendario: non viene comunicato nulla di nuovo su dove ti trovi. Disattivato, il vetro non cambia mai con il meteo."
 
-#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:79
+#: fedoraglass/gui/qml/FedoraGlass/WeatherFrostCard.qml:82
 msgid "These take effect once frost with the weather is on."
 msgstr "Queste impostazioni hanno effetto solo quando «Brina con il meteo» è attivo."
 

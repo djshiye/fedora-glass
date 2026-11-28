@@ -89,6 +89,33 @@ def test_the_glass_page_says_why_nothing_changes_while_reduce_transparency_is_on
         win.close()
 
 
+def test_the_weather_frost_card_says_it_is_off_while_reduce_transparency_is_on(qml):
+    """Reduce transparency draws no glass, so nothing frosts. The card went on saying that the glass
+    follows the weather."""
+    b = _probe_backend(qml)
+    win = _window(qml)
+    try:
+        _page(win, "glass")
+        b.setProperty("weatherFrost", True)
+        _spin(100)
+        row, status = _find(win, "weatherFrostSwitch"), _find(win, "weatherStatus")
+        usual = row.property("caption")
+        assert "GNOME Weather" in usual
+        assert status.property("visible") and _find(win, "weatherStatusText").property("text")
+        b.setProperty("reduceTransparency", True)
+        _spin(100)
+        assert row.property("caption") == "Off while Reduce transparency is on"
+        assert not status.property("visible"), _find(win, "weatherStatusText").property("text")
+        assert status.height() == 0
+        b.setProperty("reduceTransparency", False)
+        _spin(100)
+        assert row.property("caption") == usual
+        assert status.property("visible")
+    finally:
+        b.discardChanges()
+        win.close()
+
+
 def test_motion_page_says_liquid_motion_is_off_while_reduce_transparency_is_on(qml):
     b = _probe_backend(qml)
     win = _window(qml)

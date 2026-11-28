@@ -19,7 +19,8 @@ Card {
     function t(c) { return Backend.showTemp(c) }
     // What the desktop's glass does now, in a sentence.
     readonly property string status: {
-        if (!on)
+        // Reduce transparency draws no glass at all, so nothing frosts: the switch's caption says so.
+        if (!on || Backend.reduceTransparency)
             return ""
         if (now.status === "ok")
             return reading()
@@ -65,7 +66,9 @@ Card {
         SwitchRow {
             objectName: "weatherFrostSwitch"
             label: qsTr("Frost with the weather")
-            caption: qsTr("Uses the place in GNOME Weather. Once applied, the weather changes your glass by itself, like day and night looks.")
+            caption: Backend.reduceTransparency
+                     ? qsTr("Off while Reduce transparency is on")
+                     : qsTr("Uses the place in GNOME Weather. Once applied, the weather changes your glass by itself, like day and night looks.")
             tip: qsTr("Only GNOME's own weather is used, the one in its calendar menu: nothing new is told about where you are. Off, the glass never changes with the weather.")
             checked: card.on
             onToggled: (v) => Backend.weatherFrost = v
