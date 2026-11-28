@@ -242,3 +242,28 @@ def test_disabled_sliders_ignore_the_keys(qml):
     win.close()
     win.deleteLater()
     _spin()
+
+
+# --- the Glass tile picture on the Glass page is a second target for the switch beside it ---
+
+def test_quick_settings_tile_picture_toggles_the_switch_beside_it(qml):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    b = _backend(qml)
+    b.discardChanges()
+    win = _window(qml)
+    _goto(win, "glass", 600)
+    sc = _find(win, "glassScroller")
+    sc.setProperty("contentY", sc.property("contentHeight") - sc.property("height"))
+    _spin(300)
+    tile = _find(win, "quickTogglePreview")
+    assert tile is not None and tile.isVisible()
+    before = b.property("quickToggle")
+    p = tile.mapToScene(tile.boundingRect().center()).toPoint()
+    QTest.mouseClick(win, Qt.LeftButton, Qt.NoModifier, p)
+    _spin(300)
+    assert b.property("quickToggle") == (not before)
+    QTest.mouseClick(win, Qt.LeftButton, Qt.NoModifier, p)
+    _spin(300)
+    assert b.property("quickToggle") == before
+    _close(win)

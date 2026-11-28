@@ -218,7 +218,7 @@ SettingsPage {
             }
             Rectangle { width: parent.width; height: 1; color: Theme.divider }
             // The Glass tile in GNOME's Quick Settings, drawn as GNOME draws it (an accent pill
-            // when on), next to the switch that puts it there.
+            // when on), next to the switch that puts it there. Clicking it works the switch too.
             Item {
                 width: parent.width
                 height: Math.max(tile.height, qsRow.implicitHeight)
@@ -232,6 +232,9 @@ SettingsPage {
                     opacity: Backend.quickToggle ? 1 : 0.35
                     Behavior on opacity { NumberAnimation { duration: Theme.fast } }
                     Accessible.ignored: true
+                    // It looks like a button, so it acts as one for the switch beside it.
+                    TapHandler { onTapped: Backend.quickToggle = !Backend.quickToggle }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                     Row {
                         x: 16
                         anchors.verticalCenter: parent.verticalCenter
