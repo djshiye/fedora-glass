@@ -185,6 +185,63 @@ def test_a_long_name_stays_inside_its_row_and_clear_of_the_check_mark(qml, win):
     assert closed[0].mapToItem(dd, 0, 0).x() + closed[0].width() <= dd.width()
 
 
+def _open_list(win, dd, model, value):
+    from PySide6.QtCore import Qt
+    dd.setProperty("model", model)
+    dd.setProperty("value", value)
+    _spin(100)
+    _key(win, Qt.Key_Return)
+    _spin(300)
+    return _rows(dd)
+
+
+def _close_list(win):
+    from PySide6.QtCore import Qt
+    _key(win, Qt.Key_Escape)
+    _spin(300)
+
+
+def test_the_list_grows_to_show_a_long_name_whole_and_stops_at_its_widest(qml, win):
+    """A saved look's name may be 40 characters. The list was 210 px wide whatever stood in it, so such
+    a name was cut after about 25 of them although the window had all the room."""
+    from fedoraglass.looks import NAME_MAX
+    name = "Evening at the desk with the warm lamp on"[:NAME_MAX]
+    assert len(name) == NAME_MAX
+    dd = _dropdown(win, [])
+    dd.setProperty("glyphs", False)
+    widest = dd.property("listMax")
+    model = [{"value": "a", "label": "Short"}, {"value": "b", "label": name, "tip": ""}]
+    for picked in ("a", "b"):               # the picked row is drawn heavier and makes room for its check mark
+        rows = _rows_wide = _open_list(win, dd, model, picked)
+        label = _label_of(rows[1])
+        assert label.property("truncated") is False, f"the name is cut (picked: {picked})"
+        assert label.x() + label.width() <= rows[1].width()
+        assert 210 < rows[1].width() + 12 <= widest
+        # the whole list is inside the window
+        left = rows[1].mapToScene(rows[1].boundingRect().topLeft()).x()
+        assert 0 <= left and left + rows[1].width() <= win.width()
+        _close_list(win)
+    assert _rows_wide
+
+
+def test_a_list_of_short_names_keeps_its_width_and_a_name_too_long_is_cut_at_the_widest(qml, win):
+    dd = _dropdown(win, [])
+    dd.setProperty("glyphs", False)
+    rows = _open_list(win, dd, [{"value": "a", "label": "Short"}, {"value": "b", "label": "Tiny"}], "a")
+    assert rows[0].width() + 12 == max(dd.width(), 210)
+    _close_list(win)
+    rows = _open_list(win, dd, [{"value": "a", "label": "Short"}, {"value": "b", "label": "W" * 60}], "b")
+    assert rows[1].width() + 12 == dd.property("listMax")
+    assert _label_of(rows[1]).property("truncated") is True
+    _close_list(win)
+    # with a curve drawn before each name (the motion lists) the name still shows whole
+    dd.setProperty("glyphs", True)
+    rows = _open_list(win, dd, [{"value": "a", "label": "Short"},
+                                {"value": "b", "label": "A longer name of a way to move"}], "b")
+    assert _label_of(rows[1]).property("truncated") is False
+    _close_list(win)
+
+
 def _texts(item):
     out, todo = [], list(item.childItems())
     while todo:

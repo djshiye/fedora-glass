@@ -20,6 +20,19 @@ FocusScope {
     readonly property bool opened: popup.visible
     property bool _byMouse: false
 
+    // The list is as wide as its longest name asks for: never narrower than the button or 210 px, and
+    // never wider than listMax, where a longer name is cut. Measured in the picked row's heavier
+    // weight, so a name fits whether it is the picked one or not.
+    property real listMax: 400
+    FontMetrics { id: rowFont; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+    readonly property real _listWants: {
+        let widest = 0
+        for (let i = 0; i < model.length; i++)
+            widest = Math.max(widest, rowFont.advanceWidth(String(model[i].label)))
+        // the name's left edge, the name, room for the check mark, the list's own padding
+        return (glyphs ? 48 : 12) + Math.ceil(widest) + 38 + 2 * popup.padding
+    }
+
     implicitWidth: 170
     implicitHeight: 36
     activeFocusOnTab: true
@@ -115,7 +128,7 @@ FocusScope {
         x: root.width - width
         padding: 6
         margins: 10
-        width: Math.max(root.width, 210)
+        width: Math.max(root.width, 210, Math.min(root._listWants, root.listMax))
         height: list.implicitHeight + 12
         // Open under the button, or above it when there is no room below.
         y: {
