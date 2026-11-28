@@ -530,3 +530,95 @@ test('a taskbar that was destroyed is never touched, and the glide switched off 
     g.destroy();
     assert.equal(off.box.handlerCount(), 0);
 });
+
+// ---- while the glass is paused or in safe mode (paused.js) ------------------------------
+// The glide goes down with the animations when the glass stops, but Dash to Panel's own
+// hover colour stays clear (the app set it so): up to 1.7.10 a taskbar icon under the pointer
+// showed nothing at all while the glass was paused. The paused look carries a glide of its own.
+fake.fs = new Map();
+fake.themeContext = {get_theme: () => ({get_custom_stylesheets: () => [], load_stylesheet() {}, unload_stylesheet() {}}),
+    connect: () => 1, disconnect() {}};
+const {PausedStyle} = await import('../../fedoraglass/data/extension/liquid-glass@djshiye.github.io/paused.js');
+const PAUSED = {pausedCss: '', pausedAlpha: 0.96};
+
+function nothingLeft(panel, icons) {
+    assert.equal(tileOf(panel), undefined, 'no tile is left');
+    assert.ok(icons.every(i => i.handlerCount() === 0));
+    for (const o of [panel, dtp, fake.appSystem, fake.windowTracker, fake.extensionManager, stSettings])
+        assert.equal(o.handlerCount(), 0);
+    assert.equal(laters.size, 0);
+}
+
+test('paused: the gliding highlight carries on, follows its switch, and goes with the paused look', () => {
+    const {panel, icons} = scene();
+    const p = new PausedStyle({...PAUSED, glide: LOOK});
+    hover(icons[1], true);
+    frames(20);
+    const tile = tileOf(panel);
+    assert.equal(tile.opacity, 255, 'lit under the icon while the glass is paused');
+    assert.equal(tile.translation_x, 56);
+    assert.match(tile.style, /background-color: rgba\(255,255,255,0.08\); border-radius: 8px;/);
+    // A new look from the app while paused (another colour) reaches the same tile.
+    p.update({...PAUSED, glide: {...LOOK, color: 'rgba(0,0,0,0.06)'}});
+    assert.equal(tileOf(panel), tile);
+    assert.match(tile.style, /rgba\(0,0,0,0.06\)/);
+    // Switched off in the app while paused: gone; switched on again: back.
+    p.update({...PAUSED, glide: {...LOOK, enabled: false}});
+    assert.equal(tileOf(panel), undefined);
+    p.update({...PAUSED, glide: LOOK});
+    assert.ok(tileOf(panel));
+    hover(icons[1], false);
+    fake.timeouts.fireAll();
+    p.destroy();
+    nothingLeft(panel, icons);
+});
+
+test('paused: locking takes the highlight down at once, not with the sheet a moment later', () => {
+    const {panel, icons} = scene();
+    const p = new PausedStyle({...PAUSED, glide: LOOK});
+    assert.ok(tileOf(panel));
+    p.destroyLater(() => {});
+    nothingLeft(panel, icons);
+    p.destroy();     // the sheet's own end: nothing to do twice
+    nothingLeft(panel, icons);
+});
+
+test('paused: no highlight when the glide is switched off, or the config says nothing of it', () => {
+    const {panel, icons} = scene();
+    for (const cfg of [{...PAUSED, glide: {...LOOK, enabled: false}}, PAUSED, undefined]) {
+        const p = new PausedStyle(cfg);
+        assert.equal(tileOf(panel), undefined);
+        p.destroy();
+        nothingLeft(panel, icons);
+    }
+});
+
+test('paused: a highlight that cannot start leaves the rest of the paused look standing', () => {
+    const {panel, icons} = scene();
+    const lifted = {alpha: 0.29, _updateAlpha() { this.alpha = 0.29; }, _updateAlphaAndSet() { this._updateAlpha(); }};
+    panel.dynamicTransparency = lifted;
+    // GNOME's settings object refuses the glide's listener: the glide cannot be made.
+    const connect = stSettings.connect;
+    stSettings.connect = () => { throw new Error('no settings today'); };
+    const errors = [];
+    const error = console.error;
+    console.error = m => errors.push(String(m));
+    let p;
+    try {
+        p = new PausedStyle({...PAUSED, glide: LOOK});
+    } finally {
+        console.error = error;
+        stSettings.connect = connect;
+    }
+    assert.equal(lifted.alpha, 0.96, 'Dash to Panel\'s panel is solid all the same');
+    assert.equal(tileOf(panel), undefined);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /Fedora Glass: no gliding highlight while paused: Error: no settings today/);
+    // The next word from the app tries again, and now it can.
+    p.update({...PAUSED, glide: LOOK});
+    assert.ok(tileOf(panel));
+    p.destroy();
+    assert.equal(lifted.alpha, 0.29);
+    delete panel.dynamicTransparency;
+    nothingLeft(panel, icons);
+});
