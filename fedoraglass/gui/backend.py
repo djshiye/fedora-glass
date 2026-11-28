@@ -343,6 +343,7 @@ class Backend(QObject):
     restartNeededChanged = Signal()
     partialChanged = Signal()
     installedAppsChanged = Signal()     # the app picker's list (apps without glass)
+    changeListChanged = Signal()        # the unapplied changes in words: the settings changed, or the apps' names arrived
     noGlassAppsChanged = Signal()       # the rows of apps without glass
     # Feature stream "looks": saved looks, the look before the last Apply, wallpaper colours.
     looksChanged = Signal()
@@ -363,6 +364,10 @@ class Backend(QObject):
                     self.looksChanged, self.partialChanged, self.tokensChanged, self.previewChanged,
                     self.uiChanged, self.systemAccentChanged, self.installedAppsChanged):
             sig.connect(self._forget)
+        # The rows of See changes name apps, so they are worked out again when the settings change and
+        # when the installed apps arrive (connected after _forget, which drops the rows kept so far).
+        self.settingsChanged.connect(self.changeListChanged)
+        self.installedAppsChanged.connect(self.changeListChanged)
         self._env = env or Env()
         self._engine_factory = engine_factory or self._default_engine
         self._engine: Any = None
@@ -3941,15 +3946,23 @@ class Backend(QObject):
     def _change_rows(self) -> list[dict]:
         names = {t["id"]: t["name"] for t in self._targets}
         index = self._app_of()
+        named: list[str] = []
 
         def app_of(i: str) -> tuple[str, str]:
+            named.append(i)
             a = index.get(i.casefold())     # an id no installed app has stands as itself
             return (a["id"], a["name"]) if a else (i.casefold(), i)
-        return changes_mod.change_rows(self._s, self._saved, has_dash_to_panel=self.hasDashToPanel,
+        rows = changes_mod.change_rows(self._s, self._saved, has_dash_to_panel=self.hasDashToPanel,
                                        target_names=names, system_accent=self._system_accent or "blue",
                                        app_of=app_of)
+        # The installed apps are only read once the Panel and windows page shows. A change to the
+        # apps' glass made another way (a saved look, a look file) would name them by their ids
+        # until then: read them now, and the rows are worked out again when they arrive.
+        if named and self._apps_state == "idle":
+            QTimer.singleShot(0, self, self.refreshInstalledApps)     # dropped if this object goes first
+        return rows
 
-    @Property("QVariantList", notify=settingsChanged)
+    @Property("QVariantList", notify=changeListChanged)
     def changeList(self) -> list[dict]:
         """Every unapplied change: {"page", "name", "label", "before", "after", "key"}, in
         page order. "name" is the control to go to on that page ("" for none)."""

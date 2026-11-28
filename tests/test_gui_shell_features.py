@@ -337,6 +337,30 @@ def test_search_finds_the_new_controls(qml):
         win.close()
 
 
+def test_see_changes_names_an_app_before_the_panel_and_windows_page_ever_showed(make_backend, apps_dirs):
+    """The installed apps are only read once the Panel and windows page shows (or the app picker
+    opens). A change to an app's glass that came another way, a saved look for one, was listed in
+    See changes by its window id ("Code") until then, and stayed so while the sheet was open."""
+    b = make_backend()
+    assert not b.property("installedAppsReady")
+    told = []
+    b.changeListChanged.connect(lambda: told.append(1))
+    b._set_app_lists([], {"Code": "solid"})
+
+    def row():
+        return next(r for r in _js(b.property("changeList")) if r["key"] == "app_glass")
+    assert row()["after"] == "More solid: Code"       # no names yet: the id stands as itself
+    told.clear()
+    assert _wait(lambda: b.property("installedAppsReady")), "nothing asked for the installed apps"
+    assert told, "the sheet was not told that its rows changed"
+    assert row()["after"] == "More solid: Visual Studio Code"
+    # Settings that name no app ask for nothing.
+    c = make_backend()
+    c.setProperty("frost", 0.9 if c.property("frost") != 0.9 else 0.5)
+    assert _js(c.property("changeList"))
+    assert not _wait(lambda: c.property("installedAppsReady"), 300)
+
+
 def test_installed_apps_show_the_name_in_the_apps_language(apps_dirs, home):
     from fedoraglass import i18n
     from fedoraglass.gui import backend as bmod
