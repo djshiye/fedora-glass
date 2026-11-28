@@ -139,3 +139,106 @@ def test_segmented_switch_clicked_with_the_mouse_shows_no_focus_ring(qml):
     _spin(400)
     assert ring.property("opacity") == 1
     _close(win)
+
+
+# --- sliders answer Up, Down, Page Up, Page Down, Home and End as well as Left and Right ----
+
+_SLIDERS = b"""
+import QtQuick
+import QtQuick.Window
+import FedoraGlass
+Window {
+    width: 600; height: 300; visible: true
+    property real held: 0.5
+    property int hits: 0
+    property real frostHeld: 0.5
+    property int frostHits: 0
+    property bool on: true
+    LgSlider { id: sl; objectName: "sl"; y: 10; width: 300; from: 0; to: 1; stepSize: 0.01; value: held; enabled: on
+               onMoved: hits++ }
+    FrostSlider { id: fs; objectName: "fs"; y: 100; width: 500; value: frostHeld; enabled: on
+                  onMoved: (v) => { frostHits++; frostHeld = v } }
+}"""
+
+_KEYS = [("Up", 0.51, 1), ("Down", 0.49, 1), ("PageUp", 0.6, 1), ("PageDown", 0.4, 1), ("Home", 0.0, 1), ("End", 1.0, 1),
+         ("Right", 0.51, 1), ("Left", 0.49, 1)]
+
+
+def _slider_window(qml):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtQml import QQmlComponent
+    comp = QQmlComponent(qml)
+    comp.setData(_SLIDERS, QUrl.fromLocalFile(os.path.abspath("fedoraglass/gui/qml/x.qml")))
+    win = comp.create()
+    assert win is not None, comp.errorString()
+    _keep_alive.append(comp)
+    win.requestActivate()
+    _spin(200)
+    return win
+
+
+_keep_alive: list = []
+
+
+@pytest.mark.parametrize("name,want,hits", _KEYS)
+def test_slider_keys_move_the_value_and_say_so_once(qml, name, want, hits):
+    from PySide6.QtCore import QObject, Qt
+    win = _slider_window(qml)
+    sl = win.findChild(QObject, "sl")
+    sl.forceActiveFocus()
+    _key(win, getattr(Qt, "Key_" + name))
+    assert round(sl.property("value"), 4) == want
+    assert win.property("hits") == hits
+    # still bound to the setting it shows
+    win.setProperty("held", 0.25)
+    _spin(40)
+    assert round(sl.property("value"), 4) == 0.25
+    win.close()
+    win.deleteLater()
+    _spin()
+
+
+@pytest.mark.parametrize("name,want,hits", _KEYS)
+def test_frost_slider_keys_move_the_value_and_say_so_once(qml, name, want, hits):
+    from PySide6.QtCore import QObject, Qt
+    win = _slider_window(qml)
+    fs = win.findChild(QObject, "fs")
+    fs.forceActiveFocus()
+    _key(win, getattr(Qt, "Key_" + name))
+    assert round(win.property("frostHeld"), 4) == want
+    assert win.property("frostHits") == hits
+    win.close()
+    win.deleteLater()
+    _spin()
+
+
+def test_slider_at_its_end_does_not_say_it_moved(qml):
+    from PySide6.QtCore import QObject, Qt
+    win = _slider_window(qml)
+    sl = win.findChild(QObject, "sl")
+    win.setProperty("held", 1.0)
+    sl.forceActiveFocus()
+    _spin(40)
+    _key(win, Qt.Key_End)
+    _key(win, Qt.Key_Up)
+    assert win.property("hits") == 0
+    win.close()
+    win.deleteLater()
+    _spin()
+
+
+def test_disabled_sliders_ignore_the_keys(qml):
+    from PySide6.QtCore import QObject, Qt
+    win = _slider_window(qml)
+    sl = win.findChild(QObject, "sl")
+    fs = win.findChild(QObject, "fs")
+    sl.forceActiveFocus()
+    win.setProperty("on", False)
+    _spin(60)
+    for k in (Qt.Key_Up, Qt.Key_End, Qt.Key_PageDown):
+        _key(win, k)
+    assert win.property("held") == 0.5 and win.property("hits") == 0
+    assert win.property("frostHeld") == 0.5 and win.property("frostHits") == 0
+    win.close()
+    win.deleteLater()
+    _spin()

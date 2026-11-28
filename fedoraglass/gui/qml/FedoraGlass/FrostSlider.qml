@@ -52,6 +52,26 @@ FocusScope {
         hoverEnabled: true
         focusPolicy: Qt.StrongFocus
         onMoved: root.moved(value)
+
+        // Qt's slider moves only on Left and Right. Up and Down step too, Page Up and Page Down move ten
+        // steps, Home and End go to the ends. Stepped with increase() and decrease(), so the value keeps
+        // its binding to the setting.
+        Keys.onPressed: (e) => {
+            const steps = { [Qt.Key_Up]: 1, [Qt.Key_Down]: -1, [Qt.Key_PageUp]: 10, [Qt.Key_PageDown]: -10,
+                            [Qt.Key_Home]: -100000, [Qt.Key_End]: 100000 }[e.key]
+            if (steps === undefined)
+                return
+            e.accepted = true
+            const was = value
+            for (let i = 0; i < Math.abs(steps); i++) {
+                const before = value
+                steps > 0 ? increase() : decrease()
+                if (value === before)
+                    break
+            }
+            if (value !== was)
+                moved()
+        }
         Accessible.name: qsTr("Glass: liquid to frosted")
 
         readonly property real restW: 46
