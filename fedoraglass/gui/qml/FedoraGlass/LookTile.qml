@@ -29,7 +29,7 @@ C.AbstractButton {
         // A row or grid of looks: the arrows, Home and End walk it in order.
         else if (Roving.handleKey(tile, e)) e.accepted = true
         // The list of saved looks: the next or the previous look, brought into view.
-        else if ((e.key === Qt.Key_Left || e.key === Qt.Key_Right) && tile.ListView.view && tile.ListView.view === tile.rovingGroup) {
+        else if ((e.key === Qt.Key_Left || e.key === Qt.Key_Right) && !(e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)) && tile.ListView.view && tile.ListView.view === tile.rovingGroup) {
             const view = tile.ListView.view
             let at = -1
             for (let k = 0; k < view.count && at < 0; k++)

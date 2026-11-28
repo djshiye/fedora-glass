@@ -309,6 +309,22 @@ def test_frost_slider_keys_move_the_value_and_say_so_once(qml, name, want, hits)
     _spin()
 
 
+@pytest.mark.parametrize("name", ["End", "Home", "PageUp", "Up"])
+def test_sliders_leave_modified_keys_alone(qml, name):
+    from PySide6.QtCore import QObject, Qt
+    win = _slider_window(qml)
+    for obj, held in (("sl", "held"), ("fs", "frostHeld")):
+        sl = win.findChild(QObject, obj)
+        sl.forceActiveFocus()
+        before = win.property(held)
+        _key(win, getattr(Qt, "Key_" + name), Qt.ControlModifier)
+        assert win.property(held) == before
+    assert win.property("hits") == 0 and win.property("frostHits") == 0
+    win.close()
+    win.deleteLater()
+    _spin()
+
+
 def test_slider_at_its_end_does_not_say_it_moved(qml):
     from PySide6.QtCore import QObject, Qt
     win = _slider_window(qml)
@@ -507,6 +523,31 @@ def test_arrow_keys_move_along_the_saved_looks(qml):
             assert win.activeFocusItem().objectName() == "savedLook_" + ids[i], i
         _key(win, Qt.Key_Left)
         assert win.activeFocusItem().objectName() == "savedLook_" + ids[10]
+    finally:
+        if win is not None:
+            _close(win)
+        for i in ids:
+            b.deleteLook(i)
+        b.discardChanges()
+
+
+def test_ctrl_arrows_leave_the_saved_looks_alone(qml):
+    from PySide6.QtCore import Qt
+    b = _backend(qml)
+    b.discardChanges()
+    ids = [b.saveLook(f"Mine {c}") for c in "abc"]
+    win = None
+    try:
+        win = _window(qml)
+        _goto(win, "home", 600)
+        row = _find(win, "savedLooksRow")
+        first = next(k for k in _walk(row) if k.objectName() == "savedLook_" + ids[0])
+        first.forceActiveFocus(Qt.TabFocusReason)
+        _spin(60)
+        _key(win, Qt.Key_Right, Qt.ControlModifier)
+        assert win.activeFocusItem().objectName() == "savedLook_" + ids[0]
+        _key(win, Qt.Key_Right)
+        assert win.activeFocusItem().objectName() == "savedLook_" + ids[1]
     finally:
         if win is not None:
             _close(win)

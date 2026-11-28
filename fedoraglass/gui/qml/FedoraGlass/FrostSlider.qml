@@ -59,7 +59,8 @@ FocusScope {
         Keys.onPressed: (e) => {
             const steps = { [Qt.Key_Up]: 1, [Qt.Key_Down]: -1, [Qt.Key_PageUp]: 10, [Qt.Key_PageDown]: -10,
                             [Qt.Key_Home]: -100000, [Qt.Key_End]: 100000 }[e.key]
-            if (steps === undefined)
+            // Ctrl, Alt, Meta or Shift with a key keeps its other meanings.
+            if (steps === undefined || (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)))
                 return
             e.accepted = true
             const was = value
