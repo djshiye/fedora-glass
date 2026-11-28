@@ -224,19 +224,61 @@ def test_qbittorrent_plan_edits_conf(fake_env):
     assert "General\\UseCustomUITheme=true" in out and f"General\\CustomUIThemePath={theme_json}" in out
 
 
-def test_prism_plan(fake_env):
+def test_prism_plan(fake_env, monkeypatch):
+    monkeypatch.setattr(type(fake_env), "which", lambda self, n: None)       # only the Flatpak is there
     d = fake_env.home / ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"
     d.mkdir(parents=True)
     (d / "prismlauncher.cfg").write_text("[General]\nApplicationTheme=dark\nLanguage=en_US\n")
-    files = by_name(ta.Prism().plan(ctx_for(fake_env)))
+    acts = ta.Prism().plan(ctx_for(fake_env))
+    files = by_name(acts)
     assert files["theme.json"].path == d / "themes/liquid-glass/theme.json"
     assert files["prismlauncher.cfg"].content == "[General]\nApplicationTheme=liquid-glass\nLanguage=en_US\n"
+    assert all(a.path.is_relative_to(d) for a in acts) and len(acts) == 3
 
 
-def test_prism_without_cfg_only_writes_theme(fake_env):
+def test_prism_without_cfg_only_writes_theme(fake_env, monkeypatch):
+    monkeypatch.setattr(type(fake_env), "which", lambda self, n: None)
     d = fake_env.home / ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"
     d.mkdir(parents=True)
-    assert "prismlauncher.cfg" not in by_name(ta.Prism().plan(ctx_for(fake_env)))
+    acts = ta.Prism().plan(ctx_for(fake_env))
+    assert sorted(a.path.name for a in acts) == ["theme.json", "themeStyle.css"]
+    assert all(a.path.is_relative_to(d) for a in acts)
+
+
+def test_native_prism_is_themed_when_a_removed_flatpak_left_its_folder(fake_env, monkeypatch):
+    """`flatpak uninstall` keeps ~/.var/app/<id>. That folder counted as the only Prism, so the
+    theme went into it, the rpm Prism in use got nothing, and the part still said applied."""
+    monkeypatch.setattr(type(fake_env), "which", lambda self, n: None)
+    monkeypatch.setattr(type(fake_env), "flatpak_installed", lambda self, i: False)
+    native = fake_env.data / "PrismLauncher"
+    native.mkdir(parents=True)
+    (native / "prismlauncher.cfg").write_text("[General]\nApplicationTheme=dark\n")
+    left = fake_env.home / ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"
+    left.mkdir(parents=True)
+    acts = ta.Prism().plan(ctx_for(fake_env))
+    mine = by_name([a for a in acts if a.path.is_relative_to(native)])
+    assert mine["theme.json"].path == native / "themes/liquid-glass/theme.json"
+    assert "themeStyle.css" in mine
+    assert mine["prismlauncher.cfg"].content == "[General]\nApplicationTheme=liquid-glass\n"
+
+
+def test_prism_native_only_and_both_installs(fake_env, monkeypatch):
+    monkeypatch.setattr(type(fake_env), "flatpak_installed", lambda self, i: False)
+    native = fake_env.data / "PrismLauncher"
+    fp = fake_env.home / ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"
+    # Only the command: the theme goes to the native folder, nothing under ~/.var/app.
+    acts = ta.Prism().plan(ctx_for(fake_env))
+    assert acts and all(a.path.is_relative_to(native) for a in acts)
+    # Both installed: each gets its own theme and its own settings edit.
+    monkeypatch.setattr(type(fake_env), "flatpak_installed", lambda self, i: i == "org.prismlauncher.PrismLauncher")
+    for d in (native, fp):
+        d.mkdir(parents=True)
+        (d / "prismlauncher.cfg").write_text("[General]\nApplicationTheme=dark\n")
+    acts = ta.Prism().plan(ctx_for(fake_env))
+    for d in (native, fp):
+        own = [a.path.name for a in acts if a.path.is_relative_to(d)]
+        assert sorted(own) == ["prismlauncher.cfg", "theme.json", "themeStyle.css"], d
+    assert len(acts) == 6
 
 
 # ---- browsers and notes-only -------------------------------------------------------------------------------

@@ -394,11 +394,14 @@ class Prism(AppTarget):
     notes: list[str] = field(default_factory=lambda: [
         N_("Close Prism Launcher before applying so it doesn't overwrite its settings.")])
 
-    def data_dir(self, env: Env) -> Path:
-        fp = env.home / ".var/app" / PRISM_FLATPAK / "data/PrismLauncher"
-        if fp.is_dir() or env.flatpak_installed(PRISM_FLATPAK):
-            return fp
-        return env.data / "PrismLauncher"
+    def installs(self, env: Env) -> list[Path]:
+        """Each install to theme, by its data folder (themes/ and prismlauncher.cfg are in it):
+        the native one and the Flatpak's, both when both are there. The folder a removed Flatpak
+        left behind used to count as the only install, so the Prism in use got no theme."""
+        fp = flatpak_home(env, PRISM_FLATPAK) / "data/PrismLauncher"
+        native = bool(env.which("prismlauncher")) or (env.data / "PrismLauncher").exists()
+        use_native, use_fp = which_installs(env, native, PRISM_FLATPAK, fp)
+        return [d for use, d in ((use_native, env.data / "PrismLauncher"), (use_fp, fp)) if use]
 
     def detect(self, env: Env) -> Detection:
         if installed(env, cmds=("prismlauncher",), flatpak=PRISM_FLATPAK, dirs=(env.data / "PrismLauncher",)):
@@ -406,17 +409,18 @@ class Prism(AppTarget):
         return Detection(False, _("{name} is not installed").format(name="Prism Launcher"))
 
     def plan(self, ctx: Context) -> list[Action]:
-        d = self.data_dir(ctx.env)
-        theme = d / "themes" / ra.PRISM_THEME_ID
-        acts: list[Action] = [
-            WriteFile(theme / "theme.json", ra.prism_theme_json(ctx.tokens)),
-            WriteFile(theme / "themeStyle.css", ra.qt_qss(ctx.tokens)),
-        ]
-        cfg = d / "prismlauncher.cfg"
-        text = ra.read_text(cfg, ctx.env.home) if cfg.exists() else None
-        if text is not None:
-            acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID}),
-                                  edits=("ini", "General", ("ApplicationTheme",))))
+        acts: list[Action] = []
+        for d in self.installs(ctx.env):
+            theme = d / "themes" / ra.PRISM_THEME_ID
+            acts += [
+                WriteFile(theme / "theme.json", ra.prism_theme_json(ctx.tokens)),
+                WriteFile(theme / "themeStyle.css", ra.qt_qss(ctx.tokens)),
+            ]
+            cfg = d / "prismlauncher.cfg"
+            text = ra.read_text(cfg, ctx.env.home) if cfg.exists() else None
+            if text is not None:
+                acts.append(WriteFile(cfg, ra.ini_set(text, "General", {"ApplicationTheme": ra.PRISM_THEME_ID}),
+                                      edits=("ini", "General", ("ApplicationTheme",))))
         return acts
 
 
