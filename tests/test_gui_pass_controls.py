@@ -356,3 +356,63 @@ def test_home_look_names_are_not_cut_in_the_smallest_window(qml, lang):
         for tr in list(getattr(app, "_fg_translators", [])):
             app.removeTranslator(tr)
         i18n.reset("")
+def test_arrow_keys_move_between_the_home_looks_in_order(qml):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QGuiApplication
+
+    from fedoraglass import i18n
+    app = QGuiApplication.instance()
+    i18n.reset("de")
+    i18n.install_qt(app)
+    win = None
+    try:
+        b = _backend(qml)
+        b.discardChanges()
+        win = _window(qml)
+        win.resize(1036, 636)
+        _spin(600)
+        _goto(win, "home", 600)
+        row, tiles = _tiles(win)
+        assert row.property("columns") == 3      # the long German names need the two rows
+        tiles[0].forceActiveFocus(Qt.TabFocusReason)
+        _spin(60)
+        assert win.activeFocusItem() == tiles[0]
+        for i in range(1, 5):
+            _key(win, Qt.Key_Right)
+            assert win.activeFocusItem() == tiles[i], i
+        for i in range(3, -1, -1):
+            _key(win, Qt.Key_Left)
+            assert win.activeFocusItem() == tiles[i], i
+    finally:
+        if win is not None:
+            _close(win)
+        for tr in list(getattr(app, "_fg_translators", [])):
+            app.removeTranslator(tr)
+        i18n.reset("")
+
+
+def test_arrow_keys_move_along_the_saved_looks(qml):
+    from PySide6.QtCore import Qt
+    b = _backend(qml)
+    b.discardChanges()
+    ids = [b.saveLook(f"Mine {c}") for c in "abcdefghijkl"]
+    win = None
+    try:
+        win = _window(qml)
+        _goto(win, "home", 600)
+        row = _find(win, "savedLooksRow")
+        first = next(k for k in _walk(row) if k.objectName() == "savedLook_" + ids[0])
+        first.forceActiveFocus(Qt.TabFocusReason)
+        _spin(60)
+        for i in range(1, 12):
+            _key(win, Qt.Key_Right)
+            _spin(30)
+            assert win.activeFocusItem().objectName() == "savedLook_" + ids[i], i
+        _key(win, Qt.Key_Left)
+        assert win.activeFocusItem().objectName() == "savedLook_" + ids[10]
+    finally:
+        if win is not None:
+            _close(win)
+        for i in ids:
+            b.deleteLook(i)
+        b.discardChanges()
