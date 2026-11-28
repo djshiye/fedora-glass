@@ -58,6 +58,11 @@ CONFIRM_LOOK_UNTIL = 60
 # must be inactive this many seconds later.
 WATCHER_STOPS_WITHIN = 10
 
+# The login add-on looks once at where GNOME really put its password prompt and says so in the
+# journal (see prompt_places). The prompt may stand this many px from where the glass card
+# wants it: a GNOME or a login theme that places it otherwise shows up here, not on a user's PC.
+PROMPT_OFF_AT_MOST = 4
+
 # How different two screen pictures are (mean difference per colour channel, 0..255, of the
 # pictures shrunk to 160 px wide). The glass login screen over the bright test picture must be
 # far from GNOME's plain grey one; two plain ones differ only by the clock. TO CONFIRM ON
@@ -1106,15 +1111,18 @@ class Lane:
                 break
             time.sleep(2)
 
-    def login(self) -> dict:
-        """Logs in for real: Enter picks the user in GDM's list, then the password and Enter."""
+    def login(self, show: bool = False) -> dict:
+        """Logs in for real: Enter picks the user in GDM's list, then the password and Enter.
+        show: the password prompt's picture goes into the log too, small."""
         for attempt in (1, 2):
             log(f"  logging in through the login screen (try {attempt})")
             wait = 2 if attempt == 1 else 5
             self.vm.wake_screen()
             self.vm.qmp.send_keys(["ret"])
             time.sleep(wait + 1)
-            self.vm.picture(f"login-prompt-{attempt}")
+            pic = self.vm.picture(f"login-prompt-{attempt}")
+            if show:
+                self.show(pic, f"login-prompt-{attempt}")
             self.vm.type_text(PASSWORD)
             time.sleep(0.5)
             self.vm.qmp.send_keys(["ret"])
@@ -1233,8 +1241,42 @@ class Lane:
         self.no_addon_errors()
 
     def step_login(self):
-        self.login()
-        self.wait_trial_confirmed()
+        self.login(show=True)
+        # Both are judged whatever the other says: a late trial must not hide where the prompt stood.
+        problems = []
+        for part in (self.wait_trial_confirmed, self.prompt_place):
+            try:
+                part()
+            except StepFailed as e:
+                problems.append(str(e))
+        if problems:
+            raise StepFailed("; ".join(problems))
+
+    def prompt_place(self) -> None:
+        """Where GNOME's password prompt stood under the glass card at this login, in the
+        add-on's own words from the greeter's journal (it looks once, when the field shows).
+        More than PROMPT_OFF_AT_MOST px from where the card wants it fails the step. Nothing
+        said is only noted: an add-on that never got to look says nothing."""
+        if self.step_epoch is None:
+            log("  (no guest clock: the journal is not read for the prompt's place)")
+            return
+        r = self.vm.sh(f'sudo journalctl -b _COMM=gnome-shell --since "@{self.step_epoch}" --no-pager -o cat',
+                       check=False, quiet=True, timeout=120)
+        places = prompt_places(r.out)
+        if not places:
+            log("  the add-on said nothing in the journal about where the password prompt stands")
+            self.notes["login"] = "prompt place: not said"
+            return
+        for p in places:
+            log(f"  the password prompt: {p['top']} px down the screen, wanted {p['wanted']} ({p['off']:+d} px), "
+                f"{p['tall']} px tall, its middle {p['middle']:+g} px from the screen's middle; margin {p['margin']}, "
+                f"set again {p['again']}×, GNOME's way {p['way']}, screen {p['screen']} px, scale {p['scale']:g}, "
+                f"text {p['text']:g}" + ("" if p["follows"] else "; GNOME took no notice of the margin"))
+        last = places[-1]
+        self.notes["login"] = (f"prompt {last['off']:+d} px from its place, set again {last['again']}×"
+                               + ("" if last["follows"] else ", margin not followed"))
+        check(abs(last["off"]) <= PROMPT_OFF_AT_MOST,
+              f"the password prompt stands where the glass card wants it ({last['off']:+d} px, at most {PROMPT_OFF_AT_MOST})")
 
     def wait_trial_confirmed(self) -> None:
         """After a real login: the trial must end (state on) within CONFIRM_WITHIN s, and the
@@ -1601,6 +1643,31 @@ def gdm_retries(journal: str) -> tuple[list[str], list[str]]:
     lines = [l for l in journal.splitlines() if "never registered" in l]
     users = re.findall(r"session opened for user (gdm-greeter[\w.-]*?)\(", journal)
     return lines, users
+
+
+# The add-on's line on the prompt's place, as _notePlace in login.js writes it (keep the two alike).
+_PROMPT_PLACE = re.compile(
+    r"Fedora Glass login: the prompt stands (?P<top>-?\d+) px down the screen, wanted (?P<wanted>-?\d+)"
+    r"(?P<stuck>, and does not follow the margin)? \((?P<tall>\d+) px tall, margin (?P<margin>\d+), "
+    r"set again: (?P<again>\d+), way: (?P<way>\w+), screen: (?P<screen>\d+) px, "
+    r"scale: (?P<scale>\d+(?:\.\d+)?), text: (?P<text>\d+(?:\.\d+)?)\)")
+
+
+def prompt_places(journal: str) -> list[dict]:
+    """From GNOME Shell's journal: what the login add-on said about where GNOME's password
+    prompt came to stand, oldest first (one line each time the login screen was built and a
+    prompt was looked at). top and wanted: where what the prompt shows begins and where the
+    glass card wants it, px down the screen; off: top less wanted; middle: how far the middle
+    of what it shows is under the screen's middle (px, negative above it); follows: False when
+    GNOME took no notice of the margin the add-on asked for."""
+    found = []
+    for m in _PROMPT_PLACE.finditer(journal):
+        d = {k: int(m[k]) for k in ("top", "wanted", "tall", "margin", "again", "screen")}
+        d.update(way=m["way"], scale=float(m["scale"]), text=float(m["text"]), follows=m["stuck"] is None)
+        d["off"] = d["top"] - d["wanted"]
+        d["middle"] = round(d["top"] + d["tall"] * d["scale"] / 2 - d["screen"] / 2, 1)
+        found.append(d)
+    return found
 
 
 def retry_summary(retries: dict) -> str:

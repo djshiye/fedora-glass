@@ -967,10 +967,12 @@ export class LoginGlass {
         const off = top - want.top;
         if (!this._placeBest || Math.abs(off) < Math.abs(this._placeBest.off))
             this._placeBest = {margin: this._place.margin, top, off};
+        const tall = Math.round((end - begin) / scale);
         if (Math.abs(off) < PLACE_SLACK) {
             this._placeChecked = true;
             if (this._placeTries)
                 this._place = {...this._place, top};
+            this._notePlace(top, want.top, tall, true);
             return;
         }
         // Every px of margin lowers it by one (a fixed top, or a fixed height GNOME cut to the
@@ -986,11 +988,27 @@ export class LoginGlass {
             this._place = {...this._place, margin: best.margin, top: best.top};
             if (again)
                 this._restyle();
+            this._notePlace(best.top, best.top - best.off, tall, false);
             return;
         }
         this._placeTries++;
         this._place = {margin, content: want.content, top: Math.round(top + (margin - this._place.margin) * gain)};
         this._restyle();
+    }
+
+    /**
+     * One line for the journal once the prompt's place was looked at: where what it shows
+     * begins (px down the screen), where it was wanted, how tall it is, and how GNOME places
+     * it here. It tells a GNOME or a login theme nobody tried this on from one that was, and
+     * the real-boot check reads it (prompt_places in qa/vm/login_boot.py: keep the two alike).
+     */
+    _notePlace(top, wanted, tall, follows) {
+        const way = this._fixedTop ? 'fixedTop' : this._boxHeight ? 'offset' : 'centred';
+        const screen = Main.layoutManager.primaryMonitor?.height ?? 0;
+        console.log(`Fedora Glass login: the prompt stands ${top} px down the screen, wanted ${wanted}` +
+            `${follows ? '' : ', and does not follow the margin'} (${tall} px tall, margin ${this._place.margin}, ` +
+            `set again: ${this._placeTries}, way: ${way}, screen: ${screen} px, ` +
+            `scale: ${this._context.scale_factor}, text: ${this._textScale})`);
     }
 
     /**

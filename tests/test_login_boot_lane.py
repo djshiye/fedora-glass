@@ -896,6 +896,78 @@ def test_parse_show_blocks_by_unit_id():
                                           "a.service": {"Id": "a.service", "ActiveState": "inactive"}}
 
 
+# ---- where the password prompt stands under the glass card, in the add-on's own words --------------
+
+# The line as the add-on writes it on GNOME 51.1 at 1080 px (tests/js/login-prompt-place.test.mjs
+# asserts this very line, so the add-on and this lane cannot drift apart unseen).
+PLACE_LINE = ("Fedora Glass login: the prompt stands 415 px down the screen, wanted 415 "
+              "(249 px tall, margin 201, set again: 0, way: offset, screen: 1080 px, scale: 1, text: 1)")
+
+
+def _place_line(top=306, wanted=306, stuck=False, again=0):
+    return (f"Fedora Glass login: the prompt stands {top} px down the screen, wanted {wanted}"
+            f"{', and does not follow the margin' if stuck else ''} (262 px tall, margin 256, set again: {again}, "
+            "way: offset, screen: 800 px, scale: 1, text: 1.25)")
+
+
+def test_the_prompts_place_is_read_from_the_line_the_addon_writes():
+    js_test = (ROOT / "tests" / "js" / "login-prompt-place.test.mjs").read_text()
+    said = "".join(re.findall(r"'([^']*)'", js_test[js_test.index("Fedora Glass login: the prompt stands 415") - 1:][:400])[:2])
+    assert said == PLACE_LINE                              # the JS test pins the same line
+    assert "the prompt stands ${top} px down the screen, wanted ${wanted}" in (
+        ROOT / "fedoraglass" / "data" / "login-extension" / lb.UUID / "login.js").read_text()
+    journal = "\n".join(["GNOME Shell started at Sat Nov 28 2026", PLACE_LINE, "something else",
+                         _place_line(320, 306, stuck=True, again=4)])
+    first, last = lb.prompt_places(journal)
+    assert first == {"top": 415, "wanted": 415, "tall": 249, "margin": 201, "again": 0, "screen": 1080, "way": "offset",
+                     "scale": 1.0, "text": 1.0, "follows": True, "off": 0, "middle": -0.5}
+    assert (last["off"], last["follows"], last["again"], last["text"], last["middle"]) == (14, False, 4, 1.25, 51.0)
+    assert lb.prompt_places("") == [] and lb.prompt_places("Fedora Glass login: the prompt stands somewhere") == []
+
+
+def test_login_step_says_where_the_prompt_stood_and_shows_its_picture(monkeypatch, tmp_path, capsys):
+    guest = _FakeGuest(shell_journal=[_place_line(306, 305, again=1)])
+    lane = _lane(monkeypatch, tmp_path, guest)
+    assert lane.run(["baseline", "on", "glass", "login"])
+    out = capsys.readouterr().out
+    assert "----- BEGIN PNG login-prompt-1 (64x40) -----" in out
+    assert ("the password prompt: 306 px down the screen, wanted 305 (+1 px), 262 px tall, its middle +37 px from the "
+            "screen's middle; margin 256, set again 1×, GNOME's way offset, screen 800 px, scale 1, text 1.25") in out
+    assert "ok   the password prompt stands where the glass card wants it (+1 px, at most 4)" in out
+    assert lane.notes["login"] == "prompt +1 px from its place, set again 1×"
+    assert "| 4. login | PASS | prompt +1 px from its place, set again 1× |" in lb.summary("fedora-45", lb.plan(), lane.results, lane.notes)
+
+
+def test_login_step_fails_when_the_prompt_stands_far_from_where_the_card_wants_it(monkeypatch, tmp_path, capsys):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(shell_journal=[PLACE_LINE, _place_line(320, 306, stuck=True, again=4)]))
+    assert not lane.run(["baseline", "on", "glass", "login"])
+    assert lane.results["login"] == "FAIL"
+    assert lane.notes["login"] == "the password prompt stands where the glass card wants it (+14 px, at most 4)"
+    out = capsys.readouterr().out
+    assert "GNOME took no notice of the margin" in out and out.count("the password prompt: ") == 2    # both builds are shown
+
+
+def test_a_prompt_that_does_not_follow_but_stands_close_passes_and_says_so(monkeypatch, tmp_path):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest(shell_journal=[_place_line(303, 306, stuck=True, again=4)]))
+    assert lane.run(["baseline", "on", "glass", "login"])
+    assert lane.notes["login"] == "prompt -3 px from its place, set again 4×, margin not followed"
+
+
+def test_a_late_trial_and_a_prompt_out_of_place_are_both_reported(monkeypatch, tmp_path, capsys):
+    guest = _FakeGuest(confirm_after=35, shell_journal=[_place_line(320, 306, stuck=True, again=4)])
+    lane = _lane(monkeypatch, tmp_path, guest)
+    assert not lane.run(["baseline", "on", "glass", "login"])
+    assert "within 20 s" in lane.notes["login"] and "(+14 px, at most 4)" in lane.notes["login"]
+    assert "the password prompt: 320 px down the screen" in capsys.readouterr().out      # read although the trial was late
+
+
+def test_an_addon_that_says_nothing_about_the_prompt_is_noted_and_fails_nothing(monkeypatch, tmp_path, capsys):
+    lane = _lane(monkeypatch, tmp_path, _FakeGuest())
+    assert lane.run(["baseline", "on", "glass", "login"])
+    assert lane.notes["login"] == "prompt place: not said"
+    assert "the add-on said nothing in the journal about where the password prompt stands" in capsys.readouterr().out
+
+
 def test_step_on_says_which_dconf_route_was_taken(monkeypatch, tmp_path, capsys):
     guest = _FakeGuest()
     lane = _lane(monkeypatch, tmp_path, guest)
@@ -1060,7 +1132,7 @@ def test_a_clean_shell_journal_passes_and_is_read_in_the_judged_steps_only(monke
     lane = _lane(monkeypatch, tmp_path, guest)
     assert lane.run(lb.plan())
     reads = [c for c in guest.cmds if c.startswith('sudo journalctl -b _COMM=gnome-shell --since "@')]
-    assert len(reads) == 4                                  # glass, restart (two boots), addon-update
+    assert len(reads) == 5                                  # glass, login (the prompt's place), restart (two boots), addon-update
 
 
 def test_gdm_retries_are_reported_in_the_note_and_the_closing_line_but_fail_nothing(monkeypatch, tmp_path, capsys):

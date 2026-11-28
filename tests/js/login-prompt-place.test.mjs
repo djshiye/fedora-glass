@@ -25,6 +25,18 @@ globalThis.Date = class extends RealDate {
 const logged = [];
 console.error = (...a) => logged.push(a.join(' '));
 console.warn = (...a) => logged.push(a.join(' '));
+// What the add-on says once it has looked at the prompt's place (one line for each build).
+const said = [];
+console.log = (...a) => said.push(a.join(' '));
+const SAID = /^Fedora Glass login: the prompt stands (-?\d+) px down the screen, wanted (-?\d+)(, and does not follow the margin)? \((\d+) px tall, margin (\d+), set again: (\d+), way: (\w+), screen: (\d+) px, scale: ([\d.]+), text: ([\d.]+)\)$/;
+/** The one line said about the prompt's place, as numbers. */
+const place = () => {
+    assert.equal(said.length, 1, `one line about the prompt's place: ${JSON.stringify(said)}`);
+    const m = SAID.exec(said[0]);
+    assert.ok(m, said[0]);
+    return {top: +m[1], wanted: +m[2], follows: !m[3], tall: +m[4], margin: +m[5], again: +m[6], way: m[7],
+        screen: +m[8], scale: +m[9], text: +m[10]};
+};
 
 const settle = async () => {
     await import(LOGIN_JS);
@@ -38,6 +50,7 @@ const margin = fake => /prompt-layout {[^}]*margin-top: (\d+)px;/.exec(fake.fs.g
 async function started({screen = 1080, textScale = 1, ...opts} = {}) {
     const fake = makeGreeter({layout: true, ...opts});
     logged.length = 0;
+    said.length = 0;
     fake.layoutManager.monitors = [{x: 0, y: 0, width: 2048, height: screen}];
     fake.gsettings['org.gnome.desktop.interface']['text-scaling-factor'] = textScale;
     // GNOME keeps its user list in the middle of the screen.
@@ -102,8 +115,20 @@ test('GNOME 51.1: the card stands in the middle of the screen, and the clock sta
         assert.equal(g.back(), listClock, `${what}: and stays going back`);
         assert.equal(g.loads(), 1, `${what}: GNOME's own theme: nothing to set again`);
         assert.deepEqual(logged, []);
+        // Said once, for the journal: where it stands, and that nothing had to be set again.
+        const p = place();
+        assert.deepEqual([p.top - p.wanted, p.follows, p.again, p.way, p.screen, p.scale, p.text],
+            [0, true, 0, 'offset', screen, 1, textScale], `${what}: ${said[0]}`);
+        assert.equal(String(p.margin), margin(g.fake), `${what}: the margin said is the one in the stylesheet`);
+        assert.ok(Math.abs(p.top + p.tall / 2 - screen / 2) <= 1, `${what}: what it shows is in the middle (${said[0]})`);
         g.ext.disable();
     }
+    // The line itself, as the real-boot check reads it (tests/test_login_boot_lane.py has the same one).
+    const g = await started({gnome: '51.1'});
+    g.pick();
+    assert.equal(said[0], 'Fedora Glass login: the prompt stands 415 px down the screen, wanted 415 ' +
+        '(249 px tall, margin 201, set again: 0, way: offset, screen: 1080 px, scale: 1, text: 1)');
+    g.ext.disable();
 });
 
 test('a theme of someone else\'s: what is seen sets the place, the card is in the middle and the clock stays from then on', async () => {
@@ -119,6 +144,12 @@ test('a theme of someone else\'s: what is seen sets the place, the card is in th
             assert.equal(g.pick().clock, seen.clock, `${what}: and picking a user again`);
             assert.equal(g.loads(), loads, `${what}: looked at once`);
             assert.deepEqual(logged, []);
+            // Said once, after it was set again: where it stands now is where it is wanted.
+            const p = place();
+            assert.deepEqual([p.follows, p.again, p.way], [true, 1, {'51.1': 'offset', '51.0': 'fixedTop', '50': 'centred'}[gnome]],
+                `${what}: ${said[0]}`);
+            assert.ok(Math.abs(p.top - p.wanted) <= 1, `${what}: ${said[0]}`);
+            assert.equal(String(p.margin), margin(g.fake), `${what}: the margin said is the one in the stylesheet`);
             g.ext.disable();
         }
     }
@@ -151,6 +182,7 @@ test('the field comes a moment after the prompt, when GDM asks its question: loo
             const first = margin(g.fake), listClock = g.top.y;
             g.pick({ask: false});
             assert.equal(g.loads(), 1, `${what}: nothing set while the back button stands alone`);
+            assert.deepEqual(said, [], `${what}: and nothing said yet`);
             const seen = g.ask();
             assert.equal(margin(g.fake), first, `${what}: the same margin with the field there`);
             assert.equal(g.loads(), 1, `${what}: the stylesheet loaded once`);
@@ -159,6 +191,7 @@ test('the field comes a moment after the prompt, when GDM asks its question: loo
             assert.ok(Math.abs(seen.clock - listClock) <= 1, `${what}: the clock stays`);
             assert.ok(Math.abs(g.back() - listClock) <= 1, `${what}: and stays going back`);
             assert.deepEqual(logged, []);
+            assert.equal(place().again, 0, `${what}: ${said[0]}`);
             g.ext.disable();
         }
     }
@@ -197,6 +230,11 @@ test('a layout that takes no notice of the margin: a few tries, the first place 
     g.pick();
     assert.equal(g.loads(), loads, 'no more tries, however often GNOME lays it out');
     assert.deepEqual(logged, []);
+    // Said once, and plainly: it stands elsewhere than wanted and takes no notice of the margin.
+    const p = place();
+    assert.equal(p.follows, false, said[0]);
+    assert.ok(Math.abs(p.top - p.wanted) >= 2, said[0]);
+    assert.equal(String(p.margin), first, said[0]);
     g.ext.disable();
 });
 
