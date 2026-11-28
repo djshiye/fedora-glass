@@ -171,6 +171,25 @@ def test_a_new_picture_with_the_same_colour_is_noted_but_not_applied(wall):
     assert _saved().wallpaper_match.startswith(str(again)), "but the app no longer says the wallpaper changed"
 
 
+def test_a_picture_that_is_only_noted_keeps_the_time_the_look_was_applied(wall):
+    """That save applies nothing, and the app took the file's time for "applied today"."""
+    import time
+    env, eng, w, red, blue = wall
+    path = settings_mod.settings_path()
+    applied = float(int(time.time() - 3 * 86400))
+    os.utime(path, (applied, applied))                      # the look was applied three days ago
+    again = _pic(env.home, "red2.png")
+    w.read_pixels = _reader({"red2.png": RED, "blue.png": BLUE})
+    _show(env, again, again)
+    w.changed({cli.WALLPAPER})
+    assert eng.applied == [] and path.stat().st_mtime > applied + 86400     # saved today, nothing applied
+    assert settings_mod.applied_at() == applied
+    _show(env, blue, blue)
+    w.changed({cli.WALLPAPER})                              # other colours: applied now
+    assert len(eng.applied) == 1
+    assert settings_mod.applied_at() == path.stat().st_mtime > applied + 86400
+
+
 def test_with_the_look_off_nothing_is_taken_or_applied(wall):
     env, eng, w, _, blue = wall
     eng.on = False      # Restore original

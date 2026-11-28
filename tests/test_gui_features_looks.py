@@ -340,6 +340,119 @@ def test_an_apply_that_stops_keeps_the_way_back_as_it_was(qml, fake_env, tmp_pat
     assert _on_disk(tmp_path)["frost"] == 0.6
 
 
+def _aged(tmp_path, days=3) -> float:
+    """settings.json as if its look had been applied `days` ago."""
+    t = float(int(time.time() - days * 86400))
+    os.utime(_cfg(tmp_path), (t, t))
+    return t
+
+
+def _when(b) -> str:
+    return b.property("previousWhen")
+
+
+def test_a_switch_saved_without_apply_keeps_the_day_the_look_was_applied(qml, fake_env, tmp_path):
+    """About said the look to go back to "was applied today" when the only thing done today
+    was the "Remove only" switch: that saves settings.json, whose time was taken for it."""
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.3)
+    _apply(b)                                   # look A
+    applied_a = _aged(tmp_path)                 # ... three days ago
+    b = _backend(fake_env, tmp_path)            # the app opened today
+    assert b._saved_at == applied_a
+    b.setProperty("undoOnRemove", False)        # saved at once, no Apply
+    assert _on_disk(tmp_path)["undo_on_remove"] is False and _cfg(tmp_path).stat().st_mtime > applied_a + 86400
+    assert b._saved_at == applied_a
+    b = _backend(fake_env, tmp_path)            # opened again
+    assert b._saved_at == applied_a
+    b.setProperty("frost", 0.6)
+    _apply(b)                                   # look B
+    prev = settings_mod.load_previous(_cfg(tmp_path))
+    assert prev.settings.frost == 0.3 and prev.applied_at == applied_a
+    assert _when(b).startswith("on ") and not _when(b).startswith("today")
+    # Look B was applied just now, and the next start reads that from the file again.
+    assert not settings_mod.applied_path(_cfg(tmp_path)).exists()
+    assert abs(_backend(fake_env, tmp_path)._saved_at - time.time()) < 60
+
+
+def test_a_day_or_night_look_picked_keeps_the_day_the_look_was_applied(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.3)
+    _apply(b)
+    look_id = b.saveLook("Evening")
+    applied_a = _aged(tmp_path)
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("lookForDark", look_id)       # saved at once
+    assert _on_disk(tmp_path)["look_for_dark"] == look_id
+    assert _backend(fake_env, tmp_path)._saved_at == applied_a
+
+
+def test_an_apply_that_is_refused_keeps_the_day_the_look_was_applied(qml, fake_env, tmp_path, monkeypatch):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.3)
+    _apply(b)
+    applied_a = _aged(tmp_path)
+    b = _backend(fake_env, tmp_path)
+    from fedoraglass import engine as engine_mod
+    monkeypatch.setattr(engine_mod, "disk_version", lambda: "9.9.9")    # updated while the app was open
+    failed: list = []
+    b.failed.connect(failed.append)
+    b.setProperty("frost", 0.6)
+    _apply(b)                                   # refused: nothing on the desktop changed
+    assert failed and _on_disk(tmp_path)["frost"] == 0.3 and b.property("dirty")
+    assert b._saved_at == applied_a and settings_mod.applied_at(_cfg(tmp_path)) == applied_a
+    monkeypatch.undo()
+    b = _backend(fake_env, tmp_path)            # the updated app
+    assert b._saved_at == applied_a
+    b.setProperty("frost", 0.6)
+    _apply(b)
+    assert settings_mod.load_previous(_cfg(tmp_path)).applied_at == applied_a
+
+
+def test_an_apply_that_stops_keeps_the_day_the_look_was_applied(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.3)
+    _apply(b)
+    applied_a = _aged(tmp_path)
+    b = _backend(fake_env, tmp_path)
+    b._test_engine.crash = True
+    b.setProperty("frost", 0.9)
+    _apply(b)                                   # stops: settings.json goes back to look A
+    assert _on_disk(tmp_path)["frost"] == 0.3
+    assert _backend(fake_env, tmp_path)._saved_at == applied_a
+
+
+def test_a_switch_on_a_first_start_does_not_make_the_defaults_a_look_to_go_back_to(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    assert b._saved_at == 0.0
+    b.setProperty("undoOnRemove", False)        # the first settings.json, and nothing applied
+    assert _cfg(tmp_path).exists()
+    b = _backend(fake_env, tmp_path)
+    assert b._saved_at == 0.0
+    b.setProperty("frost", 0.4)
+    _apply(b)
+    assert not b.property("hasPrevious")        # the defaults were never on the desktop
+    assert settings_mod.load_previous(_cfg(tmp_path)) is None
+
+
+def test_a_switch_while_apply_runs_leaves_the_time_to_that_apply(qml, fake_env, tmp_path):
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.3)
+    _apply(b)
+    _aged(tmp_path)
+    b = _backend(fake_env, tmp_path)
+    b.setProperty("frost", 0.6)
+    b.apply()
+    assert b._applying is not None
+    b.setProperty("undoOnRemove", False)        # saved at once, into the look being applied
+    assert not settings_mod.applied_path(_cfg(tmp_path)).exists()
+    for _i in range(6):
+        b.waitIdle()
+        _spin(20)
+    assert _on_disk(tmp_path)["frost"] == 0.6 and _on_disk(tmp_path)["undo_on_remove"] is False
+    assert abs(_backend(fake_env, tmp_path)._saved_at - time.time()) < 60
+
+
 def test_about_offers_the_way_back_only_when_there_is_one(qml):
     from tests.test_gui_reliability import _find, _probe, _window
     b = _probe(qml)

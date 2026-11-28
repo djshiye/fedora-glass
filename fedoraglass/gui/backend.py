@@ -681,10 +681,9 @@ class Backend(QObject):
         self._saved = new
         if self._good is old:
             self._good = new
-        try:
-            self._saved_at = self._settings_file().stat().st_mtime
-        except OSError:
-            pass
+        at = settings_mod.applied_at(self._path)
+        if at > 0:
+            self._saved_at = at
         if clean:
             self._replace_editor(replace(new, targets=dict(new.targets)))
         self.savedChanged.emit()
@@ -2455,11 +2454,13 @@ class Backend(QObject):
                 # Not a save: that would make .bak the look that just failed. While the
                 # file was damaged (_usable False) it goes back to exactly what it was, so the
                 # defaults never land in it.
+                # Either way the file is written now, and the look in it is not applied now:
+                # it keeps the time it was applied (see settings.applied_at).
                 try:
                     if self._usable:
-                        settings_mod.save(self._saved, self._path, backup=False)
+                        settings_mod.save(self._saved, self._path, backup=False, applied_at=self._saved_at)
                     elif before is not False:
-                        settings_mod.put_back(before, self._path)
+                        settings_mod.put_back(before, self._path, applied_at=self._saved_at)
                 except OSError:
                     pass
                 self._refresh_damage()
@@ -3359,9 +3360,12 @@ class Backend(QObject):
         # While Apply runs, settings.json holds the look it applies: keep that one, and keep
         # .bak the look applied before it (the Apply may still fail).
         on_disk = replace(self._applying, **values) if self._applying is not None else saved
+        # No Apply: the applied look keeps the time it was applied (see settings.applied_at).
+        # Not while an Apply runs: the file then holds the look that Apply gives its time.
+        at = self._saved_at if self._applying is None else None
         try:
             if self._usable or self._applying is not None:
-                settings_mod.save(on_disk, self._path, backup=self._applying is None)
+                settings_mod.save(on_disk, self._path, backup=self._applying is None, applied_at=at)
             if not self._usable and "undo_on_remove" in values:
                 # Damaged settings.json: only Apply writes it (see _usable). The choice is
                 # kept beside it, where removing the package reads it.
@@ -3662,11 +3666,9 @@ class Backend(QObject):
         self._looks: list[dict] | None = None       # read when first asked for, then kept
         self._look_values: dict[str, dict] = {}     # each look's values, normalized once
         self._cursors_here: dict[str, bool] = {}    # pointer style -> installed here
-        # When the look applied last was applied: settings.json's time, or 0 for none yet.
-        try:
-            self._saved_at = self._settings_file().stat().st_mtime
-        except OSError:
-            self._saved_at = 0.0
+        # When the look applied last was applied, or 0 for none yet. Not simply settings.json's
+        # time: the "Remove only" switch and a day or night look save that file with no Apply.
+        self._saved_at = settings_mod.applied_at(self._path)
         self._previous = settings_mod.load_previous(self._path)
         self._shut_down = False
         self._apply_step = ""          # "back" or "forward" while that Apply is on its way

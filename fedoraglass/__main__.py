@@ -625,7 +625,10 @@ class Watcher:
                     self.changed(got, _tries - 1)
                 return
             what = "saving the look for this style" if looked is not None else "saving the wallpaper's colours"
-            if _guarded(what, self._save, new) is None:
+            # With nothing to apply after it (the new picture gave the colours the look has,
+            # or none), this save only notes the picture: the look keeps the time it was applied.
+            kept = None if scheme or contrast or accent else settings_mod.applied_at()
+            if _guarded(what, self._save, new, kept) is None:
                 return      # not saved: applying a look settings.json doesn't hold would be lost
             s = new
         if scheme or contrast or accent:
@@ -675,9 +678,10 @@ class Watcher:
         return wallcolour.rematch(s, wallcolour.wallpaper_path(env, dark), dark, read)
 
     @staticmethod
-    def _save(s) -> bool:
-        """Into settings.json, as the app saves a look it applies; the app shows it from there."""
-        settings_mod.save(s)
+    def _save(s, applied_at: float | None = None) -> bool:
+        """Into settings.json, as the app saves a look it applies; the app shows it from there.
+        `applied_at`: no Apply follows, and the look keeps that time (see settings.applied_at)."""
+        settings_mod.save(s, applied_at=applied_at)
         return True
 
     def poll(self) -> int | None:
